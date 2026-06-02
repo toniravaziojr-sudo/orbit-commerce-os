@@ -443,9 +443,14 @@ export default function ShippingDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Remessas Tab */}
-        <TabsContent value="remessas" className="mt-6">
+        {/* Objetos de postagem (operação por unidade) */}
+        <TabsContent value="objetos" className="mt-6">
           <ShipmentGenerator />
+        </TabsContent>
+
+        {/* Remessas (agrupadores) */}
+        <TabsContent value="remessas" className="mt-6">
+          <RemessasManager />
         </TabsContent>
 
         {/* Rastreios Tab */}
