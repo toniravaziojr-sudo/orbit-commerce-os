@@ -189,11 +189,11 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
     // Apply search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(s => 
-        s.order.order_number.toLowerCase().includes(query) ||
+      filtered = filtered.filter(s =>
+        (s.order?.order_number || '').toLowerCase().includes(query) ||
         s.tracking_code.toLowerCase().includes(query) ||
-        s.order.customer_name.toLowerCase().includes(query) ||
-        s.order.customer_email.toLowerCase().includes(query)
+        (s.order?.customer_name || '').toLowerCase().includes(query) ||
+        (s.order?.customer_email || '').toLowerCase().includes(query)
       );
     }
 
