@@ -437,15 +437,34 @@ export function ShipmentGenerator() {
   };
 
 
-  const handlePrintLabel = (shipment: ShipmentRecord) => {
-    if (shipment.label_url) {
-      window.open(shipment.label_url, '_blank');
-    } else {
-      toast.error('Etiqueta não disponível');
+  // Imprimir/Reimprimir etiqueta — sempre disponível.
+  // Chama a edge que devolve signed URL (se existir no bucket) ou baixa nos Correios e armazena.
+  const handlePrintLabel = async (shipment: ShipmentRecord, forceRefresh = false) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('shipping-get-label', {
+        body: { shipment_id: shipment.id, force_refresh: forceRefresh },
+      });
+      if (error) {
+        toast.error('Falha ao obter etiqueta');
+        return;
+      }
+      if (data?.success && data.label_url) {
+        window.open(data.label_url, '_blank');
+        return;
+      }
+      if (data?.success && data.label_base64) {
+        const blob = base64ToBlob(data.label_base64, 'application/pdf');
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        return;
+      }
+      toast.error(data?.error || 'Etiqueta não disponível');
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao imprimir etiqueta');
     }
   };
 
-  // Print DANFE
+  // Print DANFE / Declaração de Conteúdo
   const handlePrintDanfe = async (shipment: ShipmentRecord) => {
     if (shipment.invoice?.danfe_url) {
       window.open(shipment.invoice.danfe_url, '_blank');
@@ -460,12 +479,31 @@ export function ShipmentGenerator() {
         .single();
       if (data?.danfe_url) {
         window.open(data.danfe_url, '_blank');
-      } else {
-        toast.error('DANFE não disponível');
+        return;
       }
-    } else {
-      toast.error('NF-e não vinculada à remessa');
     }
+    // Sem NF-e — tenta Declaração de Conteúdo vinculada ao PV/pedido
+    try {
+      const declRow = await fetchDeclarationFor(shipment);
+      if (declRow) {
+        const { issueAndDownloadCorreiosContentDeclaration } = await import('@/lib/declaracaoConteudo');
+        await issueAndDownloadCorreiosContentDeclaration(declRow);
+        return;
+      }
+    } catch (e: any) {
+      console.error('DC print error', e);
+    }
+    toast.error('Documento fiscal (NF-e/DC) não disponível para impressão');
+  };
+
+  // Busca a Declaração de Conteúdo existente para a remessa
+  const fetchDeclarationFor = async (shipment: ShipmentRecord) => {
+    let q = supabase.from('shipping_content_declarations').select('*').eq('status', 'issued');
+    if (shipment.source_pedido_venda_id) q = q.eq('fiscal_invoice_id', shipment.source_pedido_venda_id);
+    else if (shipment.order_id) q = q.eq('order_id', shipment.order_id);
+    else return null;
+    const { data } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return data;
   };
 
   // Dispatch action: open dialog with print options + confirm
