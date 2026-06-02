@@ -894,46 +894,71 @@ export function ShipmentGenerator() {
               ) : (
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {failedShipments!.map(shipment => (
-                      <div
-                        key={shipment.id}
-                        className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm">
-                                #{shipment.order?.order_number}
-                              </span>
-                              {getStatusBadge(shipment.delivery_status)}
-                            </div>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {shipment.order?.customer_name}
-                            </p>
-                            {(shipment.metadata as any)?.error_message && (
-                              <p className="text-xs text-destructive mt-1">
-                                {(shipment.metadata as any).error_message}
+                    {failedShipments!.map(shipment => {
+                      const orderNumber = (shipment.order as any)?.order_number;
+                      const customerName = (shipment.order as any)?.customer_name
+                        || shipment.pv?.dest_nome
+                        || 'Sem cliente vinculado';
+                      const headerLabel = orderNumber
+                        ? `#${orderNumber}`
+                        : shipment.pv?.numero
+                          ? `PV ${shipment.pv.numero}`
+                          : `Rascunho ${shipment.id.substring(0, 8)}`;
+                      return (
+                        <div
+                          key={shipment.id}
+                          className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">{headerLabel}</span>
+                                {getStatusBadge(shipment.delivery_status)}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {customerName}
                               </p>
-                            )}
+                              {(shipment.metadata as any)?.error_message && (
+                                <p className="text-xs text-destructive mt-1">
+                                  {(shipment.metadata as any).error_message}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline" size="sm" className="gap-1"
+                                onClick={() => handleRetryShipment(shipment.id)}
+                              >
+                                <Truck className="h-3 w-3" />
+                                Reenviar
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="h-8 w-8"
+                                onClick={() => openEditDraft(shipment.id)}
+                                title="Editar rascunho"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingShipmentId(shipment.id)}
+                                title="Excluir rascunho"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
-                          <Button 
-                            variant="outline" size="sm" className="gap-1"
-                            onClick={() => handleRetryShipment(shipment.order_id)}
-                          >
-                            <Truck className="h-3 w-3" />
-                            Reenviar
-                          </Button>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                            <Badge variant="outline" className="text-xs">
+                              {shipment.carrier}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateTimeBR(new Date(shipment.created_at))}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t">
-                          <Badge variant="outline" className="text-xs">
-                            {shipment.carrier}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDateTimeBR(new Date(shipment.created_at))}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               )}
