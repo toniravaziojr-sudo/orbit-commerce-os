@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2, RefreshCw } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2, RefreshCw, ScrollText, Files } from 'lucide-react';
 import { DraftShipmentDialog } from './DraftShipmentDialog';
 import {
   AlertDialog,
@@ -86,6 +86,11 @@ interface ShipmentRecord {
     danfe_url: string | null;
     chave_acesso: string | null;
     numero: number | null;
+  } | null;
+  declaration?: {
+    id: string;
+    pdf_url: string | null;
+    dc_number: string | null;
   } | null;
 }
 
@@ -247,6 +252,39 @@ export function ShipmentGenerator() {
         shipments.forEach(s => {
           if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
             s.pv = pvMap[s.source_pedido_venda_id];
+          }
+        });
+      }
+
+      // Carrega Declarações de Conteúdo já emitidas para cada remessa
+      // (vínculo canônico via PV; fallback para order_id)
+      const dcPvIds = Array.from(new Set(shipments.map(s => s.source_pedido_venda_id).filter(Boolean) as string[]));
+      const dcOrderIds = Array.from(new Set(shipments.map(s => s.order_id).filter(Boolean) as string[]));
+      const declsAll: any[] = [];
+      if (dcPvIds.length > 0) {
+        const { data: byPv } = await supabase
+          .from('shipping_content_declarations')
+          .select('id, pdf_url, dc_number, fiscal_invoice_id, order_id, status')
+          .eq('status', 'issued')
+          .in('fiscal_invoice_id', dcPvIds);
+        if (byPv) declsAll.push(...byPv);
+      }
+      if (dcOrderIds.length > 0) {
+        const { data: byOrder } = await supabase
+          .from('shipping_content_declarations')
+          .select('id, pdf_url, dc_number, fiscal_invoice_id, order_id, status')
+          .eq('status', 'issued')
+          .in('order_id', dcOrderIds);
+        if (byOrder) declsAll.push(...byOrder);
+      }
+      if (declsAll.length > 0) {
+        shipments.forEach(s => {
+          const match = declsAll.find((d: any) =>
+            (s.source_pedido_venda_id && d.fiscal_invoice_id === s.source_pedido_venda_id) ||
+            (s.order_id && d.order_id === s.order_id)
+          );
+          if (match) {
+            s.declaration = { id: match.id, pdf_url: match.pdf_url, dc_number: match.dc_number };
           }
         });
       }
@@ -466,13 +504,12 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Print DANFE / Declaração de Conteúdo
-  const handlePrintDanfe = async (shipment: ShipmentRecord) => {
+  // Imprime apenas DANFE (NF-e). Não cai em DC.
+  const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
     if (shipment.invoice?.danfe_url) {
       window.open(shipment.invoice.danfe_url, '_blank');
-      return;
+      return true;
     }
-    // Fallback: fetch from DB
     if (shipment.invoice_id) {
       const { data } = await supabase
         .from('fiscal_invoices')
@@ -481,21 +518,34 @@ export function ShipmentGenerator() {
         .single();
       if (data?.danfe_url) {
         window.open(data.danfe_url, '_blank');
-        return;
+        return true;
       }
     }
-    // Sem NF-e — tenta Declaração de Conteúdo vinculada ao PV/pedido
+    toast.error('DANFE da NF-e não disponível para impressão');
+    return false;
+  };
+
+  // Imprime apenas a Declaração de Conteúdo (DC). Não cai em NF-e.
+  const handlePrintDC = async (shipment: ShipmentRecord): Promise<boolean> => {
     try {
-      const declRow = await fetchDeclarationFor(shipment);
+      const declRow = shipment.declaration
+        ? await supabase
+            .from('shipping_content_declarations')
+            .select('*')
+            .eq('id', shipment.declaration.id)
+            .maybeSingle()
+            .then(r => r.data)
+        : await fetchDeclarationFor(shipment);
       if (declRow) {
         const { reprintExistingDeclaration } = await import('@/lib/declaracaoConteudo');
         reprintExistingDeclaration(declRow as any);
-        return;
+        return true;
       }
     } catch (e: any) {
       console.error('DC print error', e);
     }
-    toast.error('Documento fiscal (NF-e/DC) não disponível para impressão');
+    toast.error('Declaração de Conteúdo não disponível para impressão');
+    return false;
   };
 
   // Busca a Declaração de Conteúdo existente para a remessa
@@ -512,11 +562,11 @@ export function ShipmentGenerator() {
   // de forma atômica no backend, e a transição para "enviado" é responsabilidade
   // do polling dos Correios ao detectar o primeiro evento real de postagem.)
 
-  // Batch print
-  const handleBatchPrint = async (type: 'labels' | 'danfes' | 'both') => {
+  // Batch print — só imprime documentos que cada remessa REALMENTE possui.
+  const handleBatchPrint = async (type: 'labels' | 'nfes' | 'dcs' | 'all') => {
     if (!issuedShipments) return;
     const selected = issuedShipments.filter(s => selectedIssued.has(s.id));
-    
+
     if (selected.length === 0) {
       toast.error('Selecione ao menos uma remessa');
       return;
@@ -524,13 +574,17 @@ export function ShipmentGenerator() {
 
     let opened = 0;
     for (const s of selected) {
-      if (type === 'labels' || type === 'both') {
+      if (type === 'labels' || type === 'all') {
         await handlePrintLabel(s);
         opened++;
       }
-      if (type === 'danfes' || type === 'both') {
-        await handlePrintDanfe(s);
-        opened++;
+      if ((type === 'nfes' || type === 'all') && s.invoice_id) {
+        const ok = await handlePrintNFe(s);
+        if (ok) opened++;
+      }
+      if ((type === 'dcs' || type === 'all') && s.declaration?.id) {
+        const ok = await handlePrintDC(s);
+        if (ok) opened++;
       }
     }
 
@@ -772,22 +826,55 @@ export function ShipmentGenerator() {
                   Remessas emitidas
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {selectedIssued.size > 0 && (
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('labels')} className="gap-1">
-                        <Printer className="h-3 w-3" />
-                        Etiquetas ({selectedIssued.size})
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('danfes')} className="gap-1">
-                        <FileText className="h-3 w-3" />
-                        DANFEs ({selectedIssued.size})
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('both')} className="gap-1">
-                        <Printer className="h-3 w-3" />
-                        Tudo ({selectedIssued.size})
-                      </Button>
-                    </div>
-                  )}
+                  {selectedIssued.size > 0 && (() => {
+                    const selected = (issuedShipments || []).filter(s => selectedIssued.has(s.id));
+                    const labelCount = selected.length; // toda remessa emitida tem etiqueta
+                    const nfCount = selected.filter(s => !!s.invoice_id).length;
+                    const dcCount = selected.filter(s => !!s.declaration?.id).length;
+                    const totalDocs = labelCount + nfCount + dcCount;
+                    return (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('labels')}
+                          disabled={labelCount === 0}
+                          className="gap-1"
+                        >
+                          <Printer className="h-3 w-3" />
+                          Etiquetas ({labelCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('nfes')}
+                          disabled={nfCount === 0}
+                          className="gap-1"
+                          title={nfCount === 0 ? 'Nenhuma remessa selecionada possui NF-e' : 'Imprimir DANFEs disponíveis'}
+                        >
+                          <FileText className="h-3 w-3" />
+                          NFs ({nfCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('dcs')}
+                          disabled={dcCount === 0}
+                          className="gap-1"
+                          title={dcCount === 0 ? 'Nenhuma remessa selecionada possui Declaração de Conteúdo' : 'Imprimir Declarações de Conteúdo'}
+                        >
+                          <ScrollText className="h-3 w-3" />
+                          DCs ({dcCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('all')}
+                          disabled={totalDocs === 0}
+                          className="gap-1"
+                        >
+                          <Files className="h-3 w-3" />
+                          Tudo ({totalDocs})
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   <span className="text-sm text-muted-foreground">
                     {issuedCount} remessa(s)
                   </span>
@@ -861,24 +948,26 @@ export function ShipmentGenerator() {
                             <div className="flex gap-1 justify-end">
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Imprimir etiqueta"
-                                onClick={() => handlePrintLabel(shipment)}
+                                title="Imprimir etiqueta (busca etiqueta armazenada ou nos Correios)"
+                                onClick={() => handlePrintLabel(shipment, true)}
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Reimprimir etiqueta (busca fresca nos Correios)"
-                                onClick={() => handlePrintLabel(shipment, true)}
+                                title={shipment.invoice_id ? 'Imprimir DANFE (NF-e)' : 'Esta remessa não possui NF-e vinculada'}
+                                disabled={!shipment.invoice_id}
+                                onClick={() => handlePrintNFe(shipment)}
                               >
-                                <RefreshCw className="h-3.5 w-3.5" />
+                                <FileText className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Imprimir DANFE / Declaração de Conteúdo"
-                                onClick={() => handlePrintDanfe(shipment)}
+                                title={shipment.declaration?.id ? 'Imprimir Declaração de Conteúdo' : 'Esta remessa não possui Declaração de Conteúdo'}
+                                disabled={!shipment.declaration?.id}
+                                onClick={() => handlePrintDC(shipment)}
                               >
-                                <FileText className="h-3.5 w-3.5" />
+                                <ScrollText className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>

@@ -1,6 +1,6 @@
 ---
-name: Emissão de remessa = despachado; primeiro evento Correios = enviado
-description: Emitir remessa pelos Correios já marca pedido como dispatched, baixa PDF da etiqueta, emite shipment.dispatched e chama Pratika. Polling detecta posted e vira pedido para shipped. Botão "Despachar" é proibido.
+name: Emissão de remessa = despachado; primeiro evento Correios = enviado; rótulo via fluxo assíncrono
+description: Emitir remessa pelos Correios já marca pedido como dispatched, baixa PDF da etiqueta via fluxo assíncrono oficial (POST /rotulo/assincrono/pdf → GET /rotulo/download/assincrono/{idRecibo}), emite shipment.dispatched e chama Pratika. Polling detecta posted e vira pedido para shipped. Botão "Despachar" é proibido. Endpoint legado /prepostagens/{id}/etiqueta NÃO existe (404).
 type: constraint
 ---
 
@@ -16,9 +16,15 @@ type: constraint
    - `order_history` recebe ação `dispatched`
    - Evento canônico `shipment.dispatched` é inserido em `events_inbox`
    - Pratika é chamado fire-and-forget (`update_tracking`) quando há `invoice_id`
-   - PDF da etiqueta é baixado nos Correios (`/etiqueta`), salvo no bucket privado
-     `shipping-labels` em `<tenantId>/<shipmentId>.pdf`, e o **path** vai em
-     `shipments.label_url` (não URL externa).
+   - PDF da etiqueta é baixado nos Correios via **fluxo assíncrono oficial em 2 passos**:
+     (a) `POST /prepostagem/v1/prepostagens/rotulo/assincrono/pdf` com `codigosObjeto:[trackingCode]`
+         → devolve `{ idRecibo }`;
+     (b) `GET /prepostagem/v1/prepostagens/rotulo/download/assincrono/{idRecibo}` com
+         `Accept: application/json` → devolve JSON com PDF em base64 (`dados`/`arquivo`/`rotulo`).
+     O endpoint `/prepostagens/{id}/etiqueta` **NÃO EXISTE** (retorna 404 "No static resource") —
+     nunca voltar a usá-lo. O PDF é salvo no bucket privado `shipping-labels` em
+     `<tenantId>/<shipmentId>.pdf`, e o **path** vai em `shipments.label_url`
+     (não URL externa).
 
 2. **Transição para "enviado" é responsabilidade do polling.** Quando
    `tracking-poll` detecta o primeiro evento real dos Correios (`PO/POI/Postado`,
