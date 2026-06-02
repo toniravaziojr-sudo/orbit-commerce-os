@@ -521,19 +521,48 @@ export function ShipmentGenerator() {
         window.open(data.danfe_url, '_blank');
         return;
       }
+  // Imprime apenas DANFE (NF-e). Não cai em DC.
+  const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
+    if (shipment.invoice?.danfe_url) {
+      window.open(shipment.invoice.danfe_url, '_blank');
+      return true;
     }
-    // Sem NF-e — tenta Declaração de Conteúdo vinculada ao PV/pedido
+    if (shipment.invoice_id) {
+      const { data } = await supabase
+        .from('fiscal_invoices')
+        .select('danfe_url')
+        .eq('id', shipment.invoice_id)
+        .single();
+      if (data?.danfe_url) {
+        window.open(data.danfe_url, '_blank');
+        return true;
+      }
+    }
+    toast.error('DANFE da NF-e não disponível para impressão');
+    return false;
+  };
+
+  // Imprime apenas a Declaração de Conteúdo (DC). Não cai em NF-e.
+  const handlePrintDC = async (shipment: ShipmentRecord): Promise<boolean> => {
     try {
-      const declRow = await fetchDeclarationFor(shipment);
+      const declRow = shipment.declaration
+        ? await supabase
+            .from('shipping_content_declarations')
+            .select('*')
+            .eq('id', shipment.declaration.id)
+            .maybeSingle()
+            .then(r => r.data)
+        : await fetchDeclarationFor(shipment);
       if (declRow) {
         const { reprintExistingDeclaration } = await import('@/lib/declaracaoConteudo');
         reprintExistingDeclaration(declRow as any);
-        return;
+        return true;
       }
     } catch (e: any) {
       console.error('DC print error', e);
     }
-    toast.error('Documento fiscal (NF-e/DC) não disponível para impressão');
+    toast.error('Declaração de Conteúdo não disponível para impressão');
+    return false;
   };
 
   // Busca a Declaração de Conteúdo existente para a remessa
@@ -550,11 +579,11 @@ export function ShipmentGenerator() {
   // de forma atômica no backend, e a transição para "enviado" é responsabilidade
   // do polling dos Correios ao detectar o primeiro evento real de postagem.)
 
-  // Batch print
-  const handleBatchPrint = async (type: 'labels' | 'danfes' | 'both') => {
+  // Batch print — só imprime documentos que cada remessa REALMENTE possui.
+  const handleBatchPrint = async (type: 'labels' | 'nfes' | 'dcs' | 'all') => {
     if (!issuedShipments) return;
     const selected = issuedShipments.filter(s => selectedIssued.has(s.id));
-    
+
     if (selected.length === 0) {
       toast.error('Selecione ao menos uma remessa');
       return;
@@ -562,13 +591,17 @@ export function ShipmentGenerator() {
 
     let opened = 0;
     for (const s of selected) {
-      if (type === 'labels' || type === 'both') {
+      if (type === 'labels' || type === 'all') {
         await handlePrintLabel(s);
         opened++;
       }
-      if (type === 'danfes' || type === 'both') {
-        await handlePrintDanfe(s);
-        opened++;
+      if ((type === 'nfes' || type === 'all') && s.invoice_id) {
+        const ok = await handlePrintNFe(s);
+        if (ok) opened++;
+      }
+      if ((type === 'dcs' || type === 'all') && s.declaration?.id) {
+        const ok = await handlePrintDC(s);
+        if (ok) opened++;
       }
     }
 
