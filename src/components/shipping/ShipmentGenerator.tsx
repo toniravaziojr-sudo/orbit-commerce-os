@@ -64,6 +64,8 @@ interface ShipmentRecord {
   label_url: string | null;
   nfe_key: string | null;
   invoice_id: string | null;
+  remessa_id?: string | null;
+  remessa?: { numero: string | null } | null;
   order?: {
     id?: string;
     order_number: string;
