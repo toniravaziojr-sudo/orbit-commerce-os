@@ -240,6 +240,8 @@ export function ShipmentGenerator() {
   });
 
   // === TAB 3: Remessas pendentes (failed) ===
+  // Vínculo canônico é com PV (source_pedido_venda_id). Pedido é opcional —
+  // PV manual/duplicado também aparece aqui.
   const { data: failedShipments, isLoading: loadingFailed } = useQuery({
     queryKey: ['shipments-failed', currentTenant?.id, selectedCarrier],
     queryFn: async () => {
@@ -247,17 +249,37 @@ export function ShipmentGenerator() {
 
       const { data, error } = await supabase
         .from('shipments')
-        .select(`
-          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders!inner(order_number, customer_name)
+        .select<string, any>(`
+          id, order_id, source_pedido_venda_id, tracking_code, carrier, service_name, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
         .eq('delivery_status', 'failed' as any)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (error) throw error;
-      return (data || []) as ShipmentRecord[];
+      const shipments = ((data || []) as ShipmentRecord[]).filter(
+        (s) => (s.order as any)?.resolved_shipping_provider_kind !== 'gateway'
+      );
+
+      // Fallback: para falhas sem pedido vinculado, buscar dados do PV
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome, dest_endereco_municipio, dest_endereco_uf')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        shipments.forEach(s => {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            s.pv = pvMap[s.source_pedido_venda_id];
+          }
+        });
+      }
+      return shipments;
     },
     enabled: !!currentTenant?.id,
   });
