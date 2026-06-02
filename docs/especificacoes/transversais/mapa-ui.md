@@ -56,7 +56,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 25 | ERP | Financeiro | `/finance` | erp_logistica | `erp_financeiro` | — | Badge "Upgrade" se bloqueado |
 | 26 | ERP | Compras | `/purchases` | erp_logistica | `erp_compras` | — | Badge "Upgrade" se bloqueado |
 | 26b | ERP | Fornecedores | `/suppliers` | erp_logistica | `erp_compras` | — | Cadastro único de fornecedores (rev 2026-05-21) |
-| 27 | ERP | Logística | `/shipping` | erp_logistica | `remessas` | — | Apenas Dashboard, Remessas e Rastreios (rev 2026-05-29). Meios de Transporte → `/integrations?tab=shipping`; Frete Grátis → `/system/settings?tab=shipping&aba=regras-frete-gratis`; Frete Personalizado → `/system/settings?tab=shipping&aba=frete-personalizado`. URLs antigas redirecionam. |
+| 27 | ERP | Logística | `/shipping` | erp_logistica | `remessas` | — | Abas **Dashboard**, **Objetos de postagem**, **Remessas** (agrupador) e **Rastreios** (rev 2026-06-02b). "Objetos de postagem" = unidade individual por pedido (subabas Prontos para emitir / Objetos emitidos / Pendentes). "Remessas" = lote/agrupador de N objetos enviados juntos para a transportadora, com número `Remessa_DDMMAAAA.HHMMSS`, contadores e drill-down. Meios de Transporte → `/integrations?tab=shipping`; Frete Grátis → `/system/settings?tab=shipping&aba=regras-frete-gratis`; Frete Personalizado → `/system/settings?tab=shipping&aba=frete-personalizado`. URLs antigas redirecionam. |
 | 28 | Parcerias | Influencers | `/influencers` | parcerias | `influencers` | — | Badge "Upgrade" se bloqueado |
 | 29 | Parcerias | Afiliados | `/affiliates` | parcerias | — | — | — |
 | 30 | Marketplaces | Mercado Livre | `/marketplaces/mercadolivre` | marketplaces | `mercadolivre` | — | Badge "Upgrade" se bloqueado |
