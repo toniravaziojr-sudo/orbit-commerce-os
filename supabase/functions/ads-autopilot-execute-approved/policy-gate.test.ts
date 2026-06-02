@@ -33,15 +33,14 @@ function simulateExecutorBranch(decision: { kind: string }) {
 }
 
 Deno.test("contrato: fora da janela (create_campaign) NÃO chama API externa", () => {
-  // Hora UTC fora de 03:01–07:00 UTC (= 00:01–04:00 BRT)
   const now = new Date(Date.UTC(2026, 5, 3, 13, 0)); // 10:00 BRT
-  const d = decide({ action: action({ action_type: "create_campaign" }), now });
+  const d = decide({ action: action({ action_type: "create_campaign" }, now), now });
   assertEquals(d.kind, "schedule");
-  const r = simulateExecutorBranch(d);
-  assertEquals(r.externalCalls, 0);
+  assertEquals(simulateExecutorBranch(d).externalCalls, 0);
 });
 
 Deno.test("contrato: limite excedido NÃO chama API externa", () => {
+  const now = new Date(Date.UTC(2026, 5, 3, 5, 0)); // 02:00 BRT
   const d = decide({
     action: action({
       action_type: "adjust_budget",
@@ -50,38 +49,38 @@ Deno.test("contrato: limite excedido NÃO chama API externa", () => {
         current_daily_budget_cents: 10000,
         proposed_daily_budget_cents: 20000,
       },
-    }),
-    now: new Date(Date.UTC(2026, 5, 3, 5, 0)), // 02:00 BRT
+    }, now),
+    now,
   });
   assertEquals(d.kind, "reject_policy_limit_exceeded");
   assertEquals(simulateExecutorBranch(d).externalCalls, 0);
 });
 
 Deno.test("contrato: contexto ausente NÃO chama API externa", () => {
+  const now = new Date(Date.UTC(2026, 5, 3, 5, 0));
   const d = decide({
-    action: action({ action_type: "pause_campaign", action_data: {} }),
-    now: new Date(Date.UTC(2026, 5, 3, 5, 0)),
+    action: action({ action_type: "pause_campaign", action_data: {} }, now),
+    now,
   });
   assertEquals(d.kind, "reject_policy_missing_context");
   assertEquals(simulateExecutorBranch(d).externalCalls, 0);
 });
 
 Deno.test("contrato: aprovação expirada NÃO chama API externa", () => {
+  const now = new Date();
   const d = decide({
     action: action({
-      approval_expires_at: new Date(Date.now() - 3600 * 1000).toISOString(),
-    }),
-    now: new Date(),
+      approval_expires_at: new Date(now.getTime() - 3600 * 1000).toISOString(),
+    }, now),
+    now,
   });
   assertEquals(d.kind, "expired_approval");
   assertEquals(simulateExecutorBranch(d).externalCalls, 0);
 });
 
 Deno.test("contrato: decisão execute_now É a única que permite chamada externa", () => {
-  const d = decide({
-    action: action(),
-    now: new Date(Date.UTC(2026, 5, 3, 5, 0)),
-  });
+  const now = new Date(Date.UTC(2026, 5, 3, 5, 0));
+  const d = decide({ action: action({}, now), now });
   assertEquals(d.kind, "execute_now");
   assert(simulateExecutorBranch(d).externalCalls > 0);
 });
