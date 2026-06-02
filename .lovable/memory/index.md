@@ -167,3 +167,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 
 
 - [Fiscal Auto-Emit Respeita Status Configurado](mem://constraints/fiscal-auto-emit-respeita-status-configurado) — Auto-emissão de NF-e só dispara quando emissao_automatica=true E order.status casa com emitir_apos_status (ready_to_invoice padrão / paid legado). Rascunho continua sendo criado sempre; emissão é segunda etapa. Gatilho re-enfileira em transição → ready_to_invoice para reavaliar rascunhos existentes.
+- [Pré-flight fiscal/logístico — portão único](mem://constraints/preflight-fiscal-logistico-portao-unico) — Toda validação de campos obrigatórios para NF/DC/Remessa/Emitente passa pelo motor único `_shared/fiscal-shipping-preflight.ts`. Aplicado em fiscal-create-manual, correios-content-declaration-issue e shipping-create-shipment antes de qualquer chamada externa. Proibido módulo criar checagem isolada. Mensagens sempre em PT-BR.

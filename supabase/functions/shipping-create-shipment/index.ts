@@ -6,6 +6,7 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { runPreflight, type PreflightEmitente } from "../_shared/fiscal-shipping-preflight.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -954,6 +955,71 @@ Deno.serve(async (req) => {
           };
           break;
         }
+
+        // ===== PRÉ-FLIGHT UNIFICADO =====
+        // Roda o motor único antes de qualquer chamada à API dos Correios.
+        // Se faltar dado obrigatório (destinatário, endereço, telefone, peso,
+        // emitente), o erro vai para o rascunho com mensagem em PT-BR e a
+        // remessa cai na aba "Pendentes" — sem erros crus vindos da API.
+        // Doc: docs/especificacoes/fiscal/preflight-fiscal-logistico.md
+        const emitenteForPreflight: PreflightEmitente = {
+          razao_social: (settings.sender_name as string) || null,
+          cnpj: (settings.sender_document as string) || null,
+          ie: (fiscalSettings as any)?.ie || null,
+          telefone: (settings.sender_phone as string) || null,
+          cep: (settings.sender_postal_code as string) || null,
+          logradouro: (settings.sender_street as string) || null,
+          numero: (settings.sender_number as string) || null,
+          bairro: (settings.sender_neighborhood as string) || null,
+          municipio: (settings.sender_city as string) || null,
+          uf: (settings.sender_state as string) || null,
+        };
+        const totalPesoG = orderData.items.reduce(
+          (s, it) => s + (Number(it.weight) || 0) * (Number(it.quantity) || 0),
+          0,
+        );
+        const maxH = orderData.items.reduce((m, it) => Math.max(m, Number(it.height) || 0), 0);
+        const maxW = orderData.items.reduce((m, it) => Math.max(m, Number(it.width) || 0), 0);
+        const sumD = orderData.items.reduce((s, it) => s + (Number(it.length) || 0), 0);
+        const preflight = runPreflight({
+          scopes: ['shipment', 'emitente'],
+          destinatario: {
+            nome: orderData.customer_name,
+            cpf_cnpj: orderData.customer_cpf || orderData.customer_cnpj,
+            telefone: orderData.customer_phone,
+            email: orderData.customer_email,
+            endereco: {
+              cep: orderData.shipping_postal_code,
+              logradouro: orderData.shipping_street,
+              numero: orderData.shipping_number,
+              bairro: orderData.shipping_neighborhood,
+              municipio: orderData.shipping_city,
+              uf: orderData.shipping_state,
+            },
+          },
+          itens: orderData.items.map((it) => ({
+            descricao: it.product_name,
+            quantidade: it.quantity,
+            valor_unitario: it.unit_price,
+            peso_unitario_g: it.weight,
+          })),
+          package: {
+            weight_grams: totalPesoG,
+            height_cm: maxH || (override?.height_cm as number) || 10,
+            width_cm: maxW || (override?.width_cm as number) || 15,
+            depth_cm: sumD || (override?.depth_cm as number) || 20,
+            carrier: order.shipping_carrier || shipmentRow?.carrier || 'correios',
+            service: shipmentRow?.service_name || order.shipping_method || 'PAC',
+          },
+          emitente: emitenteForPreflight,
+          fiscalLink: { hasNfe: !!invoiceData, hasDC: !!contentDeclaration },
+        });
+        if (!preflight.ok) {
+          console.warn('[shipping-create-shipment] Pré-flight bloqueou emissão:', preflight.blockingIssues);
+          result = { success: false, error: preflight.message };
+          break;
+        }
+
         const fiscalDoc = invoiceData
           ? {
               kind: 'nfe' as const,
