@@ -101,6 +101,20 @@ async function createCorreiosShipment(
   } | null,
 ): Promise<ShipmentResult> {
   console.log('[Correios] Creating pre-shipment for order:', order.id);
+
+  const splitPhone = (raw: unknown) => {
+    const digits = String(raw || '').replace(/\D/g, '');
+    const normalized = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+    if (normalized.length < 10) {
+      return { ddd: '', telefone: '', celular: '' };
+    }
+    const ddd = normalized.slice(0, 2);
+    const number = normalized.slice(2);
+    if (number.length >= 9) {
+      return { ddd, telefone: '', celular: number.slice(0, 9) };
+    }
+    return { ddd, telefone: number.slice(0, 8), celular: '' };
+  };
   
   // Authenticate - support api_code (like Bling), token, and oauth modes
   const authMode = credentials.auth_mode || 
@@ -184,9 +198,8 @@ async function createCorreiosShipment(
     }
 
     // ===== Sanitização: telefones só dígitos, máximo 12 (DDD + 9 dígitos) =====
-    const sanitizePhone = (raw: unknown): string => String(raw || '').replace(/\D/g, '').slice(0, 12);
-    const senderPhone = sanitizePhone(settings?.sender_phone);
-    const recipientPhone = sanitizePhone(order.customer_phone);
+    const senderPhone = splitPhone(settings?.sender_phone);
+    const recipientPhone = splitPhone(order.customer_phone);
 
     // ===== Observação fiscal (Declaração de Conteúdo quando não há NF-e) =====
     let observacao: string | undefined;
@@ -212,7 +225,10 @@ async function createCorreiosShipment(
       remetente: {
         nome: settings?.sender_name || 'Loja',
         cpfCnpj: String(settings?.sender_document || '').replace(/\D/g, ''),
-        telefone: senderPhone,
+        dddTelefone: senderPhone.telefone ? senderPhone.ddd : undefined,
+        telefone: senderPhone.telefone || undefined,
+        dddCelular: senderPhone.celular ? senderPhone.ddd : undefined,
+        celular: senderPhone.celular || undefined,
         email: settings?.sender_email || '',
         endereco: {
           cep: (settings?.sender_postal_code as string)?.replace(/\D/g, '') || '',
@@ -227,7 +243,10 @@ async function createCorreiosShipment(
       destinatario: {
         nome: order.customer_name,
         cpfCnpj: (order.customer_cpf || order.customer_cnpj || '').replace(/\D/g, ''),
-        telefone: recipientPhone,
+        dddTelefone: recipientPhone.telefone ? recipientPhone.ddd : undefined,
+        telefone: recipientPhone.telefone || undefined,
+        dddCelular: recipientPhone.celular ? recipientPhone.ddd : undefined,
+        celular: recipientPhone.celular || undefined,
         email: order.customer_email || '',
         endereco: {
           cep: order.shipping_postal_code.replace(/\D/g, ''),
@@ -251,6 +270,9 @@ async function createCorreiosShipment(
     if (observacao) {
       prepostagemPayload.observacao = observacao;
     }
+
+    prepostagemPayload.pesoObjeto = String(Math.max(100, Math.round(totalWeight)));
+    prepostagemPayload.codigoFormatoObjeto = '2';
 
     console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 800));
 
