@@ -13,10 +13,13 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const CORREIOS_AUTH_URL = "https://api.correios.com.br/token/v1/autentica/cartaopostagem";
-// IMPORTANT: este endpoint exige o **idPrePostagem** (ex.: PRV...), NÃO o código
-// de rastreio/objeto (ex.: AP...). Usar o tracking code aqui retorna 404.
-const CORREIOS_LABEL_URL = (idPrePostagem: string) =>
-  `https://api.correios.com.br/prepostagem/v1/prepostagens/${idPrePostagem}/etiqueta?tipoRotulo=P`;
+// Fluxo OFICIAL Correios (assíncrono em 2 passos):
+//   1) POST /prepostagem/v1/prepostagens/rotulo/assincrono/pdf  → { idRecibo }
+//   2) GET  /prepostagem/v1/prepostagens/rotulo/download/assincrono/{idRecibo} → PDF
+// O endpoint `/prepostagens/{id}/etiqueta` NÃO existe (retorna 404 "No static resource").
+const CORREIOS_ROTULO_ASYNC_URL = "https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/assincrono/pdf";
+const CORREIOS_ROTULO_DOWNLOAD_URL = (idRecibo: string) =>
+  `https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/download/assincrono/${idRecibo}`;
 
 export const SHIPPING_LABELS_BUCKET = "shipping-labels";
 
@@ -77,11 +80,8 @@ export async function downloadAndStoreCorreiosLabel(
 ): Promise<DownloadAndStoreResult> {
   const { tenantId, shipmentId, trackingCode, prepostId, credentials } = params;
 
-  // Correios exige o idPrePostagem (ex.: PRV...) para baixar o PDF.
-  // Fallback para tracking code só por compatibilidade com registros muito antigos.
-  const labelKey = prepostId || trackingCode;
-  if (!labelKey) {
-    return { success: false, error: "ID da prepostagem ausente para baixar a etiqueta." };
+  if (!trackingCode) {
+    return { success: false, error: "Código de rastreio ausente para baixar a etiqueta." };
   }
 
   const token = await getCorreiosAccessToken(credentials);
@@ -89,26 +89,67 @@ export async function downloadAndStoreCorreiosLabel(
     return { success: false, error: "Falha na autenticação Correios para baixar a etiqueta" };
   }
 
-  const labelResp = await fetch(CORREIOS_LABEL_URL(labelKey), {
-    method: "GET",
+  // ===== Passo 1: solicitar geração assíncrona do rótulo =====
+  const asyncReq = {
+    codigosObjeto: [trackingCode],
+    idCorreios: credentials.usuario || undefined,
+    numeroCartaoPostagem: credentials.cartao_postagem || undefined,
+    tipoRotulo: "P",          // P (padrão) | R (reduzido)
+    formatoRotulo: "ET",      // ET (Etiqueta) | EV (Envelope)
+    imprimeRemetente: "S",
+    layoutImpressao: "PADRAO",
+  };
+
+  const asyncResp = await fetch(CORREIOS_ROTULO_ASYNC_URL, {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: "application/pdf",
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
+    body: JSON.stringify(asyncReq),
   });
 
-  if (!labelResp.ok) {
-    const txt = await labelResp.text().catch(() => "");
+  if (!asyncResp.ok) {
+    const txt = await asyncResp.text().catch(() => "");
     return {
       success: false,
-      error: `Correios não retornou a etiqueta (HTTP ${labelResp.status}). ${txt.slice(0, 160)}`,
+      error: `Correios recusou a solicitação de rótulo (HTTP ${asyncResp.status}). ${txt.slice(0, 180)}`,
     };
   }
 
-  const contentType = labelResp.headers.get("content-type") || "";
-  if (!contentType.includes("pdf") && !contentType.includes("octet-stream")) {
-    // Em raros casos a resposta vem JSON com URL — não persistimos URL externa, falhamos aqui.
-    return { success: false, error: "Resposta dos Correios não é PDF." };
+  const asyncData = await asyncResp.json().catch(() => ({} as any));
+  const idRecibo: string | undefined = asyncData?.idRecibo || asyncData?.id;
+  if (!idRecibo) {
+    return { success: false, error: "Correios não retornou idRecibo para o rótulo." };
+  }
+
+  // ===== Passo 2: poll do download (com pequena espera; geralmente 1ª tentativa funciona) =====
+  let labelResp: Response | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 1200));
+    const r = await fetch(CORREIOS_ROTULO_DOWNLOAD_URL(idRecibo), {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/pdf",
+      },
+    });
+    if (r.ok) {
+      labelResp = r;
+      break;
+    }
+    if (r.status !== 404 && r.status !== 425) {
+      const txt = await r.text().catch(() => "");
+      return {
+        success: false,
+        error: `Correios não devolveu o PDF (HTTP ${r.status}). ${txt.slice(0, 180)}`,
+      };
+    }
+  }
+
+  if (!labelResp) {
+    return { success: false, error: "Tempo esgotado aguardando o PDF do rótulo nos Correios." };
   }
 
   const bytes = new Uint8Array(await labelResp.arrayBuffer());
