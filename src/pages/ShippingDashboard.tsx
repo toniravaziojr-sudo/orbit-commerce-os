@@ -219,6 +219,10 @@ export default function ShippingDashboard() {
             <TrendingUp className="h-4 w-4" />
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="objetos" className="gap-2">
+            <Package className="h-4 w-4" />
+            Objetos de postagem
+          </TabsTrigger>
           <TabsTrigger value="remessas" className="gap-2">
             <Truck className="h-4 w-4" />
             Remessas
