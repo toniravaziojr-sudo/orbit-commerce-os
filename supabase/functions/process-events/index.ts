@@ -303,7 +303,16 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
     if (rule_type === 'shipping' && trigger_condition) {
       const newStatus = payload.new_status as string || payload.shipping_status as string;
 
+      // Evento shipment.dispatched (emissão de remessa) — sempre satisfaz "dispatched"
+      if (eventType === 'shipment.dispatched') {
+        return trigger_condition === 'dispatched' || trigger_condition === 'posted';
+      }
+
       switch (trigger_condition) {
+        case 'dispatched':
+          // Coberto acima via eventType=shipment.dispatched. Aqui rejeita status changes
+          // de polling para não duplicar com o gatilho de "posted/enviado".
+          return false;
         case 'posted':
           return newStatus === 'posted' || newStatus === 'label_created' || newStatus === 'shipped';
         case 'in_transit':
