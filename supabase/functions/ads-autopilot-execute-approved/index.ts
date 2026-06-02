@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // Stamp aprovação retroativa para fluxo legado APENAS se ação for recente (<24h).
     // Aprovação parada há >24h é tratada como expirada (sem chamada externa).
     if ((action.status === "approved" || action.status === "scheduled") && !action.approved_at) {
-      const referenceTs = action.updated_at || action.created_at;
+      const referenceTs = action.created_at;
       const ageMs = referenceTs ? (Date.now() - new Date(referenceTs).getTime()) : Number.POSITIVE_INFINITY;
       const LEGACY_STAMP_MAX_AGE_MS = 24 * 3600 * 1000;
       if (ageMs <= LEGACY_STAMP_MAX_AGE_MS) {
