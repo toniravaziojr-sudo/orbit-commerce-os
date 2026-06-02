@@ -324,6 +324,18 @@ export async function issueAndDownloadCorreiosContentDeclaration(args: IssueArgs
   }
 }
 
+/**
+ * Reimpressão de uma DC já emitida (não cria registro novo).
+ * Renderiza o PDF a partir do próprio snapshot persistido em `shipping_content_declarations`.
+ */
+export function reprintExistingDeclaration(rec: DeclarationRecord): { ok: boolean; filename: string } {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  renderOneDeclaration(doc, rec, true);
+  const filename = `${rec.dc_number}.pdf`;
+  doc.save(filename);
+  return { ok: true, filename };
+}
+
 // ----------------- API pública: batch (PDF único multipágina) -----------------
 export interface BatchTarget {
   tenantId?: string;
