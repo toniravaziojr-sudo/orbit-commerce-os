@@ -118,8 +118,9 @@ Deno.serve(async (req) => {
 
     // ===== 1) Etiqueta já armazenada no bucket interno =====
     // Esta é a fonte de verdade pós-emissão. Geramos signed URL fresca a cada clique.
+    // Quando `force_refresh=true` (botão "Reimprimir"), pula este caminho e refaz nos Correios.
     const labelPath = shipment.label_url;
-    if (labelPath && !/^https?:\/\//i.test(labelPath) && labelPath.endsWith('.pdf')) {
+    if (!force_refresh && labelPath && !/^https?:\/\//i.test(labelPath) && labelPath.endsWith('.pdf')) {
       const signed = await createLabelSignedUrl(supabase, labelPath, 3600);
       if (signed) {
         return new Response(
