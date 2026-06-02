@@ -7,6 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { runPreflight, type PreflightEmitente } from "../_shared/fiscal-shipping-preflight.ts";
+import { downloadAndStoreCorreiosLabel } from "../_shared/correios-label.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
