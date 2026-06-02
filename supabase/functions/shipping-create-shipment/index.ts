@@ -764,18 +764,9 @@ Deno.serve(async (req) => {
     // - Senão, se houver Declaração de Conteúdo emitida → anexamos número na observação.
     // - Senão, bloqueamos a emissão da remessa com mensagem clara em PT-BR.
     // O fluxo automático (Frenet/gateway) tem caminho próprio e não cai aqui.
+    // Busca canônica pelo PV — pedido real é apenas fallback histórico
     let invoiceData: any = null;
-    if (resolvedOrderId) {
-      const { data: inv } = await supabase
-        .from('fiscal_invoices')
-        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
-        .eq('order_id', resolvedOrderId)
-        .eq('tenant_id', tenantId)
-        .eq('status', 'authorized')
-        .maybeSingle();
-      invoiceData = inv;
-    }
-    if (!invoiceData && resolvedPvId) {
+    if (resolvedPvId) {
       const { data: inv } = await supabase
         .from('fiscal_invoices')
         .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
@@ -785,8 +776,19 @@ Deno.serve(async (req) => {
         .maybeSingle();
       invoiceData = inv;
     }
+    if (!invoiceData && resolvedOrderId) {
+      const { data: inv } = await supabase
+        .from('fiscal_invoices')
+        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
+        .eq('order_id', resolvedOrderId)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'authorized')
+        .maybeSingle();
+      invoiceData = inv;
+    }
 
     // Declaração de Conteúdo dos Correios (alternativa à NF-e)
+    // Vínculo canônico é com o PV. order_id só é usado como fallback histórico.
     let contentDeclaration: { id: string; dc_number: string } | null = null;
     if (!invoiceData) {
       let dcQuery = supabase
@@ -796,10 +798,10 @@ Deno.serve(async (req) => {
         .eq('status', 'issued')
         .order('created_at', { ascending: false })
         .limit(1);
-      if (resolvedOrderId) {
-        dcQuery = dcQuery.eq('order_id', resolvedOrderId);
-      } else if (resolvedPvId) {
+      if (resolvedPvId) {
         dcQuery = dcQuery.eq('fiscal_invoice_id', resolvedPvId);
+      } else if (resolvedOrderId) {
+        dcQuery = dcQuery.eq('order_id', resolvedOrderId);
       }
       const { data: dcRow } = await dcQuery.maybeSingle();
       if (dcRow) contentDeclaration = { id: dcRow.id, dc_number: dcRow.dc_number };
@@ -816,6 +818,17 @@ Deno.serve(async (req) => {
 
 
     // ====== Carrega o rascunho (se já não veio por shipment_id) e aplica override ======
+    // Vínculo canônico: PV. Pedido real é fallback histórico.
+    if (!shipmentRow && resolvedPvId) {
+      const { data: draftShipment } = await supabase
+        .from('shipments')
+        .select('id, tenant_id, order_id, source_pedido_venda_id, carrier, service_name, service_code, metadata, manually_adjusted')
+        .eq('source_pedido_venda_id', resolvedPvId)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft')
+        .maybeSingle();
+      if (draftShipment) shipmentRow = draftShipment;
+    }
     if (!shipmentRow && resolvedOrderId) {
       const { data: draftShipment } = await supabase
         .from('shipments')
@@ -825,6 +838,11 @@ Deno.serve(async (req) => {
         .eq('delivery_status', 'draft')
         .maybeSingle();
       if (draftShipment) shipmentRow = draftShipment;
+    }
+    // Se o rascunho não tinha PV vinculado mas resolvemos um, costuramos o vínculo agora
+    if (shipmentRow && !shipmentRow.source_pedido_venda_id && resolvedPvId) {
+      await supabase.from('shipments').update({ source_pedido_venda_id: resolvedPvId }).eq('id', shipmentRow.id);
+      shipmentRow.source_pedido_venda_id = resolvedPvId;
     }
 
     const meta = (shipmentRow?.metadata as any) || {};
@@ -1138,23 +1156,16 @@ Deno.serve(async (req) => {
 
 
       if (shipmentRow?.id) {
-        // Atualiza o rascunho exato (funciona para PV com ou sem pedido)
+        // Atualiza o rascunho exato (vínculo canônico via PV)
         await supabase.from('shipments').update(shipmentPatch).eq('id', shipmentRow.id);
-      } else if (resolvedOrderId) {
-        // Caminho legado: atualiza por order_id ou cria
-        await supabase
-          .from('shipments')
-          .upsert({
-            tenant_id: tenantId,
-            order_id: resolvedOrderId,
-            ...shipmentPatch,
-          }, { onConflict: 'tenant_id,order_id,tracking_code' });
-        await supabase
-          .from('shipments')
-          .update(shipmentPatch)
-          .eq('order_id', resolvedOrderId)
-          .eq('tenant_id', tenantId)
-          .eq('delivery_status', 'draft');
+      } else {
+        // Sem rascunho — cria novo registro já amarrado ao PV (canônico) ou ao pedido real (legado)
+        await supabase.from('shipments').insert({
+          tenant_id: tenantId,
+          order_id: resolvedOrderId,
+          source_pedido_venda_id: resolvedPvId,
+          ...shipmentPatch,
+        });
       }
 
       // Log no histórico do pedido (só quando há pedido real)
@@ -1187,6 +1198,17 @@ Deno.serve(async (req) => {
             metadata: failedMetadata,
           })
           .eq('id', shipmentRow.id);
+      } else if (resolvedPvId) {
+        await supabase
+          .from('shipments')
+          .update({
+            delivery_status: 'failed',
+            last_status_at: new Date().toISOString(),
+            metadata: failedMetadata,
+          })
+          .eq('source_pedido_venda_id', resolvedPvId)
+          .eq('tenant_id', tenantId)
+          .eq('delivery_status', 'draft');
       } else if (resolvedOrderId) {
         await supabase
           .from('shipments')

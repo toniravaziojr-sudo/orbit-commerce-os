@@ -50,13 +50,14 @@ type DeliveryStatus =
 
 interface ShipmentWithOrder {
   id: string;
-  order_id: string;
+  order_id: string | null;
+  source_pedido_venda_id?: string | null;
   carrier: string | null;
   tracking_code: string;
   delivery_status: DeliveryStatus;
   created_at: string;
   delivered_at: string | null;
-  order: {
+  order?: {
     order_number: string;
     customer_name: string;
     customer_email: string;
@@ -109,8 +110,8 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
       let query = supabase
         .from('shipments')
         .select(`
-          id, order_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
-          order:orders!inner(order_number, customer_name, customer_email)
+          id, order_id, source_pedido_venda_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
+          order:orders(order_number, customer_name, customer_email)
         `)
         .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false });
@@ -136,7 +137,31 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as ShipmentWithOrder[];
+
+      // Fallback: para remessas sem pedido real (PV manual/duplicado),
+      // hidrata os dados de exibição a partir do Pedido de Venda.
+      const shipments = (data || []) as any[];
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome, dest_email')
+          .in('id', pvIds);
+        const pvMap: Record<string, any> = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        for (const s of shipments) {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            const pv = pvMap[s.source_pedido_venda_id];
+            s.order = {
+              order_number: `PV ${pv.numero}`,
+              customer_name: pv.dest_nome || '—',
+              customer_email: pv.dest_email || '',
+            };
+          }
+        }
+      }
+      return shipments as ShipmentWithOrder[];
     },
     enabled: !!currentTenant?.id,
   });
@@ -164,11 +189,11 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
     // Apply search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(s => 
-        s.order.order_number.toLowerCase().includes(query) ||
+      filtered = filtered.filter(s =>
+        (s.order?.order_number || '').toLowerCase().includes(query) ||
         s.tracking_code.toLowerCase().includes(query) ||
-        s.order.customer_name.toLowerCase().includes(query) ||
-        s.order.customer_email.toLowerCase().includes(query)
+        (s.order?.customer_name || '').toLowerCase().includes(query) ||
+        (s.order?.customer_email || '').toLowerCase().includes(query)
       );
     }
 
@@ -287,9 +312,9 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                           onClick={() => setSelectedShipment(shipment)}
                         >
                           <TableCell className="font-medium">
-                            #{shipment.order.order_number}
+                            #{shipment.order?.order_number || '—'}
                           </TableCell>
-                          <TableCell>{shipment.order.customer_name}</TableCell>
+                          <TableCell>{shipment.order?.customer_name || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">
                             {shipment.tracking_code}
                           </TableCell>
@@ -321,7 +346,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Rastreamento - #{selectedShipment?.order.order_number}
+              Rastreamento - #{selectedShipment?.order?.order_number || '—'}
             </DialogTitle>
           </DialogHeader>
 
@@ -331,7 +356,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Cliente</p>
-                  <p className="font-medium">{selectedShipment.order.customer_name}</p>
+                  <p className="font-medium">{selectedShipment.order?.customer_name || '—'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Transportadora</p>
