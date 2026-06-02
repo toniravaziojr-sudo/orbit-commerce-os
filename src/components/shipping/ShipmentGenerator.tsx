@@ -830,10 +830,14 @@ export function ShipmentGenerator() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">
-                            #{shipment.order?.order_number}
+                            {shipment.order?.order_number
+                              ? `#${shipment.order.order_number}`
+                              : shipment.pv?.numero
+                                ? `PV ${shipment.pv.numero}`
+                                : `Rascunho ${shipment.id.substring(0, 8)}`}
                           </TableCell>
                           <TableCell className="max-w-[100px] truncate">
-                            {shipment.order?.customer_name}
+                            {shipment.order?.customer_name || shipment.pv?.dest_nome || '—'}
                           </TableCell>
                           <TableCell>
                             <span className="text-xs font-mono">{shipment.tracking_code || '-'}</span>
