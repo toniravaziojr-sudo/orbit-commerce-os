@@ -1058,16 +1058,31 @@ Deno.serve(async (req) => {
 
       console.log(`[shipping-create-shipment] Shipment record updated (shipment=${shipmentRow?.id || 'new'})`);
     } else if (!result.success) {
-      // Marca rascunho como failed
+      // Marca rascunho como failed e grava o motivo do erro no metadata
+      // para que apareça legível na aba "Pendentes".
+      const errorMessage = result.error || 'Falha desconhecida ao emitir remessa';
+      const failedMetadata = {
+        ...((shipmentRow?.metadata as any) || {}),
+        error_message: errorMessage,
+        last_error_at: new Date().toISOString(),
+      };
       if (shipmentRow?.id) {
         await supabase
           .from('shipments')
-          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .update({
+            delivery_status: 'failed',
+            last_status_at: new Date().toISOString(),
+            metadata: failedMetadata,
+          })
           .eq('id', shipmentRow.id);
       } else if (resolvedOrderId) {
         await supabase
           .from('shipments')
-          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .update({
+            delivery_status: 'failed',
+            last_status_at: new Date().toISOString(),
+            metadata: failedMetadata,
+          })
           .eq('order_id', resolvedOrderId)
           .eq('tenant_id', tenantId)
           .eq('delivery_status', 'draft');
