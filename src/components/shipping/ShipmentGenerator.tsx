@@ -478,25 +478,33 @@ export function ShipmentGenerator() {
     setIsDispatching(true);
 
     try {
-      // Update order status to dispatched
-      await supabase
-        .from('orders')
-        .update({ 
-          status: 'dispatched' as any,
-          shipped_at: new Date().toISOString(),
-        })
-        .eq('id', dispatchDialog.order_id);
+      // Pedido real (quando existir) — PVs manuais/duplicados não têm pedido real
+      if (dispatchDialog.order_id) {
+        await supabase
+          .from('orders')
+          .update({
+            status: 'dispatched' as any,
+            shipped_at: new Date().toISOString(),
+          })
+          .eq('id', dispatchDialog.order_id);
 
-      // Log in order history
-      await supabase
-        .from('order_history')
-        .insert({
-          order_id: dispatchDialog.order_id,
-          action: 'dispatched',
-          description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
-        });
+        await supabase
+          .from('order_history')
+          .insert({
+            order_id: dispatchDialog.order_id,
+            action: 'dispatched',
+            description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
+          });
+      }
 
-      toast.success('Pedido marcado como despachado');
+      // Marca a remessa como postada — independe da existência de pedido real
+      await supabase
+        .from('shipments')
+        .update({ delivery_status: 'posted' as any, last_status_at: new Date().toISOString() })
+        .eq('id', dispatchDialog.id)
+        .eq('tenant_id', currentTenant.id);
+
+      toast.success(dispatchDialog.order_id ? 'Pedido marcado como despachado' : 'Remessa marcada como despachada');
       setDispatchDialog(null);
       invalidateAll();
     } catch (error) {
