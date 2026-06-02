@@ -118,7 +118,60 @@ botão único "DANFE" que misturava NF-e e DC.
 Memória anti-regressão:
 `mem://constraints/shipping-emit-equals-dispatched-tracking-equals-shipped`.
 
+---
 
+## Objeto de Postagem × Remessa agrupadora (modelo Bling) — 2026-06-02
+
+A camada de **Remessa agrupadora** é adicionada por cima dos objetos de
+postagem existentes, sem migração destrutiva. Vale **apenas para o fluxo
+local (Correios)**; pedidos via gateway (Frenet) permanecem fora desta
+camada e seguem o fluxo gateway atual.
+
+**Conceitos:**
+
+- **Objeto de postagem** — unidade individual. 1 pedido = 1 objeto, com
+  rastreio próprio, etiqueta, NF e/ou DC, e status de entrega. É o que
+  hoje chamamos de "remessa" no sistema; permanece como registro principal
+  e nada do código atual muda.
+- **Remessa** — agrupador. Tem número único por loja, transportadora,
+  descrição, status, protocolo PLP e a lista de objetos que pertencem
+  a ela.
+
+**Regra:** todo objeto emitido pelo fluxo local pertence a uma remessa,
+mesmo de 1 objeto. Objetos antigos (anteriores à entrega 2026-06-02)
+permanecem sem remessa vinculada — operam normalmente.
+
+**Numeração:** `Remessa_DDMMAAAA.HHMMSS` em horário de São Paulo (BRT),
+única por loja. Em colisão (mesmo segundo) recebe sufixo `-N`.
+
+**Status da remessa:**
+`rascunho → emitida → parcial → despachada → finalizada` (ou
+`cancelada`, apenas a partir de `rascunho`).
+
+**Camada de dados (Fase 1 — entregue 2026-06-02):**
+
+- Tabela `public.shipping_remessas` com RLS por `user_belongs_to_tenant`.
+- Coluna opcional `shipments.remessa_id` com `ON DELETE SET NULL`
+  (apagar a remessa nunca apaga o objeto já postado).
+- Função `public.allocate_remessa_numero(p_tenant_id)` aloca o próximo
+  número por data/hora.
+- Função `public.recalc_remessa_counters(p_remessa_id)` + trigger
+  `shipments_sync_remessa_counters` mantém `total_objetos`,
+  `total_emitidos`, `total_falhas` em dia automaticamente.
+
+**Anti-regressão obrigatória:**
+
+1. Emissão individual continua funcionando exatamente como hoje.
+2. Objetos sem `remessa_id` permanecem visíveis e operáveis (impressão,
+   rastreio, NF/DC).
+3. Pratika, notificações e espelho PV ↔ objeto não são tocados.
+4. Apagar PV em aberto continua removendo o rascunho do objeto. Se a
+   remessa em rascunho ficar vazia, deve ser cancelada (Fase 2).
+5. Pedidos via gateway (Frenet) não entram em remessa.
+6. URLs e rotas atuais continuam respondendo.
+
+Memória anti-regressão:
+`mem://constraints/shipping-objeto-vs-remessa-agrupadora`.
 
 ---
 
