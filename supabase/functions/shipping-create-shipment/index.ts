@@ -207,16 +207,25 @@ async function createCorreiosShipment(
       observacao = `Declaracao de Conteudo no ${fiscalDoc.dc_number}`;
     }
 
+    const pesoGramas = Math.max(100, Math.round(totalWeight));
+    const formatoObjeto = '2';
+
     // Create pre-shipment (pré-postagem)
     const prepostagemPayload: Record<string, unknown> = {
       idCorreios: credentials.cartao_postagem,
       codigoServico: serviceCode,
-      peso: Math.max(100, Math.round(totalWeight)), // already in grams, min 100g
-      codigoFormatoObjeto: 2, // 1=envelope, 2=caixa, 3=cilindro
+      peso: pesoGramas, // compat legado observado no projeto
+      pesoObjeto: String(pesoGramas),
+      codigoFormatoObjeto: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
+      codigoObjetoFormato: formatoObjeto,
       alturaEmCentimetro: 10,
       larguraEmCentimetro: 15,
       comprimentoEmCentimetro: 20,
       diametroemCentimetro: 0,
+      altura: '10',
+      largura: '15',
+      comprimento: '20',
+      diametro: '0',
       valorDeclarado: order.total,
       avisoRecebimento: false,
       maoPropria: false,
@@ -269,10 +278,12 @@ async function createCorreiosShipment(
     }
     if (observacao) {
       prepostagemPayload.observacao = observacao;
+      prepostagemPayload.itensDeclaracaoConteudo = order.items.map((item) => ({
+        conteudo: item.product_name,
+        quantidade: String(Number(item.quantity) || 1),
+        valor: Number(item.unit_price || 0).toFixed(2),
+      }));
     }
-
-    prepostagemPayload.pesoObjeto = String(Math.max(100, Math.round(totalWeight)));
-    prepostagemPayload.codigoFormatoObjeto = '2';
 
     console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 800));
 
