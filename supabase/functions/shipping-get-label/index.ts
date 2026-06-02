@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
 
     // Parse request
     const body: LabelRequest = await req.json();
-    const { shipment_id, order_id, tracking_code, format = 'pdf' } = body;
+    const { shipment_id, order_id, tracking_code, format = 'pdf', force_refresh = false } = body;
 
     if (!shipment_id && !order_id && !tracking_code) {
       return new Response(
