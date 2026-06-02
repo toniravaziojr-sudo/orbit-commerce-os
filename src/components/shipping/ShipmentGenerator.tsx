@@ -567,12 +567,12 @@ export function ShipmentGenerator() {
 
     let opened = 0;
     for (const s of selected) {
-      if ((type === 'labels' || type === 'both') && s.label_url) {
-        window.open(s.label_url, '_blank');
+      if (type === 'labels' || type === 'both') {
+        await handlePrintLabel(s);
         opened++;
       }
-      if ((type === 'danfes' || type === 'both') && s.invoice?.danfe_url) {
-        window.open(s.invoice.danfe_url, '_blank');
+      if (type === 'danfes' || type === 'both') {
+        await handlePrintDanfe(s);
         opened++;
       }
     }
@@ -587,8 +587,8 @@ export function ShipmentGenerator() {
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       draft: { label: 'Rascunho', variant: 'outline' },
-      label_created: { label: 'Etiqueta criada', variant: 'outline' },
-      posted: { label: 'Postado', variant: 'secondary' },
+      label_created: { label: 'Despachado', variant: 'secondary' },
+      posted: { label: 'Despachado', variant: 'secondary' },
       in_transit: { label: 'Em trânsito', variant: 'secondary' },
       out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
       delivered: { label: 'Entregue', variant: 'default' },
