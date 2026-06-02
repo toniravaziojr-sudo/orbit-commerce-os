@@ -233,7 +233,63 @@ Deno.serve(async (req) => {
       : null;
 
   if (!finalWeightGrams || finalWeightGrams <= 0) {
-    return jsonResp({ success: false, error: "weight_required" });
+    return jsonResp({
+      success: false,
+      error: "Peso total da Declaração de Conteúdo não pôde ser calculado. Cadastre o peso dos produtos ou informe o peso total ao emitir.",
+      code: "weight_required",
+    });
+  }
+
+  // ===== PRÉ-FLIGHT UNIFICADO (DC + Emitente) =====
+  // Garante que todos os dados obrigatórios para a DC estão presentes ANTES
+  // de gravar o registro auditável. Mensagens em PT-BR via motor único.
+  // Doc: docs/especificacoes/fiscal/preflight-fiscal-logistico.md
+  const docDigits = String((recipient as any).documento || "").replace(/\D/g, "");
+  const preflight = runPreflight({
+    scopes: ["dc", "emitente"],
+    destinatario: {
+      nome: (recipient as any).nome,
+      cpf_cnpj: docDigits,
+      telefone: (recipient as any).telefone,
+      endereco: {
+        cep: (recipient as any).cep,
+        logradouro: (recipient as any).logradouro,
+        numero: (recipient as any).numero,
+        bairro: (recipient as any).bairro,
+        municipio: (recipient as any).municipio,
+        uf: (recipient as any).uf,
+      },
+    },
+    itens: items.map((it: any) => ({
+      descricao: it.descricao,
+      codigo_produto: it.codigo,
+      quantidade: it.quantidade,
+      valor_unitario: it.valor_unitario,
+      // Peso já foi consolidado em finalWeightGrams; aqui o motor só checa
+      // descrição/quantidade/valor por item. Peso total da embalagem é checado
+      // pelo escopo 'shipment' na hora do despacho.
+      peso_unitario_g: 1, // marcador positivo — o gate de peso real é o finalWeightGrams acima
+    })),
+    emitente: {
+      razao_social: (sender as any).razao_social,
+      cnpj: (sender as any).cnpj,
+      telefone: (sender as any).telefone,
+      cep: (sender as any).cep,
+      logradouro: (sender as any).logradouro,
+      numero: (sender as any).numero,
+      bairro: (sender as any).bairro,
+      municipio: (sender as any).municipio,
+      uf: (sender as any).uf,
+    },
+  });
+  if (!preflight.ok) {
+    console.warn("[correios-content-declaration-issue] Pré-flight bloqueou emissão:", preflight.blockingIssues);
+    return jsonResp({
+      success: false,
+      error: preflight.message,
+      code: "PREFLIGHT_BLOCKED",
+      issues: preflight.blockingIssues,
+    });
   }
 
   const seedId = invoice?.id || order?.id || crypto.randomUUID();
