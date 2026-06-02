@@ -31,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
+import { RemessasManager } from '@/components/shipping/RemessasManager';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { formatDateBR } from "@/lib/date-format";
 
