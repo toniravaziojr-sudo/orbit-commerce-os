@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2 } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2, RefreshCw } from 'lucide-react';
 import { DraftShipmentDialog } from './DraftShipmentDialog';
 import {
   AlertDialog,
@@ -111,8 +111,7 @@ export function ShipmentGenerator() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [dispatchDialog, setDispatchDialog] = useState<ShipmentRecord | null>(null);
-  const [isDispatching, setIsDispatching] = useState(false);
+  // (Diálogo de despacho removido — emissão = despacho)
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
@@ -437,15 +436,37 @@ export function ShipmentGenerator() {
   };
 
 
-  const handlePrintLabel = (shipment: ShipmentRecord) => {
-    if (shipment.label_url) {
-      window.open(shipment.label_url, '_blank');
-    } else {
-      toast.error('Etiqueta não disponível');
+  // Imprimir/Reimprimir etiqueta — sempre disponível.
+  // Chama a edge que devolve signed URL (se existir no bucket) ou baixa nos Correios e armazena.
+  const handlePrintLabel = async (shipment: ShipmentRecord, forceRefresh = false) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('shipping-get-label', {
+        body: { shipment_id: shipment.id, force_refresh: forceRefresh },
+      });
+      if (error) {
+        toast.error('Falha ao obter etiqueta');
+        return;
+      }
+      if (data?.success && data.label_url) {
+        window.open(data.label_url, '_blank');
+        return;
+      }
+      if (data?.success && data.label_base64) {
+        const bin = atob(data.label_base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        return;
+      }
+      toast.error(data?.error || 'Etiqueta não disponível');
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao imprimir etiqueta');
     }
   };
 
-  // Print DANFE
+  // Print DANFE / Declaração de Conteúdo
   const handlePrintDanfe = async (shipment: ShipmentRecord) => {
     if (shipment.invoice?.danfe_url) {
       window.open(shipment.invoice.danfe_url, '_blank');
@@ -460,59 +481,36 @@ export function ShipmentGenerator() {
         .single();
       if (data?.danfe_url) {
         window.open(data.danfe_url, '_blank');
-      } else {
-        toast.error('DANFE não disponível');
+        return;
       }
-    } else {
-      toast.error('NF-e não vinculada à remessa');
     }
-  };
-
-  // Dispatch action: open dialog with print options + confirm
-  const handleDispatchClick = (shipment: ShipmentRecord) => {
-    setDispatchDialog(shipment);
-  };
-
-  const handleConfirmDispatch = async () => {
-    if (!dispatchDialog || !currentTenant?.id) return;
-    setIsDispatching(true);
-
+    // Sem NF-e — tenta Declaração de Conteúdo vinculada ao PV/pedido
     try {
-      // Pedido real (quando existir) — PVs manuais/duplicados não têm pedido real
-      if (dispatchDialog.order_id) {
-        await supabase
-          .from('orders')
-          .update({
-            status: 'dispatched' as any,
-            shipped_at: new Date().toISOString(),
-          })
-          .eq('id', dispatchDialog.order_id);
-
-        await supabase
-          .from('order_history')
-          .insert({
-            order_id: dispatchDialog.order_id,
-            action: 'dispatched',
-            description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
-          });
+      const declRow = await fetchDeclarationFor(shipment);
+      if (declRow) {
+        const { reprintExistingDeclaration } = await import('@/lib/declaracaoConteudo');
+        reprintExistingDeclaration(declRow as any);
+        return;
       }
-
-      // Marca a remessa como postada — independe da existência de pedido real
-      await supabase
-        .from('shipments')
-        .update({ delivery_status: 'posted' as any, last_status_at: new Date().toISOString() })
-        .eq('id', dispatchDialog.id)
-        .eq('tenant_id', currentTenant.id);
-
-      toast.success(dispatchDialog.order_id ? 'Pedido marcado como despachado' : 'Remessa marcada como despachada');
-      setDispatchDialog(null);
-      invalidateAll();
-    } catch (error) {
-      toast.error('Erro ao confirmar despacho');
-    } finally {
-      setIsDispatching(false);
+    } catch (e: any) {
+      console.error('DC print error', e);
     }
+    toast.error('Documento fiscal (NF-e/DC) não disponível para impressão');
   };
+
+  // Busca a Declaração de Conteúdo existente para a remessa
+  const fetchDeclarationFor = async (shipment: ShipmentRecord) => {
+    let q = supabase.from('shipping_content_declarations').select('*').eq('status', 'issued');
+    if (shipment.source_pedido_venda_id) q = q.eq('fiscal_invoice_id', shipment.source_pedido_venda_id);
+    else if (shipment.order_id) q = q.eq('order_id', shipment.order_id);
+    else return null;
+    const { data } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return data;
+  };
+
+  // (Handlers de despacho removidos — a emissão da remessa já faz o despacho
+  // de forma atômica no backend, e a transição para "enviado" é responsabilidade
+  // do polling dos Correios ao detectar o primeiro evento real de postagem.)
 
   // Batch print
   const handleBatchPrint = async (type: 'labels' | 'danfes' | 'both') => {
@@ -526,12 +524,12 @@ export function ShipmentGenerator() {
 
     let opened = 0;
     for (const s of selected) {
-      if ((type === 'labels' || type === 'both') && s.label_url) {
-        window.open(s.label_url, '_blank');
+      if (type === 'labels' || type === 'both') {
+        await handlePrintLabel(s);
         opened++;
       }
-      if ((type === 'danfes' || type === 'both') && s.invoice?.danfe_url) {
-        window.open(s.invoice.danfe_url, '_blank');
+      if (type === 'danfes' || type === 'both') {
+        await handlePrintDanfe(s);
         opened++;
       }
     }
@@ -546,8 +544,8 @@ export function ShipmentGenerator() {
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       draft: { label: 'Rascunho', variant: 'outline' },
-      label_created: { label: 'Etiqueta criada', variant: 'outline' },
-      posted: { label: 'Postado', variant: 'secondary' },
+      label_created: { label: 'Despachado', variant: 'secondary' },
+      posted: { label: 'Despachado', variant: 'secondary' },
       in_transit: { label: 'Em trânsito', variant: 'secondary' },
       out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
       delivered: { label: 'Entregue', variant: 'default' },
@@ -861,31 +859,27 @@ export function ShipmentGenerator() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 justify-end">
-                              <Button 
-                                variant="ghost" size="icon" className="h-7 w-7" 
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
                                 title="Imprimir etiqueta"
                                 onClick={() => handlePrintLabel(shipment)}
-                                disabled={!shipment.label_url}
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </Button>
-                              <Button 
-                                variant="ghost" size="icon" className="h-7 w-7" 
-                                title="Imprimir DANFE"
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Reimprimir etiqueta (busca fresca nos Correios)"
+                                onClick={() => handlePrintLabel(shipment, true)}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Imprimir DANFE / Declaração de Conteúdo"
                                 onClick={() => handlePrintDanfe(shipment)}
-                                disabled={!shipment.invoice_id}
                               >
                                 <FileText className="h-3.5 w-3.5" />
                               </Button>
-                              {shipment.order?.status !== 'dispatched' && shipment.order?.status !== 'shipped' && (
-                                <Button 
-                                  variant="outline" size="sm" className="h-7 gap-1 text-xs"
-                                  onClick={() => handleDispatchClick(shipment)}
-                                >
-                                  <Send className="h-3 w-3" />
-                                  Despachar
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1010,76 +1004,9 @@ export function ShipmentGenerator() {
         </TabsContent>
       </Tabs>
 
-      {/* Dispatch Confirmation Dialog */}
-      <Dialog open={!!dispatchDialog} onOpenChange={(open) => !open && setDispatchDialog(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Confirmar Despacho
-            </DialogTitle>
-          </DialogHeader>
-          
-          {dispatchDialog && (
-            <div className="space-y-4">
-              <div className="rounded-lg border p-3 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Pedido</span>
-                  <span className="font-medium">#{dispatchDialog.order?.order_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Cliente</span>
-                  <span className="text-sm">{dispatchDialog.order?.customer_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Rastreio</span>
-                  <span className="text-sm font-mono">{dispatchDialog.tracking_code || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Transportadora</span>
-                  <span className="text-sm">{dispatchDialog.carrier}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Imprimir documentos:</p>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" size="sm" className="gap-1 flex-1"
-                    onClick={() => handlePrintLabel(dispatchDialog)}
-                    disabled={!dispatchDialog.label_url}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Etiqueta
-                  </Button>
-                  <Button 
-                    variant="outline" size="sm" className="gap-1 flex-1"
-                    onClick={() => handlePrintDanfe(dispatchDialog)}
-                    disabled={!dispatchDialog.invoice_id}
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    DANFE
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDispatchDialog(null)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleConfirmDispatch} 
-              disabled={isDispatching}
-              className="gap-2"
-            >
-              <Send className="h-4 w-4" />
-              {isDispatching ? 'Despachando...' : 'Confirmar Despacho'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dispatch dialog removido — emissão da remessa = despacho.
+          A transição para "Enviado" só acontece quando os Correios reportam o
+          primeiro evento real de movimentação (PO/Postado), via tracking-poll. */}
 
       <DraftShipmentDialog
         open={draftDialogOpen}

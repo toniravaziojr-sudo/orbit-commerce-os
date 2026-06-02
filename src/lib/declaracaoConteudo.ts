@@ -89,7 +89,7 @@ const ADDITIONAL_NOTICES = [
 ];
 
 // ----------------- Render de uma declaração no jsPDF (mesmo doc) -----------------
-function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: boolean) {
+export function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: boolean) {
   const s = rec.sender_snapshot || {};
   const r = rec.recipient_snapshot || {};
   const items = rec.items_snapshot || [];
@@ -322,6 +322,18 @@ export async function issueAndDownloadCorreiosContentDeclaration(args: IssueArgs
     console.error('[issueAndDownloadCorreiosContentDeclaration]', e);
     return { ok: false, error: e?.message || 'Erro ao gerar Declaração de Conteúdo' };
   }
+}
+
+/**
+ * Reimpressão de uma DC já emitida (não cria registro novo).
+ * Renderiza o PDF a partir do próprio snapshot persistido em `shipping_content_declarations`.
+ */
+export function reprintExistingDeclaration(rec: DeclarationRecord): { ok: boolean; filename: string } {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  renderOneDeclaration(doc, rec, true);
+  const filename = `${rec.dc_number}.pdf`;
+  doc.save(filename);
+  return { ok: true, filename };
 }
 
 // ----------------- API pública: batch (PDF único multipágina) -----------------

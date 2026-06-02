@@ -6,6 +6,7 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { downloadAndStoreCorreiosLabel, createLabelSignedUrl } from "../_shared/correios-label.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -18,6 +19,7 @@ interface LabelRequest {
   order_id?: string;
   tracking_code?: string;
   format?: 'pdf' | 'zpl' | 'a4' | 'a6'; // Default: pdf
+  force_refresh?: boolean; // "Reimprimir" — busca fresca nos Correios mesmo se já tiver no bucket
 }
 
 interface LabelResult {
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
 
     // Parse request
     const body: LabelRequest = await req.json();
-    const { shipment_id, order_id, tracking_code, format = 'pdf' } = body;
+    const { shipment_id, order_id, tracking_code, format = 'pdf', force_refresh = false } = body;
 
     if (!shipment_id && !order_id && !tracking_code) {
       return new Response(
@@ -114,19 +116,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If we already have a label URL, return it
-    if (shipment.label_url) {
+    // ===== 1) Etiqueta já armazenada no bucket interno =====
+    // Esta é a fonte de verdade pós-emissão. Geramos signed URL fresca a cada clique.
+    // Quando `force_refresh=true` (botão "Reimprimir"), pula este caminho e refaz nos Correios.
+    const labelPath = shipment.label_url;
+    if (!force_refresh && labelPath && !/^https?:\/\//i.test(labelPath) && labelPath.endsWith('.pdf')) {
+      const signed = await createLabelSignedUrl(supabase, labelPath, 3600);
+      if (signed) {
+        return new Response(
+          JSON.stringify({ success: true, label_url: signed, format: 'pdf' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // ===== 2) URL externa legada (raro) =====
+    if (!force_refresh && labelPath && /^https?:\/\//i.test(labelPath)) {
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          label_url: shipment.label_url,
-          format: 'pdf',
-        }),
+        JSON.stringify({ success: true, label_url: labelPath, format: 'pdf' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Need to fetch label from carrier
+    // ===== 3) Sem etiqueta armazenada → buscar nos Correios, armazenar e devolver =====
     const carrier = shipment.carrier?.toLowerCase() || '';
 
     // Get provider credentials
@@ -149,12 +161,35 @@ Deno.serve(async (req) => {
     }
 
     const credentials = providerRecord.credentials as Record<string, unknown>;
-    let result: LabelResult;
 
+    // Caminho preferencial: baixar PDF e armazenar (Correios)
+    if (carrier === 'correios') {
+      const dl = await downloadAndStoreCorreiosLabel(supabase, {
+        tenantId,
+        shipmentId: shipment.id,
+        trackingCode: shipment.tracking_code,
+        credentials: credentials as any,
+      });
+      if (dl.success && dl.storage_path) {
+        await supabase
+          .from('shipments')
+          .update({ label_url: dl.storage_path })
+          .eq('id', shipment.id);
+        const signed = await createLabelSignedUrl(supabase, dl.storage_path, 3600);
+        return new Response(
+          JSON.stringify({ success: true, label_url: signed, format: 'pdf' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ success: false, error: dl.error || 'Falha ao obter etiqueta dos Correios' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Loggi e outras transportadoras: caminho legado (base64)
+    let result: LabelResult;
     switch (carrier) {
-      case 'correios':
-        result = await getCorreiosLabel(shipment.tracking_code, credentials, format);
-        break;
       case 'loggi':
         result = await getLoggiLabel(shipment.tracking_code, shipment.provider_shipment_id, credentials);
         break;
@@ -162,43 +197,12 @@ Deno.serve(async (req) => {
         result = { success: false, error: `Etiqueta não disponível para ${carrier}` };
     }
 
-    // Update shipment with label URL if successful
+    // Update shipment with label URL if successful (legado)
     if (result.success && result.label_url) {
       await supabase
         .from('shipments')
         .update({ label_url: result.label_url })
         .eq('id', shipment.id);
-
-      // WMS Pratika — fire-and-forget: resolver invoice_id real a partir do pedido
-      try {
-        const { data: inv } = await supabase
-          .from('fiscal_invoices')
-          .select('id')
-          .eq('order_id', shipment.order_id)
-          .eq('tenant_id', tenantId)
-          .eq('status', 'authorized')
-          .order('authorized_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (inv?.id) {
-          fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              action: 'update_tracking',
-              invoice_id: inv.id,
-              tracking_code: shipment.tracking_code,
-              tenant_id: tenantId,
-            }),
-          }).catch(err => console.error('[shipping-get-label] WMS Pratika error:', err));
-        }
-      } catch (e) {
-        console.error('[shipping-get-label] Erro ao resolver invoice para Pratika:', e);
-      }
     }
 
     return new Response(

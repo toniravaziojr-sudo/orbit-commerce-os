@@ -16,6 +16,7 @@ export type PaymentCondition =
   | 'payment_expired';
 
 export type ShippingCondition = 
+  | 'dispatched' 
   | 'posted' 
   | 'in_transit' 
   | 'out_for_delivery' 

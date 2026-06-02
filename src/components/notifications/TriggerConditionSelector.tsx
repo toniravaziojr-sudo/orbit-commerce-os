@@ -23,8 +23,9 @@ const paymentConditions: { value: PaymentCondition; label: string }[] = [
 ];
 
 const shippingConditions: { value: ShippingCondition; label: string }[] = [
-  { value: 'posted', label: 'Enviado/Postado' },
-  { value: 'in_transit', label: 'A caminho (primeira movimentação)' },
+  { value: 'dispatched', label: 'Pedido despachado (emissão da remessa)' },
+  { value: 'posted', label: 'Enviado/Postado (1ª movimentação na transportadora)' },
+  { value: 'in_transit', label: 'A caminho' },
   { value: 'out_for_delivery', label: 'Chegando (em rota de entrega)' },
   { value: 'awaiting_pickup', label: 'Aguardando retirada' },
   { value: 'returning', label: 'Em devolução' },

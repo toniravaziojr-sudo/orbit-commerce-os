@@ -16,7 +16,7 @@ export const ORDER_TRANSITIONS: Record<string, string[]> = {
   invoice_pending_sefaz: ['invoice_authorized', 'invoice_rejected'],
   invoice_authorized: ['invoice_issued', 'invoice_cancelled'],
   invoice_issued: ['dispatched', 'invoice_cancelled'],
-  dispatched: ['completed', 'returning'],
+  dispatched: ['shipped', 'in_transit', 'delivered', 'completed', 'returning'],
   completed: ['returning'],
   returning: [],
   payment_expired: [],

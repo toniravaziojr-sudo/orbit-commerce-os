@@ -45,6 +45,56 @@ Memória anti-regressão: `mem://constraints/shipping-canonical-link-is-pv-not-o
 
 ---
 
+## Emissão = despachado · Primeiro evento Correios = enviado (2026-06-02)
+
+Decisão de produto: a própria emissão da remessa **já é o despacho**. Não existe
+mais botão intermediário "Despachar".
+
+Fluxo no momento da emissão (Correios):
+
+1. Pré-postagem é criada nos Correios e devolve o código de rastreio.
+2. O PDF da etiqueta é baixado imediatamente (`/prepostagens/{cod}/etiqueta`) e
+   armazenado no bucket privado `shipping-labels` em
+   `<tenantId>/<shipmentId>.pdf`. O campo `shipments.label_url` guarda apenas o
+   **path interno** — nunca URL externa. A leitura sempre cria signed URL fresca
+   (1h) na hora do clique, evitando link expirado.
+3. `shipments.delivery_status = 'posted'`.
+4. Pedido real (quando existe): `orders.status = 'dispatched'`,
+   `orders.shipped_at = now()`, `orders.tracking_code = ...`,
+   `orders.shipping_carrier = ...`. PVs manuais/duplicados sem pedido real:
+   apenas a remessa é marcada — nenhum pedido é tocado.
+5. Histórico do pedido recebe ação `dispatched`.
+6. Evento canônico `shipment.dispatched` é inserido em `events_inbox` —
+   consumido por `process-events` → regras de notificação com
+   `rule_type='shipping'` e `trigger_condition='dispatched'`.
+7. WMS Pratika é notificado fire-and-forget (`update_tracking`) quando há NF-e
+   autorizada vinculada e o tenant tem `auto_send_label=true`.
+
+Transição para "enviado" é responsabilidade do polling. Quando `tracking-poll`
+detecta o primeiro evento real dos Correios (`PO/POI/Postado` →
+`delivery_status='posted'`), atualiza `orders.status='shipped'` e emite
+`shipment.status_changed`. Estados terminais nunca são rebaixados.
+
+### Reimpressão de etiqueta e DC
+
+Etiqueta e Declaração de Conteúdo são **sempre reimprimíveis**. A UI expõe os
+botões sem `disabled`:
+
+- **Imprimir etiqueta**: chama `shipping-get-label`, que devolve signed URL do
+  PDF armazenado no bucket.
+- **Reimprimir etiqueta**: chama `shipping-get-label` com `force_refresh=true`,
+  refazendo a chamada nos Correios e substituindo o PDF no bucket.
+- **Imprimir DANFE / DC**: se houver NF-e autorizada, abre o `danfe_url` do
+  provedor fiscal; se houver Declaração de Conteúdo emitida, renderiza o PDF
+  via `reprintExistingDeclaration` a partir do snapshot — nunca reemitindo.
+
+Memória anti-regressão:
+`mem://constraints/shipping-emit-equals-dispatched-tracking-equals-shipped`.
+
+
+
+---
+
 ## Arquivos Principais
 
 | Arquivo | Descrição |
