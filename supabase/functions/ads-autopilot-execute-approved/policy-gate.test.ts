@@ -9,7 +9,7 @@
 import { assert, assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { decide, type ActionInput } from "../_shared/ads-policy.ts";
 
-function action(over: Partial<ActionInput> = {}): ActionInput {
+function action(over: Partial<ActionInput> = {}, now: Date = new Date()): ActionInput {
   return {
     id: "a1",
     tenant_id: "t1",
@@ -17,7 +17,7 @@ function action(over: Partial<ActionInput> = {}): ActionInput {
     action_type: "pause_campaign",
     action_data: { entity_id: "E1" },
     status: "approved",
-    approval_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+    approval_expires_at: new Date(now.getTime() + 24 * 3600 * 1000).toISOString(),
     ...over,
   };
 }
