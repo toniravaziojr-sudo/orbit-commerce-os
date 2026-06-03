@@ -51,9 +51,14 @@ interface InvoiceActionsDropdownProps {
   onResend?: () => void;
   /** Gera PDF de Declaração de Conteúdo (documento NÃO fiscal). */
   onGenerateDC?: () => void;
+  /** Imprime/baixa novamente a Declaração de Conteúdo já emitida para o pedido. */
+  onPrintDC?: () => void;
+  /** True quando o Pedido de Venda já possui Declaração de Conteúdo emitida. */
+  hasContentDeclaration?: boolean;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
   isGeneratingDC?: boolean;
+  isPrintingDC?: boolean;
   /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
   cloneLabel?: string;
   /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
