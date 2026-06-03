@@ -82,6 +82,10 @@ razão social, CNPJ, telefone, CEP, logradouro, número, bairro, município, UF.
 - Constraint cruzada: `mem://constraints/correios-cws-prepostagem-payload-and-error-parser`
   continua valendo para o parser de erro dos Correios — o motor é o
   **gate prévio**, o parser é a **defesa final**.
+- Memória: `mem://constraints/pv-deve-herdar-contato-do-pedido` — 3 camadas
+  (origem na criação automática, auto-cura na emissão da DC, gatilho de
+  banco) garantem que o Pedido de Venda nunca nasça nem fique sem telefone
+  e e-mail do destinatário quando o pedido original possui esses dados.
 
 ## Roadmap (depende de aprovação de UI/UX)
 
