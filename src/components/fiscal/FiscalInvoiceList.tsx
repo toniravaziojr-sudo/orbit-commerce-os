@@ -1180,8 +1180,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
   const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
 
-  const SHIPMENT_IN_MOTION_STATUSES = new Set([
-    'posted', 'in_transit', 'out_for_delivery', 'delivered', 'returned',
+  // Estados terminais do pedido em que a exclusão do PV é permitida
+  // (cancelamento, expiração ou reembolso já consumaram o descarte do pedido).
+  const ORDER_TERMINAL_DELETABLE = new Set([
+    'cancelled', 'cancelled_by_user', 'refunded', 'expired', 'payment_expired',
   ]);
 
   const handleDeleteDraft = async (invoice: FiscalInvoice) => {
@@ -1190,10 +1192,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       return;
     }
     setLinkedShipmentImpact(null);
-    // Se for um Pedido de Venda raiz, busca o objeto de postagem vinculado para
-    // adaptar o texto do diálogo (apagável vs em movimento).
+    setPaidOrderBlock(null);
+
     const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
-    if (stage === 'pedido_venda') {
+
+    // Para PV raiz vinculado a pedido real: checar se pedido está pago e ativo (bloqueio).
+    if (stage === 'pedido_venda' && (invoice as any).order_id && !(invoice as any).source_order_invoice_id) {
+      const { data: orderRow } = await supabase
+        .from('orders')
+        .select('order_number, status, payment_status')
+        .eq('id', (invoice as any).order_id)
+        .maybeSingle();
+      if (orderRow) {
+        const status = String((orderRow as any).status || '');
+        const paymentStatus = String((orderRow as any).payment_status || '');
+        const isPaidLike =
+          ['approved', 'paid'].includes(paymentStatus) ||
+          ['paid','processing','ready_to_invoice','invoice_pending_sefaz','invoice_authorized',
+           'invoice_issued','invoice_rejected','shipped','in_transit','dispatched','delivered',
+           'fulfilled','completed','chargeback_detected','chargeback_lost','chargeback_recovered',
+           'returning','returned','invoice_cancelled'].includes(status);
+        if (isPaidLike && !ORDER_TERMINAL_DELETABLE.has(status)) {
+          setPaidOrderBlock({
+            order_number: (orderRow as any).order_number?.toString() ?? null,
+            status,
+            payment_status: paymentStatus,
+          });
+          setConfirmDeleteInvoice(invoice);
+          return;
+        }
+      }
+
+      // Não bloqueado: busca objeto de postagem para informar cascata
       const { data } = await supabase
         .from('shipments')
         .select('tracking_code, delivery_status')
@@ -1205,7 +1235,6 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         setLinkedShipmentImpact({
           tracking_code: (data as any).tracking_code ?? null,
           delivery_status: (data as any).delivery_status as string,
-          in_motion: SHIPMENT_IN_MOTION_STATUSES.has((data as any).delivery_status as string),
         });
       }
     }
