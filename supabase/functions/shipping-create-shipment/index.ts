@@ -275,8 +275,18 @@ async function createCorreiosShipment(
     };
 
     // Vínculo fiscal (NF-e: campos estruturados; DC: observação)
+    // IMPORTANTE: Correios exige chave de acesso com exatamente 44 dígitos numéricos.
+    // No banco a chave é armazenada no formato canônico "NFe<44 dígitos>" (47 chars);
+    // precisamos remover o prefixo/qualquer caractere não numérico antes de enviar,
+    // caso contrário a NF é ignorada e a API devolve PPN-347 exigindo Declaração de Conteúdo.
     if (fiscalDoc?.kind === 'nfe') {
-      if (fiscalDoc.nfe_chave) prepostagemPayload.chaveAcessoNotaFiscal = fiscalDoc.nfe_chave;
+      if (fiscalDoc.nfe_chave) {
+        const chaveLimpa = String(fiscalDoc.nfe_chave).replace(/\D/g, '');
+        if (chaveLimpa.length !== 44) {
+          console.warn(`[Correios] chave de acesso com tamanho inesperado (${chaveLimpa.length}); valor bruto: ${fiscalDoc.nfe_chave}`);
+        }
+        prepostagemPayload.chaveAcessoNotaFiscal = chaveLimpa;
+      }
       if (fiscalDoc.nfe_numero) prepostagemPayload.numeroNotaFiscal = String(fiscalDoc.nfe_numero);
       if (fiscalDoc.nfe_serie) prepostagemPayload.serieNotaFiscal = String(fiscalDoc.nfe_serie);
       if (fiscalDoc.nfe_valor) prepostagemPayload.valorNotaFiscal = fiscalDoc.nfe_valor;
