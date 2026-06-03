@@ -133,11 +133,29 @@ export function RemessasManager() {
       if (!openRemessa?.id) return [] as RemessaObjeto[];
       const { data, error } = await supabase
         .from('shipments')
-        .select('id, tracking_code, carrier, delivery_status, created_at, order:orders(order_number, customer_name)')
+        .select('id, tracking_code, carrier, delivery_status, created_at, source_pedido_venda_id, order:orders(order_number, customer_name)')
         .eq('remessa_id', openRemessa.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as RemessaObjeto[];
+      const rows = (data || []) as unknown as RemessaObjeto[];
+
+      // Fallback: buscar dados do PV para objetos sem pedido vinculado (PV manual/duplicado)
+      const pvIds = Array.from(
+        new Set(rows.filter(r => !r.order && r.source_pedido_venda_id).map(r => r.source_pedido_venda_id as string))
+      );
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        rows.forEach(r => {
+          if (!r.order && r.source_pedido_venda_id && pvMap[r.source_pedido_venda_id]) {
+            r.pv = { numero: pvMap[r.source_pedido_venda_id].numero, dest_nome: pvMap[r.source_pedido_venda_id].dest_nome };
+          }
+        });
+      }
+      return rows;
     },
     enabled: !!openRemessa?.id,
   });
