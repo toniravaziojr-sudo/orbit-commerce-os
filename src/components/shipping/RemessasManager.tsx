@@ -54,7 +54,9 @@ interface RemessaObjeto {
   carrier: string | null;
   delivery_status: string;
   created_at: string;
+  source_pedido_venda_id: string | null;
   order?: { order_number: string | null; customer_name: string | null } | null;
+  pv?: { numero: number | null; dest_nome: string | null } | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
@@ -66,6 +68,18 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   cancelada: { label: 'Cancelada', variant: 'destructive', icon: AlertTriangle },
 };
 
+// Tradução do status do objeto (espelho do ShipmentGenerator)
+const objetoStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  draft: { label: 'Rascunho', variant: 'outline' },
+  label_created: { label: 'Despachado', variant: 'secondary' },
+  posted: { label: 'Despachado', variant: 'secondary' },
+  in_transit: { label: 'Em trânsito', variant: 'secondary' },
+  out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
+  delivered: { label: 'Entregue', variant: 'default' },
+  failed: { label: 'Falha', variant: 'destructive' },
+  returned: { label: 'Devolvido', variant: 'destructive' },
+};
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = statusConfig[status] || { label: status, variant: 'outline' as const, icon: Package };
   const Icon = cfg.icon;
@@ -75,6 +89,11 @@ function StatusBadge({ status }: { status: string }) {
       {cfg.label}
     </Badge>
   );
+}
+
+function ObjetoStatusBadge({ status }: { status: string }) {
+  const cfg = objetoStatusConfig[status] || { label: status, variant: 'outline' as const };
+  return <Badge variant={cfg.variant} className="text-xs">{cfg.label}</Badge>;
 }
 
 export function RemessasManager() {
