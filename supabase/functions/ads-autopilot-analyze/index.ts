@@ -3238,6 +3238,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             totalActionsRejected++;
           }
 
+          attachObservationIfEligible(actionRecord, acctConfig);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) {
             // v5.11.0: Treat UNIQUE constraint violation as noop (idempotency)
