@@ -2256,7 +2256,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
                 // ===== v5.12.4: PIPELINE ORIENTADO A PROCESSO COM GUARDS =====
-                const isAutoMode = acctConfig.human_approval_mode === "auto" && trigger_type !== "first_activation";
+                // Fase C.1: bypass de `human_approval_mode='auto'` neutralizado — força isAutoMode=false até `autonomy_mode` ser introduzido.
+                const isAutoMode = false;
                 const scheduledActivationTime = getNextSchedulingTime();
                 const campaignFunnel = args.funnel_stage || "tof";
 
