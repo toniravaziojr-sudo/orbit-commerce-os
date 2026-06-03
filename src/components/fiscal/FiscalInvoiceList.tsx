@@ -282,6 +282,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return filteredInvoices.slice(start, start + pageSize);
   }, [filteredInvoices, currentPage, pageSize]);
 
+  // Carrega o conjunto de Pedidos de Venda visíveis que já possuem Declaração de
+  // Conteúdo emitida. Atualiza o mapa local para o item do menu alternar entre
+  // "Gerar" e "Imprimir Declaração de Conteúdo".
+  useEffect(() => {
+    if (mode !== 'orders') return;
+    const ids = (pagedInvoices || []).map((i: any) => i.id).filter(Boolean);
+    if (!ids.length) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('shipping_content_declarations')
+        .select('fiscal_invoice_id')
+        .in('fiscal_invoice_id', ids)
+        .eq('status', 'issued');
+      if (canceled || error || !data) return;
+      setDcByInvoiceId((prev) => {
+        const next = new Set(prev);
+        (data as any[]).forEach((row) => {
+          if (row?.fiscal_invoice_id) next.add(row.fiscal_invoice_id as string);
+        });
+        return next;
+      });
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [pagedInvoices, mode]);
+
   // Quando uma linha for marcada para destaque, leva o usuário até a página correta
   // e rola até a linha. O destaque some após ~2.5s.
   useEffect(() => {
