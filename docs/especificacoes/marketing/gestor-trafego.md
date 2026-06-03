@@ -1372,3 +1372,97 @@ Coluna `autonomy_mode` em `ads_autopilot_account_configs`:
 ### Próxima fase recomendada
 
 **Fase C.3 — Piloto de `technical_only` em 1 tenant** com observabilidade plena (dashboard de classificação + auditoria de `policy_check_result`), ainda sem autoexecução real. A ativação efetiva da autoexecução depende de aprovação explícita do usuário e virá em fase posterior.
+
+## Fase C.3.1 — Bloco Observacional do `technical_only` (entregue, allowlist VAZIA)
+
+A Fase C.3.1 prepara o terreno para o futuro piloto observacional do modo `technical_only`. Ela **não ativa nenhum tenant**, **não executa nada**, **não chama API externa** e **não altera o comportamento prático do sistema**.
+
+### O que foi entregue
+
+- Função pura `buildObservationResult(...)` em `supabase/functions/_shared/ads-policy.ts`, que converte uma decisão do Execution Policy Engine no objeto `observation` a ser gravado em `policy_check_result.observation`.
+- Gate de elegibilidade `shouldAttachObservation(...)` — síncrono, determinístico, sem banco e sem rede.
+- Helper de integração `maybeAttachTechnicalOnlyObservation(...)` que anexa o bloco `observation` ao registro de ação **antes** do INSERT, somente se todos os gates passarem.
+- Allowlist in-code `TECHNICAL_ONLY_OBSERVATION_ALLOWLIST` — **inicia VAZIA**. Adicionar tenant exige entrega futura com aprovação explícita.
+- Lista canônica `OBSERVABLE_TECHNICAL_ACTION_TYPES` com os 8 tipos técnicos de baixo risco elegíveis nesta primeira fase.
+- Wiring nos motores `analyze` e `strategist`: chamada do helper imediatamente antes de cada INSERT principal em `ads_autopilot_actions`. Como a allowlist está vazia, todas essas chamadas são no-op em produção.
+- Suíte de testes `supabase/functions/_shared/ads-policy.observation.test.ts` com 24 testes verdes cobrindo allowlist, todos os gates e todos os mapeamentos de decisão.
+
+### Formato canônico do bloco `observation`
+
+```json
+{
+  "mode": "technical_only_observational",
+  "pilot_version": "c3_v1",
+  "would_decision": "execute_now | schedule | reject | insight | skipped_insufficient_context",
+  "would_scheduled_for": "ISO 8601 (apenas em would_decision='schedule')",
+  "would_reason": "string curta",
+  "window_check": { },
+  "limit_check": { },
+  "context_check": { "sufficient": true, "missing": [] },
+  "evaluated_at": "ISO 8601 UTC"
+}
+```
+
+### Gates que precisam passar para gravar `observation`
+
+1. `tenant_id` presente.
+2. `TECHNICAL_ONLY_OBSERVATION_ALLOWLIST` contém o `tenant_id`. **Hoje a lista está vazia — nenhum tenant grava `observation`.**
+3. `autonomy_mode = 'technical_only'` na configuração da conta.
+4. `is_ai_enabled = true`.
+5. `kill_switch = false`.
+6. `action_class = 'automatic_candidate'`.
+7. `action_type` ∈ `OBSERVABLE_TECHNICAL_ACTION_TYPES`.
+
+Qualquer falha em qualquer gate ⇒ **nenhum** `observation` é anexado e o comportamento atual segue intocado.
+
+### Escopo de ações observáveis em C.3.1
+
+| Inclusos (8) | Não inclusos nesta fase |
+|---|---|
+| `adjust_budget`, `adjust_budget_up`, `adjust_budget_down` | `pause_campaign`, `pause_adset`, `pause_adgroup`, `pause_ad` |
+| `increase_budget`, `decrease_budget` | `activate_*`, `reactivate_*` |
+| `update_tiktok_budget` | `create_*`, `duplicate_*`, criativos, copys, expansão |
+| `schedule_action`, `toggle_tiktok_status` | qualquer ação `emergency` |
+
+Pausas/reativações ficam fora porque dependem de sinais ainda não implementados (histograma horário, CPA de referência, regra mensal de pausa, maturação consolidada, regra 3× CPA). Esses sinais serão tratados em fases futuras.
+
+### Garantias duras (anti-regressão)
+
+- `isAutonomyExecutionEnabled()` continua **hardcoded `false`**.
+- `auto_executed` permanece `false` em qualquer ação que receba `observation`.
+- `executed_simulated` permanece `false`.
+- `executed_at` não é preenchido pela observação.
+- `executor` (`ads-autopilot-execute-approved`) e `scheduled-runner` (`ads-autopilot-scheduled-runner`) **ignoram completamente** `policy_check_result.observation` — observação é dado de auditoria, nunca de execução.
+- O helper de integração **não chama API externa, não faz UPDATE no banco e não altera status**.
+- Qualquer erro interno no helper é engolido silenciosamente: observação NUNCA bloqueia o fluxo principal.
+
+### Validação por SQL
+
+Para confirmar que nenhuma ação observacional foi promovida a execução real:
+
+```sql
+SELECT COUNT(*) AS leak_count
+FROM ads_autopilot_actions
+WHERE policy_check_result ? 'observation'
+  AND auto_executed = true;
+-- Esperado: 0. Em C.3.1, com allowlist vazia, a contagem TOTAL com observation também é 0.
+
+SELECT COUNT(*) AS total_observations
+FROM ads_autopilot_actions
+WHERE policy_check_result ? 'observation';
+-- Esperado em C.3.1: 0 (allowlist vazia).
+```
+
+### O que NÃO mudou na Fase C.3.1
+
+- Nenhum tenant foi ativado nem adicionado à allowlist.
+- Nenhum `autonomy_mode` foi alterado em qualquer conta.
+- Nenhum `is_ai_enabled` foi alterado.
+- Nenhuma UI, prompt da IA, fila de aprovação ou tela do gestor de tráfego foi alterada.
+- Nenhuma migration foi criada — toda a observação cabe em `policy_check_result` (jsonb existente).
+- Nenhuma chamada externa nova foi adicionada.
+- Histograma horário, CPA de referência, regra mensal de pausa, cache de CPA e Modo Piloto/Sandbox continuam fora do escopo.
+
+### Próxima fase recomendada
+
+**Fase C.3.2 — Ativação observacional em 1 tenant piloto** (proposta: `Respeite o Homem`, apenas canal Meta). Requer aprovação explícita do usuário para: (a) adicionar o `tenant_id` à allowlist, (b) setar `autonomy_mode='technical_only'` na(s) conta(s) de anúncio do piloto. Mesmo após C.3.2, **nenhuma autoexecução real é ligada** — apenas a gravação de `observation` para auditoria por SQL.

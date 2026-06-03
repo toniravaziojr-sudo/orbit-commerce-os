@@ -597,3 +597,257 @@ export function decide(ctx: DecideContext): Decision {
 
   return { kind: "execute_now", reason: "policy_passed" };
 }
+
+// =============================================================================
+// Fase C.3.1 — Bloco Observacional do modo `technical_only`
+// =============================================================================
+// Permite REGISTRAR (em `policy_check_result.observation`) o que o sistema FARIA
+// se `technical_only` estivesse ativo de verdade, SEM executar nada, SEM chamar
+// API externa, SEM mudar status, SEM marcar `auto_executed`/`executed_simulated`.
+//
+// GARANTIAS DURAS:
+//   - `isAutonomyExecutionEnabled()` continua hardcoded `false`.
+//   - A allowlist começa VAZIA. Nenhum tenant entra nesta entrega.
+//   - Adicionar tenant à allowlist exige entrega futura com aprovação explícita.
+//   - Apenas ações técnicas de baixo risco (§5 do plano C.3) são observáveis
+//     nesta primeira fase. Pausas/reativações/criações ficam fora.
+//   - `executor` e `scheduled-runner` IGNORAM `policy_check_result.observation`.
+// =============================================================================
+
+export const OBSERVATION_PILOT_VERSION = "c3_v1";
+
+/**
+ * Allowlist in-code do piloto observacional `technical_only`.
+ * Iniciar SEMPRE vazia. Adicionar tenant aqui exige PR explícito com
+ * aprovação do usuário (fase futura — não C.3.1).
+ */
+export const TECHNICAL_ONLY_OBSERVATION_ALLOWLIST: readonly string[] = [];
+
+/**
+ * Tipos de ação técnica de baixo risco elegíveis ao piloto observacional C.3.1.
+ * NÃO entram nesta primeira observação: pause_*, reactivate_*, activate_*,
+ * criações, duplicações, criativos, copys, expansão estrutural.
+ */
+export const OBSERVABLE_TECHNICAL_ACTION_TYPES = new Set<string>([
+  "adjust_budget",
+  "adjust_budget_up",
+  "adjust_budget_down",
+  "increase_budget",
+  "decrease_budget",
+  "update_tiktok_budget",
+  "schedule_action",
+  "toggle_tiktok_status",
+]);
+
+export type WouldDecision =
+  | "execute_now"
+  | "schedule"
+  | "reject"
+  | "insight"
+  | "skipped_insufficient_context";
+
+export interface ObservationContextCheck {
+  sufficient: boolean;
+  missing: string[];
+}
+
+export interface ObservationResult {
+  mode: "technical_only_observational";
+  pilot_version: string;
+  would_decision: WouldDecision;
+  would_scheduled_for?: string;
+  would_reason: string;
+  window_check: Record<string, any>;
+  limit_check: Record<string, any>;
+  context_check: ObservationContextCheck;
+  evaluated_at: string;
+}
+
+export interface ObservationGateInput {
+  tenant_id: string;
+  action_type: string;
+  action_class: ActionClass;
+  autonomy_mode: unknown;
+  is_ai_enabled: boolean;
+  kill_switch: boolean;
+}
+
+export interface ObservationGateResult {
+  eligible: boolean;
+  reason: string;
+}
+
+/**
+ * Avalia, de forma SÍNCRONA e PURA, se uma ação proposta pode ter o bloco
+ * `observation` anexado em `policy_check_result`. Quando qualquer gate falha,
+ * retorna `eligible:false` — o caller NÃO deve gravar `observation` e o
+ * comportamento atual segue intocado.
+ *
+ * Esta função NÃO consulta banco, NÃO chama API externa, NÃO muta nada.
+ */
+export function shouldAttachObservation(input: ObservationGateInput): ObservationGateResult {
+  if (!input || typeof input !== "object") {
+    return { eligible: false, reason: "missing_gate_input" };
+  }
+  if (!input.tenant_id) {
+    return { eligible: false, reason: "missing_tenant_id" };
+  }
+  if (TECHNICAL_ONLY_OBSERVATION_ALLOWLIST.length === 0) {
+    return { eligible: false, reason: "pilot_allowlist_empty" };
+  }
+  if (!TECHNICAL_ONLY_OBSERVATION_ALLOWLIST.includes(input.tenant_id)) {
+    return { eligible: false, reason: "tenant_not_in_pilot_allowlist" };
+  }
+  if (normalizeAutonomyMode(input.autonomy_mode) !== "technical_only") {
+    return { eligible: false, reason: "autonomy_mode_not_technical_only" };
+  }
+  if (input.is_ai_enabled !== true) {
+    return { eligible: false, reason: "ai_disabled" };
+  }
+  if (input.kill_switch === true) {
+    return { eligible: false, reason: "kill_switch_active" };
+  }
+  if (input.action_class !== "automatic_candidate") {
+    // C.3.1: só observa ações técnicas candidatas. `emergency` fica fora.
+    return { eligible: false, reason: "action_class_not_observable_in_c3_1" };
+  }
+  if (!OBSERVABLE_TECHNICAL_ACTION_TYPES.has(input.action_type)) {
+    return { eligible: false, reason: "action_type_not_in_c3_1_scope" };
+  }
+  return { eligible: true, reason: "ok" };
+}
+
+export interface ObservationBuildInput {
+  /** Decisão calculada por `decide()` com o contexto disponível. */
+  decision?: Decision | null;
+  /** Snapshot da janela segura BRT no momento da avaliação. */
+  window_check?: Record<string, any>;
+  /** Snapshot do check de limite (ex.: delta_pct, max). */
+  limit_check?: Record<string, any>;
+  /** Resultado do check de contexto mínimo. */
+  context_check: ObservationContextCheck;
+  /** Timestamp da avaliação. Default: agora (UTC). */
+  evaluated_at?: Date;
+  /** Versão do piloto. Default: `OBSERVATION_PILOT_VERSION`. */
+  pilot_version?: string;
+}
+
+/**
+ * Função PURA. Converte uma decisão do `decide()` (ou ausência de contexto)
+ * no objeto `observation` a ser mesclado em `policy_check_result.observation`.
+ *
+ * Regras:
+ *   - Determinística, sem LLM, sem chamada externa, sem mutação de banco.
+ *   - Sempre preenche `would_decision`, `would_reason`, `evaluated_at`,
+ *     `mode='technical_only_observational'` e `pilot_version`.
+ *   - Se `context_check.sufficient=false` → força `skipped_insufficient_context`.
+ *   - Se a decisão for `execute_now` → `would_decision='execute_now'`.
+ *   - Se for `schedule` → `would_schedule` + `would_scheduled_for`.
+ *   - Se for `reject_*` / `expired_approval` / `reject_duplicate` → `would_reject`.
+ *   - Se a decisão não foi fornecida (ação puramente informativa) → `would_insight`.
+ */
+export function buildObservationResult(input: ObservationBuildInput): ObservationResult {
+  const evaluated_at = (input.evaluated_at ?? new Date()).toISOString();
+  const pilot_version = input.pilot_version || OBSERVATION_PILOT_VERSION;
+  const window_check = input.window_check ?? {};
+  const limit_check = input.limit_check ?? {};
+  const context_check: ObservationContextCheck = {
+    sufficient: !!input.context_check?.sufficient,
+    missing: Array.isArray(input.context_check?.missing) ? [...input.context_check.missing] : [],
+  };
+
+  if (!context_check.sufficient) {
+    return {
+      mode: "technical_only_observational",
+      pilot_version,
+      would_decision: "skipped_insufficient_context",
+      would_reason: "insufficient_context_for_simulation",
+      window_check, limit_check, context_check, evaluated_at,
+    };
+  }
+
+  const d = input.decision;
+  if (!d) {
+    return {
+      mode: "technical_only_observational",
+      pilot_version,
+      would_decision: "insight",
+      would_reason: "no_decision_provided_insight_only",
+      window_check, limit_check, context_check, evaluated_at,
+    };
+  }
+
+  switch (d.kind) {
+    case "execute_now":
+      return {
+        mode: "technical_only_observational",
+        pilot_version,
+        would_decision: "execute_now",
+        would_reason: d.reason || "policy_passed",
+        window_check, limit_check, context_check, evaluated_at,
+      };
+    case "schedule":
+      return {
+        mode: "technical_only_observational",
+        pilot_version,
+        would_decision: "schedule",
+        would_scheduled_for: d.scheduled_for,
+        would_reason: d.reason || "scheduled_into_safe_window",
+        window_check, limit_check, context_check, evaluated_at,
+      };
+    case "reject_policy_limit_exceeded":
+    case "reject_policy_missing_context":
+    case "reject_duplicate":
+    case "expired_approval":
+      return {
+        mode: "technical_only_observational",
+        pilot_version,
+        would_decision: "reject",
+        would_reason: d.reason || d.kind,
+        window_check, limit_check, context_check, evaluated_at,
+      };
+    default:
+      return {
+        mode: "technical_only_observational",
+        pilot_version,
+        would_decision: "insight",
+        would_reason: "unknown_decision_kind",
+        window_check, limit_check, context_check, evaluated_at,
+      };
+  }
+}
+
+/**
+ * Helper de integração para `analyze` e `strategist`.
+ *
+ * Recebe o `actionRecord` que está prestes a ser inserido em
+ * `ads_autopilot_actions`. Se TODOS os gates passarem, anexa
+ * `policy_check_result.observation` ao próprio registro (em memória).
+ *
+ * Em C.3.1 a allowlist está VAZIA, então é efetivamente um no-op — nenhuma
+ * conta real grava `observation` nesta entrega.
+ *
+ * NÃO chama API externa. NÃO faz UPDATE no banco. NÃO altera status.
+ * NÃO marca `auto_executed` nem `executed_simulated`.
+ *
+ * Retorna `true` se a observação foi anexada, `false` caso contrário.
+ */
+export function maybeAttachTechnicalOnlyObservation(
+  actionRecord: Record<string, any>,
+  gate: ObservationGateInput,
+  build: ObservationBuildInput,
+): boolean {
+  const g = shouldAttachObservation(gate);
+  if (!g.eligible) return false;
+
+  const observation = buildObservationResult(build);
+  const current = (actionRecord.policy_check_result && typeof actionRecord.policy_check_result === "object")
+    ? actionRecord.policy_check_result
+    : {};
+  actionRecord.policy_check_result = { ...current, observation };
+
+  // Defesa em camadas: o helper NUNCA pode tocar nos campos de execução real.
+  if (actionRecord.auto_executed === true) actionRecord.auto_executed = false;
+  if (actionRecord.executed_simulated === true) actionRecord.executed_simulated = false;
+  return true;
+}

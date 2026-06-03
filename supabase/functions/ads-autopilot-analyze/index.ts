@@ -3,6 +3,49 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
+import {
+  maybeAttachTechnicalOnlyObservation,
+  classifyAction,
+  type ObservationGateInput,
+  type ObservationBuildInput,
+} from "../_shared/ads-policy.ts";
+
+/**
+ * Fase C.3.1 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`
+ * a um `actionRecord` antes do INSERT em `ads_autopilot_actions`.
+ *
+ * Em C.3.1 a allowlist está VAZIA → no-op real. Em qualquer falha interna,
+ * engole silenciosamente e segue o fluxo (a observação NUNCA pode bloquear
+ * o caminho de produção). NÃO chama API externa. NÃO altera status.
+ */
+function attachObservationIfEligible(
+  actionRecord: Record<string, any>,
+  acctConfig: { tenant_id?: string; is_ai_enabled?: boolean; kill_switch?: boolean; autonomy_mode?: unknown } | null | undefined,
+): void {
+  try {
+    if (!acctConfig) return;
+    const action_type = String(actionRecord?.action_type || "");
+    const channel = String(actionRecord?.channel || "");
+    const action_class = classifyAction({ action_type, channel });
+    const gate: ObservationGateInput = {
+      tenant_id: String(acctConfig.tenant_id || actionRecord?.tenant_id || ""),
+      action_type,
+      action_class,
+      autonomy_mode: (acctConfig as any).autonomy_mode,
+      is_ai_enabled: acctConfig.is_ai_enabled === true,
+      kill_switch: acctConfig.kill_switch === true,
+    };
+    const build: ObservationBuildInput = {
+      // C.3.1: integração estrutural — sem chamar `decide()` aqui (allowlist vazia
+      // garante que este caminho nunca é exercitado em produção nesta entrega).
+      decision: null,
+      context_check: { sufficient: false, missing: ["c3_1_decide_context_not_wired_yet"] },
+    };
+    maybeAttachTechnicalOnlyObservation(actionRecord, gate, build);
+  } catch (_e) {
+    // Observação NUNCA pode quebrar o fluxo principal.
+  }
+}
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
@@ -2121,6 +2164,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] DEDUP: Já existe pending_approval para funil=${proposedFunnel} account=${acctConfig.ad_account_id}. Rejeitando duplicata.`);
                 actionRecord.status = "rejected";
                 actionRecord.rejection_reason = `Já existe proposta pendente para o funil "${proposedFunnel === "tof" ? "Público Frio" : proposedFunnel === "bof" ? "Remarketing" : proposedFunnel}". Aprove ou rejeite a existente antes de criar outra.`;
+                attachObservationIfEligible(actionRecord, acctConfig);
                 const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                 if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Insert error:`, insertErr.message);
                 continue;
@@ -2270,6 +2314,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   console.log(`[ads-autopilot-analyze][${VERSION}] BUDGET GUARD: rejected — ${budgetCheck.reason}`);
                   
                   // Insert action and skip
+                  attachObservationIfEligible(actionRecord, acctConfig);
                   const { error: bgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                   if (bgInsertErr && bgInsertErr.code !== "23505") console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, bgInsertErr);
                   totalActionsRejected++;
@@ -2386,6 +2431,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         // Rollback campaign
                         try { await supabase.functions.invoke("meta-ads-campaigns", { body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" } }); } catch {}
                         actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, reason: "targeting_guard_rejected" };
+                        attachObservationIfEligible(actionRecord, acctConfig);
                         const { error: tgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                         if (tgInsertErr && tgInsertErr.code !== "23505") console.error(`Action insert error:`, tgInsertErr);
                         totalActionsRejected++;
@@ -3192,6 +3238,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             totalActionsRejected++;
           }
 
+          attachObservationIfEligible(actionRecord, acctConfig);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) {
             // v5.11.0: Treat UNIQUE constraint violation as noop (idempotency)
