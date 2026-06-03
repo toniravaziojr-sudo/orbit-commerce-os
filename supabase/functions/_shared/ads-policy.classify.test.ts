@@ -195,3 +195,87 @@ Deno.test("contrato C.1: `human_approval_mode='auto'` legacy não interfere no m
   // mas isso só acontece porque a aprovação foi explicitamente carimbada.
   assertEquals(d.kind, "execute_now");
 });
+
+// =============================================================================
+// Fase C.2 — autonomy_mode (off | technical_only)
+// =============================================================================
+// `technical_only` é reconhecido pelo helper, mas NÃO libera execução
+// automática nesta fase. `off` é o default seguro. Valores inválidos viram
+// `off`. `human_approval_mode='auto'` continua sem bypass.
+// =============================================================================
+
+Deno.test("C.2 AUTONOMY_MODES contém apenas off e technical_only", () => {
+  assertEquals([...AUTONOMY_MODES], ["off", "technical_only"]);
+});
+
+Deno.test("C.2 normalizeAutonomyMode — valores válidos", () => {
+  assertEquals(normalizeAutonomyMode("off"), "off");
+  assertEquals(normalizeAutonomyMode("technical_only"), "technical_only");
+  assertEquals(normalizeAutonomyMode("TECHNICAL_ONLY"), "technical_only");
+});
+
+Deno.test("C.2 normalizeAutonomyMode — valores inválidos/ausentes viram off", () => {
+  assertEquals(normalizeAutonomyMode(undefined), "off");
+  assertEquals(normalizeAutonomyMode(null), "off");
+  assertEquals(normalizeAutonomyMode(""), "off");
+  assertEquals(normalizeAutonomyMode("auto"), "off");
+  assertEquals(normalizeAutonomyMode("full"), "off");
+  assertEquals(normalizeAutonomyMode("xyz"), "off");
+  assertEquals(normalizeAutonomyMode(42), "off");
+  assertEquals(normalizeAutonomyMode({}), "off");
+});
+
+Deno.test("C.2 isAutonomyExecutionEnabled — SEMPRE false nesta fase", () => {
+  assertEquals(isAutonomyExecutionEnabled("off"), false);
+  assertEquals(isAutonomyExecutionEnabled("technical_only"), false);
+  assertEquals(isAutonomyExecutionEnabled("anything"), false);
+  assertEquals(isAutonomyExecutionEnabled(undefined), false);
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode default = off, source = default_off", () => {
+  const m = buildClassificationMeta("adjust_budget");
+  assertEquals(m.autonomy_mode, "off");
+  assertEquals(m.autonomy_source, "default_off");
+  assertEquals(m.autonomy_enabled, false);
+  assertEquals(m.autonomy_execution_phase, "not_enabled_c2");
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode='technical_only' é registrado, source = config", () => {
+  const m = buildClassificationMeta("adjust_budget", { autonomyMode: "technical_only" });
+  assertEquals(m.autonomy_mode, "technical_only");
+  assertEquals(m.autonomy_source, "ads_autopilot_account_configs.autonomy_mode");
+  // CRÍTICO: mesmo com technical_only, autonomy_enabled continua false.
+  assertEquals(m.autonomy_enabled, false);
+  assertEquals(m.autonomy_execution_phase, "not_enabled_c2");
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode inválido cai em off com source default_off", () => {
+  const m = buildClassificationMeta("adjust_budget", { autonomyMode: "auto" });
+  assertEquals(m.autonomy_mode, "off");
+  assertEquals(m.autonomy_source, "default_off");
+  assertEquals(m.autonomy_enabled, false);
+});
+
+Deno.test("C.2 buildClassificationMeta — technical_only NÃO altera classificação da ação", () => {
+  const m1 = buildClassificationMeta("create_campaign", { autonomyMode: "technical_only" });
+  assertEquals(m1.action_class, "needs_approval");
+  const m2 = buildClassificationMeta("delete_campaign", { autonomyMode: "technical_only" });
+  assertEquals(m2.action_class, "blocked");
+});
+
+Deno.test("C.2 contrato: decide() ignora autonomy_mode e human_approval_mode — sem aprovação, nada executa", () => {
+  const now = new Date(Date.UTC(2026, 5, 3, 5, 0));
+  // Ação técnica, sem approved_at — autonomy_mode não interfere em decide().
+  const pending: ActionInput = {
+    id: "a-c2",
+    tenant_id: "t",
+    channel: "meta",
+    action_type: "pause_campaign",
+    action_data: { entity_id: "E1" },
+    status: "pending_approval",
+    approved_at: null,
+    approval_expires_at: null,
+  };
+  const d = decide({ action: pending, now });
+  assert(d.kind !== "execute_now", `pending NÃO pode executar (kind=${d.kind})`);
+});
