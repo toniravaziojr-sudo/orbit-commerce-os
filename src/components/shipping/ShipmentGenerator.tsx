@@ -1136,25 +1136,32 @@ export function ShipmentGenerator() {
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title="Imprimir etiqueta (busca etiqueta armazenada ou nos Correios)"
+                                disabled={isPrinting(shipment.id, 'label')}
                                 onClick={() => handlePrintLabel(shipment, true)}
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'label')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Printer className="h-3.5 w-3.5" />}
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title={shipment.invoice_id ? 'Imprimir DANFE (NF-e)' : 'Esta remessa não possui NF-e vinculada'}
-                                disabled={!shipment.invoice_id}
+                                disabled={!shipment.invoice_id || isPrinting(shipment.id, 'nfe')}
                                 onClick={() => handlePrintNFe(shipment)}
                               >
-                                <FileText className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'nfe')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <FileText className="h-3.5 w-3.5" />}
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title={shipment.declaration?.id ? 'Imprimir Declaração de Conteúdo' : 'Esta remessa não possui Declaração de Conteúdo'}
-                                disabled={!shipment.declaration?.id}
+                                disabled={!shipment.declaration?.id || isPrinting(shipment.id, 'dc')}
                                 onClick={() => handlePrintDC(shipment)}
                               >
-                                <ScrollText className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'dc')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <ScrollText className="h-3.5 w-3.5" />}
                               </Button>
                             </div>
                           </TableCell>
