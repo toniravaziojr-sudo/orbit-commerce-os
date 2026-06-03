@@ -217,18 +217,33 @@ export function InvoiceActionsDropdown({
               {cloneLabel}
             </DropdownMenuItem>
             {onGenerateDC && (
-              <DropdownMenuItem
-                onClick={onGenerateDC}
-                disabled={isGeneratingDC || pedidoBlocked}
-                title={pedidoBlocked ? pedidoBlockedReason : undefined}
-              >
-                {isGeneratingDC ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <FileText className="h-4 w-4 mr-2" />
-                )}
-                Gerar Declaração de Conteúdo
-              </DropdownMenuItem>
+              hasContentDeclaration ? (
+                <DropdownMenuItem
+                  onClick={onPrintDC}
+                  disabled={isPrintingDC || !onPrintDC}
+                  title="Imprime novamente a Declaração de Conteúdo já emitida"
+                >
+                  {isPrintingDC ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-2" />
+                  )}
+                  Imprimir Declaração de Conteúdo
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={onGenerateDC}
+                  disabled={isGeneratingDC || pedidoBlocked}
+                  title={pedidoBlocked ? pedidoBlockedReason : undefined}
+                >
+                  {isGeneratingDC ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4 mr-2" />
+                  )}
+                  Gerar Declaração de Conteúdo
+                </DropdownMenuItem>
+              )
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 
