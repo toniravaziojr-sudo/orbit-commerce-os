@@ -49,10 +49,11 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
    - **Motivo informado** pelo usuário.
    - **Texto de responsabilidade** neutro (não afirma automaticamente que o remetente “não é contribuinte”), seguido de avisos: não substitui NF-e quando obrigatória, responsabilidade do remetente, restrições de envio dos Correios, uso indevido pode gerar responsabilidade legal e aviso adicional de que o uso da declaração para omitir documento fiscal obrigatório ou informação tributária pode gerar responsabilidade legal do remetente.
    - Local, data e linha de assinatura do declarante/remetente.
-4. **Geração individual:** 1 pedido = 1 PDF (com 1+ páginas se a Declaração ocupar mais que uma folha).
-5. **Geração em massa:** 2 ou mais pedidos = **1 único arquivo PDF multipágina**, uma Declaração completa por pedido. Nome sugerido: `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. Não há múltiplos downloads separados.
-6. **Histórico** continua **individual** por pedido em `shipping_content_declarations`, com número interno próprio para cada Declaração e vínculo ao respectivo pedido.
-7. A emissão **nunca** chama Focus NFe ou Sefaz, **nunca** altera `fiscal_stage`, **nunca** marca o pedido como “fiscalizado”, **nunca** cria NF-e e **não aparece na aba Notas Fiscais**.
+4. **Geração individual:** 1 pedido = 1 registro persistido em `shipping_content_declarations`. **Não há download automático do PDF na geração individual.** O Pedido de Venda passa a exibir a opção **"Imprimir Declaração de Conteúdo"** no menu (no lugar de "Gerar"), e o usuário baixa o PDF quando precisar. Isso permite distinguir visualmente, no menu do pedido, quais PVs já têm Declaração emitida e quais ainda não têm.
+5. **Geração em massa:** 2 ou mais pedidos selecionados via barra de ações = **1 único arquivo PDF multipágina** baixado na hora, uma Declaração completa por pedido. Nome sugerido: `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico continua individual.
+6. **Reimpressão:** "Imprimir Declaração de Conteúdo" lê o snapshot persistido (`sender_snapshot`, `recipient_snapshot`, `items_snapshot`) e renderiza o mesmo PDF, **sem criar registro novo** e **sem chamar a edge function de emissão**. A numeração `DC-...` é preservada.
+7. **Histórico** continua **individual** por pedido em `shipping_content_declarations`, com número interno próprio para cada Declaração e vínculo ao respectivo pedido.
+8. A emissão **nunca** chama Focus NFe ou Sefaz, **nunca** altera `fiscal_stage`, **nunca** marca o pedido como "fiscalizado", **nunca** cria NF-e e **não aparece na aba Notas Fiscais**.
 
 ## Histórico e auditoria
 Cada emissão grava em `shipping_content_declarations`:
