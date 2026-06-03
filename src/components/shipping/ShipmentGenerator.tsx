@@ -604,8 +604,6 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Helper trivial para legibilidade do branch acima.
-  const createNewFlag = (v: boolean) => v;
 
 
   // === Ações manuais nos rascunhos ===
