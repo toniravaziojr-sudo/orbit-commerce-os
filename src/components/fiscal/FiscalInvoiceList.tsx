@@ -1224,8 +1224,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .eq('id', invoice.id);
 
       if (error) throw error;
-      toast.success('Nota excluída');
+      toast.success('Registro excluído');
       setConfirmDeleteInvoice(null);
+      setLinkedShipmentImpact(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
