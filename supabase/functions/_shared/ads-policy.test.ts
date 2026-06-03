@@ -260,13 +260,15 @@ Deno.test("decide — canal desconhecido → reject_policy_missing_context", () 
 });
 
 Deno.test("decide — pause válido dentro da janela → execute_now", () => {
+  const now = brtToUtc(2026, 6, 3, 2, 0);
   const d = decide({
     action: actionFixture({
       action_type: "pause_campaign",
       action_data: { entity_id: "E1" },
-      approval_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+      approved_at: new Date(now.getTime() - 60 * 1000).toISOString(),
+      approval_expires_at: new Date(now.getTime() + 3600 * 1000).toISOString(),
     }),
-    now: brtToUtc(2026, 6, 3, 2, 0),
+    now,
   });
   assertEquals(d.kind, "execute_now");
 });
