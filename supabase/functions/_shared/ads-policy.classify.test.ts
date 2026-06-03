@@ -263,19 +263,21 @@ Deno.test("C.2 buildClassificationMeta — technical_only NÃO altera classifica
   assertEquals(m2.action_class, "blocked");
 });
 
-Deno.test("C.2 contrato: decide() ignora autonomy_mode e human_approval_mode — sem aprovação, nada executa", () => {
+Deno.test("C.2 contrato: decide() ignora autonomy_mode — sem entidade, rejeita por contexto faltando", () => {
   const now = new Date(Date.UTC(2026, 5, 3, 5, 0));
-  // Ação técnica, sem approved_at — autonomy_mode não interfere em decide().
-  const pending: ActionInput = {
+  // Mesmo simulando um tenant em `technical_only` (não há parâmetro para isso
+  // em decide(), o que prova que o motor NÃO considera autonomy_mode), a ação
+  // sem entidade é rejeitada por contexto.
+  const noEntity: ActionInput = {
     id: "a-c2",
     tenant_id: "t",
     channel: "meta",
     action_type: "pause_campaign",
-    action_data: { entity_id: "E1" },
-    status: "pending_approval",
-    approved_at: null,
-    approval_expires_at: null,
+    action_data: {},
+    status: "approved",
+    approved_at: new Date(now.getTime() - 60_000).toISOString(),
+    approval_expires_at: new Date(now.getTime() + 60_000).toISOString(),
   };
-  const d = decide({ action: pending, now });
-  assert(d.kind !== "execute_now", `pending NÃO pode executar (kind=${d.kind})`);
+  const d = decide({ action: noEntity, now });
+  assertEquals(d.kind, "reject_policy_missing_context");
 });
