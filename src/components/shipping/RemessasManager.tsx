@@ -71,8 +71,8 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 // Tradução do status do objeto (espelho do ShipmentGenerator)
 const objetoStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
-  label_created: { label: 'Despachado', variant: 'secondary' },
-  posted: { label: 'Despachado', variant: 'secondary' },
+  label_created: { label: 'Etiqueta gerada', variant: 'outline' },
+  posted: { label: 'Postado', variant: 'secondary' },
   in_transit: { label: 'Em trânsito', variant: 'secondary' },
   out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
   delivered: { label: 'Entregue', variant: 'default' },
