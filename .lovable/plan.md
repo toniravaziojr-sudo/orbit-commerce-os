@@ -19,6 +19,8 @@ Como funciona hoje
 O problema
 - Há um defeito estrutural no espelho de status do Pedido de Venda: quando ele sai de “em aberto”, o sistema trata isso como cenário de remoção do objeto mesmo em casos válidos, como conclusão após emissão. Isso explica o caso do PV duplicado que ficou sem objeto.
 - A reconciliação automática ainda está incompleta para fechar o fluxo inteiro: ela recupera parte dos casos, mas não cobre corretamente todos os PVs manuais/duplicados ativos.
+- A emissão automática da remessa ainda tem uma falha estrutural de vínculo fiscal: em alguns cenários ela tenta localizar a NF antes de costurar o vínculo canônico com o Pedido de Venda e, além disso, a chamada automática ignora a referência explícita da própria NF já autorizada. Resultado: o envio pode chegar aos Correios sem o vínculo fiscal correto mesmo com NF existente.
+- O helper que dispara a remessa após autorização da NF também procura rascunho apenas pelo pedido comercial, deixando escapar cenários em que o rascunho já está vinculado só ao Pedido de Venda.
 - Hoje, no tenant analisado, os 271 objetos estão em rascunho e nenhum chegou a etiqueta gerada/rastreio. Então o envio de NF ao WMS já tem evidência real de sucesso, mas o envio de etiqueta ao WMS ainda não tem prova de produção concluída nesse tenant.
 
 Evidência já confirmada no diagnóstico
@@ -46,12 +48,17 @@ O que eu faria
 - Validar o fluxo inteiro para garantir que nenhum objeto local seja emitido sem NF autorizada ou Declaração de Conteúdo emitida.
 - Verificar também o caso de PV manual/duplicado para assegurar o mesmo bloqueio, sem exceções laterais.
 
-5. Fechar a prova ponta a ponta com o WMS
+5. Corrigir o vínculo fiscal no disparo automático da remessa
+- Reordenar o fluxo para que a remessa resolva primeiro o vínculo canônico com o Pedido de Venda e só depois escolha NF ou DC.
+- Fazer o disparo automático respeitar a NF já informada e localizar também rascunhos vinculados apenas ao Pedido de Venda.
+- Endurecer a validação da chave fiscal para não enviar aos Correios um vínculo inconsistente.
+
+6. Fechar a prova ponta a ponta com o WMS
 - NF: validar novamente em produção um caso recente e confirmar registro de sucesso.
 - Etiqueta: gerar uma etiqueta real em um objeto elegível do tenant, com documento já válido, e confirmar o registro de sucesso do envio de rastreio ao WMS.
 - Se houver falha, corrigir a integração até obter sucesso real e documentado.
 
-6. Validar tecnicamente antes de encerrar
+7. Validar tecnicamente antes de encerrar
 - Conferir dados no banco: objeto criado, vínculo com PV, vínculo com NF/DC, status correto e ausência de órfãos indevidos.
 - Conferir logs/auditoria: envio de NF e envio de etiqueta ao WMS com sucesso.
 - Conferir comportamento operacional: objeto não some ao concluir o PV e só bloqueia quando realmente faltar documento fiscal válido.
