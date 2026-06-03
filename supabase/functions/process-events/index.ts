@@ -303,9 +303,10 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
     if (rule_type === 'shipping' && trigger_condition) {
       const newStatus = payload.new_status as string || payload.shipping_status as string;
 
-      // Evento shipment.dispatched (emissão de remessa) — sempre satisfaz "dispatched"
+      // Evento shipment.dispatched (emissão de remessa) — satisfaz APENAS "dispatched".
+      // "posted" agora é exclusivamente o 1º evento real dos Correios.
       if (eventType === 'shipment.dispatched') {
-        return trigger_condition === 'dispatched' || trigger_condition === 'posted';
+        return trigger_condition === 'dispatched';
       }
 
       switch (trigger_condition) {
@@ -314,7 +315,9 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
           // de polling para não duplicar com o gatilho de "posted/enviado".
           return false;
         case 'posted':
-          return newStatus === 'posted' || newStatus === 'label_created' || newStatus === 'shipped';
+          // Só dispara quando o robô de rastreio detecta o 1º evento real dos Correios.
+          // 'label_created' (emissão) e 'shipped' (status do pedido) não satisfazem mais.
+          return newStatus === 'posted';
         case 'in_transit':
           return newStatus === 'in_transit';
         case 'out_for_delivery':
