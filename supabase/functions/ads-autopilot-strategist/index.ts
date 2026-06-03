@@ -3381,6 +3381,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             }
           }
 
+          attachObservationIfEligible(actionRecord, config);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
 
