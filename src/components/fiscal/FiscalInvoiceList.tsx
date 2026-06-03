@@ -2290,47 +2290,67 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           if (!open && !isDeletingInvoice) {
             setConfirmDeleteInvoice(null);
             setLinkedShipmentImpact(null);
+            setPaidOrderBlock(null);
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir este registro?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {paidOrderBlock ? 'Não é possível excluir este Pedido de Venda' : 'Excluir este registro?'}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
-                <p>
-                  Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
-                </p>
-                {confirmDeleteInvoice && (
-                  <p className="text-muted-foreground">
-                    {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
-                  </p>
+                {paidOrderBlock ? (
+                  <>
+                    <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive">
+                      Este Pedido de Venda pertence a um pedido pago{paidOrderBlock.order_number ? ` (#${paidOrderBlock.order_number})` : ''} e <strong>não pode ser excluído</strong>.
+                    </p>
+                    <p>
+                      Para descartar, <strong>cancele o pedido de origem</strong> na tela de Pedidos. O Pedido de Venda e o objeto de postagem serão removidos automaticamente.
+                    </p>
+                    {confirmDeleteInvoice && (
+                      <p className="text-muted-foreground">
+                        {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
+                    </p>
+                    {confirmDeleteInvoice && (
+                      <p className="text-muted-foreground">
+                        {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                      </p>
+                    )}
+                    {linkedShipmentImpact && (
+                      <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                        Este Pedido de Venda tem um objeto de postagem associado{linkedShipmentImpact.tracking_code ? ` (nº ${linkedShipmentImpact.tracking_code})` : ''}. <strong>Ele será excluído junto.</strong> Se a remessa ficar vazia, também será removida.
+                      </p>
+                    )}
+                    <p className="text-muted-foreground">
+                      Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
+                    </p>
+                  </>
                 )}
-                {linkedShipmentImpact && !linkedShipmentImpact.in_motion && (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                    Este Pedido de Venda tem um objeto de postagem associado ({linkedShipmentImpact.delivery_status === 'label_created' ? 'etiqueta gerada' : 'em rascunho'}). Ele será excluído junto. Se a remessa ficar vazia, também será removida.
-                  </p>
-                )}
-                {linkedShipmentImpact && linkedShipmentImpact.in_motion && (
-                  <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-900">
-                    O objeto de postagem {linkedShipmentImpact.tracking_code ? `nº ${linkedShipmentImpact.tracking_code}` : 'vinculado'} já está em movimento pelos Correios e <strong>permanecerá</strong> no histórico de Remessas. Apenas o Pedido de Venda será excluído.
-                  </p>
-                )}
-                <p className="text-muted-foreground">
-                  Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
-                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingInvoice}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeletingInvoice}
-              onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingInvoice}>
+              {paidOrderBlock ? 'Entendi' : 'Cancelar'}
+            </AlertDialogCancel>
+            {!paidOrderBlock && (
+              <AlertDialogAction
+                disabled={isDeletingInvoice}
+                onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
