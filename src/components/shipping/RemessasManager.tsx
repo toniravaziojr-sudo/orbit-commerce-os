@@ -317,27 +317,29 @@ export function RemessasManager() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Pedido</TableHead>
+                          <TableHead>Pedido de Venda</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Rastreio</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {objetos!.map(o => (
-                          <TableRow key={o.id}>
-                            <TableCell className="font-medium">
-                              {o.order?.order_number ? `#${o.order.order_number}` : '—'}
-                            </TableCell>
-                            <TableCell className="text-sm">{o.order?.customer_name || '—'}</TableCell>
-                            <TableCell className="font-mono text-xs">{o.tracking_code || '—'}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs capitalize">
-                                {o.delivery_status}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {objetos!.map(o => {
+                          const pvNumero = o.pv?.numero != null ? `PV ${o.pv.numero}` : null;
+                          const orderNumero = o.order?.order_number ? `#${o.order.order_number}` : null;
+                          const referencia = pvNumero || orderNumero || '—';
+                          const cliente = o.pv?.dest_nome || o.order?.customer_name || '—';
+                          return (
+                            <TableRow key={o.id}>
+                              <TableCell className="font-medium">{referencia}</TableCell>
+                              <TableCell className="text-sm">{cliente}</TableCell>
+                              <TableCell className="font-mono text-xs">{o.tracking_code || '—'}</TableCell>
+                              <TableCell>
+                                <ObjetoStatusBadge status={o.delivery_status} />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
