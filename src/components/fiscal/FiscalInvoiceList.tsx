@@ -1930,7 +1930,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               onResend={() => handleQuickSubmit(invoice)}
                               onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
+                              onPrintDC={mode === 'orders' ? () => handlePrintContentDeclaration(invoice) : undefined}
+                              hasContentDeclaration={mode === 'orders' ? dcByInvoiceId.has(invoice.id) : false}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
+                              isPrintingDC={printingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkingStatusInvoiceId === invoice.id}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
