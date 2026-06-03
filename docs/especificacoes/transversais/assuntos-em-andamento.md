@@ -203,23 +203,38 @@ Tornar o Autopilot de tráfego pago seguro o suficiente para evoluir gradualment
 **Validação técnica registrada:**
 - Schema, índices, helper, executor, runner e hook validados via consulta real ao banco e leitura de código. Lacuna declarada: cenários de ponta a ponta (A–F) não foram disparados em conta real para evitar risco.
 
-**Próxima fase recomendada (Fase C — não iniciar sem GO explícito):**
-- Autonomia por categoria (definir quais ações podem virar `auto_approved` por padrão e em quais condições).
+- **Fase C.3.1 — Bloco Observacional (EXECUÇÃO):** ✅ concluída.
+  - Motor passou a calcular, para cada ação elegível, qual seria a decisão se o modo `technical_only` estivesse ativo (`would_decision`), e registra esse cálculo em `policy_check_result.observation` **sem executar nada**.
+  - Allowlist observacional in-code criada (vazia nesta entrega), com guarda dupla por `is_ai_enabled` e `kill_switch`.
+  - Testes cobrindo os cenários principais (allowlist vazia, tenant fora, tenant dentro, ação inelegível). Documentação oficial atualizada.
+- **Fase C.3.2 — Ativação Observacional no tenant piloto Respeite o Homem (EXECUÇÃO):** ✅ concluída.
+  - **Etapa 1 (preparação silenciosa):** tenant Respeite o Homem adicionado à allowlist observacional; conta Meta `act_251893833881780` movida para `autonomy_mode='technical_only'`. `is_ai_enabled` permaneceu `false` (sem geração de propostas ainda).
+  - **Etapa 2 (ativação real observacional):** conta Meta do tenant ligada (`is_ai_enabled=true`) com `human_approval_mode='all'`. A IA passou a gerar propostas reais que **continuam exigindo aprovação manual**; em paralelo o motor registra observações do que faria se a autonomia estivesse ativa. Kill switch e demais contas/tenants intocados.
+
+**Estado atual — janela de observação aberta:**
+- Tenant piloto: **Respeite o Homem**, somente canal **Meta** (`act_251893833881780`).
+- Modo: **observacional** — IA propõe, humano aprova; nada é executado automaticamente.
+- Onde o operador acompanha: tela **Anúncios** (`/ads`) → abas **Ações da IA**, **Aguardando Ação** e **Calendário**. Toda sugestão fica enfileirada para aprovação manual.
+- Critério para avançar: manter a janela aberta por no mínimo **7 dias** ou até acumular **~30 ações observadas**, o que vier por último. Depois, leitura conjunta dos resultados (qualidade das sugestões, taxa de aprovação/rejeição, padrões) antes de decidir sobre a Fase C.4.
+
+**Próxima fase recomendada (Fase C.4 — não iniciar sem GO explícito):**
+- Após leitura da janela observacional, decidir quais categorias de ação podem virar autônomas (`auto_approved`) e em quais limites — mais restritos que os atuais.
 - Observabilidade: painel de decisões da política (executadas, agendadas, rejeitadas, expiradas) por tenant e por plataforma.
 - Hardening adicional sugerido na validação: estender índice diário para cobrir payloads que só trazem `meta_campaign_id`/`campaign_id`; reforçar carimbo de aprovação retroativa; testes de integração em sandbox.
 
 **Pendências do operador:**
-- Definir quais categorias de ação podem virar autônomas na Fase C (e em quais limites mais restritos que os atuais).
-- Autorizar testes ponta a ponta em conta real (ou em sandbox de cada plataforma).
-- Autorizar piloto da Fase C em um único tenant antes de qualquer expansão.
+- Acompanhar as sugestões na tela de Anúncios durante a janela observacional.
+- Sinalizar quando a janela puder ser fechada para análise conjunta dos resultados.
+- Após a leitura, definir o desenho da Fase C.4 (categorias, limites e tenant piloto de autonomia real).
 
 **Restrições firmes:**
-- Autonomia automática segue **desligada**. `classifyAction` retorna sempre `needs_approval`.
-- Nenhum tenant foi ativado em modo autônomo.
-- Nenhuma UI foi alterada nesta frente — só motor, executor, runner, hook e testes.
+- Autonomia automática segue **desligada**. Nenhuma ação é executada sem aprovação humana, mesmo no tenant piloto.
+- Allowlist observacional contém **apenas** Respeite o Homem; nenhum outro tenant pode ser adicionado sem GO explícito.
+- Apenas o canal **Meta** do tenant piloto está ativo no modo observacional. Google e TikTok seguem inalterados.
+- Nenhuma UI nova foi criada nesta frente — o operador acompanha pelas telas existentes do módulo de Anúncios.
 - Ações legadas (sem `policy_engine_version='v1'`) **não** são processadas pelo runner novo.
-- Toda evolução para Fase C exige PLANNER antes de EXECUÇÃO, e GO explícito do operador.
-- Mudança de limite de plataforma, janela segura ou TTL de aprovação exige aprovação explícita — não alterar por iniciativa própria.
+- Toda evolução para Fase C.4 exige PLANNER antes de EXECUÇÃO, e GO explícito do operador.
+- Mudança de limite de plataforma, janela segura, TTL de aprovação, allowlist ou modo de autonomia exige aprovação explícita — não alterar por iniciativa própria.
 
 ---
 
