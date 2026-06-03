@@ -81,6 +81,36 @@ export type ActionClass =
   | "observational"       // informativa/recomendação; NUNCA chama API externa
   | "blocked";            // proibida — destrutiva, fora do limite da plataforma ou explicitamente vetada
 
+// =============================================================================
+// Fase C.2 — autonomy_mode (apenas 2 modos nesta fase)
+// =============================================================================
+// IMPORTANTE: `technical_only` ainda NÃO libera execução automática real nesta
+// fase. O campo existe apenas para preparar a futura autonomia técnica. Quem
+// decide execução continua sendo o motor `decide()` + aprovação humana válida.
+// `human_approval_mode` permanece como campo LEGADO e não é usado como bypass.
+export type AutonomyMode = "off" | "technical_only";
+
+export const AUTONOMY_MODES: readonly AutonomyMode[] = ["off", "technical_only"] as const;
+
+/**
+ * Normaliza qualquer valor recebido para um `AutonomyMode` seguro.
+ * Valores ausentes, nulos, vazios ou desconhecidos viram `off`.
+ */
+export function normalizeAutonomyMode(value: unknown): AutonomyMode {
+  if (typeof value !== "string") return "off";
+  const v = value.trim().toLowerCase();
+  return v === "technical_only" ? "technical_only" : "off";
+}
+
+/**
+ * Fase C.2 — Nenhuma autonomia automática é liberada nesta fase, qualquer que
+ * seja o `autonomy_mode`. Esta função existe para deixar o contrato explícito
+ * em código: enquanto o sistema estiver em C.2, autoexecução = false.
+ */
+export function isAutonomyExecutionEnabled(_mode: AutonomyMode | unknown): false {
+  return false;
+}
+
 export type CampaignClass =
   | "new"
   | "learning"
