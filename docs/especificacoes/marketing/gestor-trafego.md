@@ -1225,3 +1225,68 @@ Rodar: `deno test supabase/functions/_shared/ads-policy.test.ts supabase/functio
 | Gate operacional runner | Conta + IA + kill switch (Fase B.1). | Feature flag por tenant. |
 
 
+
+---
+
+## Fase C.1 — Mapa Fixo de Autonomia (entregue, autonomia ainda DESLIGADA)
+
+A Fase C.1 implementa um **classificador determinístico** de ações do Autopilot. Toda nova ação passa a receber, no momento do registro, uma classe que orienta como ela poderá ser tratada por autonomia automática em fases futuras.
+
+**Importante — esta fase NÃO liga autonomia.** Mesmo ações classificadas como candidatas técnicas continuam exigindo aprovação humana. A execução automática real só será habilitada em fase posterior, quando um modo de autonomia for criado e ativado explicitamente por tenant.
+
+### As 5 classes de ação
+
+- **`automatic_candidate`** — Ação técnica/operacional segura, candidata a autonomia futura: ajustes de orçamento dentro do limite, pausas por performance madura, reativações seguras, agendamento para janela segura, bloqueio por política. Hoje continuam em aprovação humana.
+- **`needs_approval`** — Sempre exige aprovação humana: criação/duplicação de campanhas, conjuntos, anúncios; criação ou edição de criativos e copys; mudança de oferta, promessa, página de destino, segmentação estratégica ou objetivo de otimização; planos estratégicos e expansão estrutural.
+- **`emergency`** — Ações de risco real (kill switch, gasto acima do teto, tracking quebrado, link quebrado, evento essencial ausente). Poderão executar imediatamente em fase futura, mas só após os critérios técnicos baterem.
+- **`observational`** — Sinais informativos (insight, watch, recomendação, monitor, alerta). **Nunca chamam API externa.**
+- **`blocked`** — Ações destrutivas (excluir campanha/conjunto/anúncio/criativo), orçamentos acima do limite da plataforma e qualquer alteração visível sem aprovação. **Nunca executam.**
+
+Tipos de ação desconhecidos caem em `needs_approval` por default conservador.
+
+### Limites por plataforma (mantidos)
+
+- Meta: ±20% por ajuste de orçamento, intervalo mínimo 72h.
+- Google: ±20% por ajuste de orçamento, intervalo mínimo 7 dias.
+- TikTok: ±15% por ajuste de orçamento, intervalo mínimo 48h.
+
+Para escalar acima desses limites, a IA deve propor **expansão estrutural** (duplicar campanha, criar variação controlada, escalar em etapas) — e isso sempre cai em `needs_approval`.
+
+### Bypass legado neutralizado
+
+A configuração antiga de aprovação por conta (`human_approval_mode='auto'`) **não é mais bypass de segurança**. Enquanto o novo modo de autonomia não existir, qualquer tenant que estivesse no modo "automático" antigo passa a se comportar como se estivesse no modo "tudo exige aprovação". Esta neutralização foi feita em três pontos do motor:
+
+- No Estrategista: a variável `isAutoMode` foi forçada para `false`, impedindo execução direta de ajustes de orçamento e mudanças de status pela tool TikTok.
+- No Analisador: a porta de aprovação foi ampliada para tratar `'auto'` como `'all'`, e duas leituras locais de `isAutoMode` em criação de campanha/conjunto foram zeradas como cinto-e-suspensório.
+- O campo legado `human_approval_mode` **não foi removido** nem alterado em UI; apenas perdeu o efeito de liberar execução automática.
+
+### Carimbo automático no registro de ações
+
+Toda nova ação inserida em `ads_autopilot_actions` recebe via gatilho de banco:
+
+- `action_class` preenchida com uma das 5 classes acima.
+- `policy_check_result` enriquecido com `action_class`, `classification_reason`, `autonomy_enabled=false` e `classified_by='ads-policy.v1'`.
+
+O carimbo só preenche quando os campos vierem vazios — qualquer classificação ou auditoria já feita pelo motor de política e pelo executor é preservada. O gatilho **não toca** em `policy_engine_version`, para não interferir nos índices únicos parciais que dependem dele.
+
+### Compatibilidade com Fase B / B.1
+
+Tudo da Fase B continua valendo sem alteração:
+
+- Motor `decide()` (janela segura, limites, TTL de aprovação, idempotência).
+- Executor aprovado e runner agendado.
+- Validações de canal, entidade, orçamento e intervalo.
+- Ações legadas sem `policy_engine_version='v1'` seguem o caminho antigo.
+
+### O que NÃO mudou na Fase C.1
+
+- Nenhuma autonomia automática foi ativada.
+- Nenhum tenant teve `is_ai_enabled` alterado.
+- Nenhum modo de autonomia novo foi criado (Fase C.2).
+- Nenhuma UI, prompt da IA, fila de aprovação ou tela do gestor de tráfego foi alterada.
+- Nenhuma chamada externa nova foi adicionada.
+- Histograma horário de vendas, CPA de referência por tenant, regra de pausa por mês/14d/7d e Modo Piloto/Sandbox continuam fora do escopo (Fases C.4 e seguintes).
+
+### Próxima fase recomendada
+
+**Fase C.2 — Criar `autonomy_mode`** com três valores (`off`, `technical_only`, `technical_plus_visible_approval`), default `off` em todos os tenants. O motor passa a consultar esse campo (em vez do legado) para decidir entre auto-executar e pedir aprovação. Nenhum tenant é ativado nesta fase.

@@ -75,10 +75,11 @@ export const STRUCTURAL_ACTION_TYPES = new Set<string>([
 // =============================================================================
 
 export type ActionClass =
-  | "automatic"      // reservado para Fase C
-  | "needs_approval" // default conservador
-  | "emergency"      // reservado
-  | "blocked";
+  | "automatic_candidate" // Fase C.1: classificada como candidata a autonomia técnica futura. NÃO executa automaticamente nesta fase.
+  | "needs_approval"      // exige aprovação humana (visível ao cliente final / mudança estratégica)
+  | "emergency"           // ação emergencial; poderá executar imediatamente em fase futura, sob critérios técnicos
+  | "observational"       // informativa/recomendação; NUNCA chama API externa
+  | "blocked";            // proibida — destrutiva, fora do limite da plataforma ou explicitamente vetada
 
 export type CampaignClass =
   | "new"
@@ -164,13 +165,132 @@ export function isInsideSafeWindow(now: Date = new Date()): boolean {
 }
 
 // =============================================================================
-// Classificações
+// Classificações — Fase C.1 (Mapa Fixo de Autonomia)
+//
+// IMPORTANTE: Mesmo que uma ação seja classificada como `automatic_candidate`
+// ou `emergency`, ela NÃO deve executar automaticamente nesta fase. A autonomia
+// real depende de `autonomy_mode` (Fase C.2+) explicitamente ativado por tenant.
 // =============================================================================
 
+const ACTION_CLASS_MAP: Record<string, { cls: ActionClass; reason: string }> = {
+  // ───────── A) automatic_candidate (ações técnicas/operacionais seguras)
+  adjust_budget:           { cls: "automatic_candidate", reason: "budget_change_within_platform_limit" },
+  adjust_budget_up:        { cls: "automatic_candidate", reason: "budget_change_within_platform_limit" },
+  adjust_budget_down:      { cls: "automatic_candidate", reason: "budget_change_within_platform_limit" },
+  increase_budget:         { cls: "automatic_candidate", reason: "budget_change_within_platform_limit" },
+  decrease_budget:         { cls: "automatic_candidate", reason: "budget_change_within_platform_limit" },
+  pause_campaign:          { cls: "automatic_candidate", reason: "pause_by_mature_performance_criteria" },
+  pause_adset:             { cls: "automatic_candidate", reason: "pause_by_mature_performance_criteria" },
+  pause_adgroup:           { cls: "automatic_candidate", reason: "pause_by_mature_performance_criteria" },
+  pause_ad:                { cls: "automatic_candidate", reason: "pause_by_mature_performance_criteria" },
+  reactivate_campaign:     { cls: "automatic_candidate", reason: "safe_reactivation" },
+  reactivate_adset:        { cls: "automatic_candidate", reason: "safe_reactivation" },
+  reactivate_adgroup:      { cls: "automatic_candidate", reason: "safe_reactivation" },
+  activate_campaign:       { cls: "automatic_candidate", reason: "safe_reactivation" },
+  activate_adset:          { cls: "automatic_candidate", reason: "safe_reactivation" },
+  activate_ad:             { cls: "automatic_candidate", reason: "safe_reactivation" },
+  schedule_action:         { cls: "automatic_candidate", reason: "scheduling_into_safe_window" },
+  block_action:            { cls: "automatic_candidate", reason: "policy_block_decision" },
+  toggle_tiktok_status:    { cls: "automatic_candidate", reason: "tiktok_technical_status_toggle" },
+  update_tiktok_budget:    { cls: "automatic_candidate", reason: "tiktok_budget_change_within_limit" },
+
+  // ───────── B) needs_approval (criação / criativos / copys / estratégia visível)
+  create_campaign:               { cls: "needs_approval", reason: "creates_visible_campaign" },
+  duplicate_campaign:            { cls: "needs_approval", reason: "duplicates_visible_campaign" },
+  create_adset:                  { cls: "needs_approval", reason: "creates_visible_adset" },
+  duplicate_adset:               { cls: "needs_approval", reason: "duplicates_visible_adset" },
+  create_ad:                     { cls: "needs_approval", reason: "creates_visible_ad" },
+  duplicate_ad:                  { cls: "needs_approval", reason: "duplicates_visible_ad" },
+  create_ad_creative:            { cls: "needs_approval", reason: "creates_or_changes_creative" },
+  generate_creative:             { cls: "needs_approval", reason: "creates_or_changes_creative" },
+  create_creative:               { cls: "needs_approval", reason: "creates_or_changes_creative" },
+  edit_creative:                 { cls: "needs_approval", reason: "creates_or_changes_creative" },
+  create_ad_copy:                { cls: "needs_approval", reason: "creates_or_changes_copy" },
+  edit_ad_copy:                  { cls: "needs_approval", reason: "creates_or_changes_copy" },
+  change_offer:                  { cls: "needs_approval", reason: "changes_commercial_offer" },
+  change_promise:                { cls: "needs_approval", reason: "changes_commercial_promise" },
+  change_landing_page:           { cls: "needs_approval", reason: "changes_landing_page" },
+  change_audience_strategy:      { cls: "needs_approval", reason: "strategic_audience_change" },
+  change_optimization_goal:      { cls: "needs_approval", reason: "changes_optimization_goal" },
+  structural_expansion_plan:     { cls: "needs_approval", reason: "structural_expansion" },
+  create_variation:              { cls: "needs_approval", reason: "creates_visible_variation" },
+  create_lookalike_audience:     { cls: "needs_approval", reason: "creates_visible_audience" },
+  create_tiktok_campaign:        { cls: "needs_approval", reason: "creates_visible_campaign" },
+  create_google_campaign:        { cls: "needs_approval", reason: "creates_visible_campaign" },
+  create_google_ad_group:        { cls: "needs_approval", reason: "creates_visible_adgroup" },
+  create_google_keyword:         { cls: "needs_approval", reason: "creates_visible_keyword" },
+  create_google_ad:              { cls: "needs_approval", reason: "creates_visible_ad" },
+  strategic_plan:                { cls: "needs_approval", reason: "strategic_plan_requires_approval" },
+
+  // ───────── C) emergency (risco real — execução técnica futura imediata sob critérios)
+  kill_switch_account:     { cls: "emergency", reason: "kill_switch" },
+  pause_emergency_campaign:{ cls: "emergency", reason: "emergency_pause" },
+  pause_emergency_adset:   { cls: "emergency", reason: "emergency_pause" },
+  pause_tracking_broken:   { cls: "emergency", reason: "tracking_broken" },
+  pause_budget_breach:     { cls: "emergency", reason: "budget_breach" },
+  pause_broken_link:       { cls: "emergency", reason: "broken_link" },
+
+  // ───────── D) observational (NUNCA chama API externa)
+  insight:        { cls: "observational", reason: "insight_only" },
+  report_insight: { cls: "observational", reason: "insight_only" },
+  watch:          { cls: "observational", reason: "watch_only" },
+  recommendation: { cls: "observational", reason: "recommendation_only" },
+  monitor:        { cls: "observational", reason: "monitor_only" },
+  alert:          { cls: "observational", reason: "alert_only" },
+
+  // ───────── E) blocked (nunca executar)
+  delete_campaign: { cls: "blocked", reason: "destructive_delete_forbidden" },
+  delete_adset:    { cls: "blocked", reason: "destructive_delete_forbidden" },
+  delete_ad:       { cls: "blocked", reason: "destructive_delete_forbidden" },
+  delete_creative: { cls: "blocked", reason: "destructive_delete_forbidden" },
+};
+
+/**
+ * Fase C.1 — Mapa Fixo de Autonomia.
+ *
+ * Classifica um tipo de ação em uma das 5 categorias:
+ *   automatic_candidate | needs_approval | emergency | observational | blocked
+ *
+ * Regras:
+ *   - Tipo desconhecido → `needs_approval` (default conservador).
+ *   - Tipo ausente/vazio → `blocked`.
+ *   - Esta função é PURA e determinística; não decide execução, apenas classifica.
+ *   - Nenhuma classe libera execução automática nesta fase — quem decide execução
+ *     é o Execution Policy Engine (`decide`) somado a `autonomy_mode` (futuro).
+ */
 export function classifyAction(action: Pick<ActionInput, "action_type" | "channel">): ActionClass {
-  // Default conservador na Fase B. Fase C diferencia automatic vs needs_approval.
   if (!action.action_type) return "blocked";
-  return "needs_approval";
+  const entry = ACTION_CLASS_MAP[action.action_type];
+  return entry ? entry.cls : "needs_approval";
+}
+
+/**
+ * Retorna o motivo da classificação para registro em `policy_check_result`.
+ * Para tipos desconhecidos devolve "unknown_action_type_default_conservative".
+ */
+export function classifyActionReason(actionType: string | null | undefined): string {
+  if (!actionType) return "missing_action_type";
+  const entry = ACTION_CLASS_MAP[actionType];
+  return entry ? entry.reason : "unknown_action_type_default_conservative";
+}
+
+/**
+ * Monta o bloco de metadados de classificação a ser mesclado em
+ * `policy_check_result`. Sempre carimba `autonomy_enabled=false` na Fase C.1.
+ */
+export function buildClassificationMeta(actionType: string | null | undefined): {
+  action_class: ActionClass;
+  classification_reason: string;
+  autonomy_enabled: false;
+  classified_by: "ads-policy.v1";
+} {
+  const action_class = classifyAction({ action_type: actionType || "", channel: "" });
+  return {
+    action_class,
+    classification_reason: classifyActionReason(actionType),
+    autonomy_enabled: false,
+    classified_by: "ads-policy.v1",
+  };
 }
 
 export function classifyCampaign(snapshot?: CampaignSnapshot | null): CampaignClass {
