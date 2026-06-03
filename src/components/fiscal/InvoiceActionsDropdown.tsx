@@ -51,9 +51,14 @@ interface InvoiceActionsDropdownProps {
   onResend?: () => void;
   /** Gera PDF de Declaração de Conteúdo (documento NÃO fiscal). */
   onGenerateDC?: () => void;
+  /** Imprime/baixa novamente a Declaração de Conteúdo já emitida para o pedido. */
+  onPrintDC?: () => void;
+  /** True quando o Pedido de Venda já possui Declaração de Conteúdo emitida. */
+  hasContentDeclaration?: boolean;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
   isGeneratingDC?: boolean;
+  isPrintingDC?: boolean;
   /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
   cloneLabel?: string;
   /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
@@ -80,9 +85,12 @@ export function InvoiceActionsDropdown({
   onResendEmail,
   onResend,
   onGenerateDC,
+  onPrintDC,
+  hasContentDeclaration = false,
   isSubmitting,
   isCheckingStatus,
   isGeneratingDC,
+  isPrintingDC,
   cloneLabel = 'Duplicar NF',
   emitLabel = 'Emitir NF-e',
   pedidoBlocked = false,
@@ -209,18 +217,33 @@ export function InvoiceActionsDropdown({
               {cloneLabel}
             </DropdownMenuItem>
             {onGenerateDC && (
-              <DropdownMenuItem
-                onClick={onGenerateDC}
-                disabled={isGeneratingDC || pedidoBlocked}
-                title={pedidoBlocked ? pedidoBlockedReason : undefined}
-              >
-                {isGeneratingDC ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <FileText className="h-4 w-4 mr-2" />
-                )}
-                Gerar Declaração de Conteúdo
-              </DropdownMenuItem>
+              hasContentDeclaration ? (
+                <DropdownMenuItem
+                  onClick={onPrintDC}
+                  disabled={isPrintingDC || !onPrintDC}
+                  title="Imprime novamente a Declaração de Conteúdo já emitida"
+                >
+                  {isPrintingDC ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-2" />
+                  )}
+                  Imprimir Declaração de Conteúdo
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={onGenerateDC}
+                  disabled={isGeneratingDC || pedidoBlocked}
+                  title={pedidoBlocked ? pedidoBlockedReason : undefined}
+                >
+                  {isGeneratingDC ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4 mr-2" />
+                  )}
+                  Gerar Declaração de Conteúdo
+                </DropdownMenuItem>
+              )
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 

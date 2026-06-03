@@ -104,7 +104,7 @@ export function CorreiosContentDeclarationDialog({
           <DialogDescription>
             {isBulk
               ? `Será gerado um único PDF com uma Declaração de Conteúdo por pedido selecionado (${targets.length} pedidos). O motivo escolhido será aplicado a todos.`
-              : "Você está prestes a gerar uma Declaração de Conteúdo."}
+              : 'Você está prestes a gerar uma Declaração de Conteúdo. Ela ficará salva no pedido — depois você pode imprimir quando precisar pela opção "Imprimir Declaração de Conteúdo".'}
           </DialogDescription>
         </DialogHeader>
 

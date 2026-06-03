@@ -352,6 +352,13 @@ export async function issueAndDownloadCorreiosContentDeclarationsBatch(params: {
   responsibilityAcknowledged: true;
   source?: 'manual' | 'gateway' | 'shipment';
   targets: BatchTarget[];
+  /**
+   * Quando `false`, a Declaração é gerada e persistida em
+   * `shipping_content_declarations`, mas NÃO faz download imediato do PDF.
+   * O usuário pode imprimir depois via "Imprimir Declaração de Conteúdo".
+   * Padrão: `true` (mantém compatibilidade com fluxos antigos).
+   */
+  download?: boolean;
 }): Promise<{ ok: number; fail: number; failures: Array<{ label?: string; error: string }>; filename?: string; dcNumbers: string[] }> {
   const records: DeclarationRecord[] = [];
   const failures: Array<{ label?: string; error: string }> = [];
@@ -376,12 +383,16 @@ export async function issueAndDownloadCorreiosContentDeclarationsBatch(params: {
     return { ok: 0, fail: failures.length, failures, dcNumbers: [] };
   }
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  records.forEach((rec, idx) => renderOneDeclaration(doc, rec, idx === 0));
+  const shouldDownload = params.download !== false;
+  let filename: string | undefined;
 
-  const filename =
-    records.length === 1 ? `${records[0].dc_number}.pdf` : todayFilename('Declaracoes-Conteudo');
-  doc.save(filename);
+  if (shouldDownload) {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    records.forEach((rec, idx) => renderOneDeclaration(doc, rec, idx === 0));
+    filename =
+      records.length === 1 ? `${records[0].dc_number}.pdf` : todayFilename('Declaracoes-Conteudo');
+    doc.save(filename);
+  }
 
   return {
     ok: records.length,
@@ -390,6 +401,34 @@ export async function issueAndDownloadCorreiosContentDeclarationsBatch(params: {
     filename,
     dcNumbers: records.map((r) => r.dc_number),
   };
+}
+
+/**
+ * Busca a Declaração de Conteúdo emitida mais recente para um Pedido de Venda
+ * (fiscal_invoice_id) e gera o PDF para impressão sem criar registro novo.
+ */
+export async function reprintDeclarationByFiscalInvoiceId(
+  fiscalInvoiceId: string,
+): Promise<{ ok: boolean; error?: string; filename?: string; dcNumber?: string }> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data, error } = await supabase
+      .from('shipping_content_declarations')
+      .select('*')
+      .eq('fiscal_invoice_id', fiscalInvoiceId)
+      .eq('status', 'issued')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: 'Nenhuma Declaração de Conteúdo emitida para este pedido.' };
+    const rec = data as unknown as DeclarationRecord;
+    const result = reprintExistingDeclaration(rec);
+    return { ok: result.ok, filename: result.filename, dcNumber: rec.dc_number };
+  } catch (e: any) {
+    console.error('[reprintDeclarationByFiscalInvoiceId]', e);
+    return { ok: false, error: e?.message || 'Erro ao imprimir Declaração de Conteúdo' };
+  }
 }
 
 // Compat: alias do nome antigo para evitar quebra de import enquanto a UI é atualizada.

@@ -38,7 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { issueAndDownloadCorreiosContentDeclarationsBatch } from '@/lib/declaracaoConteudo';
+import { issueAndDownloadCorreiosContentDeclarationsBatch, reprintDeclarationByFiscalInvoiceId } from '@/lib/declaracaoConteudo';
 import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
 
 import { formatDateTimeBR } from "@/lib/date-format";
@@ -153,7 +153,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
+  const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+  // Mapa de Pedidos de Venda que já possuem Declaração de Conteúdo emitida (status='issued').
+  // Usado para alternar o item do menu entre "Gerar" e "Imprimir Declaração de Conteúdo".
+  const [dcByInvoiceId, setDcByInvoiceId] = useState<Set<string>>(new Set());
   // Modal central de progresso de envio à Sefaz (individual e em lote).
   const [sendingState, setSendingState] = useState<SendingState | null>(null);
 
@@ -277,6 +281,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const start = (currentPage - 1) * pageSize;
     return filteredInvoices.slice(start, start + pageSize);
   }, [filteredInvoices, currentPage, pageSize]);
+
+  // Carrega o conjunto de Pedidos de Venda visíveis que já possuem Declaração de
+  // Conteúdo emitida. Atualiza o mapa local para o item do menu alternar entre
+  // "Gerar" e "Imprimir Declaração de Conteúdo".
+  useEffect(() => {
+    if (mode !== 'orders') return;
+    const ids = (pagedInvoices || []).map((i: any) => i.id).filter(Boolean);
+    if (!ids.length) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('shipping_content_declarations')
+        .select('fiscal_invoice_id')
+        .in('fiscal_invoice_id', ids)
+        .eq('status', 'issued');
+      if (canceled || error || !data) return;
+      setDcByInvoiceId((prev) => {
+        const next = new Set(prev);
+        (data as any[]).forEach((row) => {
+          if (row?.fiscal_invoice_id) next.add(row.fiscal_invoice_id as string);
+        });
+        return next;
+      });
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [pagedInvoices, mode]);
 
   // Quando uma linha for marcada para destaque, leva o usuário até a página correta
   // e rola até a linha. O destaque some após ~2.5s.
@@ -1288,16 +1320,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   }) => {
     setDcDialogLoading(true);
     const targets = dcDialogTargets;
+    const isSingle = targets.length === 1;
     const t = toast.loading(
-      targets.length === 1
+      isSingle
         ? 'Gerando Declaração de Conteúdo...'
-        : `Gerando ${targets.length} Declarações de Conteúdo em PDF único...`,
+        : `Gerando ${targets.length} Declarações de Conteúdo...`,
     );
 
+    // Geração individual via menu do pedido: apenas registra a Declaração.
+    // O usuário imprime depois via "Imprimir Declaração de Conteúdo".
+    // Em massa: mantém comportamento atual de baixar um único PDF multipágina.
     const result = await issueAndDownloadCorreiosContentDeclarationsBatch({
       reason: payload.reason,
       responsibilityAcknowledged: true,
       source: 'manual',
+      download: !isSingle,
       targets: targets.map((inv: any) => ({
         tenantId: inv.tenant_id,
         fiscalInvoiceId: inv.id,
@@ -1311,12 +1348,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     toast.dismiss(t);
     setDcDialogLoading(false);
     setDcDialogOpen(false);
+
+    // Marca no mapa local os pedidos que agora possuem Declaração emitida,
+    // para o item do menu já alternar para "Imprimir Declaração de Conteúdo".
+    if (result.ok > 0) {
+      const issuedIds = targets.slice(0, result.ok).map((inv: any) => inv.id).filter(Boolean);
+      if (issuedIds.length) {
+        setDcByInvoiceId((prev) => {
+          const next = new Set(prev);
+          issuedIds.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    }
     setDcDialogTargets([]);
 
     if (result.fail === 0 && result.ok > 0) {
       toast.success(
-        result.ok === 1
-          ? `Declaração de Conteúdo gerada com sucesso (${result.dcNumbers[0]}).`
+        isSingle
+          ? `Declaração de Conteúdo gerada (${result.dcNumbers[0]}). Use "Imprimir Declaração de Conteúdo" quando precisar.`
           : `${result.ok} declarações de conteúdo geradas em um único PDF.`,
       );
     } else if (result.ok > 0 && result.fail > 0) {
@@ -1331,6 +1381,20 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         ? 'Falta cadastrar o peso de um ou mais produtos. Cadastre o peso na ficha do produto e tente novamente.'
         : raw;
       toast.error('Não foi possível gerar a Declaração de Conteúdo.', { description: msg });
+    }
+  };
+
+  // Imprime/baixa novamente a Declaração de Conteúdo já emitida para o pedido.
+  const handlePrintContentDeclaration = async (invoice: any) => {
+    setPrintingDcInvoiceId(invoice.id);
+    const t = toast.loading('Gerando PDF da Declaração de Conteúdo...');
+    const result = await reprintDeclarationByFiscalInvoiceId(invoice.id);
+    toast.dismiss(t);
+    setPrintingDcInvoiceId(null);
+    if (result.ok) {
+      toast.success(`Declaração ${result.dcNumber || ''} baixada.`);
+    } else {
+      toast.error(result.error || 'Não foi possível imprimir a Declaração de Conteúdo.');
     }
   };
 
@@ -1866,7 +1930,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               onResend={() => handleQuickSubmit(invoice)}
                               onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
+                              onPrintDC={mode === 'orders' ? () => handlePrintContentDeclaration(invoice) : undefined}
+                              hasContentDeclaration={mode === 'orders' ? dcByInvoiceId.has(invoice.id) : false}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
+                              isPrintingDC={printingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkingStatusInvoiceId === invoice.id}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
