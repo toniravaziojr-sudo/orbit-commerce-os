@@ -1174,6 +1174,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   // Excluir nota sem efeito fiscal (rascunho/pronta para emitir, rejeitada ou cancelada).
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
+  const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
+
   const SHIPMENT_IN_MOTION_STATUSES = new Set([
     'posted', 'in_transit', 'out_for_delivery', 'delivered', 'returned',
   ]);
