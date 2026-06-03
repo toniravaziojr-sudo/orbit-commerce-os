@@ -206,6 +206,32 @@ Memória anti-regressão:
 `mem://constraints/shipping-objeto-vs-remessa-agrupadora`,
 `mem://constraints/remessa-counters-enum-alignment`.
 
+---
+
+## Espelho PV → Objeto: preservação em conclusão (2026-06-03)
+
+O objeto de postagem é mantido enquanto o Pedido de Venda estiver em
+qualquer status **ativo do ciclo de despacho**: `em_aberto`, `pendente`,
+`nf_criada` e `concluido`. Nesses status o gatilho
+`sync_shipment_with_pv_status` **garante** que o objeto exista (cria se
+faltar) e **costura** o vínculo `source_pedido_venda_id` quando o objeto
+veio do `scheduler-tick` apenas com `order_id`.
+
+O objeto só é **removido** quando o PV entra num status **terminal de
+cancelamento**: `cancelado`, `cancelled`, `cancelled_by_user`,
+`expirado`, `expired`, `payment_expired`, `estornado`, `refunded`,
+`devolvido`, `returned`, `returning`, `chargeback_em_andamento`,
+`chargeback_detected`, `chargeback_perdido`, `chargeback_lost`. E mesmo
+nesses casos só remove objetos **sem `tracking_code`** e que não foram
+ajustados manualmente. Objeto postado nunca é apagado por mudança de
+status do PV.
+
+A função `reconcile_orphan_pv_shipments` (cron a cada 15 min) cobre
+também PVs **manuais/duplicados sem `order_id`** — cria o objeto direto
+em `shipments` quando o PV ativo não tem objeto nem item ativo na fila.
+
+Memória anti-regressão:
+`mem://constraints/pv-status-shipment-mirror-preserves-active`.
 
 ---
 
