@@ -16,6 +16,9 @@ import {
   classifyAction,
   classifyActionReason,
   buildClassificationMeta,
+  normalizeAutonomyMode,
+  isAutonomyExecutionEnabled,
+  AUTONOMY_MODES,
   decide,
   type ActionInput,
 } from "./ads-policy.ts";
