@@ -580,7 +580,7 @@ export function ShipmentGenerator() {
       if (result?.success && result.tracking_code) {
         toast.success(`Remessa reenviada. Código: ${result.tracking_code}`);
         // Atualiza status do agrupador recém-criado para "emitida".
-        if (remessaId && createNewFlag(createdNew)) {
+        if (remessaId && createdNew) {
           await supabase
             .from('shipping_remessas')
             .update({ status: 'emitida', emitted_at: new Date().toISOString() })
