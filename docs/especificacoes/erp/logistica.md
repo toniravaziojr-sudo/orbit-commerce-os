@@ -612,9 +612,12 @@ O sistema cria rascunhos logísticos automaticamente quando um pagamento é apro
 | Aspecto | Descrição |
 |---------|-----------|
 | **Gatilho** | Trigger SQL `enqueue_fiscal_draft()` — insere em `shipping_draft_queue` |
-| **Processamento** | `scheduler-tick` fase 1.6 — cria registro em `shipments` com status `draft` |
-| **Separação** | Por transportadora baseada em `orders.shipping_carrier` |
-| **Modos** | Automático (envia ao emitir NF) ou Manual (rascunho para revisão) |
+| **Processamento sob demanda** | Após criar/duplicar um PV manual, a edge `fiscal-create-manual` dispara (fire-and-forget) a edge `shipping-draft-process`, que consome a fila imediatamente. O operador vê o objeto em "Prontos para emitir" em segundos, sem aguardar o cron. |
+| **Rede de segurança (cron)** | `scheduler-tick` fase 1.6 continua rodando a cada 10 min como fallback para itens que escaparem do disparo direto (ex.: gatilhos de webhook de pagamento, falhas transitórias). |
+| **Separação** | Por transportadora baseada em `orders.shipping_carrier` ou `fiscal_invoices.transportadora_nome` (PV manual). |
+| **Modos** | Automático (envia ao emitir NF) ou Manual (rascunho para revisão). |
+
+> **Decisão de arquitetura (2026-06-03):** mantemos o cron de 10 min como rede de segurança em vez de reduzi-lo para 1–2 min. O disparo sob demanda resolve a latência percebida pelo operador sem multiplicar invocações ociosas (custo extra ≈ zero).
 
 ---
 
