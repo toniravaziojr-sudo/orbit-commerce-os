@@ -41,49 +41,11 @@ export async function ensurePvContentDeclaration(args: {
   // do edge correios-content-declaration-issue (pré-flight, snapshots etc.).
 }): Promise<EnsureDcResult> {
   try {
-    // Auto-cura: se o PV está sem telefone/e-mail mas o pedido tem, copia
-    // antes de chamar o emissor da DC. Cobre PVs antigos ou criados antes
-    // da camada de origem garantir o preenchimento.
-    try {
-      const headers = {
-        "apikey": SERVICE_ROLE,
-        "Authorization": `Bearer ${SERVICE_ROLE}`,
-        "Content-Type": "application/json",
-      };
-      const pvRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/fiscal_invoices?id=eq.${args.fiscalInvoiceId}&select=id,order_id,dest_telefone,dest_email`,
-        { headers },
-      );
-      const pvRows = await pvRes.json().catch(() => []);
-      const pv = Array.isArray(pvRows) ? pvRows[0] : null;
-      const phoneDigits = String(pv?.dest_telefone || "").replace(/\D/g, "");
-      const phoneMissing = phoneDigits.length < 10;
-      const emailMissing = !pv?.dest_email;
-      const orderId = pv?.order_id || args.orderId;
-      if (pv && orderId && (phoneMissing || emailMissing)) {
-        const orderRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/orders?id=eq.${orderId}&select=customer_phone,customer_email`,
-          { headers },
-        );
-        const orderRows = await orderRes.json().catch(() => []);
-        const order = Array.isArray(orderRows) ? orderRows[0] : null;
-        const patch: Record<string, unknown> = {};
-        if (phoneMissing) {
-          const od = String(order?.customer_phone || "").replace(/\D/g, "");
-          if (od.length >= 10) patch.dest_telefone = od.slice(0, 13);
-        }
-        if (emailMissing && order?.customer_email) {
-          patch.dest_email = order.customer_email;
-        }
-        if (Object.keys(patch).length > 0) {
-          await fetch(
-            `${SUPABASE_URL}/rest/v1/fiscal_invoices?id=eq.${args.fiscalInvoiceId}`,
-            { method: "PATCH", headers, body: JSON.stringify(patch) },
-          );
-        }
-      }
-    } catch (_) { /* auto-cura é best-effort; segue para o emissor */ }
-
+    // POLÍTICA: nenhuma auto-cura de dados do destinatário aqui.
+    // Se faltar telefone/e-mail/endereço no PV, o pré-flight do emissor da DC
+    // (correios-content-declaration-issue) bloqueia com pendência visível.
+    // Dado faltante = sintoma de problema na origem (checkout/pedido), não
+    // pode ser silenciosamente preenchido.
     const url = `${SUPABASE_URL}/functions/v1/correios-content-declaration-issue`;
     const res = await fetch(url, {
       method: "POST",
