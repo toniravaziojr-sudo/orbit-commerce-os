@@ -70,6 +70,7 @@ export type Database = {
       ads_autopilot_account_configs: {
         Row: {
           ad_account_id: string
+          autonomy_mode: string
           budget_cents: number | null
           budget_mode: string | null
           channel: string
@@ -95,6 +96,7 @@ export type Database = {
         }
         Insert: {
           ad_account_id: string
+          autonomy_mode?: string
           budget_cents?: number | null
           budget_mode?: string | null
           channel: string
@@ -120,6 +122,7 @@ export type Database = {
         }
         Update: {
           ad_account_id?: string
+          autonomy_mode?: string
           budget_cents?: number | null
           budget_mode?: string | null
           channel?: string
