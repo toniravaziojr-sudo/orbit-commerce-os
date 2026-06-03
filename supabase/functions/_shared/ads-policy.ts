@@ -306,20 +306,39 @@ export function classifyActionReason(actionType: string | null | undefined): str
 
 /**
  * Monta o bloco de metadados de classificação a ser mesclado em
- * `policy_check_result`. Sempre carimba `autonomy_enabled=false` na Fase C.1.
+ * `policy_check_result`. Sempre carimba `autonomy_enabled=false` na Fase C.2.
+ *
+ * Em C.2, se o caller souber o `autonomy_mode` da conta (lido de
+ * `ads_autopilot_account_configs.autonomy_mode`), pode passá-lo aqui apenas
+ * para AUDITORIA — não muda comportamento. Quando ausente, registra `off`.
  */
-export function buildClassificationMeta(actionType: string | null | undefined): {
+export function buildClassificationMeta(
+  actionType: string | null | undefined,
+  opts?: { autonomyMode?: unknown },
+): {
   action_class: ActionClass;
   classification_reason: string;
   autonomy_enabled: false;
   classified_by: "ads-policy.v1";
+  autonomy_mode: AutonomyMode;
+  autonomy_source: "ads_autopilot_account_configs.autonomy_mode" | "default_off";
+  autonomy_execution_phase: "not_enabled_c2";
 } {
   const action_class = classifyAction({ action_type: actionType || "", channel: "" });
+  const provided = opts && Object.prototype.hasOwnProperty.call(opts, "autonomyMode");
+  const autonomy_mode = normalizeAutonomyMode(opts?.autonomyMode);
+  const autonomy_source: "ads_autopilot_account_configs.autonomy_mode" | "default_off" =
+    provided && (opts?.autonomyMode === "off" || opts?.autonomyMode === "technical_only")
+      ? "ads_autopilot_account_configs.autonomy_mode"
+      : "default_off";
   return {
     action_class,
     classification_reason: classifyActionReason(actionType),
     autonomy_enabled: false,
     classified_by: "ads-policy.v1",
+    autonomy_mode,
+    autonomy_source,
+    autonomy_execution_phase: "not_enabled_c2",
   };
 }
 
