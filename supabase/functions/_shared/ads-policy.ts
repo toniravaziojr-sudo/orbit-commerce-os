@@ -618,10 +618,18 @@ export const OBSERVATION_PILOT_VERSION = "c3_v1";
 
 /**
  * Allowlist in-code do piloto observacional `technical_only`.
- * Iniciar SEMPRE vazia. Adicionar tenant aqui exige PR explícito com
- * aprovação do usuário (fase futura — não C.3.1).
+ * Adicionar tenant aqui exige aprovação explícita do usuário.
+ *
+ * C.3.2 — Etapa 1 (preparação silenciosa):
+ *   - Tenant "Respeite o Homem" (d1a4d0ed-8842-495e-b741-540a9a345b25)
+ *     adicionado à allowlist.
+ *   - Conta Meta act_251893833881780 com autonomy_mode='technical_only'.
+ *   - is_ai_enabled permanece FALSE → nenhuma observação é gerada nesta etapa.
+ *   - A Etapa 2 (ligar IA da conta) exige nova aprovação.
  */
-export const TECHNICAL_ONLY_OBSERVATION_ALLOWLIST: readonly string[] = [];
+export const TECHNICAL_ONLY_OBSERVATION_ALLOWLIST: readonly string[] = [
+  "d1a4d0ed-8842-495e-b741-540a9a345b25", // Respeite o Homem — piloto C.3.2
+];
 
 /**
  * Tipos de ação técnica de baixo risco elegíveis ao piloto observacional C.3.1.
