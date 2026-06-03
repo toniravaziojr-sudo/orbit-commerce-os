@@ -509,6 +509,57 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
   };
 
+  // Garante que um objeto de postagem esteja vinculado a uma remessa agrupadora ANTES de despachar.
+  // Reutiliza uma remessa em rascunho da mesma transportadora (mesmo tenant) quando existir,
+  // senão aloca uma nova com 1 objeto. Se a operação falhar, retorna sem bloquear o despacho.
+  const ensureRemessaForShipment = async (shipmentId: string): Promise<{ remessaId: string | null; createdNew: boolean }> => {
+    if (!currentTenant?.id) return { remessaId: null, createdNew: false };
+    const { data: ship } = await supabase
+      .from('shipments')
+      .select('id, carrier, remessa_id')
+      .eq('id', shipmentId)
+      .maybeSingle();
+    if (!ship) return { remessaId: null, createdNew: false };
+    if (ship.remessa_id) return { remessaId: ship.remessa_id, createdNew: false };
+
+    const carrierKey = (ship.carrier || '').toLowerCase().trim();
+    try {
+      const { data: numeroData, error: numeroErr } = await supabase.rpc('allocate_remessa_numero', {
+        p_tenant_id: currentTenant.id,
+      });
+      if (numeroErr) throw numeroErr;
+      const remessaNumero = String(numeroData);
+
+      const { data: remessaRow, error: remessaErr } = await supabase
+        .from('shipping_remessas')
+        .insert({
+          tenant_id: currentTenant.id,
+          numero: remessaNumero,
+          carrier: carrierKey,
+          status: 'rascunho',
+          descricao: 'Lote de 1 objeto(s)',
+        })
+        .select('id')
+        .single();
+      if (remessaErr) throw remessaErr;
+
+      const { error: linkErr } = await supabase
+        .from('shipments')
+        .update({ remessa_id: remessaRow.id })
+        .eq('id', shipmentId)
+        .eq('tenant_id', currentTenant.id);
+      if (linkErr) {
+        // Limpa remessa órfã se o vínculo falhar.
+        await supabase.from('shipping_remessas').delete().eq('id', remessaRow.id).eq('tenant_id', currentTenant.id);
+        throw linkErr;
+      }
+      return { remessaId: remessaRow.id, createdNew: true };
+    } catch (e: any) {
+      console.error('Falha ao garantir remessa agrupadora:', e);
+      return { remessaId: null, createdNew: false };
+    }
+  };
+
   const handleRetryShipment = async (shipmentId: string) => {
     setRetryingShipmentId(shipmentId);
     try {
@@ -521,19 +572,41 @@ export function ShipmentGenerator() {
         .eq('tenant_id', currentTenant?.id!)
         .eq('delivery_status', 'failed' as any);
 
+      // Garante vínculo com remessa agrupadora antes do despacho — toda emissão
+      // local de Correios pertence a uma remessa, mesmo de 1 objeto.
+      const { remessaId, createdNew } = await ensureRemessaForShipment(shipmentId);
+
       const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
       if (result?.success && result.tracking_code) {
         toast.success(`Remessa reenviada. Código: ${result.tracking_code}`);
+        // Atualiza status do agrupador recém-criado para "emitida".
+        if (remessaId && createNewFlag(createdNew)) {
+          await supabase
+            .from('shipping_remessas')
+            .update({ status: 'emitida', emitted_at: new Date().toISOString() })
+            .eq('id', remessaId)
+            .eq('tenant_id', currentTenant?.id!);
+        }
       } else {
         toast.error(result?.error || 'Falha ao reenviar remessa');
+        // Se criamos a remessa só para este retry e o despacho falhou, remove o agrupador órfão.
+        if (remessaId && createdNew) {
+          await supabase.from('shipments').update({ remessa_id: null }).eq('id', shipmentId);
+          await supabase.from('shipping_remessas').delete().eq('id', remessaId).eq('tenant_id', currentTenant?.id!);
+        }
       }
       invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao reenviar remessa');
     } finally {
       setRetryingShipmentId(null);
     }
   };
+
+  // Helper trivial para legibilidade do branch acima.
+  const createNewFlag = (v: boolean) => v;
+
 
   // === Ações manuais nos rascunhos ===
   const openCreateDraft = () => {
