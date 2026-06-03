@@ -180,10 +180,23 @@ permanecem sem remessa vinculada — operam normalmente.
 8. **(Fase 2.1 — 03/06/2026)** Os botões de impressão por linha
    (Etiqueta, DANFE, Declaração de Conteúdo) na aba "Objetos emitidos"
    exibem spinner e ficam `disabled` enquanto o documento é
-   gerado/aberto, impedindo cliques múltiplos.
+    gerado/aberto, impedindo cliques múltiplos.
+9. **(Fase 2.1 — 03/06/2026)** A função `recalc_remessa_counters`, chamada pelo
+   trigger `shipments_sync_remessa_counters` em todo INSERT/UPDATE/DELETE de
+   `shipments`, só pode filtrar por valores reais do enum `delivery_status`
+   (`draft`, `label_created`, `posted`, `in_transit`, `out_for_delivery`,
+   `delivered`, `failed`, `returned`, `canceled`, `unknown`). Qualquer valor
+   inexistente (ex.: `'pending'`) faz o PostgreSQL lançar
+   `22P02 invalid input value for enum delivery_status` e reverte
+   silenciosamente o UPDATE original — inclusive o vínculo `remessa_id`,
+   deixando o objeto órfão e a remessa eternamente em rascunho com
+   contadores 0/0/0. Convenção operacional: "não emitido" =
+   `delivery_status IN ('draft','label_created')`; "emitido" = qualquer
+   outro valor; "falha" = `requires_action = true`.
 
 Memória anti-regressão:
-`mem://constraints/shipping-objeto-vs-remessa-agrupadora`.
+`mem://constraints/shipping-objeto-vs-remessa-agrupadora`,
+`mem://constraints/remessa-counters-enum-alignment`.
 
 
 ---
