@@ -1781,14 +1781,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               variant="outline"
                               onClick={openDcDialogForBulk}
                               disabled={isBulkProcessing}
-                              title="Gera um PDF de Declaração de Conteúdo (não fiscal) por pedido selecionado"
+                              title="Imprime as Declarações de Conteúdo (já emitidas nativamente em cada Pedido de Venda)"
                             >
-                              <FileText className="h-4 w-4 mr-2" />
+                              <Printer className="h-4 w-4 mr-2" />
                               {selectedDraftsCount === 1
-                                ? 'Declaração de Conteúdo'
-                                : `Declarações de Conteúdo (${selectedDraftsCount})`}
+                                ? 'Imprimir Declaração de Conteúdo'
+                                : `Imprimir Declarações de Conteúdo (${selectedDraftsCount})`}
                             </Button>
                           )}
+
                           <Button 
                             size="sm" 
                             variant="destructive"
