@@ -152,6 +152,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo)
+  type ShipmentImpact = { tracking_code: string | null; delivery_status: string; in_motion: boolean };
+  const [linkedShipmentImpact, setLinkedShipmentImpact] = useState<ShipmentImpact | null>(null);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
@@ -1171,12 +1174,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   // Excluir nota sem efeito fiscal (rascunho/pronta para emitir, rejeitada ou cancelada).
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
-  const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
+  const SHIPMENT_IN_MOTION_STATUSES = new Set([
+    'posted', 'in_transit', 'out_for_delivery', 'delivered', 'returned',
+  ]);
 
-  const handleDeleteDraft = (invoice: FiscalInvoice) => {
+  const handleDeleteDraft = async (invoice: FiscalInvoice) => {
     if (!DELETABLE_STATUSES.has(invoice.status as string)) {
       toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
       return;
+    }
+    setLinkedShipmentImpact(null);
+    // Se for um Pedido de Venda raiz, busca o objeto de postagem vinculado para
+    // adaptar o texto do diálogo (apagável vs em movimento).
+    const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
+    if (stage === 'pedido_venda') {
+      const { data } = await supabase
+        .from('shipments')
+        .select('tracking_code, delivery_status')
+        .eq('source_pedido_venda_id', invoice.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setLinkedShipmentImpact({
+          tracking_code: (data as any).tracking_code ?? null,
+          delivery_status: (data as any).delivery_status as string,
+          in_motion: SHIPMENT_IN_MOTION_STATUSES.has((data as any).delivery_status as string),
+        });
+      }
     }
     setConfirmDeleteInvoice(invoice);
   };
