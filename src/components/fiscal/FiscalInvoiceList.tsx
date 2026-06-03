@@ -1256,10 +1256,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .delete()
         .eq('id', invoice.id);
 
-      if (error) throw error;
+      if (error) {
+        // Bloqueio do banco (guard_pv_deletion_from_paid_order)
+        if (String(error.message || '').includes('PV_FROM_PAID_ORDER_PROTECTED')) {
+          toast.error('Este Pedido de Venda pertence a um pedido pago e não pode ser excluído. Cancele o pedido de origem na tela de Pedidos.');
+          setConfirmDeleteInvoice(null);
+          setLinkedShipmentImpact(null);
+          setPaidOrderBlock(null);
+          return;
+        }
+        throw error;
+      }
       toast.success('Registro excluído');
       setConfirmDeleteInvoice(null);
       setLinkedShipmentImpact(null);
+      setPaidOrderBlock(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
