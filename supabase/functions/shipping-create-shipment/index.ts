@@ -1171,8 +1171,11 @@ Deno.serve(async (req) => {
 
       const shipmentPatch: Record<string, unknown> = {
         tracking_code: result.tracking_code,
-        // Emissão já marca como DESPACHADO (não mais label_created)
-        delivery_status: 'posted',
+        // Emissão da etiqueta = "Etiqueta gerada". O status "posted" é
+        // reservado para o 1º evento real dos Correios, detectado pelo
+        // tracking-poll. No pedido (orders.status) o despacho continua
+        // sendo registrado como "dispatched" logo acima.
+        delivery_status: 'label_created',
         // Mantém label_url só se conseguimos baixar PDF interno; senão deixa para reimpressão
         label_url: labelStoragePath || result.label_url || null,
         provider_shipment_id: result.provider_shipment_id,

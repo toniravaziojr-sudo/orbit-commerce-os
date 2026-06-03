@@ -152,6 +152,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo)
+  type ShipmentImpact = { tracking_code: string | null; delivery_status: string; in_motion: boolean };
+  const [linkedShipmentImpact, setLinkedShipmentImpact] = useState<ShipmentImpact | null>(null);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
@@ -1173,10 +1176,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
   const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
 
-  const handleDeleteDraft = (invoice: FiscalInvoice) => {
+  const SHIPMENT_IN_MOTION_STATUSES = new Set([
+    'posted', 'in_transit', 'out_for_delivery', 'delivered', 'returned',
+  ]);
+
+  const handleDeleteDraft = async (invoice: FiscalInvoice) => {
     if (!DELETABLE_STATUSES.has(invoice.status as string)) {
       toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
       return;
+    }
+    setLinkedShipmentImpact(null);
+    // Se for um Pedido de Venda raiz, busca o objeto de postagem vinculado para
+    // adaptar o texto do diálogo (apagável vs em movimento).
+    const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
+    if (stage === 'pedido_venda') {
+      const { data } = await supabase
+        .from('shipments')
+        .select('tracking_code, delivery_status')
+        .eq('source_pedido_venda_id', invoice.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setLinkedShipmentImpact({
+          tracking_code: (data as any).tracking_code ?? null,
+          delivery_status: (data as any).delivery_status as string,
+          in_motion: SHIPMENT_IN_MOTION_STATUSES.has((data as any).delivery_status as string),
+        });
+      }
     }
     setConfirmDeleteInvoice(invoice);
   };
@@ -1197,8 +1224,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .eq('id', invoice.id);
 
       if (error) throw error;
-      toast.success('Nota excluída');
+      toast.success('Registro excluído');
       setConfirmDeleteInvoice(null);
+      setLinkedShipmentImpact(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
@@ -2225,23 +2253,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {/* Confirmar exclusão de nota sem efeito fiscal */}
       <AlertDialog
         open={!!confirmDeleteInvoice}
-        onOpenChange={(open) => { if (!open && !isDeletingInvoice) setConfirmDeleteInvoice(null); }}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingInvoice) {
+            setConfirmDeleteInvoice(null);
+            setLinkedShipmentImpact(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir esta nota?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir este registro?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  Esta ação <strong>não pode ser desfeita</strong>. A nota será removida permanentemente do sistema.
+                  Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
                 </p>
                 {confirmDeleteInvoice && (
                   <p className="text-muted-foreground">
-                    NF {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                    {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                  </p>
+                )}
+                {linkedShipmentImpact && !linkedShipmentImpact.in_motion && (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                    Este Pedido de Venda tem um objeto de postagem associado ({linkedShipmentImpact.delivery_status === 'label_created' ? 'etiqueta gerada' : 'em rascunho'}). Ele será excluído junto. Se a remessa ficar vazia, também será removida.
+                  </p>
+                )}
+                {linkedShipmentImpact && linkedShipmentImpact.in_motion && (
+                  <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-900">
+                    O objeto de postagem {linkedShipmentImpact.tracking_code ? `nº ${linkedShipmentImpact.tracking_code}` : 'vinculado'} já está em movimento pelos Correios e <strong>permanecerá</strong> no histórico de Remessas. Apenas o Pedido de Venda será excluído.
                   </p>
                 )}
                 <p className="text-muted-foreground">
-                  Só é permitido excluir notas sem efeito fiscal (Pronta para Emitir, Rejeitada ou Cancelada).
+                  Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
                 </p>
               </div>
             </AlertDialogDescription>
@@ -2258,6 +2301,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       <CorreiosContentDeclarationDialog
         open={dcDialogOpen}
