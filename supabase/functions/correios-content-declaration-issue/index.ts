@@ -14,13 +14,14 @@ interface IssueInput {
   tenant_id?: string;
   order_id?: string | null;
   fiscal_invoice_id?: string | null;
-  source?: "manual" | "gateway" | "shipment";
-  reason: string;
-  responsibility_acknowledged: boolean;
+  source?: "manual" | "gateway" | "shipment" | "auto";
+  reason?: string;
+  responsibility_acknowledged?: boolean;
   volumes_count?: number;
   total_weight_grams?: number; // override obrigatório quando o pedido não tiver peso
   emission_city?: string | null;
 }
+
 
 function genDcNumber(seedId: string): string {
   const ts = Date.now().toString().slice(-8);
@@ -68,12 +69,42 @@ Deno.serve(async (req) => {
   const tenantId = isServiceRole ? body.tenant_id : callerTenantId;
   if (!tenantId) return jsonResp({ success: false, error: "tenant_id_required" });
 
-  if (!body.reason || body.reason.trim().length < 3) {
+  // Modo automático (DC nativa do PV): motivo e aceite são sistêmicos.
+  // O lojista aceitou os termos uma vez nas Configurações Fiscais.
+  const isAuto = body.source === "auto";
+  const effectiveReason = (body.reason && body.reason.trim()) || (isAuto ? "Venda/remessa" : "");
+  const effectiveAck = body.responsibility_acknowledged === true || isAuto;
+
+  if (!effectiveReason || effectiveReason.length < 3) {
     return jsonResp({ success: false, error: "reason_required" });
   }
-  if (body.responsibility_acknowledged !== true) {
+  if (!effectiveAck) {
     return jsonResp({ success: false, error: "responsibility_required" });
   }
+
+  // ===== IDEMPOTÊNCIA =====
+  // DC é artefato nativo do PV: 1 DC ativa por PV. Se já existir uma
+  // 'issued' para este fiscal_invoice_id (ou order_id, fallback histórico),
+  // devolve o registro existente em vez de criar duplicata.
+  if (body.fiscal_invoice_id || body.order_id) {
+    let dupQ = sb
+      .from("shipping_content_declarations")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("status", "issued")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (body.fiscal_invoice_id) {
+      dupQ = dupQ.eq("fiscal_invoice_id", body.fiscal_invoice_id);
+    } else if (body.order_id) {
+      dupQ = dupQ.eq("order_id", body.order_id).is("fiscal_invoice_id", null);
+    }
+    const { data: existing } = await dupQ.maybeSingle();
+    if (existing) {
+      return jsonResp({ success: true, already_existed: true, declaration: existing });
+    }
+  }
+
 
   // Validação de papel para usuário logado
   if (!isServiceRole && callerUserId) {
@@ -304,7 +335,7 @@ Deno.serve(async (req) => {
       source: body.source ?? "manual",
       dc_number: dcNumber,
       status: "issued",
-      reason: body.reason,
+      reason: effectiveReason,
       responsibility_acknowledged: true,
       acknowledged_by_user_id: callerUserId,
       sender_snapshot: sender,

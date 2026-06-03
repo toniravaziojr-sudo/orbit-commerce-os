@@ -23,7 +23,16 @@ interface ShipmentRequest {
   invoice_id?: string;
   provider_override?: string;
   tenant_id?: string; // Used by internal service_role calls
+  /**
+   * Escolha do documento fiscal a anexar à pré-postagem dos Correios:
+   *   'nfe'  → apenas a NF-e autorizada
+   *   'dc'   → apenas a Declaração de Conteúdo nativa do PV
+   *   'both' → NF-e + DC juntos
+   * Quando ausente, default: 'nfe' se houver NF autorizada, senão 'dc'.
+   */
+  preferred_doc?: 'nfe' | 'dc' | 'both';
 }
+
 interface ShipmentResult {
   success: boolean;
   tracking_code?: string;
@@ -93,13 +102,17 @@ async function createCorreiosShipment(
   credentials: ProviderCredentials,
   settings: Record<string, unknown>,
   fiscalDoc?: {
-    kind: 'nfe' | 'dc';
+    // 'nfe'  → só campos estruturados da NF-e
+    // 'dc'   → só observação + itensDeclaracaoConteudo
+    // 'both' → NF-e estruturada + DC na observação (lojista quis as duas)
+    kind: 'nfe' | 'dc' | 'both';
     nfe_numero?: string | null;
     nfe_serie?: string | null;
     nfe_chave?: string | null;
     nfe_valor?: number | null;
     dc_number?: string | null;
   } | null,
+
 ): Promise<ShipmentResult> {
   console.log('[Correios] Creating pre-shipment for order:', order.id);
 
@@ -205,11 +218,14 @@ async function createCorreiosShipment(
     const senderPhone = splitPhone(settings?.sender_phone);
     const recipientPhone = splitPhone(order.customer_phone);
 
-    // ===== Observação fiscal (Declaração de Conteúdo quando não há NF-e) =====
+    // ===== Observação fiscal (DC) =====
+    // Inclui observação de DC quando o lojista escolheu 'dc' ou 'both'.
     let observacao: string | undefined;
-    if (fiscalDoc?.kind === 'dc' && fiscalDoc.dc_number) {
+    const includeDC = fiscalDoc?.kind === 'dc' || fiscalDoc?.kind === 'both';
+    if (includeDC && fiscalDoc?.dc_number) {
       observacao = `Declaracao de Conteudo no ${fiscalDoc.dc_number}`;
     }
+
 
     const pesoGramas = Math.max(100, Math.round(totalWeight));
     const formatoObjeto = '2';
@@ -279,18 +295,21 @@ async function createCorreiosShipment(
     // No banco a chave é armazenada no formato canônico "NFe<44 dígitos>" (47 chars);
     // precisamos remover o prefixo/qualquer caractere não numérico antes de enviar,
     // caso contrário a NF é ignorada e a API devolve PPN-347 exigindo Declaração de Conteúdo.
-    if (fiscalDoc?.kind === 'nfe') {
-      if (fiscalDoc.nfe_chave) {
+    // Inclui campos estruturados da NF-e quando 'nfe' ou 'both'.
+    const includeNFE = fiscalDoc?.kind === 'nfe' || fiscalDoc?.kind === 'both';
+    if (includeNFE) {
+      if (fiscalDoc?.nfe_chave) {
         const chaveLimpa = String(fiscalDoc.nfe_chave).replace(/\D/g, '');
         if (chaveLimpa.length !== 44) {
           console.warn(`[Correios] chave de acesso com tamanho inesperado (${chaveLimpa.length}); valor bruto: ${fiscalDoc.nfe_chave}`);
         }
         prepostagemPayload.chaveAcessoNotaFiscal = chaveLimpa;
       }
-      if (fiscalDoc.nfe_numero) prepostagemPayload.numeroNotaFiscal = String(fiscalDoc.nfe_numero);
-      if (fiscalDoc.nfe_serie) prepostagemPayload.serieNotaFiscal = String(fiscalDoc.nfe_serie);
-      if (fiscalDoc.nfe_valor) prepostagemPayload.valorNotaFiscal = fiscalDoc.nfe_valor;
+      if (fiscalDoc?.nfe_numero) prepostagemPayload.numeroNotaFiscal = String(fiscalDoc.nfe_numero);
+      if (fiscalDoc?.nfe_serie) prepostagemPayload.serieNotaFiscal = String(fiscalDoc.nfe_serie);
+      if (fiscalDoc?.nfe_valor) prepostagemPayload.valorNotaFiscal = fiscalDoc.nfe_valor;
     }
+
     if (observacao) {
       prepostagemPayload.observacao = observacao;
       // Itens da Declaração de Conteúdo: enviar conteudo + descricao + quantidade + valor + peso
@@ -798,10 +817,11 @@ Deno.serve(async (req) => {
       invoiceData = inv;
     }
 
-    // Declaração de Conteúdo dos Correios (alternativa à NF-e)
+    // Declaração de Conteúdo dos Correios (sempre buscada — DC é nativa do PV).
     // Vínculo canônico é com o PV. order_id só é usado como fallback histórico.
+    // O lojista pode optar (preferred_doc) por enviar com NF, com DC ou com as duas.
     let contentDeclaration: { id: string; dc_number: string } | null = null;
-    if (!invoiceData) {
+    {
       let dcQuery = supabase
         .from('shipping_content_declarations')
         .select('id, dc_number, order_id, fiscal_invoice_id')
@@ -819,12 +839,15 @@ Deno.serve(async (req) => {
     }
 
     if (invoiceData) {
-      console.log(`[shipping-create-shipment] NF-e found and will be linked: ${invoiceData.id}`);
-    } else if (contentDeclaration) {
-      console.log(`[shipping-create-shipment] Declaração de Conteúdo found and will be linked: ${contentDeclaration.dc_number}`);
-    } else {
-      console.log('[shipping-create-shipment] No fiscal doc found — will block if provider requires it.');
+      console.log(`[shipping-create-shipment] NF-e disponível: ${invoiceData.id}`);
     }
+    if (contentDeclaration) {
+      console.log(`[shipping-create-shipment] DC disponível: ${contentDeclaration.dc_number}`);
+    }
+    if (!invoiceData && !contentDeclaration) {
+      console.log('[shipping-create-shipment] Nenhum documento fiscal encontrado — pré-flight bloqueia se provider exigir.');
+    }
+
 
 
 
@@ -1095,18 +1118,52 @@ Deno.serve(async (req) => {
           break;
         }
 
-        const fiscalDoc = invoiceData
-          ? {
-              kind: 'nfe' as const,
-              nfe_numero: invoiceData.numero ?? null,
-              nfe_serie: invoiceData.serie ?? null,
-              nfe_chave: invoiceData.chave_acesso ?? null,
-              nfe_valor: invoiceData.valor_total ?? null,
-            }
-          : { kind: 'dc' as const, dc_number: contentDeclaration!.dc_number };
+        // ===== Escolha do documento fiscal pelo lojista =====
+        // metadata.preferred_doc no shipment OU body.preferred_doc na requisição:
+        //   'nfe'  → só NF-e         (exige NF autorizada; se não houver, cai para DC)
+        //   'dc'   → só DC nativa    (sempre disponível desde a nova regra)
+        //   'both' → NF-e + DC       (anexa as duas)
+        // Default: se há NF autorizada → 'nfe' (compat); senão → 'dc'.
+        const reqPreferred = (body as any)?.preferred_doc as string | undefined;
+        const metaPreferred = (meta as any)?.preferred_doc as string | undefined;
+        const preferredRaw = String(reqPreferred || metaPreferred || '').toLowerCase();
+        let preferred: 'nfe' | 'dc' | 'both' =
+          preferredRaw === 'both' ? 'both' :
+          preferredRaw === 'dc'   ? 'dc'   :
+          preferredRaw === 'nfe'  ? 'nfe'  :
+          (invoiceData ? 'nfe' : 'dc');
+        // Fallback de segurança: se pediu NF mas não tem, usa DC; se pediu both sem NF, vira DC.
+        if (preferred === 'nfe' && !invoiceData) preferred = 'dc';
+        if (preferred === 'both' && !invoiceData) preferred = 'dc';
+        if ((preferred === 'dc' || preferred === 'both') && !contentDeclaration) {
+          if (invoiceData) preferred = 'nfe';
+        }
+
+        const fiscalDoc =
+          preferred === 'both'
+            ? {
+                kind: 'both' as const,
+                nfe_numero: invoiceData!.numero ?? null,
+                nfe_serie: invoiceData!.serie ?? null,
+                nfe_chave: invoiceData!.chave_acesso ?? null,
+                nfe_valor: invoiceData!.valor_total ?? null,
+                dc_number: contentDeclaration?.dc_number ?? null,
+              }
+            : preferred === 'nfe'
+            ? {
+                kind: 'nfe' as const,
+                nfe_numero: invoiceData!.numero ?? null,
+                nfe_serie: invoiceData!.serie ?? null,
+                nfe_chave: invoiceData!.chave_acesso ?? null,
+                nfe_valor: invoiceData!.valor_total ?? null,
+              }
+            : { kind: 'dc' as const, dc_number: contentDeclaration?.dc_number ?? null };
+
+        console.log(`[shipping-create-shipment] preferred_doc=${preferred} (req=${reqPreferred} meta=${metaPreferred})`);
         result = await createCorreiosShipment(orderData, credentials, settings, fiscalDoc);
         break;
       }
+
       case 'loggi':
         result = await createLoggiShipment(orderData, credentials, settings);
         break;

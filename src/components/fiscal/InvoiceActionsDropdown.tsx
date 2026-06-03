@@ -216,35 +216,29 @@ export function InvoiceActionsDropdown({
               <Copy className="h-4 w-4 mr-2" />
               {cloneLabel}
             </DropdownMenuItem>
-            {onGenerateDC && (
-              hasContentDeclaration ? (
-                <DropdownMenuItem
-                  onClick={onPrintDC}
-                  disabled={isPrintingDC || !onPrintDC}
-                  title="Imprime novamente a Declaração de Conteúdo já emitida"
-                >
-                  {isPrintingDC ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Printer className="h-4 w-4 mr-2" />
-                  )}
-                  Imprimir Declaração de Conteúdo
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  onClick={onGenerateDC}
-                  disabled={isGeneratingDC || pedidoBlocked}
-                  title={pedidoBlocked ? pedidoBlockedReason : undefined}
-                >
-                  {isGeneratingDC ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-2" />
-                  )}
-                  Gerar Declaração de Conteúdo
-                </DropdownMenuItem>
-              )
+            {/* Declaração de Conteúdo é artefato NATIVO do Pedido de Venda.
+                Não existe mais "gerar" como ação manual — só "Imprimir".
+                Quando ainda não houver DC (PV antigo sem backfill ou item
+                sem peso), o item fica desabilitado com tooltip explicativo. */}
+            {(onPrintDC || onGenerateDC) && (
+              <DropdownMenuItem
+                onClick={hasContentDeclaration ? onPrintDC : undefined}
+                disabled={isPrintingDC || !hasContentDeclaration}
+                title={
+                  hasContentDeclaration
+                    ? 'Imprime a Declaração de Conteúdo já emitida para este pedido'
+                    : 'Declaração de Conteúdo ainda não disponível. Verifique se há peso cadastrado em todos os produtos do pedido.'
+                }
+              >
+                {isPrintingDC ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4 mr-2" />
+                )}
+                Imprimir Declaração de Conteúdo
+              </DropdownMenuItem>
             )}
+
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={onDelete}

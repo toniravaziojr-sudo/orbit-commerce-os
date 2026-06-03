@@ -7,6 +7,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
 import { runPreflight } from "../_shared/fiscal-shipping-preflight.ts";
+import { ensurePvContentDeclaration } from "../_shared/ensure-pv-content-declaration.ts";
+
 
 const VERSION = 'v8.8.0';
 
@@ -439,6 +441,26 @@ Deno.serve(async (req) => {
 
     console.log('[fiscal-create-manual] Manual invoice created:', invoice.id);
 
+    // ===== DC NATIVA DO PV =====
+    // Toda PV nasce com sua Declaração de Conteúdo emitida e amarrada ao PV.
+    // Fluxo síncrono, mas com falha tolerada: se faltar peso de algum item,
+    // a DC fica pendente (operador resolve no cadastro do produto) e a PV
+    // entra normalmente — o pré-flight de remessa avisa depois em PT-BR.
+    // Doc: docs/especificacoes/fiscal/preflight-fiscal-logistico.md
+    let dcResult: { ok: boolean; reason?: string; dcNumber?: string } = { ok: false };
+    if (creationMode === 'pedido_venda' && invoice?.id) {
+      dcResult = await ensurePvContentDeclaration({
+        tenantId,
+        fiscalInvoiceId: invoice.id,
+        orderId: order_id || null,
+      });
+      if (!dcResult.ok) {
+        console.warn('[fiscal-create-manual] DC nativa não pôde ser emitida:', dcResult.reason);
+      } else {
+        console.log('[fiscal-create-manual] DC nativa emitida:', dcResult.dcNumber);
+      }
+    }
+
     // Dispatch on-demand: cria o rascunho de remessa imediatamente, sem esperar o cron de 10 min.
     // Fire-and-forget — o cron continua como rede de segurança.
     if (initialPedidoStatus === 'em_aberto') {
@@ -457,6 +479,7 @@ Deno.serve(async (req) => {
         console.warn('[fiscal-create-manual] shipping-draft-process dispatch error:', e);
       }
     }
+
 
     return new Response(
       JSON.stringify({

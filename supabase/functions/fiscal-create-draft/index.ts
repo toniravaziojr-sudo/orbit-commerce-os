@@ -10,6 +10,8 @@ import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCurs
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
+import { ensurePvContentDeclaration } from "../_shared/ensure-pv-content-declaration.ts";
+
 
 const VERSION = 'v8.8.0';
 // v8.8.0 — CFOP via Natureza de Operação vinculada (Fase 2). Aceita natureza_operacao_id
@@ -476,6 +478,27 @@ Deno.serve(async (req) => {
       });
 
     console.log('[fiscal-create-draft] Draft created/updated:', invoice.id);
+
+    // ===== DC NATIVA DO PV =====
+    // Toda PV nasce com sua Declaração de Conteúdo emitida e amarrada.
+    // Idempotente: se já houver DC ativa para este PV, reaproveita.
+    // Falha tolerada (peso de produto ausente etc.): a PV é entregue;
+    // o pré-flight de remessa avisa em PT-BR no momento do despacho.
+    try {
+      const dcRes = await ensurePvContentDeclaration({
+        tenantId,
+        fiscalInvoiceId: invoice.id,
+        orderId: order_id || null,
+      });
+      if (!dcRes.ok) {
+        console.warn('[fiscal-create-draft] DC nativa não pôde ser emitida:', dcRes.reason);
+      } else {
+        console.log('[fiscal-create-draft] DC nativa emitida:', dcRes.dcNumber);
+      }
+    } catch (e) {
+      console.warn('[fiscal-create-draft] DC nativa erro:', e);
+    }
+
 
     // Return draft with items
     return new Response(
