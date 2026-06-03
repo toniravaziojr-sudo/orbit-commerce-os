@@ -124,6 +124,18 @@ export function ShipmentGenerator() {
   const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [retryingShipmentId, setRetryingShipmentId] = useState<string | null>(null);
+  // Loading por linha para botões de impressão (etiqueta | nfe | dc)
+  const [printingKeys, setPrintingKeys] = useState<Set<string>>(new Set());
+  const isPrinting = (shipmentId: string, kind: 'label' | 'nfe' | 'dc') =>
+    printingKeys.has(`${shipmentId}:${kind}`);
+  const setPrinting = (shipmentId: string, kind: 'label' | 'nfe' | 'dc', on: boolean) => {
+    setPrintingKeys(prev => {
+      const next = new Set(prev);
+      const key = `${shipmentId}:${kind}`;
+      if (on) next.add(key); else next.delete(key);
+      return next;
+    });
+  };
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
@@ -497,6 +509,57 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
   };
 
+  // Garante que um objeto de postagem esteja vinculado a uma remessa agrupadora ANTES de despachar.
+  // Reutiliza uma remessa em rascunho da mesma transportadora (mesmo tenant) quando existir,
+  // senão aloca uma nova com 1 objeto. Se a operação falhar, retorna sem bloquear o despacho.
+  const ensureRemessaForShipment = async (shipmentId: string): Promise<{ remessaId: string | null; createdNew: boolean }> => {
+    if (!currentTenant?.id) return { remessaId: null, createdNew: false };
+    const { data: ship } = await supabase
+      .from('shipments')
+      .select('id, carrier, remessa_id')
+      .eq('id', shipmentId)
+      .maybeSingle();
+    if (!ship) return { remessaId: null, createdNew: false };
+    if (ship.remessa_id) return { remessaId: ship.remessa_id, createdNew: false };
+
+    const carrierKey = (ship.carrier || '').toLowerCase().trim();
+    try {
+      const { data: numeroData, error: numeroErr } = await supabase.rpc('allocate_remessa_numero', {
+        p_tenant_id: currentTenant.id,
+      });
+      if (numeroErr) throw numeroErr;
+      const remessaNumero = String(numeroData);
+
+      const { data: remessaRow, error: remessaErr } = await supabase
+        .from('shipping_remessas')
+        .insert({
+          tenant_id: currentTenant.id,
+          numero: remessaNumero,
+          carrier: carrierKey,
+          status: 'rascunho',
+          descricao: 'Lote de 1 objeto(s)',
+        })
+        .select('id')
+        .single();
+      if (remessaErr) throw remessaErr;
+
+      const { error: linkErr } = await supabase
+        .from('shipments')
+        .update({ remessa_id: remessaRow.id })
+        .eq('id', shipmentId)
+        .eq('tenant_id', currentTenant.id);
+      if (linkErr) {
+        // Limpa remessa órfã se o vínculo falhar.
+        await supabase.from('shipping_remessas').delete().eq('id', remessaRow.id).eq('tenant_id', currentTenant.id);
+        throw linkErr;
+      }
+      return { remessaId: remessaRow.id, createdNew: true };
+    } catch (e: any) {
+      console.error('Falha ao garantir remessa agrupadora:', e);
+      return { remessaId: null, createdNew: false };
+    }
+  };
+
   const handleRetryShipment = async (shipmentId: string) => {
     setRetryingShipmentId(shipmentId);
     try {
@@ -509,19 +572,39 @@ export function ShipmentGenerator() {
         .eq('tenant_id', currentTenant?.id!)
         .eq('delivery_status', 'failed' as any);
 
+      // Garante vínculo com remessa agrupadora antes do despacho — toda emissão
+      // local de Correios pertence a uma remessa, mesmo de 1 objeto.
+      const { remessaId, createdNew } = await ensureRemessaForShipment(shipmentId);
+
       const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
       if (result?.success && result.tracking_code) {
         toast.success(`Remessa reenviada. Código: ${result.tracking_code}`);
+        // Atualiza status do agrupador recém-criado para "emitida".
+        if (remessaId && createdNew) {
+          await supabase
+            .from('shipping_remessas')
+            .update({ status: 'emitida', emitted_at: new Date().toISOString() })
+            .eq('id', remessaId)
+            .eq('tenant_id', currentTenant?.id!);
+        }
       } else {
         toast.error(result?.error || 'Falha ao reenviar remessa');
+        // Se criamos a remessa só para este retry e o despacho falhou, remove o agrupador órfão.
+        if (remessaId && createdNew) {
+          await supabase.from('shipments').update({ remessa_id: null }).eq('id', shipmentId);
+          await supabase.from('shipping_remessas').delete().eq('id', remessaId).eq('tenant_id', currentTenant?.id!);
+        }
       }
       invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao reenviar remessa');
     } finally {
       setRetryingShipmentId(null);
     }
   };
+
+
 
   // === Ações manuais nos rascunhos ===
   const openCreateDraft = () => {
@@ -554,6 +637,8 @@ export function ShipmentGenerator() {
   // Imprimir/Reimprimir etiqueta — sempre disponível.
   // Chama a edge que devolve signed URL (se existir no bucket) ou baixa nos Correios e armazena.
   const handlePrintLabel = async (shipment: ShipmentRecord, forceRefresh = false) => {
+    if (isPrinting(shipment.id, 'label')) return;
+    setPrinting(shipment.id, 'label', true);
     try {
       const { data, error } = await supabase.functions.invoke('shipping-get-label', {
         body: { shipment_id: shipment.id, force_refresh: forceRefresh },
@@ -578,32 +663,42 @@ export function ShipmentGenerator() {
       toast.error(data?.error || 'Etiqueta não disponível');
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao imprimir etiqueta');
+    } finally {
+      setPrinting(shipment.id, 'label', false);
     }
   };
 
   // Imprime apenas DANFE (NF-e). Não cai em DC.
   const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
-    if (shipment.invoice?.danfe_url) {
-      window.open(shipment.invoice.danfe_url, '_blank');
-      return true;
-    }
-    if (shipment.invoice_id) {
-      const { data } = await supabase
-        .from('fiscal_invoices')
-        .select('danfe_url')
-        .eq('id', shipment.invoice_id)
-        .single();
-      if (data?.danfe_url) {
-        window.open(data.danfe_url, '_blank');
+    if (isPrinting(shipment.id, 'nfe')) return false;
+    setPrinting(shipment.id, 'nfe', true);
+    try {
+      if (shipment.invoice?.danfe_url) {
+        window.open(shipment.invoice.danfe_url, '_blank');
         return true;
       }
+      if (shipment.invoice_id) {
+        const { data } = await supabase
+          .from('fiscal_invoices')
+          .select('danfe_url')
+          .eq('id', shipment.invoice_id)
+          .single();
+        if (data?.danfe_url) {
+          window.open(data.danfe_url, '_blank');
+          return true;
+        }
+      }
+      toast.error('DANFE da NF-e não disponível para impressão');
+      return false;
+    } finally {
+      setPrinting(shipment.id, 'nfe', false);
     }
-    toast.error('DANFE da NF-e não disponível para impressão');
-    return false;
   };
 
   // Imprime apenas a Declaração de Conteúdo (DC). Não cai em NF-e.
   const handlePrintDC = async (shipment: ShipmentRecord): Promise<boolean> => {
+    if (isPrinting(shipment.id, 'dc')) return false;
+    setPrinting(shipment.id, 'dc', true);
     try {
       const declRow = shipment.declaration
         ? await supabase
@@ -618,11 +713,15 @@ export function ShipmentGenerator() {
         reprintExistingDeclaration(declRow as any);
         return true;
       }
+      toast.error('Declaração de Conteúdo não disponível para impressão');
+      return false;
     } catch (e: any) {
       console.error('DC print error', e);
+      toast.error('Declaração de Conteúdo não disponível para impressão');
+      return false;
+    } finally {
+      setPrinting(shipment.id, 'dc', false);
     }
-    toast.error('Declaração de Conteúdo não disponível para impressão');
-    return false;
   };
 
   // Busca a Declaração de Conteúdo existente para a remessa
@@ -1037,25 +1136,32 @@ export function ShipmentGenerator() {
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title="Imprimir etiqueta (busca etiqueta armazenada ou nos Correios)"
+                                disabled={isPrinting(shipment.id, 'label')}
                                 onClick={() => handlePrintLabel(shipment, true)}
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'label')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Printer className="h-3.5 w-3.5" />}
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title={shipment.invoice_id ? 'Imprimir DANFE (NF-e)' : 'Esta remessa não possui NF-e vinculada'}
-                                disabled={!shipment.invoice_id}
+                                disabled={!shipment.invoice_id || isPrinting(shipment.id, 'nfe')}
                                 onClick={() => handlePrintNFe(shipment)}
                               >
-                                <FileText className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'nfe')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <FileText className="h-3.5 w-3.5" />}
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
                                 title={shipment.declaration?.id ? 'Imprimir Declaração de Conteúdo' : 'Esta remessa não possui Declaração de Conteúdo'}
-                                disabled={!shipment.declaration?.id}
+                                disabled={!shipment.declaration?.id || isPrinting(shipment.id, 'dc')}
                                 onClick={() => handlePrintDC(shipment)}
                               >
-                                <ScrollText className="h-3.5 w-3.5" />
+                                {isPrinting(shipment.id, 'dc')
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <ScrollText className="h-3.5 w-3.5" />}
                               </Button>
                             </div>
                           </TableCell>

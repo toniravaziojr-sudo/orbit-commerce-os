@@ -262,10 +262,14 @@ Separar conceitualmente **Objeto de Postagem** (unidade vinculada ao pedido) de 
   - Coluna **Remessa** exibindo `Remessa_DDMMAAAA.HHMMSS` nos objetos emitidos.
   - Componente `RemessasManager` com lista de lotes, status e painel lateral de drill-down por objeto.
   - Emissão agrupa por transportadora, aloca número de remessa e vincula `shipments.remessa_id` antes do despacho. Objetos sem remessa continuam funcionando (compatibilidade).
+- **Fase 2.1 — Hardenings de UI e vínculo da remessa (03/06/2026):** ✅ aplicada, **pendente de validação real pelo operador**.
+  - **Loading em todos os botões de impressão por linha** (Etiqueta, DANFE, Declaração de Conteúdo) na aba "Objetos emitidos": spinner + `disabled` enquanto o PDF é gerado/aberto, impedindo cliques múltiplos. Antes só o botão de "Reenviar" tinha esse estado.
+  - **Garantia de remessa agrupadora em qualquer caminho de despacho.** O fluxo de "Reenviar" (após uma falha) passou a chamar uma rotina única (`ensureRemessaForShipment`) que: (1) se o objeto já tem remessa, reusa; (2) se não tem, aloca número via `allocate_remessa_numero`, cria um lote de 1 objeto e vincula `shipments.remessa_id` antes de chamar os Correios. Em caso de falha do vínculo, a remessa órfã é removida imediatamente. Resultado: todo objeto emitido localmente pelos Correios passa a aparecer dentro de uma remessa na aba **Remessas**, mesmo quando o despacho veio de retry individual e não do bulk.
+  - **Limpeza de incidente:** removida 1 remessa órfã (`Remessa_03062026.093633`, 0 objetos) e 1 objeto de postagem do PV 375 (etiqueta `AP031021990BR`) que ficou sem vínculo de remessa por ter sido emitido pelo caminho de retry antigo. Permite o operador rerrodar o fluxo do zero.
 
 **Próximos passos previstos (não iniciar sem GO explícito):**
 
-- **Validação real ponta a ponta pelo operador** no tenant piloto: gerar uma remessa com múltiplos objetos, conferir agrupamento, contadores e exibição na aba Remessas.
+- **Validação real ponta a ponta pelo operador** no tenant piloto: duplicar um PV, emitir a remessa (caminho bulk e caminho retry individual), conferir o vínculo na aba Remessas, contadores e estado dos botões de impressão.
 - **Fase 3 — Impressão em lote pela aba Remessas:** Protocolo PLP (PDF local), etiquetas, NFs e DCs consolidados por remessa.
 - **Fase 4 — Refinamento:** tratamento de falhas parciais (reemitir 1 etiqueta dentro de um lote de N sem reabrir o lote inteiro), regras de cancelamento/reabertura de remessa.
 
@@ -274,5 +278,6 @@ Separar conceitualmente **Objeto de Postagem** (unidade vinculada ao pedido) de 
 - Não tocar no fluxo de gateway Frenet — pedidos gateway saem da fila de Remessas e seguem por `dce-emit` + `gateway-attach-fiscal-doc`.
 - Pratika e Correios continuam recebendo objetos individuais; a remessa só "embrulha" para impressão e gestão visual.
 - Não introduzir filtro padrão escondendo remessas de 1 objeto — a aba Remessas mostra todos os lotes.
-- Padronização de loadings de botão fica fora desta frente (tema separado, parado até pedido explícito).
+- **Todo caminho de despacho local Correios DEVE passar por `ensureRemessaForShipment` antes do `dispatch-shipment`.** Reabrir um caminho de emissão sem esse guard é regressão da Fase 2.1.
+
 

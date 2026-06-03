@@ -169,9 +169,22 @@ permanecem sem remessa vinculada — operam normalmente.
    remessa em rascunho ficar vazia, deve ser cancelada (Fase 2).
 5. Pedidos via gateway (Frenet) não entram em remessa.
 6. URLs e rotas atuais continuam respondendo.
+7. **(Fase 2.1 — 03/06/2026)** Todo caminho de despacho local Correios
+   (bulk em "Emitir objetos", retry individual em "Remessas pendentes",
+   ou qualquer entrada futura) DEVE passar pelo guard
+   `ensureRemessaForShipment` antes de chamar `dispatch-shipment`. O
+   guard reusa a remessa em rascunho vinculada ao objeto ou aloca uma
+   nova de 1 objeto e grava `shipments.remessa_id` antes do despacho.
+   Em falha do vínculo, a remessa criada é removida na hora para não
+   gerar lote órfão.
+8. **(Fase 2.1 — 03/06/2026)** Os botões de impressão por linha
+   (Etiqueta, DANFE, Declaração de Conteúdo) na aba "Objetos emitidos"
+   exibem spinner e ficam `disabled` enquanto o documento é
+   gerado/aberto, impedindo cliques múltiplos.
 
 Memória anti-regressão:
 `mem://constraints/shipping-objeto-vs-remessa-agrupadora`.
+
 
 ---
 
