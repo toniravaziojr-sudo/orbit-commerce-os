@@ -642,11 +642,15 @@ export function ShipmentGenerator() {
         reprintExistingDeclaration(declRow as any);
         return true;
       }
+      toast.error('Declaração de Conteúdo não disponível para impressão');
+      return false;
     } catch (e: any) {
       console.error('DC print error', e);
+      toast.error('Declaração de Conteúdo não disponível para impressão');
+      return false;
+    } finally {
+      setPrinting(shipment.id, 'dc', false);
     }
-    toast.error('Declaração de Conteúdo não disponível para impressão');
-    return false;
   };
 
   // Busca a Declaração de Conteúdo existente para a remessa
