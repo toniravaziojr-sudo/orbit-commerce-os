@@ -366,6 +366,14 @@ Deno.serve(async (req) => {
       dest_nome: customer?.full_name || order.customer_name || 'Cliente',
       dest_cpf_cnpj: customer?.cpf || order.customer_cpf || order.customer_cnpj || '',
       dest_inscricao_estadual: null,
+      // Contato do destinatário — obrigatório para Declaração de Conteúdo / Correios.
+      // Sanitiza para apenas dígitos (Correios exige 10–13 dígitos com DDD).
+      dest_telefone: (() => {
+        const raw = customer?.phone || customer?.whatsapp || order.customer_phone || '';
+        const digits = String(raw).replace(/\D/g, '');
+        return digits.length >= 10 ? digits.slice(0, 13) : null;
+      })(),
+      dest_email: (customer?.email || order.customer_email || null) || null,
       dest_endereco_logradouro: order.shipping_street,
       dest_endereco_numero: order.shipping_number || 'S/N',
       dest_endereco_complemento: order.shipping_complement,
