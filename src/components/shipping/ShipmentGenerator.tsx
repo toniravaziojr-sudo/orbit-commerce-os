@@ -862,7 +862,7 @@ export function ShipmentGenerator() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={openCreateDraft} className="gap-1">
-                    <Plus className="h-3.5 w-3.5" /> Criar novo rascunho
+                    <Plus className="h-3.5 w-3.5" /> Criar novo objeto
                   </Button>
                   <Button
                     size="sm"

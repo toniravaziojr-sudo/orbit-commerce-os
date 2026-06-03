@@ -152,9 +152,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
-  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo)
-  type ShipmentImpact = { tracking_code: string | null; delivery_status: string; in_motion: boolean };
+  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo).
+  // Em qualquer estado, o objeto é removido junto com o PV (cascata total).
+  type ShipmentImpact = { tracking_code: string | null; delivery_status: string };
   const [linkedShipmentImpact, setLinkedShipmentImpact] = useState<ShipmentImpact | null>(null);
+  // Estado do pedido de origem (para bloquear exclusão de PV de pedido pago)
+  type PaidOrderBlock = { order_number: string | null; status: string; payment_status: string };
+  const [paidOrderBlock, setPaidOrderBlock] = useState<PaidOrderBlock | null>(null);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
@@ -1176,8 +1180,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
   const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
 
-  const SHIPMENT_IN_MOTION_STATUSES = new Set([
-    'posted', 'in_transit', 'out_for_delivery', 'delivered', 'returned',
+  // Estados terminais do pedido em que a exclusão do PV é permitida
+  // (cancelamento, expiração ou reembolso já consumaram o descarte do pedido).
+  const ORDER_TERMINAL_DELETABLE = new Set([
+    'cancelled', 'cancelled_by_user', 'refunded', 'expired', 'payment_expired',
   ]);
 
   const handleDeleteDraft = async (invoice: FiscalInvoice) => {
@@ -1186,10 +1192,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       return;
     }
     setLinkedShipmentImpact(null);
-    // Se for um Pedido de Venda raiz, busca o objeto de postagem vinculado para
-    // adaptar o texto do diálogo (apagável vs em movimento).
+    setPaidOrderBlock(null);
+
     const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
-    if (stage === 'pedido_venda') {
+
+    // Para PV raiz vinculado a pedido real: checar se pedido está pago e ativo (bloqueio).
+    if (stage === 'pedido_venda' && (invoice as any).order_id && !(invoice as any).source_order_invoice_id) {
+      const { data: orderRow } = await supabase
+        .from('orders')
+        .select('order_number, status, payment_status')
+        .eq('id', (invoice as any).order_id)
+        .maybeSingle();
+      if (orderRow) {
+        const status = String((orderRow as any).status || '');
+        const paymentStatus = String((orderRow as any).payment_status || '');
+        const isPaidLike =
+          ['approved', 'paid'].includes(paymentStatus) ||
+          ['paid','processing','ready_to_invoice','invoice_pending_sefaz','invoice_authorized',
+           'invoice_issued','invoice_rejected','shipped','in_transit','dispatched','delivered',
+           'fulfilled','completed','chargeback_detected','chargeback_lost','chargeback_recovered',
+           'returning','returned','invoice_cancelled'].includes(status);
+        if (isPaidLike && !ORDER_TERMINAL_DELETABLE.has(status)) {
+          setPaidOrderBlock({
+            order_number: (orderRow as any).order_number?.toString() ?? null,
+            status,
+            payment_status: paymentStatus,
+          });
+          setConfirmDeleteInvoice(invoice);
+          return;
+        }
+      }
+
+      // Não bloqueado: busca objeto de postagem para informar cascata
       const { data } = await supabase
         .from('shipments')
         .select('tracking_code, delivery_status')
@@ -1201,7 +1235,6 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         setLinkedShipmentImpact({
           tracking_code: (data as any).tracking_code ?? null,
           delivery_status: (data as any).delivery_status as string,
-          in_motion: SHIPMENT_IN_MOTION_STATUSES.has((data as any).delivery_status as string),
         });
       }
     }
@@ -1223,10 +1256,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .delete()
         .eq('id', invoice.id);
 
-      if (error) throw error;
+      if (error) {
+        // Bloqueio do banco (guard_pv_deletion_from_paid_order)
+        if (String(error.message || '').includes('PV_FROM_PAID_ORDER_PROTECTED')) {
+          toast.error('Este Pedido de Venda pertence a um pedido pago e não pode ser excluído. Cancele o pedido de origem na tela de Pedidos.');
+          setConfirmDeleteInvoice(null);
+          setLinkedShipmentImpact(null);
+          setPaidOrderBlock(null);
+          return;
+        }
+        throw error;
+      }
       toast.success('Registro excluído');
       setConfirmDeleteInvoice(null);
       setLinkedShipmentImpact(null);
+      setPaidOrderBlock(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
@@ -2257,47 +2301,67 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           if (!open && !isDeletingInvoice) {
             setConfirmDeleteInvoice(null);
             setLinkedShipmentImpact(null);
+            setPaidOrderBlock(null);
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir este registro?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {paidOrderBlock ? 'Não é possível excluir este Pedido de Venda' : 'Excluir este registro?'}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
-                <p>
-                  Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
-                </p>
-                {confirmDeleteInvoice && (
-                  <p className="text-muted-foreground">
-                    {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
-                  </p>
+                {paidOrderBlock ? (
+                  <>
+                    <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive">
+                      Este Pedido de Venda pertence a um pedido pago{paidOrderBlock.order_number ? ` (#${paidOrderBlock.order_number})` : ''} e <strong>não pode ser excluído</strong>.
+                    </p>
+                    <p>
+                      Para descartar, <strong>cancele o pedido de origem</strong> na tela de Pedidos. O Pedido de Venda e o objeto de postagem serão removidos automaticamente.
+                    </p>
+                    {confirmDeleteInvoice && (
+                      <p className="text-muted-foreground">
+                        {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
+                    </p>
+                    {confirmDeleteInvoice && (
+                      <p className="text-muted-foreground">
+                        {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                      </p>
+                    )}
+                    {linkedShipmentImpact && (
+                      <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                        Este Pedido de Venda tem um objeto de postagem associado{linkedShipmentImpact.tracking_code ? ` (nº ${linkedShipmentImpact.tracking_code})` : ''}. <strong>Ele será excluído junto.</strong> Se a remessa ficar vazia, também será removida.
+                      </p>
+                    )}
+                    <p className="text-muted-foreground">
+                      Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
+                    </p>
+                  </>
                 )}
-                {linkedShipmentImpact && !linkedShipmentImpact.in_motion && (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                    Este Pedido de Venda tem um objeto de postagem associado ({linkedShipmentImpact.delivery_status === 'label_created' ? 'etiqueta gerada' : 'em rascunho'}). Ele será excluído junto. Se a remessa ficar vazia, também será removida.
-                  </p>
-                )}
-                {linkedShipmentImpact && linkedShipmentImpact.in_motion && (
-                  <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-900">
-                    O objeto de postagem {linkedShipmentImpact.tracking_code ? `nº ${linkedShipmentImpact.tracking_code}` : 'vinculado'} já está em movimento pelos Correios e <strong>permanecerá</strong> no histórico de Remessas. Apenas o Pedido de Venda será excluído.
-                  </p>
-                )}
-                <p className="text-muted-foreground">
-                  Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
-                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingInvoice}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeletingInvoice}
-              onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingInvoice}>
+              {paidOrderBlock ? 'Entendi' : 'Cancelar'}
+            </AlertDialogCancel>
+            {!paidOrderBlock && (
+              <AlertDialogAction
+                disabled={isDeletingInvoice}
+                onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

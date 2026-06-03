@@ -669,26 +669,65 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 
 **PV manual/duplicado nasce "em aberto" (2026-05-28):** todo Pedido de Venda criado manualmente ou por duplicação (sem pedido real vinculado) já nasce com status "Pedido em aberto". Isso aciona o espelho na hora e a remessa-rascunho aparece automaticamente em "Prontos para emitir remessa", com destinatário, endereço, transportadora, serviço, peso e dimensões herdados do PV de origem. Caso real corrigido: PV 353 do Respeite o Homem (duplicado do 352) — entrava sem status e por isso não gerava remessa.
 
-**Exclusão em cascata (revista em 2026-06-03):** ao excluir um Pedido de Venda,
-o sistema decide objeto a objeto:
+**Exclusão em cascata — TOTAL (revista em 2026-06-03):** ao excluir um Pedido
+de Venda, todo objeto de postagem vinculado é removido **junto**, sem
+exceções, pelo gatilho `trg_cascade_delete_shipments_on_pv_delete`. Vale para
+rascunho, etiqueta gerada, postado, em trânsito, entregue, devolvido —
+qualquer `delivery_status`. Se a remessa agrupadora ficar vazia e estiver em
+`rascunho` ou `emitida`, ela também é removida pelo gatilho
+`trg_cleanup_empty_remessa_after_shipment_delete`.
 
-- **Objeto ainda parado** (`delivery_status IN ('draft','label_created')`) →
-  **apagado junto** com o PV pelo gatilho `trg_cascade_delete_shipments_on_pv_delete`.
-  Se a remessa agrupadora ficar sem nenhum objeto e estiver em `rascunho` ou
-  `emitida`, ela também é apagada pelo gatilho
-  `trg_cleanup_empty_remessa_after_shipment_delete`.
-- **Objeto em movimento** (`posted`, `in_transit`, `out_for_delivery`,
-  `delivered`, `returned`) → **permanece** no histórico. A FK
-  `shipments.source_pedido_venda_id ON DELETE SET NULL` zera o vínculo com o
-  PV apagado; a remessa agrupadora é preservada.
-- **Itens pendentes na fila de rascunhos** continuam sendo apagados em cascata
-  pela FK existente em `shipping_draft_queue`.
+A regra anterior (que preservava objetos em movimento) foi descontinuada na
+mesma entrega: como a exclusão de PV de pedido pago passou a ser bloqueada
+(ver abaixo), o único caminho para remover o PV é cancelar o pedido de
+origem — e nesse caso o objeto também deve sair.
 
-A UI exibe o impacto no diálogo de confirmação (FiscalInvoiceList) com texto
-adaptado ao estado do objeto vinculado.
+**Bloqueio de exclusão de PV de pedido pago (2026-06-03):** a tela Fiscal
+não permite mais excluir um Pedido de Venda vinculado a um pedido pago e
+ativo. O gatilho `trg_guard_pv_deletion_from_paid_order` aplica a mesma
+proteção no banco. Para descartar, o operador precisa **cancelar o pedido na
+tela de Pedidos** — a cascata existente apaga o PV e o objeto em seguida.
+PV manual (sem pedido vinculado) e PV de pedido não pago (expirado,
+cancelado, aguardando pagamento) continuam excluíveis normalmente.
 
-Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda` e
-`mem://constraints/shipping-objeto-vs-remessa-agrupadora`.
+**Auditoria de exclusão (2026-06-03):** toda exclusão de Pedido de Venda
+grava um snapshot em `pv_deletion_audit` (número, série, pedido de origem,
+cliente, total, itens, quem excluiu, quando) via gatilho
+`trg_audit_pv_deletion`. Registro permanente para recuperação manual em caso
+de exclusão por engano.
+
+Anti-regressão: ver `mem://constraints/shipping-pv-delete-cascade-by-shipment-state`,
+`mem://constraints/pv-from-paid-order-deletion-protected` e
+`mem://constraints/shipping-draft-mirrors-pedido-venda`.
+
+---
+
+## Reconciliação de objeto logístico órfão (2026-06-03)
+
+A criação do objeto de postagem acontece apenas uma vez, no momento em que
+o Pedido de Venda é inserido (gatilho `trg_enqueue_shipping_draft_from_pv`).
+Se o objeto sumir depois (limpeza manual, teste, falha pontual), o PV
+ficaria órfão para sempre — foi o gap de 2 objetos detectado no tenant
+Respeite o Homem em 2026-06-03 (pedidos #563 e #565).
+
+**Rede de segurança permanente:**
+
+- Função `public.reconcile_orphan_pv_shipments(p_tenant_id uuid DEFAULT NULL)`
+  varre todos os Pedidos de Venda ativos cujo pedido é pago e que não têm
+  objeto nem item pendente na fila. Para cada um, enfileira um novo rascunho
+  em `shipping_draft_queue` (que o scheduler-tick consome normalmente).
+- Cron `reconcile-orphan-pv-shipments-15m` executa a cada 15 minutos para
+  todos os tenants.
+- A função pula pedidos `cancelled`/`refunded`/`expired`/`chargeback_lost`/
+  `chargeback_detected`/`returning`/`returned`, marketplace
+  (`marketplace_source` fora de storefront/checkout/manual/link/admin) e
+  pedidos via gateway (Frenet etc., `provider_kind='gateway'`).
+
+**Resultado:** qualquer objeto que sumir por qualquer motivo volta a aparecer
+na fila de Logística na próxima rodada (no máximo 15 minutos). O gap "PVs
+ativos > objetos logísticos" nunca persiste.
+
+Anti-regressão: ver `mem://constraints/orphan-pv-shipment-reconciliation`.
 
 ---
 
