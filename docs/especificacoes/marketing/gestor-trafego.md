@@ -1463,6 +1463,65 @@ WHERE policy_check_result ? 'observation';
 - Nenhuma chamada externa nova foi adicionada.
 - Histograma horário, CPA de referência, regra mensal de pausa, cache de CPA e Modo Piloto/Sandbox continuam fora do escopo.
 
-### Próxima fase recomendada
+### Próxima fase recomendada (após C.3.1)
 
-**Fase C.3.2 — Ativação observacional em 1 tenant piloto** (proposta: `Respeite o Homem`, apenas canal Meta). Requer aprovação explícita do usuário para: (a) adicionar o `tenant_id` à allowlist, (b) setar `autonomy_mode='technical_only'` na(s) conta(s) de anúncio do piloto. Mesmo após C.3.2, **nenhuma autoexecução real é ligada** — apenas a gravação de `observation` para auditoria por SQL.
+**Fase C.3.2 — Ativação observacional em 1 tenant piloto** (`Respeite o Homem`, apenas canal Meta). Executada em duas etapas com aprovação explícita: (a) preparação silenciosa, (b) ligar `is_ai_enabled=true` na conta para gerar observações reais. Ver seção C.3.2 a seguir.
+
+---
+
+## Fase C.3.2 — Piloto Observacional `technical_only` (Etapa 1 entregue)
+
+A Fase C.3.2 é executada em **duas etapas independentes**, cada uma com aprovação explícita do usuário.
+
+### Etapa 1 — Preparação silenciosa (ENTREGUE)
+
+**Objetivo:** preparar o tenant piloto sem ligar a IA da conta, sem gerar observações e sem qualquer impacto operacional.
+
+**Aplicado:**
+
+- Tenant **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`) adicionado à `TECHNICAL_ONLY_OBSERVATION_ALLOWLIST` em `supabase/functions/_shared/ads-policy.ts`. É o único tenant na allowlist.
+- Conta de anúncios Meta **`act_251893833881780`** com `autonomy_mode='technical_only'`.
+- `is_ai_enabled` permanece **`false`**.
+- `kill_switch` permanece **`false`** (inalterado).
+- `human_approval_mode` permanece **`approve_high_impact`** (inalterado).
+- Google e TikTok: **fora do piloto**.
+- Nenhum outro tenant alterado.
+
+**Resultado esperado e confirmado:**
+
+- `0` ações com `policy_check_result ? 'observation'` para o tenant.
+- `0` ações com `auto_executed=true` ou `executed_simulated=true`.
+- `0` ações novas criadas na última hora por causa desta etapa.
+- Nenhuma chamada externa nova.
+- Nenhuma proposta nova, nenhuma mudança de status de ação.
+
+**Por que zero observações nesta etapa:** o gate observacional (`shouldAttachObservation`) exige `is_ai_enabled=true`. Além disso, `analyze`/`strategist`/`guardian` só selecionam contas com `is_ai_enabled=true`. Com a IA da conta desligada, o motor nem chega ao ponto de gravação da observação. **Esse comportamento é intencional** — a Etapa 1 valida que a preparação não rompe nada.
+
+**Limitação reconhecida:** a Etapa 1 pode ficar nesse estado indefinidamente sem risco, mas **não produz dados úteis de auditoria**. Para gerar observações reais é obrigatória a Etapa 2.
+
+### Etapa 2 — Ativação observacional real (REQUER APROVAÇÃO EXPLÍCITA)
+
+**Objetivo:** ligar `is_ai_enabled=true` na conta Meta `act_251893833881780` para que o motor passe a propor ações e gravar `observation` em `policy_check_result`.
+
+**Pré-requisitos antes da Etapa 2:**
+
+- Aviso ao usuário de que aparecerão **propostas pendentes de aprovação** no painel do gestor de tráfego do tenant piloto (efeito colateral esperado).
+- Combinar com o usuário se mantém `human_approval_mode='approve_high_impact'` ou sobe temporariamente para `approve_all` durante o piloto, para reduzir o risco de aprovação manual acidental.
+- Confirmar que kill switch global e trava de autonomia (`isAutonomyExecutionEnabled()`) seguem em `false`.
+
+**Janela de observação recomendada após Etapa 2:**
+
+- **Mínimo 7 dias OU 30 ações candidatas observadas**, o que demorar mais.
+- Avaliação em SQL conforme métricas da Fase C.3 (A–E).
+
+**Mesmo após a Etapa 2, nenhuma autoexecução é ligada.** A execução automática real só será considerada na futura Fase C.4, com critérios de promoção formais.
+
+### O que NÃO mudou na Etapa 1 da C.3.2
+
+- Nenhuma autoexecução foi ativada.
+- Nenhuma campanha real foi alterada.
+- Nenhuma API externa nova foi chamada.
+- Nenhuma UI, prompt da IA ou fila de aprovação foi alterada.
+- Nenhuma migration de schema foi criada.
+- `is_ai_enabled`, `kill_switch` e `human_approval_mode` continuam exatamente como estavam antes.
+- Histograma horário, CPA de referência, regra mensal de pausa, cache de CPA e Modo Piloto/Sandbox continuam fora do escopo.
