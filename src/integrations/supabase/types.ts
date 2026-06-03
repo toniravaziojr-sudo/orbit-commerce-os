@@ -16915,6 +16915,57 @@ export type Database = {
           },
         ]
       }
+      pv_deletion_audit: {
+        Row: {
+          customer_doc: string | null
+          customer_name: string | null
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          items_snapshot: Json | null
+          order_id: string | null
+          order_number: string | null
+          pv_id: string
+          pv_numero: number | null
+          pv_serie: number | null
+          reason: string | null
+          tenant_id: string
+          valor_total: number | null
+        }
+        Insert: {
+          customer_doc?: string | null
+          customer_name?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          order_id?: string | null
+          order_number?: string | null
+          pv_id: string
+          pv_numero?: number | null
+          pv_serie?: number | null
+          reason?: string | null
+          tenant_id: string
+          valor_total?: number | null
+        }
+        Update: {
+          customer_doc?: string | null
+          customer_name?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          order_id?: string | null
+          order_number?: string | null
+          pv_id?: string
+          pv_numero?: number | null
+          pv_serie?: number | null
+          reason?: string | null
+          tenant_id?: string
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
       questionnaire_responses: {
         Row: {
           answer: string
@@ -25158,6 +25209,10 @@ export type Database = {
           reconciled_order_id: string
           reconciled_order_number: string
         }[]
+      }
+      reconcile_orphan_pv_shipments: {
+        Args: { p_tenant_id?: string }
+        Returns: number
       }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
