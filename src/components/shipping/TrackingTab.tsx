@@ -65,7 +65,7 @@ interface ShipmentWithOrder {
 }
 
 const statusConfig: Record<DeliveryStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  label_created: { label: 'Etiqueta', variant: 'outline' },
+  label_created: { label: 'Etiqueta gerada', variant: 'outline' },
   posted: { label: 'Postado', variant: 'secondary' },
   in_transit: { label: 'Em trânsito', variant: 'secondary' },
   out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
