@@ -2252,23 +2252,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {/* Confirmar exclusão de nota sem efeito fiscal */}
       <AlertDialog
         open={!!confirmDeleteInvoice}
-        onOpenChange={(open) => { if (!open && !isDeletingInvoice) setConfirmDeleteInvoice(null); }}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingInvoice) {
+            setConfirmDeleteInvoice(null);
+            setLinkedShipmentImpact(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir esta nota?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir este registro?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  Esta ação <strong>não pode ser desfeita</strong>. A nota será removida permanentemente do sistema.
+                  Esta ação <strong>não pode ser desfeita</strong>. O registro será removido permanentemente do sistema.
                 </p>
                 {confirmDeleteInvoice && (
                   <p className="text-muted-foreground">
-                    NF {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                    {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                  </p>
+                )}
+                {linkedShipmentImpact && !linkedShipmentImpact.in_motion && (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                    Este Pedido de Venda tem um objeto de postagem associado ({linkedShipmentImpact.delivery_status === 'label_created' ? 'etiqueta gerada' : 'em rascunho'}). Ele será excluído junto. Se a remessa ficar vazia, também será removida.
+                  </p>
+                )}
+                {linkedShipmentImpact && linkedShipmentImpact.in_motion && (
+                  <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-900">
+                    O objeto de postagem {linkedShipmentImpact.tracking_code ? `nº ${linkedShipmentImpact.tracking_code}` : 'vinculado'} já está em movimento pelos Correios e <strong>permanecerá</strong> no histórico de Remessas. Apenas o Pedido de Venda será excluído.
                   </p>
                 )}
                 <p className="text-muted-foreground">
-                  Só é permitido excluir notas sem efeito fiscal (Pronta para Emitir, Rejeitada ou Cancelada).
+                  Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
                 </p>
               </div>
             </AlertDialogDescription>
@@ -2285,6 +2300,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       <CorreiosContentDeclarationDialog
         open={dcDialogOpen}
