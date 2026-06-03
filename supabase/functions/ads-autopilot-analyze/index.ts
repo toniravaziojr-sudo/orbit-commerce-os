@@ -2314,6 +2314,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   console.log(`[ads-autopilot-analyze][${VERSION}] BUDGET GUARD: rejected — ${budgetCheck.reason}`);
                   
                   // Insert action and skip
+                  attachObservationIfEligible(actionRecord, acctConfig);
                   const { error: bgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                   if (bgInsertErr && bgInsertErr.code !== "23505") console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, bgInsertErr);
                   totalActionsRejected++;
