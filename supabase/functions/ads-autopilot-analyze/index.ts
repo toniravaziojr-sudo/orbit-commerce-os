@@ -2967,7 +2967,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
                 // Standalone adset creation with smart audiences
-                const isAutoMode = acctConfig.human_approval_mode === "auto";
+                // Fase C.1: bypass de `human_approval_mode='auto'` neutralizado — força isAutoMode=false.
+                const isAutoMode = false;
                 const entityStatus = isAutoMode ? "ACTIVE" : "PAUSED";
                 
                 // Build targeting with custom audience, interests, or broad
