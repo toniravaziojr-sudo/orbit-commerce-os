@@ -67,7 +67,10 @@ Fluxo no momento da emissão (Correios):
      API atual dos Correios (retorna 404 "No static resource"). Não voltar a usá-lo.
    O campo `shipments.label_url` guarda apenas o **path interno** do bucket — nunca
    URL externa. A leitura sempre cria signed URL fresca (1h) na hora do clique.
-3. `shipments.delivery_status = 'posted'`.
+3. `shipments.delivery_status = 'label_created'` — emissão da etiqueta significa
+   "Etiqueta gerada". O status `'posted'` é reservado para o 1º evento real dos
+   Correios detectado pelo `tracking-poll`. Não confundir com o status do pedido,
+   que vai direto para `'dispatched'` na emissão.
 4. Pedido real (quando existe): `orders.status = 'dispatched'`,
    `orders.shipped_at = now()`, `orders.tracking_code = ...`,
    `orders.shipping_carrier = ...`. PVs manuais/duplicados sem pedido real:
@@ -79,10 +82,15 @@ Fluxo no momento da emissão (Correios):
 7. WMS Pratika é notificado fire-and-forget (`update_tracking`) quando há NF-e
    autorizada vinculada e o tenant tem `auto_send_label=true`.
 
-Transição para "enviado" é responsabilidade do polling. Quando `tracking-poll`
-detecta o primeiro evento real dos Correios (`PO/POI/Postado` →
-`delivery_status='posted'`), atualiza `orders.status='shipped'` e emite
-`shipment.status_changed`. Estados terminais nunca são rebaixados.
+Transição para "Postado" é responsabilidade exclusiva do polling. Quando
+`tracking-poll` detecta o primeiro evento real dos Correios
+(`PO/POI/Postado` → `delivery_status='posted'`), o objeto passa de
+`label_created` para `posted`, atualiza `orders.status='shipped'` e emite
+`shipment.status_changed` (consumido pela regra `trigger_condition='posted'`).
+Estados terminais nunca são rebaixados. **O gatilho `posted` em
+`process-events` aceita exclusivamente `new_status='posted'`** — `label_created`
+e `shipped` não satisfazem mais (correção 2026-06-03 para que a notificação de
+"Postado" só dispare quando o objeto realmente sai).
 
 ### Impressão de etiqueta, NF-e e Declaração de Conteúdo
 
@@ -661,9 +669,26 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 
 **PV manual/duplicado nasce "em aberto" (2026-05-28):** todo Pedido de Venda criado manualmente ou por duplicação (sem pedido real vinculado) já nasce com status "Pedido em aberto". Isso aciona o espelho na hora e a remessa-rascunho aparece automaticamente em "Prontos para emitir remessa", com destinatário, endereço, transportadora, serviço, peso e dimensões herdados do PV de origem. Caso real corrigido: PV 353 do Respeite o Homem (duplicado do 352) — entrava sem status e por isso não gerava remessa.
 
-**Exclusão em cascata segura (2026-05-28):** ao excluir um Pedido de Venda, a remessa-rascunho correspondente (sem código de rastreio) é removida automaticamente, e itens pendentes na fila de processamento são cancelados com motivo `pv_deleted`. Remessas com etiqueta já emitida nunca são tocadas — permanecem no histórico mesmo após exclusão do PV de origem.
+**Exclusão em cascata (revista em 2026-06-03):** ao excluir um Pedido de Venda,
+o sistema decide objeto a objeto:
 
-Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
+- **Objeto ainda parado** (`delivery_status IN ('draft','label_created')`) →
+  **apagado junto** com o PV pelo gatilho `trg_cascade_delete_shipments_on_pv_delete`.
+  Se a remessa agrupadora ficar sem nenhum objeto e estiver em `rascunho` ou
+  `emitida`, ela também é apagada pelo gatilho
+  `trg_cleanup_empty_remessa_after_shipment_delete`.
+- **Objeto em movimento** (`posted`, `in_transit`, `out_for_delivery`,
+  `delivered`, `returned`) → **permanece** no histórico. A FK
+  `shipments.source_pedido_venda_id ON DELETE SET NULL` zera o vínculo com o
+  PV apagado; a remessa agrupadora é preservada.
+- **Itens pendentes na fila de rascunhos** continuam sendo apagados em cascata
+  pela FK existente em `shipping_draft_queue`.
+
+A UI exibe o impacto no diálogo de confirmação (FiscalInvoiceList) com texto
+adaptado ao estado do objeto vinculado.
+
+Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda` e
+`mem://constraints/shipping-objeto-vs-remessa-agrupadora`.
 
 ---
 
