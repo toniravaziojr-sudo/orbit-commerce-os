@@ -2076,16 +2076,22 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           // - generate_creative, create_lookalike_audience → ALWAYS auto-execute (preparation, no financial risk)
           // - create_campaign, create_adset → ALWAYS pending_approval (user must see full preview before Meta publish)
           // - Other actions follow human_approval_mode settings
+          // Fase C.1: `human_approval_mode='auto'` NÃO é mais bypass de aprovação.
+          // Enquanto `autonomy_mode` não existir, tratamos 'auto' como 'all' — toda
+          // ação técnica fica em pending_approval até autonomia ser explicitamente ativada.
           const isPublishAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
           const isPreparationAction = tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
-          
+          const approvalModeBlocksAll =
+            acctConfig.human_approval_mode === "all" ||
+            acctConfig.human_approval_mode === "auto"; // Fase C.1: 'auto' neutralizado
+
           // v5.12.6: create_campaign/create_adset ALWAYS requires approval — no exceptions
           // This ensures user sees creative + targeting + budget preview before anything is published to Meta
           const needsApproval = validation.valid && (
             isPublishAction || // ALWAYS for publish actions, regardless of mode or trigger
             (!isPreparationAction && (
-              acctConfig.human_approval_mode === "all" ||
+              approvalModeBlocksAll ||
               (acctConfig.human_approval_mode === "approve_high_impact" && isBigBudgetChange)
             ))
           );
