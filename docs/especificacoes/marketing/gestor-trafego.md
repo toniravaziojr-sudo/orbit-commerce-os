@@ -1287,6 +1287,88 @@ Tudo da Fase B continua valendo sem alteração:
 - Nenhuma chamada externa nova foi adicionada.
 - Histograma horário de vendas, CPA de referência por tenant, regra de pausa por mês/14d/7d e Modo Piloto/Sandbox continuam fora do escopo (Fases C.4 e seguintes).
 
+### Próxima fase recomendada (a partir de C.1)
+
+**Fase C.2 — Criar `autonomy_mode`** — entregue logo abaixo.
+
+---
+
+## Fase C.2 — `autonomy_mode` (entregue, autonomia ainda DESLIGADA)
+
+A Fase C.2 cria o campo oficial que vai governar, em fase futura, a autonomia técnica da IA de tráfego pago por conta de anúncios.
+
+### Decisão de design
+
+Apenas **dois modos** nesta fase:
+
+| Modo | Significado |
+|---|---|
+| `off` | A IA pode analisar, sugerir, gerar plano e mandar ações para aprovação. **Não executa nada automaticamente.** |
+| `technical_only` | Em fase futura, a IA poderá executar **apenas ações técnicas seguras**, sempre após passar pelo Execution Policy Engine. Ações visíveis, estruturais ou comerciais continuam exigindo aprovação humana. |
+
+> O modo `technical_only` **existe na configuração**, mas **ainda não libera execução automática real nesta fase**. A ativação real virá apenas em fase posterior, com aprovação explícita do usuário.
+
+### O que `technical_only` poderá fazer (em fase futura)
+
+- Aumentar/reduzir orçamento dentro do limite da plataforma.
+- Pausar campanha madura conforme critérios técnicos.
+- Pausar emergência (kill switch, tracking quebrado, link quebrado, budget breach).
+- Reativar campanha com segurança.
+- Agendar ação para janela segura BRT.
+- Bloquear ação fora da política.
+- Gerar insight/watch sem chamada externa.
+
+### O que `technical_only` **NUNCA** fará automaticamente
+
+Continuam exigindo aprovação humana, em qualquer modo:
+
+- Criar/duplicar campanha, adset ou anúncio.
+- Criar/alterar criativo ou copy.
+- Mudar oferta, promessa ou landing page.
+- Mudar público/segmentação estratégica.
+- Mudar objetivo/otimização da campanha.
+- Expansão estrutural.
+- Criação de variação visível ao cliente final.
+
+### Onde fica o campo
+
+Coluna `autonomy_mode` em `ads_autopilot_account_configs`:
+
+- Tipo: `text NOT NULL`.
+- Default: `'off'`.
+- Constraint: `CHECK (autonomy_mode IN ('off','technical_only'))`.
+- Todos os registros existentes ficaram em `off`.
+
+### Como o sistema lê
+
+- Helper `supabase/functions/_shared/ads-policy.ts`:
+  - `normalizeAutonomyMode(valor)` — qualquer valor ausente, nulo, vazio ou desconhecido vira `off`.
+  - `isAutonomyExecutionEnabled(modo)` — **retorna `false` para qualquer entrada** enquanto o sistema estiver em C.2. É o contrato em código de que C.2 não autoexecuta.
+  - `buildClassificationMeta(actionType, { autonomyMode })` — devolve, além da classificação, os campos de auditoria `autonomy_mode`, `autonomy_source` e `autonomy_execution_phase='not_enabled_c2'`, sempre com `autonomy_enabled: false`.
+- Gatilho `ads_autopilot_classify_action` (`BEFORE INSERT` em `ads_autopilot_actions`):
+  - Lê `autonomy_mode` da conta correspondente (tenant + canal + `ad_account_id` em `action_data`).
+  - Se a conta não for encontrada ou o valor estiver inválido, registra `autonomy_mode='off'` e `autonomy_source='default_off'`.
+  - Adiciona ao `policy_check_result`:
+    - `autonomy_mode`
+    - `autonomy_enabled = false`
+    - `autonomy_source` (`ads_autopilot_account_configs.autonomy_mode` ou `default_off`)
+    - `autonomy_execution_phase = 'not_enabled_c2'`
+
+### `human_approval_mode` — legado
+
+- O campo `human_approval_mode` **continua existindo** na tabela; nada foi removido.
+- `human_approval_mode='auto'` **continua neutralizado como bypass** (introduzido em C.1) e não libera execução automática.
+- A fonte futura da autonomia será exclusivamente `autonomy_mode`. `human_approval_mode` permanece apenas como compatibilidade histórica até que C.3+ migre a UI.
+
+### O que NÃO mudou na Fase C.2
+
+- Nenhum tenant foi ativado.
+- Nenhuma autonomia automática foi ligada — `technical_only` não executa nada nesta fase.
+- Nenhuma alteração em `is_ai_enabled`, `kill_switch` ou `human_approval_mode`.
+- Nenhuma UI, prompt da IA, fila de aprovação ou tela do gestor de tráfego foi alterada.
+- Nenhuma chamada externa nova foi adicionada.
+- Histograma horário, CPA de referência, regra mensal de pausa, cache de CPA e Modo Piloto/Sandbox continuam fora do escopo (Fases C.4+).
+
 ### Próxima fase recomendada
 
-**Fase C.2 — Criar `autonomy_mode`** com três valores (`off`, `technical_only`, `technical_plus_visible_approval`), default `off` em todos os tenants. O motor passa a consultar esse campo (em vez do legado) para decidir entre auto-executar e pedir aprovação. Nenhum tenant é ativado nesta fase.
+**Fase C.3 — Piloto de `technical_only` em 1 tenant** com observabilidade plena (dashboard de classificação + auditoria de `policy_check_result`), ainda sem autoexecução real. A ativação efetiva da autoexecução depende de aprovação explícita do usuário e virá em fase posterior.

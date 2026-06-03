@@ -16,6 +16,9 @@ import {
   classifyAction,
   classifyActionReason,
   buildClassificationMeta,
+  normalizeAutonomyMode,
+  isAutonomyExecutionEnabled,
+  AUTONOMY_MODES,
   decide,
   type ActionInput,
 } from "./ads-policy.ts";
@@ -191,4 +194,90 @@ Deno.test("contrato C.1: `human_approval_mode='auto'` legacy não interfere no m
   // Aqui aprovação válida + dentro da janela + entidade presente → execute_now,
   // mas isso só acontece porque a aprovação foi explicitamente carimbada.
   assertEquals(d.kind, "execute_now");
+});
+
+// =============================================================================
+// Fase C.2 — autonomy_mode (off | technical_only)
+// =============================================================================
+// `technical_only` é reconhecido pelo helper, mas NÃO libera execução
+// automática nesta fase. `off` é o default seguro. Valores inválidos viram
+// `off`. `human_approval_mode='auto'` continua sem bypass.
+// =============================================================================
+
+Deno.test("C.2 AUTONOMY_MODES contém apenas off e technical_only", () => {
+  assertEquals([...AUTONOMY_MODES], ["off", "technical_only"]);
+});
+
+Deno.test("C.2 normalizeAutonomyMode — valores válidos", () => {
+  assertEquals(normalizeAutonomyMode("off"), "off");
+  assertEquals(normalizeAutonomyMode("technical_only"), "technical_only");
+  assertEquals(normalizeAutonomyMode("TECHNICAL_ONLY"), "technical_only");
+});
+
+Deno.test("C.2 normalizeAutonomyMode — valores inválidos/ausentes viram off", () => {
+  assertEquals(normalizeAutonomyMode(undefined), "off");
+  assertEquals(normalizeAutonomyMode(null), "off");
+  assertEquals(normalizeAutonomyMode(""), "off");
+  assertEquals(normalizeAutonomyMode("auto"), "off");
+  assertEquals(normalizeAutonomyMode("full"), "off");
+  assertEquals(normalizeAutonomyMode("xyz"), "off");
+  assertEquals(normalizeAutonomyMode(42), "off");
+  assertEquals(normalizeAutonomyMode({}), "off");
+});
+
+Deno.test("C.2 isAutonomyExecutionEnabled — SEMPRE false nesta fase", () => {
+  assertEquals(isAutonomyExecutionEnabled("off"), false);
+  assertEquals(isAutonomyExecutionEnabled("technical_only"), false);
+  assertEquals(isAutonomyExecutionEnabled("anything"), false);
+  assertEquals(isAutonomyExecutionEnabled(undefined), false);
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode default = off, source = default_off", () => {
+  const m = buildClassificationMeta("adjust_budget");
+  assertEquals(m.autonomy_mode, "off");
+  assertEquals(m.autonomy_source, "default_off");
+  assertEquals(m.autonomy_enabled, false);
+  assertEquals(m.autonomy_execution_phase, "not_enabled_c2");
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode='technical_only' é registrado, source = config", () => {
+  const m = buildClassificationMeta("adjust_budget", { autonomyMode: "technical_only" });
+  assertEquals(m.autonomy_mode, "technical_only");
+  assertEquals(m.autonomy_source, "ads_autopilot_account_configs.autonomy_mode");
+  // CRÍTICO: mesmo com technical_only, autonomy_enabled continua false.
+  assertEquals(m.autonomy_enabled, false);
+  assertEquals(m.autonomy_execution_phase, "not_enabled_c2");
+});
+
+Deno.test("C.2 buildClassificationMeta — autonomy_mode inválido cai em off com source default_off", () => {
+  const m = buildClassificationMeta("adjust_budget", { autonomyMode: "auto" });
+  assertEquals(m.autonomy_mode, "off");
+  assertEquals(m.autonomy_source, "default_off");
+  assertEquals(m.autonomy_enabled, false);
+});
+
+Deno.test("C.2 buildClassificationMeta — technical_only NÃO altera classificação da ação", () => {
+  const m1 = buildClassificationMeta("create_campaign", { autonomyMode: "technical_only" });
+  assertEquals(m1.action_class, "needs_approval");
+  const m2 = buildClassificationMeta("delete_campaign", { autonomyMode: "technical_only" });
+  assertEquals(m2.action_class, "blocked");
+});
+
+Deno.test("C.2 contrato: decide() ignora autonomy_mode — sem entidade, rejeita por contexto faltando", () => {
+  const now = new Date(Date.UTC(2026, 5, 3, 5, 0));
+  // Mesmo simulando um tenant em `technical_only` (não há parâmetro para isso
+  // em decide(), o que prova que o motor NÃO considera autonomy_mode), a ação
+  // sem entidade é rejeitada por contexto.
+  const noEntity: ActionInput = {
+    id: "a-c2",
+    tenant_id: "t",
+    channel: "meta",
+    action_type: "pause_campaign",
+    action_data: {},
+    status: "approved",
+    approved_at: new Date(now.getTime() - 60_000).toISOString(),
+    approval_expires_at: new Date(now.getTime() + 60_000).toISOString(),
+  };
+  const d = decide({ action: noEntity, now });
+  assertEquals(d.kind, "reject_policy_missing_context");
 });

@@ -81,6 +81,36 @@ export type ActionClass =
   | "observational"       // informativa/recomendação; NUNCA chama API externa
   | "blocked";            // proibida — destrutiva, fora do limite da plataforma ou explicitamente vetada
 
+// =============================================================================
+// Fase C.2 — autonomy_mode (apenas 2 modos nesta fase)
+// =============================================================================
+// IMPORTANTE: `technical_only` ainda NÃO libera execução automática real nesta
+// fase. O campo existe apenas para preparar a futura autonomia técnica. Quem
+// decide execução continua sendo o motor `decide()` + aprovação humana válida.
+// `human_approval_mode` permanece como campo LEGADO e não é usado como bypass.
+export type AutonomyMode = "off" | "technical_only";
+
+export const AUTONOMY_MODES: readonly AutonomyMode[] = ["off", "technical_only"] as const;
+
+/**
+ * Normaliza qualquer valor recebido para um `AutonomyMode` seguro.
+ * Valores ausentes, nulos, vazios ou desconhecidos viram `off`.
+ */
+export function normalizeAutonomyMode(value: unknown): AutonomyMode {
+  if (typeof value !== "string") return "off";
+  const v = value.trim().toLowerCase();
+  return v === "technical_only" ? "technical_only" : "off";
+}
+
+/**
+ * Fase C.2 — Nenhuma autonomia automática é liberada nesta fase, qualquer que
+ * seja o `autonomy_mode`. Esta função existe para deixar o contrato explícito
+ * em código: enquanto o sistema estiver em C.2, autoexecução = false.
+ */
+export function isAutonomyExecutionEnabled(_mode: AutonomyMode | unknown): false {
+  return false;
+}
+
 export type CampaignClass =
   | "new"
   | "learning"
@@ -276,20 +306,39 @@ export function classifyActionReason(actionType: string | null | undefined): str
 
 /**
  * Monta o bloco de metadados de classificação a ser mesclado em
- * `policy_check_result`. Sempre carimba `autonomy_enabled=false` na Fase C.1.
+ * `policy_check_result`. Sempre carimba `autonomy_enabled=false` na Fase C.2.
+ *
+ * Em C.2, se o caller souber o `autonomy_mode` da conta (lido de
+ * `ads_autopilot_account_configs.autonomy_mode`), pode passá-lo aqui apenas
+ * para AUDITORIA — não muda comportamento. Quando ausente, registra `off`.
  */
-export function buildClassificationMeta(actionType: string | null | undefined): {
+export function buildClassificationMeta(
+  actionType: string | null | undefined,
+  opts?: { autonomyMode?: unknown },
+): {
   action_class: ActionClass;
   classification_reason: string;
   autonomy_enabled: false;
   classified_by: "ads-policy.v1";
+  autonomy_mode: AutonomyMode;
+  autonomy_source: "ads_autopilot_account_configs.autonomy_mode" | "default_off";
+  autonomy_execution_phase: "not_enabled_c2";
 } {
   const action_class = classifyAction({ action_type: actionType || "", channel: "" });
+  const provided = opts && Object.prototype.hasOwnProperty.call(opts, "autonomyMode");
+  const autonomy_mode = normalizeAutonomyMode(opts?.autonomyMode);
+  const autonomy_source: "ads_autopilot_account_configs.autonomy_mode" | "default_off" =
+    provided && (opts?.autonomyMode === "off" || opts?.autonomyMode === "technical_only")
+      ? "ads_autopilot_account_configs.autonomy_mode"
+      : "default_off";
   return {
     action_class,
     classification_reason: classifyActionReason(actionType),
     autonomy_enabled: false,
     classified_by: "ads-policy.v1",
+    autonomy_mode,
+    autonomy_source,
+    autonomy_execution_phase: "not_enabled_c2",
   };
 }
 
