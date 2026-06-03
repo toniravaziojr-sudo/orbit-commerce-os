@@ -1292,16 +1292,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   }) => {
     setDcDialogLoading(true);
     const targets = dcDialogTargets;
+    const isSingle = targets.length === 1;
     const t = toast.loading(
-      targets.length === 1
+      isSingle
         ? 'Gerando Declaração de Conteúdo...'
-        : `Gerando ${targets.length} Declarações de Conteúdo em PDF único...`,
+        : `Gerando ${targets.length} Declarações de Conteúdo...`,
     );
 
+    // Geração individual via menu do pedido: apenas registra a Declaração.
+    // O usuário imprime depois via "Imprimir Declaração de Conteúdo".
+    // Em massa: mantém comportamento atual de baixar um único PDF multipágina.
     const result = await issueAndDownloadCorreiosContentDeclarationsBatch({
       reason: payload.reason,
       responsibilityAcknowledged: true,
       source: 'manual',
+      download: !isSingle,
       targets: targets.map((inv: any) => ({
         tenantId: inv.tenant_id,
         fiscalInvoiceId: inv.id,
@@ -1315,12 +1320,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     toast.dismiss(t);
     setDcDialogLoading(false);
     setDcDialogOpen(false);
+
+    // Marca no mapa local os pedidos que agora possuem Declaração emitida,
+    // para o item do menu já alternar para "Imprimir Declaração de Conteúdo".
+    if (result.ok > 0) {
+      const issuedIds = targets.slice(0, result.ok).map((inv: any) => inv.id).filter(Boolean);
+      if (issuedIds.length) {
+        setDcByInvoiceId((prev) => {
+          const next = new Set(prev);
+          issuedIds.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    }
     setDcDialogTargets([]);
 
     if (result.fail === 0 && result.ok > 0) {
       toast.success(
-        result.ok === 1
-          ? `Declaração de Conteúdo gerada com sucesso (${result.dcNumbers[0]}).`
+        isSingle
+          ? `Declaração de Conteúdo gerada (${result.dcNumbers[0]}). Use "Imprimir Declaração de Conteúdo" quando precisar.`
           : `${result.ok} declarações de conteúdo geradas em um único PDF.`,
       );
     } else if (result.ok > 0 && result.fail > 0) {
@@ -1335,6 +1353,20 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         ? 'Falta cadastrar o peso de um ou mais produtos. Cadastre o peso na ficha do produto e tente novamente.'
         : raw;
       toast.error('Não foi possível gerar a Declaração de Conteúdo.', { description: msg });
+    }
+  };
+
+  // Imprime/baixa novamente a Declaração de Conteúdo já emitida para o pedido.
+  const handlePrintContentDeclaration = async (invoice: any) => {
+    setPrintingDcInvoiceId(invoice.id);
+    const t = toast.loading('Gerando PDF da Declaração de Conteúdo...');
+    const result = await reprintDeclarationByFiscalInvoiceId(invoice.id);
+    toast.dismiss(t);
+    setPrintingDcInvoiceId(null);
+    if (result.ok) {
+      toast.success(`Declaração ${result.dcNumber || ''} baixada.`);
+    } else {
+      toast.error(result.error || 'Não foi possível imprimir a Declaração de Conteúdo.');
     }
   };
 
