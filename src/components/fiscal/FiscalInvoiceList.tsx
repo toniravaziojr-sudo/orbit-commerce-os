@@ -153,7 +153,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
+  const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+  // Mapa de Pedidos de Venda que já possuem Declaração de Conteúdo emitida (status='issued').
+  // Usado para alternar o item do menu entre "Gerar" e "Imprimir Declaração de Conteúdo".
+  const [dcByInvoiceId, setDcByInvoiceId] = useState<Set<string>>(new Set());
   // Modal central de progresso de envio à Sefaz (individual e em lote).
   const [sendingState, setSendingState] = useState<SendingState | null>(null);
 
