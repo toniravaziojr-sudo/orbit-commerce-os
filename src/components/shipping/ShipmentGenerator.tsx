@@ -124,6 +124,18 @@ export function ShipmentGenerator() {
   const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [retryingShipmentId, setRetryingShipmentId] = useState<string | null>(null);
+  // Loading por linha para botões de impressão (etiqueta | nfe | dc)
+  const [printingKeys, setPrintingKeys] = useState<Set<string>>(new Set());
+  const isPrinting = (shipmentId: string, kind: 'label' | 'nfe' | 'dc') =>
+    printingKeys.has(`${shipmentId}:${kind}`);
+  const setPrinting = (shipmentId: string, kind: 'label' | 'nfe' | 'dc', on: boolean) => {
+    setPrintingKeys(prev => {
+      const next = new Set(prev);
+      const key = `${shipmentId}:${kind}`;
+      if (on) next.add(key); else next.delete(key);
+      return next;
+    });
+  };
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
