@@ -566,6 +566,8 @@ export function ShipmentGenerator() {
   // Imprimir/Reimprimir etiqueta — sempre disponível.
   // Chama a edge que devolve signed URL (se existir no bucket) ou baixa nos Correios e armazena.
   const handlePrintLabel = async (shipment: ShipmentRecord, forceRefresh = false) => {
+    if (isPrinting(shipment.id, 'label')) return;
+    setPrinting(shipment.id, 'label', true);
     try {
       const { data, error } = await supabase.functions.invoke('shipping-get-label', {
         body: { shipment_id: shipment.id, force_refresh: forceRefresh },
@@ -590,32 +592,42 @@ export function ShipmentGenerator() {
       toast.error(data?.error || 'Etiqueta não disponível');
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao imprimir etiqueta');
+    } finally {
+      setPrinting(shipment.id, 'label', false);
     }
   };
 
   // Imprime apenas DANFE (NF-e). Não cai em DC.
   const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
-    if (shipment.invoice?.danfe_url) {
-      window.open(shipment.invoice.danfe_url, '_blank');
-      return true;
-    }
-    if (shipment.invoice_id) {
-      const { data } = await supabase
-        .from('fiscal_invoices')
-        .select('danfe_url')
-        .eq('id', shipment.invoice_id)
-        .single();
-      if (data?.danfe_url) {
-        window.open(data.danfe_url, '_blank');
+    if (isPrinting(shipment.id, 'nfe')) return false;
+    setPrinting(shipment.id, 'nfe', true);
+    try {
+      if (shipment.invoice?.danfe_url) {
+        window.open(shipment.invoice.danfe_url, '_blank');
         return true;
       }
+      if (shipment.invoice_id) {
+        const { data } = await supabase
+          .from('fiscal_invoices')
+          .select('danfe_url')
+          .eq('id', shipment.invoice_id)
+          .single();
+        if (data?.danfe_url) {
+          window.open(data.danfe_url, '_blank');
+          return true;
+        }
+      }
+      toast.error('DANFE da NF-e não disponível para impressão');
+      return false;
+    } finally {
+      setPrinting(shipment.id, 'nfe', false);
     }
-    toast.error('DANFE da NF-e não disponível para impressão');
-    return false;
   };
 
   // Imprime apenas a Declaração de Conteúdo (DC). Não cai em NF-e.
   const handlePrintDC = async (shipment: ShipmentRecord): Promise<boolean> => {
+    if (isPrinting(shipment.id, 'dc')) return false;
+    setPrinting(shipment.id, 'dc', true);
     try {
       const declRow = shipment.declaration
         ? await supabase
