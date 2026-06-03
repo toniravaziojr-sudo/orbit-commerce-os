@@ -439,6 +439,25 @@ Deno.serve(async (req) => {
 
     console.log('[fiscal-create-manual] Manual invoice created:', invoice.id);
 
+    // Dispatch on-demand: cria o rascunho de remessa imediatamente, sem esperar o cron de 10 min.
+    // Fire-and-forget — o cron continua como rede de segurança.
+    if (initialPedidoStatus === 'em_aberto') {
+      try {
+        const projectUrl = Deno.env.get('SUPABASE_URL')!;
+        fetch(`${projectUrl}/functions/v1/shipping-draft-process`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          },
+          body: JSON.stringify({ limit: 5 }),
+        }).catch((e) => console.warn('[fiscal-create-manual] shipping-draft-process dispatch failed:', e));
+      } catch (e) {
+        console.warn('[fiscal-create-manual] shipping-draft-process dispatch error:', e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
