@@ -1984,7 +1984,11 @@ async function executeToolCall(
 ): Promise<{ status: string; data?: any }> {
   const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
   const toolName = tc.function.name;
-  const isAutoMode = config.human_approval_mode === "auto";
+  // Fase C.1: bypass de `human_approval_mode='auto'` neutralizado.
+  // Enquanto `autonomy_mode` não existir, nenhuma execução automática nova é
+  // disparada por causa do modo antigo de aprovação. Toda ação técnica cai em
+  // pending_approval e seguirá o caminho normal de aprovação humana.
+  const isAutoMode = false;
 
   if (toolName === "strategic_plan") {
     // Build preview text from structured actions
