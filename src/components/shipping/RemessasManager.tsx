@@ -54,7 +54,9 @@ interface RemessaObjeto {
   carrier: string | null;
   delivery_status: string;
   created_at: string;
+  source_pedido_venda_id: string | null;
   order?: { order_number: string | null; customer_name: string | null } | null;
+  pv?: { numero: number | null; dest_nome: string | null } | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
@@ -66,6 +68,18 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   cancelada: { label: 'Cancelada', variant: 'destructive', icon: AlertTriangle },
 };
 
+// Tradução do status do objeto (espelho do ShipmentGenerator)
+const objetoStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  draft: { label: 'Rascunho', variant: 'outline' },
+  label_created: { label: 'Despachado', variant: 'secondary' },
+  posted: { label: 'Despachado', variant: 'secondary' },
+  in_transit: { label: 'Em trânsito', variant: 'secondary' },
+  out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
+  delivered: { label: 'Entregue', variant: 'default' },
+  failed: { label: 'Falha', variant: 'destructive' },
+  returned: { label: 'Devolvido', variant: 'destructive' },
+};
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = statusConfig[status] || { label: status, variant: 'outline' as const, icon: Package };
   const Icon = cfg.icon;
@@ -75,6 +89,11 @@ function StatusBadge({ status }: { status: string }) {
       {cfg.label}
     </Badge>
   );
+}
+
+function ObjetoStatusBadge({ status }: { status: string }) {
+  const cfg = objetoStatusConfig[status] || { label: status, variant: 'outline' as const };
+  return <Badge variant={cfg.variant} className="text-xs">{cfg.label}</Badge>;
 }
 
 export function RemessasManager() {
@@ -114,11 +133,29 @@ export function RemessasManager() {
       if (!openRemessa?.id) return [] as RemessaObjeto[];
       const { data, error } = await supabase
         .from('shipments')
-        .select('id, tracking_code, carrier, delivery_status, created_at, order:orders(order_number, customer_name)')
+        .select('id, tracking_code, carrier, delivery_status, created_at, source_pedido_venda_id, order:orders(order_number, customer_name)')
         .eq('remessa_id', openRemessa.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as RemessaObjeto[];
+      const rows = (data || []) as unknown as RemessaObjeto[];
+
+      // Fallback: buscar dados do PV para objetos sem pedido vinculado (PV manual/duplicado)
+      const pvIds = Array.from(
+        new Set(rows.filter(r => !r.order && r.source_pedido_venda_id).map(r => r.source_pedido_venda_id as string))
+      );
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        rows.forEach(r => {
+          if (!r.order && r.source_pedido_venda_id && pvMap[r.source_pedido_venda_id]) {
+            r.pv = { numero: pvMap[r.source_pedido_venda_id].numero, dest_nome: pvMap[r.source_pedido_venda_id].dest_nome };
+          }
+        });
+      }
+      return rows;
     },
     enabled: !!openRemessa?.id,
   });
@@ -280,27 +317,29 @@ export function RemessasManager() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Pedido</TableHead>
+                          <TableHead>Pedido de Venda</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Rastreio</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {objetos!.map(o => (
-                          <TableRow key={o.id}>
-                            <TableCell className="font-medium">
-                              {o.order?.order_number ? `#${o.order.order_number}` : '—'}
-                            </TableCell>
-                            <TableCell className="text-sm">{o.order?.customer_name || '—'}</TableCell>
-                            <TableCell className="font-mono text-xs">{o.tracking_code || '—'}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs capitalize">
-                                {o.delivery_status}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {objetos!.map(o => {
+                          const pvNumero = o.pv?.numero != null ? `PV ${o.pv.numero}` : null;
+                          const orderNumero = o.order?.order_number ? `#${o.order.order_number}` : null;
+                          const referencia = pvNumero || orderNumero || '—';
+                          const cliente = o.pv?.dest_nome || o.order?.customer_name || '—';
+                          return (
+                            <TableRow key={o.id}>
+                              <TableCell className="font-medium">{referencia}</TableCell>
+                              <TableCell className="text-sm">{cliente}</TableCell>
+                              <TableCell className="font-mono text-xs">{o.tracking_code || '—'}</TableCell>
+                              <TableCell>
+                                <ObjetoStatusBadge status={o.delivery_status} />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
