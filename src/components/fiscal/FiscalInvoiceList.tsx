@@ -152,9 +152,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
-  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo)
-  type ShipmentImpact = { tracking_code: string | null; delivery_status: string; in_motion: boolean };
+  // Estado do objeto de postagem vinculado ao PV em exclusão (para texto do diálogo).
+  // Em qualquer estado, o objeto é removido junto com o PV (cascata total).
+  type ShipmentImpact = { tracking_code: string | null; delivery_status: string };
   const [linkedShipmentImpact, setLinkedShipmentImpact] = useState<ShipmentImpact | null>(null);
+  // Estado do pedido de origem (para bloquear exclusão de PV de pedido pago)
+  type PaidOrderBlock = { order_number: string | null; status: string; payment_status: string };
+  const [paidOrderBlock, setPaidOrderBlock] = useState<PaidOrderBlock | null>(null);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [printingDcInvoiceId, setPrintingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
