@@ -2164,6 +2164,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] DEDUP: Já existe pending_approval para funil=${proposedFunnel} account=${acctConfig.ad_account_id}. Rejeitando duplicata.`);
                 actionRecord.status = "rejected";
                 actionRecord.rejection_reason = `Já existe proposta pendente para o funil "${proposedFunnel === "tof" ? "Público Frio" : proposedFunnel === "bof" ? "Remarketing" : proposedFunnel}". Aprove ou rejeite a existente antes de criar outra.`;
+                attachObservationIfEligible(actionRecord, acctConfig);
                 const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                 if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Insert error:`, insertErr.message);
                 continue;
