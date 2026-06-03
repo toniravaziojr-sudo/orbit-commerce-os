@@ -2431,6 +2431,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         // Rollback campaign
                         try { await supabase.functions.invoke("meta-ads-campaigns", { body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" } }); } catch {}
                         actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, reason: "targeting_guard_rejected" };
+                        attachObservationIfEligible(actionRecord, acctConfig);
                         const { error: tgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                         if (tgInsertErr && tgInsertErr.code !== "23505") console.error(`Action insert error:`, tgInsertErr);
                         totalActionsRejected++;
