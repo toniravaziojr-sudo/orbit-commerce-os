@@ -948,3 +948,21 @@ Os módulos Fiscal e Logística **nunca alteram o pedido original**.
 - Cancelar um pedido cascateia para o PV via trigger dedicado; o caminho inverso é proibido por trava de banco.
 
 Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda` e `mem://constraints/pv-cancellation-must-mirror-order`.
+
+---
+
+## Dados obrigatórios do destinatário — política universal (vigente desde 2026-06-03)
+
+Todo ponto de entrada de pedido (checkout do storefront, link de checkout, criação manual no admin, adaptadores de marketplace) exige e valida os mesmos 10 campos antes de gravar o pedido:
+
+- **Cliente:** nome completo (mín. 2 palavras), e-mail válido, telefone com DDD (10–13 dígitos), CPF válido (11 dígitos com dígitos verificadores).
+- **Endereço:** CEP (8 dígitos), logradouro, número, bairro, município, UF brasileira.
+
+**Regras:**
+1. A validação ocorre na UI **e** no backend (defesa em camadas). Backend nunca aceita pedido incompleto, mesmo que a UI escape.
+2. Quando faltar qualquer campo, o pedido é **rejeitado** com mensagem clara em PT-BR. Nunca preenchido silenciosamente.
+3. Adaptadores de marketplace que recebem pedido sem dado obrigatório gravam o pedido como **pendente visível** (campos vazios + marcador de pendência), nunca inventam placeholder.
+4. Pedido manual do admin: telefone é **obrigatório** (não opcional).
+5. Pedido de Venda Fiscal herda os dados **apenas na origem** (criação automática a partir do pedido). Sem auto-cura posterior.
+
+Esta política é o portão de entrada do Pré-Flight Fiscal/Logístico. Sem ela, o sistema permite pedidos que estouram silenciosamente em DC/Remessa/NF.

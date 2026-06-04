@@ -200,3 +200,16 @@ Mesmo comportamento do Mercado Livre (vide `mercado-livre.md` — seção "Pedid
 
 ### Roteamento de Transporte
 Pedidos Shopee retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — envio é responsabilidade da Shopee (não entram em `shipping_draft_queue`).
+
+---
+
+## Política de dados obrigatórios (vigente desde 2026-06-03)
+
+O adaptador da Shopee **nunca fabrica dados do cliente**. Quando a API não devolver e-mail real, telefone, CPF ou endereço estruturado completo:
+
+- O pedido entra com os campos faltantes **vazios**.
+- Não usar placeholder (`@shopee.user`, `comprador.shopee`, etc.).
+- Não concatenar `full_address` no campo de logradouro.
+- Marcar a pendência em `marketplace_data.data_pending = [campos]`.
+
+O Pré-Flight Fiscal/Logístico bloqueia naturalmente a emissão de DC/Remessa/NF até o operador completar os dados no Pedido de Venda.
