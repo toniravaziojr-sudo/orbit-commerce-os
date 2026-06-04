@@ -400,11 +400,13 @@ export default function OrderNew() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customer_phone">Telefone</Label>
+                <Label htmlFor="customer_phone">Telefone *</Label>
                 <Input
                   id="customer_phone"
                   value={formData.customer_phone}
                   onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                  placeholder="(11) 99999-9999"
+                  required
                 />
               </div>
               <div className="space-y-2">
