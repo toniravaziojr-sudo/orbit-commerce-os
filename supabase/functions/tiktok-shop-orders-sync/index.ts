@@ -244,6 +244,23 @@ Deno.serve(async (req) => {
 
             const sourceHash = `tiktokshop:${tenantId}:${tiktokOrderId}`;
 
+            // Política: sistema NUNCA preenche dado faltante do cliente
+            // (mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente)
+            // Sem e-mail real → salva NULL e marca data_pending. Pré-flight bloqueia naturalmente.
+            const realEmail: string | null = buyerInfo.email || null;
+            const realPhone = String(buyerInfo.phone ?? '').replace(/\D/g, '');
+            const realCep = String(shippingAddress?.zipcode || shippingAddress?.postal_code || '').replace(/\D/g, '');
+            const dataPending: string[] = [];
+            if (!realEmail) dataPending.push('customer_email');
+            if (!buyerInfo.name) dataPending.push('customer_name');
+            if (realPhone.length < 10 || realPhone.length > 13) dataPending.push('customer_phone');
+            if (realCep.length !== 8) dataPending.push('shipping_postal_code');
+            if (!shippingAddress?.city) dataPending.push('shipping_city');
+            if (!shippingAddress?.state && !shippingAddress?.region) dataPending.push('shipping_state');
+            if (!shippingAddress?.number && !shippingAddress?.house_number) dataPending.push('shipping_number');
+            if (!shippingAddress?.district && !shippingAddress?.neighborhood) dataPending.push('shipping_neighborhood');
+            if (!buyerInfo.cpf && !buyerInfo.document) dataPending.push('customer_cpf');
+
             const mainOrderData: Record<string, any> = {
               tenant_id: tenantId,
               source_platform: "tiktokshop",
@@ -254,25 +271,27 @@ Deno.serve(async (req) => {
               status: mainOrderStatus,
               payment_status: mainPaymentStatus,
               shipping_status: mainShippingStatus,
-              customer_name: buyerInfo.name || "TikTok Shop Buyer",
-              customer_email: buyerInfo.email || `tiktok_${tiktokOrderId}@marketplace.local`,
-              customer_phone: buyerInfo.phone || null,
+              customer_name: buyerInfo.name || null,
+              customer_email: realEmail,
+              customer_phone: realPhone || null,
               subtotal: totalCents / 100,
               total: totalCents / 100,
               discount_total: 0,
               shipping_total: 0,
               tax_total: 0,
               currency: paymentInfo.currency || "BRL",
-              marketplace_data: { tiktokOrderId, tiktokStatus: order.status, items },
+              marketplace_data: { tiktokOrderId, tiktokStatus: order.status, items, data_pending: dataPending },
               updated_at: new Date().toISOString(),
             };
 
-            // Add shipping address if available
+            // Endereço: só persiste campos estruturados quando vierem reais (sem concatenar/fabricar)
             if (shippingAddress) {
-              mainOrderData.shipping_street = shippingAddress.address_detail || shippingAddress.full_address || null;
+              mainOrderData.shipping_street = shippingAddress.street || shippingAddress.address_detail || null;
+              mainOrderData.shipping_number = shippingAddress.number || shippingAddress.house_number || null;
+              mainOrderData.shipping_neighborhood = shippingAddress.district || shippingAddress.neighborhood || null;
               mainOrderData.shipping_city = shippingAddress.city || null;
               mainOrderData.shipping_state = shippingAddress.state || shippingAddress.region || null;
-              mainOrderData.shipping_postal_code = shippingAddress.zipcode || shippingAddress.postal_code || null;
+              mainOrderData.shipping_postal_code = realCep || null;
               mainOrderData.shipping_country = shippingAddress.country || "BR";
             }
 

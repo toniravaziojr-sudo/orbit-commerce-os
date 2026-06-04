@@ -180,49 +180,73 @@ Deno.serve(async (req) => {
     for (const shopeeOrder of orders) {
       try {
         const recipientAddress = shopeeOrder.recipient_address || {};
-        
-        // Buscar ou criar cliente
+
+        // Política: sistema NUNCA preenche dado faltante do cliente
+        // (mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente)
+        // Marketplaces que não trazem e-mail/endereço estruturado: salvamos o que veio
+        // e marcamos data_pending — pré-flight fiscal/logístico bloqueia naturalmente.
+        const realBuyerEmail: string | null = shopeeOrder.buyer_email || null;
+        const recipientPhone = String(recipientAddress.phone ?? '').replace(/\D/g, '');
+        const recipientCep = String(recipientAddress.zipcode ?? '').replace(/\D/g, '');
+        const recipientName = shopeeOrder.buyer_username || recipientAddress.name || null;
+
+        const dataPending: string[] = [];
+        if (!realBuyerEmail) dataPending.push('customer_email');
+        if (!recipientName) dataPending.push('customer_name');
+        if (recipientPhone.length < 10 || recipientPhone.length > 13) dataPending.push('customer_phone');
+        if (recipientCep.length !== 8) dataPending.push('shipping_postal_code');
+        if (!recipientAddress.city) dataPending.push('shipping_city');
+        if (!recipientAddress.state) dataPending.push('shipping_state');
+        // Shopee não devolve número/bairro estruturados — sinaliza pendência para o operador
+        if (!recipientAddress.house_number && !recipientAddress.number) dataPending.push('shipping_number');
+        if (!recipientAddress.neighborhood && !recipientAddress.district) dataPending.push('shipping_neighborhood');
+        // Documento (CPF/CNPJ) raramente vem do marketplace
+        if (!shopeeOrder.buyer_cpf && !recipientAddress.cpf) dataPending.push('customer_cpf');
+
+        // Buscar/criar cliente apenas quando temos e-mail real
         let customerId: string | null = null;
-        const buyerEmail = `${shopeeOrder.buyer_user_id}@shopee.user`;
-        
-        const { data: existingCustomer } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("email", buyerEmail)
-          .single();
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-        } else {
-          const { data: newCustomer } = await supabase
+        if (realBuyerEmail) {
+          const { data: existingCustomer } = await supabase
             .from("customers")
-            .insert({
-              tenant_id: tenantId,
-              email: buyerEmail,
-              name: shopeeOrder.buyer_username || recipientAddress.name || "Cliente Shopee",
-              phone: recipientAddress.phone || null,
-              source: "shopee",
-            })
             .select("id")
-            .single();
+            .eq("tenant_id", tenantId)
+            .eq("email", realBuyerEmail)
+            .maybeSingle();
 
-          customerId = newCustomer?.id || null;
+          if (existingCustomer) {
+            customerId = existingCustomer.id;
+          } else {
+            const { data: newCustomer } = await supabase
+              .from("customers")
+              .insert({
+                tenant_id: tenantId,
+                email: realBuyerEmail,
+                name: recipientName || "Cliente Shopee",
+                phone: recipientPhone || null,
+                source: "shopee",
+              })
+              .select("id")
+              .single();
+            customerId = newCustomer?.id || null;
+          }
         }
 
         const orderStatus = statusMap[shopeeOrder.order_status] || "pending";
         const paymentStatus = shopeeOrder.order_status === "UNPAID" ? "pending" : "approved";
 
-        const orderData = {
+        const orderData: Record<string, any> = {
           tenant_id: tenantId,
           customer_id: customerId,
+          customer_name: recipientName,
+          customer_email: realBuyerEmail,
+          customer_phone: recipientPhone || null,
           status: orderStatus,
           payment_status: paymentStatus,
           subtotal: shopeeOrder.total_amount || 0,
           shipping_total: shopeeOrder.actual_shipping_fee || 0,
           total: (shopeeOrder.total_amount || 0) + (shopeeOrder.actual_shipping_fee || 0),
           currency: shopeeOrder.currency || "BRL",
-          
+
           marketplace_source: "shopee",
           marketplace_order_id: shopeeOrder.order_sn,
           source_platform: "shopee",
@@ -234,15 +258,22 @@ Deno.serve(async (req) => {
             shopee_buyer_username: shopeeOrder.buyer_username,
             shopee_shipping_carrier: shopeeOrder.shipping_carrier,
             shopee_create_time: shopeeOrder.create_time,
+            shopee_full_address_raw: recipientAddress.full_address || null,
+            data_pending: dataPending,
           },
-          
-          shipping_street: recipientAddress.full_address || null,
+
+          // Só persistir campos estruturados quando vierem reais (sem fabricar)
+          shipping_street: recipientAddress.street || null,
+          shipping_number: recipientAddress.house_number || recipientAddress.number || null,
+          shipping_neighborhood: recipientAddress.neighborhood || recipientAddress.district || null,
           shipping_city: recipientAddress.city || null,
           shipping_state: recipientAddress.state || null,
-          shipping_postal_code: recipientAddress.zipcode || null,
+          shipping_postal_code: recipientCep || null,
           shipping_country: recipientAddress.region || "BR",
-          
-          notes: `Pedido importado da Shopee em ${new Date().toISOString()}`,
+
+          notes: dataPending.length
+            ? `Pedido importado da Shopee em ${new Date().toISOString()} — pendente de complementação: ${dataPending.join(', ')}`
+            : `Pedido importado da Shopee em ${new Date().toISOString()}`,
         };
 
         const { data: upserted, error: upsertError } = await supabase

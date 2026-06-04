@@ -25,13 +25,17 @@ falha visível, sempre.
 1. **Checkout do storefront e link de checkout**: `checkout-create-order` valida
    no backend as 10 regras (nome completo, e-mail, telefone 10–13 dígitos com DDD,
    CPF 11 dígitos com DV, CEP 8 dígitos, logradouro, número, bairro, município,
-   UF brasileira). Rejeita com `INVALID_CUSTOMER_OR_SHIPSPING` e mensagem PT-BR.
-2. **Pedido manual no admin**: mesmas validações da UI, espelhadas no backend
-   (Manual Order = Checkout Pipeline). Se algum campo opcional da UI virar
-   obrigatório, é decisão de UX e exige aprovação explícita.
+   UF brasileira). Rejeita com `INVALID_CUSTOMER_OR_SHIPPING` e mensagem PT-BR.
+2. **Pedido manual no admin (`core-orders` action `create_order`)**: mesma
+   blindagem do checkout (telefone obrigatório, CPF/CNPJ, endereço completo, UF
+   válida). Rejeita com `INVALID_CUSTOMER_OR_SHIPPING` antes de criar o pedido.
+   UI espelha (campo telefone marcado como obrigatório).
 3. **Adaptadores de marketplace (Meli, Shopee, TikTok)**: quando a origem não
-   traz CPF/endereço completo, o pedido entra com **status de pendência visível**,
-   nunca como `approved` com campo vazio que estoura depois no fiscal/logístico.
+   traz e-mail real, telefone, CPF ou endereço estruturado completo, o pedido
+   entra com os campos faltantes **vazios** (nunca com placeholder fake tipo
+   `@shopee.user` / `@marketplace.local`, nunca concatenando full_address em
+   `shipping_street`) e com `marketplace_data.data_pending = [campos]`. O
+   pré-flight fiscal/logístico bloqueia naturalmente até o operador completar.
 4. **Pedido → Pedido de Venda fiscal**: propagação ocorre **apenas na criação**.
    Sem auto-cura na emissão da DC, sem gatilho de banco. Pré-flight bloqueia
    com mensagem clara em PT-BR.
