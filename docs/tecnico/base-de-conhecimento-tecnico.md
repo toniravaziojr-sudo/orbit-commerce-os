@@ -1474,3 +1474,21 @@ Mudanças:
 **Anti-regressão:** qualquer mudança no contrato SOAP da Pratika exige verificação contra o WSDL atual antes do deploy. Não inferir nomes de parâmetro por dedução. Não trocar namespace por "padrão" sem confirmar. Validar em produção com 1 NF real autorizada e confirmar registro de sucesso no log do tenant.
 
 Memória: `mem://features/external-apps/wms-pratika-integration`.
+
+---
+
+## Lição: Pedido sem telefone gerou PV "curado" silenciosamente (2026-06-03)
+
+**Problema:** Pedidos nasceram sem telefone/e-mail/CPF em vários pontos de entrada (storefront, marketplace). 3 camadas de auto-cura mascararam a falha por meses — o Pedido de Venda era "completado" buscando dado em outras tabelas. A operação só estourava na emissão da Declaração de Conteúdo dos Correios.
+
+**Causa raiz:** Backend não revalidava o que a UI validava. Marketplaces fabricavam placeholders (`@shopee.user`, concatenação de endereço). Gatilho de banco "auto-curava" PV.
+
+**Solução estrutural:**
+1. Backend do checkout (storefront + link) revalida os 10 campos canônicos antes de gravar. Rejeita com `INVALID_CUSTOMER_OR_SHIPPING` em PT-BR.
+2. Backend de pedido manual (admin) aplica a mesma regra. Telefone passou a ser obrigatório também na UI.
+3. Adaptadores de marketplace param de fabricar dado. Falta entra como `marketplace_data.data_pending`.
+4. Auto-cura na emissão da DC e gatilho de banco — **removidos**.
+
+**Anti-pattern bloqueado:** "Buscar dado faltante em outra origem para preencher silenciosamente." Falta = pendência visível, sempre.
+
+**Constraint memória:** `mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente`.

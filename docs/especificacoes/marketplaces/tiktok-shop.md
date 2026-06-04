@@ -186,3 +186,9 @@ Pedidos sincronizados do TikTok Shop são **espelhados na tabela `orders`** para
 - **Arquivo:** `supabase/functions/tiktok-shop-orders-sync/index.ts` (v2.0.0)
 - **Comportamento:** Ao sincronizar, cria/atualiza tanto `tiktok_shop_orders` quanto `orders` + `order_items`
 - **Deduplicação:** Via `source_hash` na tabela `orders`
+
+---
+
+## Política de dados obrigatórios (vigente desde 2026-06-03)
+
+Mesma regra da Shopee: o adaptador do TikTok Shop **nunca fabrica dados do cliente**. Campos não fornecidos pela API entram **vazios**, com pendência marcada em `marketplace_data.data_pending`. Sem placeholder, sem concatenação.
