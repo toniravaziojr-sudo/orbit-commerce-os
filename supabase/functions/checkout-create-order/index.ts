@@ -233,6 +233,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === HARDENING: validação completa dos dados do destinatário e endereço ===
+    // Espelha o que a UI do checkout já valida. Backend nunca aceita pedido incompleto.
+    // Não preenche nada: se faltar, bloqueia com mensagem clara em PT-BR.
+    const fieldError = validateCustomerAndShipping(payload);
+    if (fieldError) {
+      console.warn('[checkout-create-order] BLOCKED missing/invalid field:', fieldError.field);
+      return new Response(JSON.stringify({
+        success: false,
+        error: fieldError.message,
+        code: 'INVALID_CUSTOMER_OR_SHIPPING',
+        field: fieldError.field,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+
     // Create Supabase client with service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
