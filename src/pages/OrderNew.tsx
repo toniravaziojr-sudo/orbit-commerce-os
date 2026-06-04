@@ -204,6 +204,13 @@ export default function OrderNew() {
       return;
     }
 
+    // Telefone obrigatório (mesma regra do checkout da loja)
+    const phoneDigits = (formData.customer_phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+      toast.error('Telefone do cliente é obrigatório (com DDD, 10 a 13 dígitos)');
+      return;
+    }
+
     // Validate CPF/CNPJ for NF-e
     if (!formData.customer_cpf || formData.customer_cpf.trim().length < 11) {
       toast.error('CPF/CNPJ é obrigatório para emissão de NF-e');
