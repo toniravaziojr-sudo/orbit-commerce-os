@@ -82,10 +82,24 @@ razão social, CNPJ, telefone, CEP, logradouro, número, bairro, município, UF.
 - Constraint cruzada: `mem://constraints/correios-cws-prepostagem-payload-and-error-parser`
   continua valendo para o parser de erro dos Correios — o motor é o
   **gate prévio**, o parser é a **defesa final**.
-- Memória: `mem://constraints/pv-deve-herdar-contato-do-pedido` — 3 camadas
-  (origem na criação automática, auto-cura na emissão da DC, gatilho de
-  banco) garantem que o Pedido de Venda nunca nasça nem fique sem telefone
-  e e-mail do destinatário quando o pedido original possui esses dados.
+- Memória: `mem://constraints/pv-deve-herdar-contato-do-pedido` — **política
+  revisada em 2026-06-03**: a propagação ocorre **apenas na origem** (criação
+  automática do Pedido de Venda a partir do pedido real). As camadas de
+  auto-cura (na emissão da DC e via gatilho de banco) foram **removidas**. Se
+  o pedido real não tiver telefone/e-mail/CPF/endereço, o Pedido de Venda
+  nasce com a pendência **visível**, e a emissão de DC/Remessa fica bloqueada
+  até o operador resolver. O sistema nunca preenche dado faltante do cliente
+  automaticamente.
+- Memória: `mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente`
+  — princípio universal aplicado em todos os pontos de entrada de pedido
+  (checkout do storefront, link de checkout, criação manual no admin,
+  marketplaces). Falta de dado obrigatório = pendência visível, nunca
+  preenchimento silencioso.
+- Backend defensivo: o endpoint `checkout-create-order` (canal único do
+  storefront e do link de checkout) revalida no servidor as 10 regras já
+  validadas pela UI (nome completo, e-mail, telefone com DDD, CPF com DV,
+  CEP, logradouro, número, bairro, município, UF), rejeitando com código
+  `INVALID_CUSTOMER_OR_SHIPPING` e mensagem PT-BR caso algo escape.
 
 ## Roadmap (depende de aprovação de UI/UX)
 

@@ -119,6 +119,84 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+// === Validadores defensivos de backend (espelham regras da UI do checkout) ===
+// Princípio: o sistema NUNCA preenche dado faltante do cliente. Falta = bloqueio visível.
+function onlyDigits(s: unknown): string {
+  return String(s ?? '').replace(/\D+/g, '');
+}
+
+function isValidCpf(cpf: string): boolean {
+  const d = onlyDigits(cpf);
+  if (d.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(d)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i);
+  let dv1 = (sum * 10) % 11;
+  if (dv1 === 10) dv1 = 0;
+  if (dv1 !== parseInt(d[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i);
+  let dv2 = (sum * 10) % 11;
+  if (dv2 === 10) dv2 = 0;
+  return dv2 === parseInt(d[10]);
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email ?? '').trim());
+}
+
+const BR_STATES = new Set([
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+  'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+]);
+
+/**
+ * Valida campos obrigatórios do destinatário antes de gravar o pedido.
+ * Retorna null quando OK ou um objeto { field, message } com a primeira falha.
+ * Mensagens em PT-BR para serem exibidas direto ao cliente.
+ */
+function validateCustomerAndShipping(p: CreateOrderRequest): { field: string; message: string } | null {
+  const c = p.customer || ({} as CreateOrderRequest['customer']);
+  const s = p.shipping || ({} as CreateOrderRequest['shipping']);
+
+  const name = String(c.name ?? '').trim();
+  if (name.length < 3 || !name.includes(' ')) {
+    return { field: 'customer.name', message: 'Informe o nome completo do destinatário.' };
+  }
+  if (!isValidEmail(c.email)) {
+    return { field: 'customer.email', message: 'E-mail do destinatário inválido.' };
+  }
+  const phone = onlyDigits(c.phone);
+  if (phone.length < 10 || phone.length > 13) {
+    return { field: 'customer.phone', message: 'Telefone do destinatário inválido. Informe DDD + número.' };
+  }
+  if (!isValidCpf(c.cpf)) {
+    return { field: 'customer.cpf', message: 'CPF do destinatário inválido.' };
+  }
+
+  const cep = onlyDigits(s.postal_code);
+  if (cep.length !== 8) {
+    return { field: 'shipping.postal_code', message: 'CEP de entrega inválido.' };
+  }
+  if (!String(s.street ?? '').trim()) {
+    return { field: 'shipping.street', message: 'Logradouro de entrega obrigatório.' };
+  }
+  if (!String(s.number ?? '').trim()) {
+    return { field: 'shipping.number', message: 'Número do endereço de entrega obrigatório.' };
+  }
+  if (!String(s.neighborhood ?? '').trim()) {
+    return { field: 'shipping.neighborhood', message: 'Bairro do endereço de entrega obrigatório.' };
+  }
+  if (!String(s.city ?? '').trim()) {
+    return { field: 'shipping.city', message: 'Cidade do endereço de entrega obrigatória.' };
+  }
+  const uf = String(s.state ?? '').trim().toUpperCase();
+  if (uf.length !== 2 || !BR_STATES.has(uf)) {
+    return { field: 'shipping.state', message: 'UF do endereço de entrega inválida.' };
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -154,6 +232,24 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // === HARDENING: validação completa dos dados do destinatário e endereço ===
+    // Espelha o que a UI do checkout já valida. Backend nunca aceita pedido incompleto.
+    // Não preenche nada: se faltar, bloqueia com mensagem clara em PT-BR.
+    const fieldError = validateCustomerAndShipping(payload);
+    if (fieldError) {
+      console.warn('[checkout-create-order] BLOCKED missing/invalid field:', fieldError.field);
+      return new Response(JSON.stringify({
+        success: false,
+        error: fieldError.message,
+        code: 'INVALID_CUSTOMER_OR_SHIPPING',
+        field: fieldError.field,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
 
     // Create Supabase client with service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
