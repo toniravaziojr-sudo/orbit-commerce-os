@@ -297,6 +297,42 @@ Deno.serve(async (req) => {
           );
         }
 
+        // Espelho do checkout da loja: dados obrigatórios do cliente para gerar pedido
+        // (mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente)
+        const _digits = (v: any) => String(v ?? '').replace(/\D/g, '');
+        const _missing: { field: string; message: string }[] = [];
+        const _nameWords = String(customer_name ?? '').trim().split(/\s+/).filter(Boolean);
+        if (_nameWords.length < 2) _missing.push({ field: 'customer_name', message: 'Informe o nome completo do cliente' });
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customer_email ?? '').trim()))
+          _missing.push({ field: 'customer_email', message: 'E-mail do cliente inválido' });
+        const _phone = _digits(customer_phone);
+        if (_phone.length < 10 || _phone.length > 13)
+          _missing.push({ field: 'customer_phone', message: 'Telefone do cliente é obrigatório (10 a 13 dígitos com DDD)' });
+        const _doc = _digits(customer_cpf);
+        if (_doc.length !== 11 && _doc.length !== 14)
+          _missing.push({ field: 'customer_cpf', message: 'CPF/CNPJ do cliente é obrigatório' });
+        if (_digits(shipping_postal_code).length !== 8)
+          _missing.push({ field: 'shipping_postal_code', message: 'CEP de entrega é obrigatório (8 dígitos)' });
+        if (!String(shipping_street ?? '').trim()) _missing.push({ field: 'shipping_street', message: 'Logradouro de entrega é obrigatório' });
+        if (!String(shipping_number ?? '').trim()) _missing.push({ field: 'shipping_number', message: 'Número de entrega é obrigatório' });
+        if (!String(shipping_neighborhood ?? '').trim()) _missing.push({ field: 'shipping_neighborhood', message: 'Bairro de entrega é obrigatório' });
+        if (!String(shipping_city ?? '').trim()) _missing.push({ field: 'shipping_city', message: 'Município de entrega é obrigatório' });
+        const _UF = String(shipping_state ?? '').trim().toUpperCase();
+        const _UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+        if (!_UFS.includes(_UF)) _missing.push({ field: 'shipping_state', message: 'UF de entrega é obrigatória (sigla brasileira)' });
+
+        if (_missing.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: _missing[0].message,
+              code: 'INVALID_CUSTOMER_OR_SHIPPING',
+              missing_fields: _missing,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         // Se vier override inicial, validar role e valores
         const hasInitialOverride = !!(payment_status_initial || shipping_status_initial || order_status_initial);
         if (hasInitialOverride && !['owner', 'admin'].includes(roleCheck.role)) {
