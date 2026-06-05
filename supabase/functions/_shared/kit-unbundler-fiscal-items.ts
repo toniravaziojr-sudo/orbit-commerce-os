@@ -303,6 +303,13 @@ export async function unbundleFiscalItems(
         ? round2(componentValorTotal / componentQuantity)
         : 0;
 
+      // BLINDAGEM SEFAZ NA01: vProd DEVE ser exatamente round(vUnCom * qCom, 2).
+      // Após arredondar o unitário, recompõe o total do item a partir dele
+      // (a normalização universal em fiscal-prepare-invoice depois ajusta
+      // valor_produtos da NF a partir da soma dos itens, então qualquer
+      // drift de centavos no kit é absorvido lá em cima).
+      componentValorTotal = round2(componentQuantity * componentUnitPrice);
+
       const fp: any = fiscalByProductId.get(c.component.id) || {};
       const prod: any = c.component;
       const gtin = sanitizeGtin(prod.gtin || prod.barcode);
