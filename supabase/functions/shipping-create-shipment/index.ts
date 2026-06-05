@@ -1142,12 +1142,17 @@ Deno.serve(async (req) => {
           preferredRaw === 'dc'   ? 'dc'   :
           preferredRaw === 'nfe'  ? 'nfe'  :
           (invoiceData ? 'both' : 'dc');
-        // Fallback de segurança: se pediu NF mas não tem, usa DC; se pediu both sem NF, vira DC.
+        // Fallback de segurança:
+        //   - se pediu NF mas não tem NF → cai para DC (qualquer);
+        //   - se pediu 'both' mas não tem NF → cai para DC pura;
+        //   - 'dc' puro sem DC nativa emitida exige NF para virar 'nfe'
+        //     (caso contrário não há documento fiscal nenhum).
+        // 'both' SEM DC nativa permanece — o payload usa observação genérica
+        // + itensDeclaracaoConteudo, satisfazendo o contrato PAC sem exigir
+        // DC nativa emitida.
         if (preferred === 'nfe' && !invoiceData) preferred = 'dc';
         if (preferred === 'both' && !invoiceData) preferred = 'dc';
-        if ((preferred === 'dc' || preferred === 'both') && !contentDeclaration) {
-          if (invoiceData) preferred = 'nfe';
-        }
+        if (preferred === 'dc' && !contentDeclaration && invoiceData) preferred = 'both';
 
         const fiscalDoc =
           preferred === 'both'
