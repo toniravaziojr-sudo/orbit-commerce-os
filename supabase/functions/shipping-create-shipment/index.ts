@@ -1343,9 +1343,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ===== WMS Pratika: fire-and-forget, respeita travas do tenant =====
-      // Antes só era chamado no caminho manual de rastreio. Agora também no automático.
-      if (invoiceData?.id) {
+      // ===== WMS Pratika: envio combinado (NF + rastreio juntos) =====
+      // Pratika só considera o documento recebido quando ambos chegam juntos
+      // sob o mesmo CNPJ de 14 dígitos puros.
+      if (resolvedOrderId) {
         fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
           method: 'POST',
           headers: {
@@ -1353,9 +1354,8 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${supabaseServiceKey}`,
           },
           body: JSON.stringify({
-            action: 'update_tracking',
-            invoice_id: invoiceData.id,
-            tracking_code: result.tracking_code,
+            action: 'send_combined',
+            order_id: resolvedOrderId,
             tenant_id: tenantId,
           }),
         }).catch(err => console.error('[shipping-create-shipment] WMS Pratika error:', err));
