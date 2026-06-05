@@ -1123,7 +1123,11 @@ Deno.serve(async (req) => {
         //   'nfe'  → só NF-e         (exige NF autorizada; se não houver, cai para DC)
         //   'dc'   → só DC nativa    (sempre disponível desde a nova regra)
         //   'both' → NF-e + DC       (anexa as duas)
-        // Default: se há NF autorizada → 'nfe' (compat); senão → 'dc'.
+        // Default (2026-06-05): se há NF autorizada → 'both' (NF + DC juntas).
+        // Motivo: contratos PAC comerciais exigem DC junto da NF (PPN-347 quando
+        // só a chave da NF é enviada). DC é gratuita e sempre aceita; mandar as
+        // duas funciona em todos os contratos. Lojista pode forçar 'nfe' pura
+        // via preferred_doc se o contrato dele aceitar apenas a chave.
         const reqPreferred = (body as any)?.preferred_doc as string | undefined;
         const metaPreferred = (meta as any)?.preferred_doc as string | undefined;
         const preferredRaw = String(reqPreferred || metaPreferred || '').toLowerCase();
@@ -1131,7 +1135,7 @@ Deno.serve(async (req) => {
           preferredRaw === 'both' ? 'both' :
           preferredRaw === 'dc'   ? 'dc'   :
           preferredRaw === 'nfe'  ? 'nfe'  :
-          (invoiceData ? 'nfe' : 'dc');
+          (invoiceData ? 'both' : 'dc');
         // Fallback de segurança: se pediu NF mas não tem, usa DC; se pediu both sem NF, vira DC.
         if (preferred === 'nfe' && !invoiceData) preferred = 'dc';
         if (preferred === 'both' && !invoiceData) preferred = 'dc';

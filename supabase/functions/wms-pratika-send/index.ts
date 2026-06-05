@@ -37,6 +37,32 @@ function escapeXml(str: string): string {
 }
 
 /**
+ * Lê o status real do envelope SOAP devolvido pela Pratika.
+ * O WSDL devolve <Sucesso>true|false</Sucesso> + <Mensagem>...</Mensagem>
+ * dentro do envelope SOAP, mesmo em HTTP 200. Sem esta leitura, qualquer
+ * rejeição de negócio (chave inválida, CNPJ desconhecido, XML malformado)
+ * é registrada como "sucesso" silencioso.
+ */
+function parsePratikaSoapResult(body: string): { ok: boolean; message: string | null } {
+  if (!body) return { ok: false, message: 'Resposta vazia' };
+  const sucessoMatch = body.match(/<\s*Sucesso\s*>\s*(true|false)\s*<\s*\/\s*Sucesso\s*>/i);
+  const mensagemMatch = body.match(/<\s*Mensagem\s*>([\s\S]*?)<\s*\/\s*Mensagem\s*>/i);
+  const faultMatch = body.match(/<(?:\w+:)?Fault>[\s\S]*?<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
+
+  if (faultMatch) {
+    return { ok: false, message: faultMatch[1].trim() || 'SOAP Fault' };
+  }
+  if (sucessoMatch) {
+    const ok = sucessoMatch[1].toLowerCase() === 'true';
+    const message = mensagemMatch ? mensagemMatch[1].trim() : null;
+    return { ok, message };
+  }
+  // Sem tag <Sucesso> e sem Fault → resposta de echo (test_connection) ou
+  // contrato desconhecido. Tratamos como sucesso só se HTTP 2xx (avaliado por quem chama).
+  return { ok: true, message: null };
+}
+
+/**
  * Envia requisição SOAP ao WMS Pratika
  */
 async function sendSoap(url: string, operation: string, soapEnvelope: string): Promise<{ success: boolean; body: string; status: number }> {
@@ -61,9 +87,18 @@ async function sendSoap(url: string, operation: string, soapEnvelope: string): P
     clearTimeout(timeoutId);
     const body = await response.text();
 
-    console.log(`[wms-pratika] Response status: ${response.status}, body length: ${body.length}`);
+    console.log(`[wms-pratika] HTTP ${response.status}, body length: ${body.length}`);
 
-    return { success: response.ok, body, status: response.status };
+    // success = HTTP 2xx + envelope SOAP confirmando <Sucesso>true</Sucesso>.
+    const httpOk = response.ok;
+    const soapResult = parsePratikaSoapResult(body);
+    const success = httpOk && soapResult.ok;
+
+    if (httpOk && !soapResult.ok) {
+      console.warn(`[wms-pratika] HTTP 200 mas SOAP rejeitou: ${soapResult.message}`);
+    }
+
+    return { success, body, status: response.status };
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
@@ -266,6 +301,7 @@ Deno.serve(async (req) => {
       });
 
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
+      const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
         tenant_id: tenantId,
@@ -275,7 +311,7 @@ Deno.serve(async (req) => {
         status: result.success ? 'success' : 'error',
         request_payload: `invoice_id: ${invoice_id}, chave: ${invoice.chave_acesso || 'N/A'}`,
         response_payload: result.body?.substring(0, 2000),
-        error_message: !result.success ? `HTTP ${result.status}: ${result.body?.substring(0, 500)}` : null,
+        error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
       return new Response(
@@ -301,12 +337,24 @@ Deno.serve(async (req) => {
         .eq('tenant_id', tenantId)
         .single();
 
+      // Sanitização obrigatória: a chave é persistida em formato canônico
+      // "NFe<44 dígitos>" (47 chars). A Pratika (e a Sefaz) só aceitam os
+      // 44 dígitos numéricos. Sem strip, a Pratika devolve <Sucesso>false</Sucesso>
+      // silenciosamente.
+      const rawKey = invoice?.chave_acesso || '';
+      const chaveLimpa = String(rawKey).replace(/\D/g, '');
+      if (chaveLimpa.length !== 44) {
+        console.warn(`[wms-pratika] chave de acesso com tamanho inesperado (${chaveLimpa.length}); valor bruto: ${rawKey}`);
+      }
+
       const envelope = buildSoapEnvelope('AtualizarCodRastreioNfe', {
-        chaveAcesso: invoice?.chave_acesso || '',
+        chaveAcesso: chaveLimpa,
         codRastreio: tracking_code,
       });
 
       const result = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envelope);
+
+      const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
         tenant_id: tenantId,
@@ -314,8 +362,9 @@ Deno.serve(async (req) => {
         reference_id: invoice_id,
         reference_type: 'invoice',
         status: result.success ? 'success' : 'error',
+        request_payload: `chave: ${chaveLimpa}, rastreio: ${tracking_code}`,
         response_payload: result.body?.substring(0, 2000),
-        error_message: !result.success ? `HTTP ${result.status}` : null,
+        error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
       return new Response(
