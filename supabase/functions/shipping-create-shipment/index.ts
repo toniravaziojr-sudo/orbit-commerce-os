@@ -716,7 +716,7 @@ Deno.serve(async (req) => {
         .select(`
           id, tenant_id, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj,
           shipping_street, shipping_number, shipping_complement, shipping_neighborhood,
-          shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method,
+          shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method_name, shipping_service_name,
           subtotal, shipping_total, total, tracking_code
         `)
         .eq('id', resolvedOrderId)
