@@ -735,7 +735,7 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      order = orderRow;
+      order = { ...orderRow, shipping_method: (orderRow as any).shipping_service_name || (orderRow as any).shipping_method_name || null };
     }
 
     // PV manual/duplicado: hidrata "pedido virtual" a partir do Pedido de Venda
