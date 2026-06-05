@@ -1,8 +1,9 @@
 /**
  * wms-pratika-reconcile
  *
- * Varre NFs autorizadas e remessas com rastreio nas últimas 24h que ainda
- * não tiveram envio bem-sucedido para o WMS Pratika e dispara o reenvio.
+ * Varre pedidos com NF autorizada + rastreio nas últimas 24h que ainda não
+ * tiveram envio combinado bem-sucedido para o WMS Pratika e dispara a
+ * ação send_combined (NF + rastreio juntos sob o mesmo CNPJ).
  *
  * Atua como fallback/reconciliação — o caminho principal é reativo nos
  * eventos de autorização da NF e registro do rastreio.
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const stats = { tenants: 0, nfe_enqueued: 0, tracking_enqueued: 0 };
+  const stats = { tenants: 0, combined_enqueued: 0 };
 
   try {
     const { data: configs } = await supabase
@@ -35,91 +36,55 @@ Deno.serve(async (req) => {
     for (const cfg of configs || []) {
       stats.tenants++;
 
-      // 1) NFs autorizadas sem envio bem-sucedido
-      if (cfg.auto_send_nfe) {
-        const { data: invoices } = await supabase
-          .from('fiscal_invoices')
+      // Pedidos com NF autorizada nas últimas 24h
+      const { data: invoices } = await supabase
+        .from('fiscal_invoices')
+        .select('order_id')
+        .eq('tenant_id', cfg.tenant_id)
+        .eq('status', 'authorized')
+        .gte('authorized_at', since)
+        .not('order_id', 'is', null)
+        .not('xml_url', 'is', null);
+
+      const orderIds = [...new Set((invoices || []).map(i => i.order_id).filter(Boolean))];
+
+      for (const orderId of orderIds) {
+        // Confirmar que existe rastreio
+        const { data: ship } = await supabase
+          .from('shipments')
           .select('id')
           .eq('tenant_id', cfg.tenant_id)
-          .eq('status', 'authorized')
-          .gte('authorized_at', since)
-          .not('xml_url', 'is', null);
-
-        for (const inv of invoices || []) {
-          const { data: ok } = await supabase
-            .from('wms_pratika_logs')
-            .select('id')
-            .eq('tenant_id', cfg.tenant_id)
-            .eq('reference_id', inv.id)
-            .eq('operation', 'nfe')
-            .eq('status', 'success')
-            .limit(1)
-            .maybeSingle();
-
-          if (!ok) {
-            stats.nfe_enqueued++;
-            fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({ action: 'send_nfe', invoice_id: inv.id, tenant_id: cfg.tenant_id }),
-            }).catch((e) => console.error('[wms-reconcile] nfe send error:', e));
-          }
-        }
-      }
-
-      // 2) Remessas com rastreio sem envio bem-sucedido
-      if (cfg.auto_send_label) {
-        const { data: shipments } = await supabase
-          .from('shipments')
-          .select('order_id, tracking_code, created_at')
-          .eq('tenant_id', cfg.tenant_id)
+          .eq('order_id', orderId)
           .not('tracking_code', 'is', null)
-          .gte('created_at', since);
+          .limit(1)
+          .maybeSingle();
+        if (!ship) continue;
 
-        for (const sh of shipments || []) {
-          // Resolver invoice autorizado do pedido
-          const { data: inv } = await supabase
-            .from('fiscal_invoices')
-            .select('id')
-            .eq('order_id', sh.order_id)
-            .eq('tenant_id', cfg.tenant_id)
-            .eq('status', 'authorized')
-            .order('authorized_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        // Já enviado combinado com sucesso?
+        const { data: okCombined } = await supabase
+          .from('wms_pratika_logs')
+          .select('id')
+          .eq('tenant_id', cfg.tenant_id)
+          .eq('reference_id', orderId)
+          .eq('operation', 'combined')
+          .eq('status', 'success')
+          .limit(1)
+          .maybeSingle();
+        if (okCombined) continue;
 
-          if (!inv?.id) continue;
-
-          const { data: ok } = await supabase
-            .from('wms_pratika_logs')
-            .select('id')
-            .eq('tenant_id', cfg.tenant_id)
-            .eq('reference_id', inv.id)
-            .eq('operation', 'tracking')
-            .eq('status', 'success')
-            .limit(1)
-            .maybeSingle();
-
-          if (!ok) {
-            stats.tracking_enqueued++;
-            fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                action: 'update_tracking',
-                invoice_id: inv.id,
-                tracking_code: sh.tracking_code,
-                tenant_id: cfg.tenant_id,
-              }),
-            }).catch((e) => console.error('[wms-reconcile] tracking send error:', e));
-          }
-        }
+        stats.combined_enqueued++;
+        fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            action: 'send_combined',
+            order_id: orderId,
+            tenant_id: cfg.tenant_id,
+          }),
+        }).catch((e) => console.error('[wms-reconcile] combined send error:', e));
       }
     }
 
