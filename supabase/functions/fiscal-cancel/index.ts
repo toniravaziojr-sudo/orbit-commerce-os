@@ -144,6 +144,23 @@ Deno.serve(async (req) => {
           `Reveja o status do pedido e a etiqueta de envio (se houver).`,
       });
 
+      // (a) Apaga etiquetas em rascunho (ainda não emitidas) vinculadas a esta NF.
+      // O gatilho de proteção do agrupador permite isso porque drafts não têm tracking.
+      const { error: delDraftErr, count: delDraftCount } = await supabaseClient
+        .from('shipments')
+        .delete({ count: 'exact' })
+        .eq('order_id', invoice.order_id)
+        .eq('invoice_id', invoice_id)
+        .or('tracking_code.is.null,tracking_code.eq.')
+        .eq('manually_adjusted', false);
+      if (delDraftErr) {
+        console.warn('[fiscal-cancel] falha ao apagar rascunhos de etiqueta:', delDraftErr.message);
+      } else if ((delDraftCount ?? 0) > 0) {
+        console.log(`[fiscal-cancel] ${delDraftCount} rascunho(s) de etiqueta apagado(s)`);
+      }
+
+      // (b) Marca etiquetas já emitidas (com rastreio) como exigindo ação.
+      // Operação física continua, mas a UI bloqueia novos despachos até decisão do lojista.
       await supabaseClient
         .from('shipments')
         .update({
@@ -152,9 +169,11 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq('order_id', invoice.order_id)
+        .not('tracking_code', 'is', null)
         .eq('requires_action', false)
         .is('delivered_at', null);
     }
+
 
     chargeAfter({
       tenantId,
