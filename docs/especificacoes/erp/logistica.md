@@ -780,6 +780,28 @@ Anti-regressão: ver `mem://constraints/orphan-pv-shipment-reconciliation`.
 
 ---
 
+## Integridade Objeto × Agrupador × NF (2026-06-05)
+
+Três proteções estruturais garantem que **Objetos de Postagem**, **Remessas agrupadoras** e **Notas Fiscais** nunca fiquem fora de sincronia.
+
+**1. Todo objeto despachado tem agrupador (auto-cura).**
+Qualquer objeto de postagem que ganhe código de rastreio passa a ter, obrigatoriamente, uma Remessa agrupadora válida. Se por qualquer motivo o objeto for criado/atualizado sem agrupador (ou apontando para um agrupador que não existe mais), o sistema cria automaticamente uma Remessa nova ("Agrupador recuperado automaticamente") já no status "Despachada", na mesma transação. Resultado: as abas **Objetos** e **Remessas** ficam sempre 1:1, sem objetos invisíveis na lista de Remessas.
+
+**2. Remessa com objetos ativos não pode ser apagada.**
+Tentar excluir uma Remessa agrupadora que ainda tem objetos ativos vinculados (com rastreio e não cancelados) é bloqueado com a mensagem: *"Não é possível excluir esta remessa: existem N objeto(s) de postagem ativo(s) vinculado(s)."* Para excluir, é preciso primeiro cancelar/desvincular os objetos.
+
+**3. Cancelar a NF cascateia para os objetos vinculados.**
+Quando uma Nota Fiscal é cancelada na tela Fiscal:
+- Objetos **ainda em rascunho** (sem rastreio) vinculados àquela NF são **excluídos automaticamente** — não faz sentido manter etiqueta-rascunho de uma NF que deixou de existir.
+- Objetos **já despachados** (com rastreio) são **marcados como "exige ação"** com motivo "NF cancelada" — a operação física segue, mas a UI bloqueia novos despachos do mesmo pedido e exige decisão do operador (reemitir NF, devolver, etc.).
+- Objetos editados manualmente pelo lojista são preservados.
+
+**Caso de origem:** pedido #583 da Maria (Respeite o Homem, 2026-06-05) — teste E2E sobre pedido real produziu NF cancelada + etiqueta despachada órfã sem agrupador. Limpeza pontual feita (PV voltou a "Em aberto"); as três proteções acima foram instaladas para evitar recorrência.
+
+Anti-regressão: ver `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`.
+
+---
+
 ## Espelho vivo: Remessa ↔ Pedido de Venda em aberto (2026-05-27)
 
 A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status "Pedido em aberto"**.

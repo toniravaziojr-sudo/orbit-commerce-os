@@ -285,6 +285,18 @@ Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal
 
 **Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
 
+#### Cascata para a Logística ao cancelar a NF (rev 2026-06-05)
+
+Quando uma NF é cancelada (estado `cancelled`), a tela Fiscal cascateia automaticamente para os objetos de postagem vinculados ao mesmo pedido / Pedido de Venda:
+
+- Objetos **em rascunho** (sem código de rastreio) são **excluídos** — etiqueta-rascunho de uma NF cancelada não tem propósito.
+- Objetos **já despachados** (com rastreio) são **marcados como "exige ação"** com motivo "NF cancelada". A operação física segue, mas a aba Logística passa a exibir banner exigindo decisão (reemitir NF, devolver, etc.) e bloqueia novos despachos do mesmo pedido.
+- Objetos com edição manual do lojista são preservados.
+
+Detalhe complementar na doc de Logística §"Integridade Objeto × Agrupador × NF". Caso de origem: pedido #583 Maria (Respeite o Homem, 2026-06-05). Anti-regressão: `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`.
+
+
+
 #### Ações para NF rejeitada (rev 2026-05-20b)
 
 Quando uma NF está em `rejected`, o `InvoiceActionsDropdown` apresenta três opções, nesta ordem:
