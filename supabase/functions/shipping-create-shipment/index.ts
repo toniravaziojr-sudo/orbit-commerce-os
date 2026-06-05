@@ -220,10 +220,16 @@ async function createCorreiosShipment(
 
     // ===== Observação fiscal (DC) =====
     // Inclui observação de DC quando o lojista escolheu 'dc' ou 'both'.
+    // Se a DC nativa do nosso sistema já foi emitida, referencia o número;
+    // caso contrário usa observação genérica satisfazendo o contrato PAC
+    // (o payload da pré-postagem aceita declaração de conteúdo embutida
+    // mesmo sem DC nativa formal — o que importa é a observação + itens).
     let observacao: string | undefined;
     const includeDC = fiscalDoc?.kind === 'dc' || fiscalDoc?.kind === 'both';
-    if (includeDC && fiscalDoc?.dc_number) {
-      observacao = `Declaracao de Conteudo no ${fiscalDoc.dc_number}`;
+    if (includeDC) {
+      observacao = fiscalDoc?.dc_number
+        ? `Declaracao de Conteudo no ${fiscalDoc.dc_number}`
+        : 'Conteudo descrito conforme itens declarados';
     }
 
 
@@ -1136,12 +1142,17 @@ Deno.serve(async (req) => {
           preferredRaw === 'dc'   ? 'dc'   :
           preferredRaw === 'nfe'  ? 'nfe'  :
           (invoiceData ? 'both' : 'dc');
-        // Fallback de segurança: se pediu NF mas não tem, usa DC; se pediu both sem NF, vira DC.
+        // Fallback de segurança:
+        //   - se pediu NF mas não tem NF → cai para DC (qualquer);
+        //   - se pediu 'both' mas não tem NF → cai para DC pura;
+        //   - 'dc' puro sem DC nativa emitida exige NF para virar 'nfe'
+        //     (caso contrário não há documento fiscal nenhum).
+        // 'both' SEM DC nativa permanece — o payload usa observação genérica
+        // + itensDeclaracaoConteudo, satisfazendo o contrato PAC sem exigir
+        // DC nativa emitida.
         if (preferred === 'nfe' && !invoiceData) preferred = 'dc';
         if (preferred === 'both' && !invoiceData) preferred = 'dc';
-        if ((preferred === 'dc' || preferred === 'both') && !contentDeclaration) {
-          if (invoiceData) preferred = 'nfe';
-        }
+        if (preferred === 'dc' && !contentDeclaration && invoiceData) preferred = 'both';
 
         const fiscalDoc =
           preferred === 'both'
