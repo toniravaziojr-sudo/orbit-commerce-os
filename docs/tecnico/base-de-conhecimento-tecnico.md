@@ -1492,3 +1492,59 @@ Memória: `mem://features/external-apps/wms-pratika-integration`.
 **Anti-pattern bloqueado:** "Buscar dado faltante em outra origem para preencher silenciosamente." Falta = pendência visível, sempre.
 
 **Constraint memória:** `mem://constraints/sistema-nunca-preenche-dado-faltante-do-cliente`.
+
+---
+
+## Pratika SOAP — sucesso real exige `<Sucesso>true</Sucesso>` (2026-06-05)
+
+**Sintoma observado:** No teste E2E real do pedido #581 (Respeite o Homem), o log
+do `wms-pratika-send` marcou `update_tracking` como `success`, mas o rastreio
+nunca apareceu no portal Pratika.
+
+**Causa raiz:** O contrato SOAP da DDS Pratika devolve **HTTP 200 mesmo em
+rejeição de negócio**. O status real está dentro do envelope:
+`<Sucesso>true|false</Sucesso>` + `<DescricaoErro>...</DescricaoErro>`. A
+versão antiga só validava `response.ok` (HTTP 200), gerando "sucesso fantasma".
+
+**Causa secundária:** A chave de acesso da NF-e é persistida no banco em
+formato canônico `NFe<44 dígitos>` (47 chars). A Pratika aceita apenas os
+**44 dígitos numéricos**. Sem strip, devolvia `<Sucesso>false</Sucesso>
+<DescricaoErro>A chave de acesso deve possuir 44 dígitos</DescricaoErro>`.
+
+**Correção:**
+
+1. `parsePratikaSoapResult(body)` lê `<Sucesso>` + `<Mensagem>` + `<Fault>`.
+2. `sendSoap()` só marca `success: true` quando `httpOk && soapResult.ok`.
+3. `update_tracking` sanitiza a chave com `replace(/\D/g, '')` antes de enviar.
+4. `wms_pratika_logs.error_message` grava `HTTP {status} · {mensagem real}`.
+
+**Anti-pattern bloqueado:**
+- Confiar em HTTP 200 como prova de sucesso em integrações SOAP.
+- Persistir chave canônica e enviar diretamente para APIs externas sem
+  normalizar para o formato esperado.
+
+**Constraint memória:** `mem://constraints/correios-default-nfe-plus-dc-and-pratika-key-sanitize`.
+
+---
+
+## Correios PAC contratual — pré-postagem exige DC junto da NF (2026-06-05)
+
+**Sintoma observado:** Pré-postagem rejeitada com PPN-347 *"Para envio de
+produtos é necessário incluir Declaração de Conteúdo"* mesmo com chave de
+NF-e autorizada e válida vinculada.
+
+**Causa raiz:** Contratos PAC comerciais dos Correios exigem **NF + DC
+juntas** no payload da pré-postagem; mandar só a chave da NF não basta.
+O default antigo era `'nfe'` puro quando havia NF — quebrava todo lojista
+nesse tipo de contrato.
+
+**Correção:** Default de `preferred_doc` no `shipping-create-shipment` passa
+a ser `'both'` (NF estruturada + observação DC + `itensDeclaracaoConteudo[]`)
+sempre que há NF autorizada. Hint explícito `preferred_doc='nfe'` continua
+respeitado para contratos que aceitam só a chave.
+
+**Anti-pattern bloqueado:** Assumir que ter NF autorizada dispensa DC na
+pré-postagem dos Correios — depende do contrato comercial do lojista, e
+o default seguro é mandar as duas.
+
+**Constraint memória:** `mem://constraints/correios-default-nfe-plus-dc-and-pratika-key-sanitize`.
