@@ -37,6 +37,32 @@ function escapeXml(str: string): string {
 }
 
 /**
+ * Lê o status real do envelope SOAP devolvido pela Pratika.
+ * O WSDL devolve <Sucesso>true|false</Sucesso> + <Mensagem>...</Mensagem>
+ * dentro do envelope SOAP, mesmo em HTTP 200. Sem esta leitura, qualquer
+ * rejeição de negócio (chave inválida, CNPJ desconhecido, XML malformado)
+ * é registrada como "sucesso" silencioso.
+ */
+function parsePratikaSoapResult(body: string): { ok: boolean; message: string | null } {
+  if (!body) return { ok: false, message: 'Resposta vazia' };
+  const sucessoMatch = body.match(/<\s*Sucesso\s*>\s*(true|false)\s*<\s*\/\s*Sucesso\s*>/i);
+  const mensagemMatch = body.match(/<\s*Mensagem\s*>([\s\S]*?)<\s*\/\s*Mensagem\s*>/i);
+  const faultMatch = body.match(/<(?:\w+:)?Fault>[\s\S]*?<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
+
+  if (faultMatch) {
+    return { ok: false, message: faultMatch[1].trim() || 'SOAP Fault' };
+  }
+  if (sucessoMatch) {
+    const ok = sucessoMatch[1].toLowerCase() === 'true';
+    const message = mensagemMatch ? mensagemMatch[1].trim() : null;
+    return { ok, message };
+  }
+  // Sem tag <Sucesso> e sem Fault → resposta de echo (test_connection) ou
+  // contrato desconhecido. Tratamos como sucesso só se HTTP 2xx (avaliado por quem chama).
+  return { ok: true, message: null };
+}
+
+/**
  * Envia requisição SOAP ao WMS Pratika
  */
 async function sendSoap(url: string, operation: string, soapEnvelope: string): Promise<{ success: boolean; body: string; status: number }> {
@@ -61,9 +87,18 @@ async function sendSoap(url: string, operation: string, soapEnvelope: string): P
     clearTimeout(timeoutId);
     const body = await response.text();
 
-    console.log(`[wms-pratika] Response status: ${response.status}, body length: ${body.length}`);
+    console.log(`[wms-pratika] HTTP ${response.status}, body length: ${body.length}`);
 
-    return { success: response.ok, body, status: response.status };
+    // success = HTTP 2xx + envelope SOAP confirmando <Sucesso>true</Sucesso>.
+    const httpOk = response.ok;
+    const soapResult = parsePratikaSoapResult(body);
+    const success = httpOk && soapResult.ok;
+
+    if (httpOk && !soapResult.ok) {
+      console.warn(`[wms-pratika] HTTP 200 mas SOAP rejeitou: ${soapResult.message}`);
+    }
+
+    return { success, body, status: response.status };
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
