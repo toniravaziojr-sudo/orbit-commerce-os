@@ -386,6 +386,77 @@ Deno.serve(async (req) => {
       if (Number(it.valor_unitario) < 0) errors.push(`Item "${it.descricao || '?'}" com valor unitário inválido.`);
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // BLINDAGEM UNIVERSAL DE SOMAS (anti-rejeição SEFAZ NA01/totais)
+    // Recalcula valor_produtos e valor_total a partir dos itens reais
+    // e limita valor_desconto ao total de produtos. Qualquer desconto
+    // "fantasma" herdado do pedido/PV é normalizado aqui na origem,
+    // antes de qualquer envio à SEFAZ — independente do caminho que
+    // criou o PV (UI, duplicação, importação, edição manual).
+    // ─────────────────────────────────────────────────────────────────
+    if (items.length > 0 && errors.length === 0) {
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const produtosCalc = round2(
+        items.reduce(
+          (acc: number, it: any) =>
+            acc + Number(it.quantidade || 0) * Number(it.valor_unitario || 0),
+          0,
+        ),
+      );
+      const frete = Number(inv.valor_frete || 0);
+      const seguro = Number(inv.valor_seguro || 0);
+      const outras = Number(inv.valor_outras_despesas || 0);
+      let desconto = Number(inv.valor_desconto || 0);
+      if (desconto < 0) desconto = 0;
+      if (desconto > produtosCalc) desconto = produtosCalc; // nunca pode zerar/negativar produtos
+      const totalCalc = round2(Math.max(0, produtosCalc - desconto + frete + seguro + outras));
+
+      const produtosAtual = Number(inv.valor_produtos || 0);
+      const totalAtual = Number(inv.valor_total || 0);
+      const descontoAtual = Number(inv.valor_desconto || 0);
+
+      const drift =
+        Math.abs(produtosCalc - produtosAtual) > 0.01 ||
+        Math.abs(totalCalc - totalAtual) > 0.01 ||
+        Math.abs(desconto - descontoAtual) > 0.01;
+
+      if (drift) {
+        await admin
+          .from('fiscal_invoices')
+          .update({
+            valor_produtos: produtosCalc,
+            valor_desconto: round2(desconto),
+            valor_total: totalCalc,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', workingInvoiceId)
+          .eq('tenant_id', tenantId);
+
+        await admin.from('fiscal_invoice_events').insert({
+          invoice_id: workingInvoiceId,
+          tenant_id: tenantId,
+          event_type: 'totals_normalized',
+          description:
+            'Totais da NF recalculados a partir dos itens antes da emissão (blindagem anti-rejeição SEFAZ).',
+          event_data: {
+            before: {
+              valor_produtos: produtosAtual,
+              valor_desconto: descontoAtual,
+              valor_total: totalAtual,
+            },
+            after: {
+              valor_produtos: produtosCalc,
+              valor_desconto: round2(desconto),
+              valor_total: totalCalc,
+            },
+          },
+        });
+
+        (inv as any).valor_produtos = produtosCalc;
+        (inv as any).valor_desconto = round2(desconto);
+        (inv as any).valor_total = totalCalc;
+      }
+    }
 
     // Valor
     if (!inv.valor_total || Number(inv.valor_total) <= 0) errors.push('Valor total inválido.');
