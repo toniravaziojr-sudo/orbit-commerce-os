@@ -195,33 +195,20 @@ Deno.serve(async (req) => {
         created_by: user.id,
       });
 
-    // WMS Pratika — fire-and-forget: notificar rastreio para o pedido
+    // WMS Pratika — envio combinado (NF + rastreio juntos), fire-and-forget.
     try {
-      const { data: inv } = await supabase
-        .from('fiscal_invoices')
-        .select('id')
-        .eq('order_id', order_id)
-        .eq('tenant_id', tenantId)
-        .eq('status', 'authorized')
-        .order('authorized_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (inv?.id) {
-        fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            action: 'update_tracking',
-            invoice_id: inv.id,
-            tracking_code: cleanTrackingCode,
-            tenant_id: tenantId,
-          }),
-        }).catch(err => console.error('[shipping-register-manual] WMS Pratika error:', err));
-      }
+      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          action: 'send_combined',
+          order_id: order_id,
+          tenant_id: tenantId,
+        }),
+      }).catch(err => console.error('[shipping-register-manual] WMS Pratika error:', err));
     } catch (e) {
       console.error('[shipping-register-manual] Erro Pratika:', e);
     }

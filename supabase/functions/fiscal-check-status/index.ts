@@ -258,15 +258,15 @@ Deno.serve(async (req) => {
         }).catch(err => console.error('[fiscal-check-status] Email send error:', err));
       }
 
-      // WMS Pratika — disparo reativo à autorização (idempotente do lado da função)
-      if (focusStatus === 'autorizado') {
+      // WMS Pratika — disparo reativo combinado (NF + rastreio juntos).
+      if (focusStatus === 'autorizado' && invoice.order_id) {
         fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseServiceKey}`,
           },
-          body: JSON.stringify({ action: 'send_nfe', invoice_id: invoiceId, tenant_id: tenantId }),
+          body: JSON.stringify({ action: 'send_combined', order_id: invoice.order_id, tenant_id: tenantId }),
         }).catch(err => console.error('[fiscal-check-status] WMS Pratika error:', err));
       }
     }

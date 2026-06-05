@@ -9,9 +9,6 @@ const corsHeaders = {
 
 const PRATIKA_NAMESPACE = 'http://wmspratika.ddsinformatica.com.br/';
 
-/**
- * Monta envelope SOAP para operações do WMS Pratika
- */
 function buildSoapEnvelope(operation: string, params: Record<string, string>): string {
   const paramXml = Object.entries(params)
     .map(([key, value]) => `      <${key}>${escapeXml(value)}</${key}>`)
@@ -36,13 +33,6 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
-/**
- * Lê o status real do envelope SOAP devolvido pela Pratika.
- * O WSDL devolve <Sucesso>true|false</Sucesso> + <Mensagem>...</Mensagem>
- * dentro do envelope SOAP, mesmo em HTTP 200. Sem esta leitura, qualquer
- * rejeição de negócio (chave inválida, CNPJ desconhecido, XML malformado)
- * é registrada como "sucesso" silencioso.
- */
 function parsePratikaSoapResult(body: string): { ok: boolean; message: string | null } {
   if (!body) return { ok: false, message: 'Resposta vazia' };
   const sucessoMatch = body.match(/<\s*Sucesso\s*>\s*(true|false)\s*<\s*\/\s*Sucesso\s*>/i);
@@ -57,17 +47,11 @@ function parsePratikaSoapResult(body: string): { ok: boolean; message: string | 
     const message = mensagemMatch ? mensagemMatch[1].trim() : null;
     return { ok, message };
   }
-  // Sem tag <Sucesso> e sem Fault → resposta de echo (test_connection) ou
-  // contrato desconhecido. Tratamos como sucesso só se HTTP 2xx (avaliado por quem chama).
   return { ok: true, message: null };
 }
 
-/**
- * Envia requisição SOAP ao WMS Pratika
- */
 async function sendSoap(url: string, operation: string, soapEnvelope: string): Promise<{ success: boolean; body: string; status: number }> {
   const soapAction = `${PRATIKA_NAMESPACE}${operation}`;
-
   console.log(`[wms-pratika] Sending SOAP ${operation} to ${url}`);
 
   const controller = new AbortController();
@@ -86,10 +70,8 @@ async function sendSoap(url: string, operation: string, soapEnvelope: string): P
 
     clearTimeout(timeoutId);
     const body = await response.text();
-
     console.log(`[wms-pratika] HTTP ${response.status}, body length: ${body.length}`);
 
-    // success = HTTP 2xx + envelope SOAP confirmando <Sucesso>true</Sucesso>.
     const httpOk = response.ok;
     const soapResult = parsePratikaSoapResult(body);
     const success = httpOk && soapResult.ok;
@@ -121,110 +103,65 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { action, invoice_id, shipment_id, tenant_id: providedTenantId } = body;
-
+    const { action, invoice_id, order_id, tenant_id: providedTenantId } = body;
     let tenantId = providedTenantId;
 
-    // If no tenant_id provided, resolve from auth
     if (!tenantId) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Não autorizado' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, error: 'Não autorizado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
       const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
         global: { headers: { Authorization: authHeader } }
       });
       const { data: { user } } = await supabaseAuth.auth.getUser();
       if (!user) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('current_tenant_id')
-        .eq('id', user.id)
-        .single();
-
+      const { data: profile } = await supabase.from('profiles').select('current_tenant_id').eq('id', user.id).single();
       tenantId = profile?.current_tenant_id;
     }
 
     if (!tenantId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Get WMS config
     const { data: config } = await supabase
-      .from('wms_pratika_configs')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .single();
+      .from('wms_pratika_configs').select('*').eq('tenant_id', tenantId).single();
 
     if (!config || !config.is_enabled) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'WMS Pratika não está ativo para este tenant', skipped: true }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: false, error: 'WMS Pratika não está ativo', skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Gate por tipo de operação + force flag
     const force = body.force === true;
-    if (action === 'send_nfe' && config.auto_send_nfe === false && !force) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Envio automático de NFe desativado', skipped: true }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    if (action === 'update_tracking' && config.auto_send_label === false && !force) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Envio automático de etiqueta desativado', skipped: true }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
-    // Idempotência: se já houve sucesso para este invoice+operation, não reenviar
-    if ((action === 'send_nfe' || action === 'update_tracking') && invoice_id && !force) {
-      const operationName = action === 'send_nfe' ? 'nfe' : 'tracking';
-      const { data: existingOk } = await supabase
-        .from('wms_pratika_logs')
-        .select('id, created_at')
-        .eq('tenant_id', tenantId)
-        .eq('reference_id', invoice_id)
-        .eq('operation', operationName)
-        .eq('status', 'success')
-        .limit(1)
-        .maybeSingle();
-
-      if (existingOk) {
-        console.log(`[wms-pratika] Skip (já enviado com sucesso): ${operationName} ${invoice_id}`);
-        return new Response(
-          JSON.stringify({ success: true, already_sent: true, sent_at: existingOk.created_at }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    // Sanitização universal de CNPJ — Pratika indexa por 14 dígitos puros.
+    const cnpj = String(config.cnpj || '').replace(/\D/g, '');
+    if (action !== 'test_connection' && cnpj.length !== 14) {
+      await supabase.from('wms_pratika_logs').insert({
+        tenant_id: tenantId,
+        operation: action || 'unknown',
+        status: 'error',
+        error_message: `CNPJ inválido (${cnpj.length} dígitos). Atualize em Aplicativos Externos.`,
+      });
+      return new Response(JSON.stringify({ success: false, error: 'CNPJ inválido (precisa ter 14 dígitos).' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const endpointUrl = config.endpoint_url;
-    const cnpj = config.cnpj || '';
 
-    // === TEST CONNECTION ===
+    // ============= TEST CONNECTION =============
     if (action === 'test_connection') {
-      // Simple SOAP call to check if endpoint responds
-      const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        cnpj,
-        xmlNfe: '<test/>',
-      });
+      if (cnpj.length !== 14) {
+        return new Response(JSON.stringify({ success: false, error: 'CNPJ inválido: precisa ter 14 dígitos.' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const envelope = buildSoapEnvelope('RecepcaoDocNfe', { cnpj, xmlNfe: '<test/>' });
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
-      
       await supabase.from('wms_pratika_logs').insert({
         tenant_id: tenantId,
         operation: 'test',
@@ -232,35 +169,199 @@ Deno.serve(async (req) => {
         response_payload: result.body?.substring(0, 2000),
         error_message: !result.success ? `HTTP ${result.status}` : null,
       });
-
-      return new Response(
-        JSON.stringify({ success: result.status > 0, message: result.status > 0 ? 'Endpoint acessível' : 'Endpoint inacessível' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: result.status > 0, message: result.status > 0 ? 'Endpoint acessível' : 'Endpoint inacessível' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // === SEND NFE XML ===
-    if (action === 'send_nfe' && invoice_id) {
-      console.log(`[wms-pratika] Sending NFe XML for invoice ${invoice_id}`);
+    // ============= SEND COMBINED (oficial: NF + rastreio juntos) =============
+    if (action === 'send_combined') {
+      if (!order_id) {
+        return new Response(JSON.stringify({ success: false, error: 'order_id é obrigatório' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
-      // Get invoice with xml_url
       const { data: invoice } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, xml_url, focus_ref')
-        .eq('id', invoice_id)
-        .eq('tenant_id', tenantId)
-        .single();
+        .select('id, chave_acesso, xml_url, status')
+        .eq('order_id', order_id).eq('tenant_id', tenantId).eq('status', 'authorized')
+        .order('authorized_at', { ascending: false }).limit(1).maybeSingle();
 
+      const { data: shipment } = await supabase
+        .from('shipments')
+        .select('id, tracking_code')
+        .eq('order_id', order_id).eq('tenant_id', tenantId)
+        .not('tracking_code', 'is', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+      const hasNfe = !!(invoice?.id && invoice.xml_url);
+      const hasTracking = !!shipment?.tracking_code;
+
+      if (!hasNfe || !hasTracking) {
+        const motivo = !hasNfe && !hasTracking
+          ? 'aguardando NF autorizada e código de rastreio'
+          : !hasNfe ? 'aguardando NF autorizada' : 'aguardando código de rastreio';
+        console.log(`[wms-pratika] send_combined waiting pedido ${order_id}: ${motivo}`);
+        return new Response(JSON.stringify({ success: false, skipped: true, waiting: true, reason: motivo }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Idempotência do combined
+      if (!force) {
+        const { data: existingCombined } = await supabase
+          .from('wms_pratika_logs').select('id, created_at')
+          .eq('tenant_id', tenantId).eq('reference_id', order_id)
+          .eq('operation', 'combined').eq('status', 'success')
+          .limit(1).maybeSingle();
+        if (existingCombined) {
+          return new Response(JSON.stringify({ success: true, already_sent: true, sent_at: existingCombined.created_at }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      // Validar chave da NF
+      const chaveLimpa = String(invoice.chave_acesso || '').replace(/\D/g, '');
+      if (chaveLimpa.length !== 44) {
+        const msg = `Chave de acesso inválida (${chaveLimpa.length} dígitos)`;
+        await supabase.from('wms_pratika_logs').insert({
+          tenant_id: tenantId, operation: 'combined', reference_id: order_id,
+          reference_type: 'order', status: 'error', error_message: msg,
+        });
+        return new Response(JSON.stringify({ success: false, stage: 'validation', error: msg }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // ETAPA 1: Enviar XML da NF (pular se já enviada)
+      let nfeAlreadyOk = false;
+      if (!force) {
+        const { data: nfeOk } = await supabase
+          .from('wms_pratika_logs').select('id')
+          .eq('tenant_id', tenantId).eq('reference_id', invoice.id)
+          .eq('operation', 'nfe').eq('status', 'success')
+          .limit(1).maybeSingle();
+        nfeAlreadyOk = !!nfeOk;
+      }
+
+      if (!nfeAlreadyOk) {
+        let xmlContent = '';
+        if (invoice.xml_url) {
+          try {
+            const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
+            const headers: Record<string, string> = {};
+            if (focusToken && invoice.xml_url.includes('focusnfe.com.br')) {
+              headers['Authorization'] = 'Basic ' + btoa(focusToken + ':');
+            }
+            const resp = await fetch(invoice.xml_url, { headers });
+            if (resp.ok) xmlContent = await resp.text();
+          } catch (err: any) {
+            console.error('[wms-pratika] Erro baixando XML:', err);
+          }
+        }
+
+        if (!xmlContent) {
+          await supabase.from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
+            reference_type: 'order', status: 'error',
+            error_message: 'XML da NFe não disponível para envio combinado',
+          });
+          return new Response(JSON.stringify({ success: false, stage: 'nfe', error: 'XML da NFe não disponível' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        const envNfe = buildSoapEnvelope('RecepcaoDocNfe', { cnpj, xmlNfe: xmlContent });
+        const nfeResult = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envNfe);
+        const nfeSoap = nfeResult.body ? parsePratikaSoapResult(nfeResult.body) : { ok: false, message: 'sem resposta' };
+        const nfeErrMsg = !nfeResult.success ? `HTTP ${nfeResult.status}${nfeSoap.message ? ` · ${nfeSoap.message}` : ''}` : null;
+
+        await supabase.from('wms_pratika_logs').insert({
+          tenant_id: tenantId, operation: 'nfe', reference_id: invoice.id,
+          reference_type: 'invoice', status: nfeResult.success ? 'success' : 'error',
+          request_payload: `combined · cnpj: ${cnpj}, chave: ${chaveLimpa}`,
+          response_payload: nfeResult.body?.substring(0, 2000),
+          error_message: nfeErrMsg,
+        });
+
+        if (!nfeResult.success) {
+          await supabase.from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
+            reference_type: 'order', status: 'error',
+            error_message: `Falha na etapa NF: ${nfeErrMsg}`,
+          });
+          return new Response(JSON.stringify({ success: false, stage: 'nfe', error: nfeErrMsg }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      // ETAPA 2: Atualizar rastreio
+      let trackingAlreadyOk = false;
+      if (!force) {
+        const { data: trkOk } = await supabase
+          .from('wms_pratika_logs').select('id')
+          .eq('tenant_id', tenantId).eq('reference_id', invoice.id)
+          .eq('operation', 'tracking').eq('status', 'success')
+          .limit(1).maybeSingle();
+        trackingAlreadyOk = !!trkOk;
+      }
+
+      if (!trackingAlreadyOk) {
+        const envTrk = buildSoapEnvelope('AtualizarCodRastreioNfe', {
+          chaveAcesso: chaveLimpa,
+          codRastreio: shipment.tracking_code,
+        });
+        const trkResult = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envTrk);
+        const trkSoap = trkResult.body ? parsePratikaSoapResult(trkResult.body) : { ok: false, message: 'sem resposta' };
+        const trkErrMsg = !trkResult.success ? `HTTP ${trkResult.status}${trkSoap.message ? ` · ${trkSoap.message}` : ''}` : null;
+
+        await supabase.from('wms_pratika_logs').insert({
+          tenant_id: tenantId, operation: 'tracking', reference_id: invoice.id,
+          reference_type: 'invoice', status: trkResult.success ? 'success' : 'error',
+          request_payload: `combined · chave: ${chaveLimpa}, rastreio: ${shipment.tracking_code}`,
+          response_payload: trkResult.body?.substring(0, 2000),
+          error_message: trkErrMsg,
+        });
+
+        if (!trkResult.success) {
+          await supabase.from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
+            reference_type: 'order', status: 'error',
+            error_message: `NF enviada, falha no rastreio: ${trkErrMsg}`,
+          });
+          return new Response(JSON.stringify({ success: false, stage: 'tracking', error: trkErrMsg, nfe_sent: true }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      // Sucesso combinado
+      await supabase.from('wms_pratika_logs').insert({
+        tenant_id: tenantId, operation: 'combined', reference_id: order_id,
+        reference_type: 'order', status: 'success',
+        request_payload: `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`,
+      });
+
+      return new Response(JSON.stringify({
+        success: true, combined: true, invoice_id: invoice.id, tracking_code: shipment.tracking_code
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // ============= AÇÕES LEGADAS (admin / reconciliação) =============
+    // Bloqueio defensivo: envio isolado de NF ou rastreio só com force=true.
+    if ((action === 'send_nfe' || action === 'update_tracking') && !force) {
+      const msg = action === 'send_nfe'
+        ? 'Envio isolado de NF bloqueado. Pratika exige NF + rastreio juntos. Use send_combined ou passe force=true (admin).'
+        : 'Envio isolado de etiqueta bloqueado. Pratika exige NF + rastreio juntos. Use send_combined ou passe force=true (admin).';
+      return new Response(JSON.stringify({ success: false, skipped: true, error: msg }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'send_nfe' && invoice_id) {
+      const { data: invoice } = await supabase
+        .from('fiscal_invoices').select('id, chave_acesso, xml_url, focus_ref')
+        .eq('id', invoice_id).eq('tenant_id', tenantId).single();
       if (!invoice) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Nota fiscal não encontrada' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, error: 'Nota fiscal não encontrada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       let xmlContent = '';
-
-      // Try to download XML from Focus NFe via persisted xml_url (already absolute)
       if (invoice.xml_url) {
         try {
           const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
@@ -269,114 +370,74 @@ Deno.serve(async (req) => {
             headers['Authorization'] = 'Basic ' + btoa(focusToken + ':');
           }
           const resp = await fetch(invoice.xml_url, { headers });
-          if (resp.ok) {
-            xmlContent = await resp.text();
-          }
+          if (resp.ok) xmlContent = await resp.text();
         } catch (err: any) {
-          console.error('[wms-pratika] Error downloading XML from Focus NFe:', err);
+          console.error('[wms-pratika] XML download error:', err);
         }
       }
 
-
       if (!xmlContent) {
         await supabase.from('wms_pratika_logs').insert({
-          tenant_id: tenantId,
-          operation: 'nfe',
-          reference_id: invoice_id,
-          reference_type: 'invoice',
-          status: 'error',
+          tenant_id: tenantId, operation: 'nfe', reference_id: invoice_id,
+          reference_type: 'invoice', status: 'error',
           error_message: 'XML da NFe não disponível',
         });
-
-        return new Response(
-          JSON.stringify({ success: false, error: 'XML da NFe não disponível' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, error: 'XML da NFe não disponível' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Send to WMS
-      const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        cnpj,
-        xmlNfe: xmlContent,
-      });
-
+      const envelope = buildSoapEnvelope('RecepcaoDocNfe', { cnpj, xmlNfe: xmlContent });
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
       const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
-        tenant_id: tenantId,
-        operation: 'nfe',
-        reference_id: invoice_id,
-        reference_type: 'invoice',
-        status: result.success ? 'success' : 'error',
-        request_payload: `invoice_id: ${invoice_id}, chave: ${invoice.chave_acesso || 'N/A'}`,
+        tenant_id: tenantId, operation: 'nfe', reference_id: invoice_id,
+        reference_type: 'invoice', status: result.success ? 'success' : 'error',
+        request_payload: `force · cnpj: ${cnpj}, chave: ${invoice.chave_acesso || 'N/A'}`,
         response_payload: result.body?.substring(0, 2000),
         error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
-      return new Response(
-        JSON.stringify({ success: result.success, status: result.status }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: result.success, status: result.status }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // === UPDATE TRACKING ===
     if (action === 'update_tracking' && invoice_id) {
       const { tracking_code } = body;
       if (!tracking_code) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'tracking_code é obrigatório' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, error: 'tracking_code é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
       const { data: invoice } = await supabase
-        .from('fiscal_invoices')
-        .select('chave_acesso')
-        .eq('id', invoice_id)
-        .eq('tenant_id', tenantId)
-        .single();
-
-      // Sanitização obrigatória: a chave é persistida em formato canônico
-      // "NFe<44 dígitos>" (47 chars). A Pratika (e a Sefaz) só aceitam os
-      // 44 dígitos numéricos. Sem strip, a Pratika devolve <Sucesso>false</Sucesso>
-      // silenciosamente.
-      const rawKey = invoice?.chave_acesso || '';
-      const chaveLimpa = String(rawKey).replace(/\D/g, '');
+        .from('fiscal_invoices').select('chave_acesso')
+        .eq('id', invoice_id).eq('tenant_id', tenantId).single();
+      const chaveLimpa = String(invoice?.chave_acesso || '').replace(/\D/g, '');
       if (chaveLimpa.length !== 44) {
-        console.warn(`[wms-pratika] chave de acesso com tamanho inesperado (${chaveLimpa.length}); valor bruto: ${rawKey}`);
+        return new Response(JSON.stringify({ success: false, error: `Chave inválida (${chaveLimpa.length} dígitos)` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
       const envelope = buildSoapEnvelope('AtualizarCodRastreioNfe', {
-        chaveAcesso: chaveLimpa,
-        codRastreio: tracking_code,
+        chaveAcesso: chaveLimpa, codRastreio: tracking_code,
       });
-
       const result = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envelope);
-
       const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
-        tenant_id: tenantId,
-        operation: 'tracking',
-        reference_id: invoice_id,
-        reference_type: 'invoice',
-        status: result.success ? 'success' : 'error',
-        request_payload: `chave: ${chaveLimpa}, rastreio: ${tracking_code}`,
+        tenant_id: tenantId, operation: 'tracking', reference_id: invoice_id,
+        reference_type: 'invoice', status: result.success ? 'success' : 'error',
+        request_payload: `force · chave: ${chaveLimpa}, rastreio: ${tracking_code}`,
         response_payload: result.body?.substring(0, 2000),
         error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
-      return new Response(
-        JSON.stringify({ success: result.success }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: result.success }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    return new Response(
-      JSON.stringify({ success: false, error: 'Ação não reconhecida. Use: test_connection, send_nfe, update_tracking' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Ação não reconhecida. Use: test_connection, send_combined (oficial), send_nfe/update_tracking (admin com force=true)',
+    }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
     console.error('[wms-pratika] Error:', error);

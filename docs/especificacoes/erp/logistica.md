@@ -847,25 +847,38 @@ Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`
 
 ## Integração WMS Pratika
 
-A integração com o WMS Pratika (DDS Informática) opera de forma **reativa, não no momento da emissão**.
+A integração com o WMS Pratika (DDS Informática) opera de forma **reativa e combinada**: a Pratika só considera um documento "recebido" quando a NF-e **e** o código de rastreio chegam **juntos**, sob o **mesmo CNPJ de 14 dígitos puros (sem máscara)**. Por isso, o sistema unifica os dois envios em uma única operação.
 
 ### Quando o sistema envia para o Pratika
 
-1. **XML da NF-e:** somente quando a Sefaz autoriza a nota. Vale para o caminho síncrono (resposta direta do provedor fiscal) e para o assíncrono (webhook ou checagem de status). NF emitida mas ainda não autorizada nunca chega ao WMS.
-2. **Etiqueta dos Correios:** somente quando o código de rastreio é registrado, manual ou automaticamente. Sem rastreio, não há envio.
+1. O gatilho dispara nos dois eventos: autorização da NF-e (webhook ou checagem de status) e registro do código de rastreio (manual ou automático).
+2. Cada gatilho chama a **ação combinada** (NF + rastreio juntos). A função verifica os dois lados:
+   - Se **um** dos lados ainda não está pronto, responde "aguardando" e **não envia nada**. Quando o segundo lado fica pronto, o gatilho desse evento dispara a operação completa.
+   - Se **ambos** estão prontos, a operação executa em sequência na mesma invocação: primeiro o XML da NF-e (`RecepcaoDocNfe`), depois o rastreio (`AtualizarCodRastreioNfe`).
+3. Se a segunda etapa falhar, a NF é marcada como pendente de reconciliação — nunca fica "meio-enviada".
+
+### Sanitização obrigatória
+
+- **CNPJ:** sempre reduzido aos 14 dígitos numéricos antes de qualquer chamada (inclusive teste de conexão). CNPJ fora desse formato aborta a operação com mensagem clara.
+- **Chave de acesso da NF-e:** sempre reduzida aos 44 dígitos numéricos antes do envio do rastreio.
+
+### Bloqueios defensivos
+
+- Tentativa de enviar **só a NF** (sem rastreio) ou **só a etiqueta** (sem NF autorizada) é bloqueada por padrão. As ações isoladas existem apenas para reenvio administrativo manual e exigem `force=true` explícito.
 
 ### Travas e idempotência
 
-- A configuração do tenant possui dois interruptores independentes: envio automático de NF-e e envio automático de etiqueta. Desligado = nada é enviado.
-- Cada envio é idempotente por referência (NF ou remessa). O sistema consulta o log de operações do tenant antes de disparar e só envia se não houver sucesso anterior para a mesma referência.
+- Configuração do tenant: interruptores `auto_send_nfe` e `auto_send_label`. Desligado = nenhum envio.
+- Idempotência por pedido no log combinado: se já houve sucesso anterior para o mesmo pedido, não há reenvio.
+- Idempotência por sub-etapa: se a NF já foi enviada com sucesso antes (numa tentativa parcial), a operação combinada pula direto para o rastreio.
 
 ### Reconciliação automática
 
-A cada 30 minutos uma rotina de reconciliação varre NFs autorizadas e remessas com rastreio das últimas 24h sem log de sucesso no WMS e reenfileira o envio. A reconciliação é rede de segurança, não fluxo primário — o caminho principal continua sendo o gatilho reativo.
+A cada 30 minutos, uma rotina varre pedidos das últimas 24h com NF autorizada **e** rastreio registrado que ainda não tiveram envio combinado bem-sucedido, e reenfileira a operação. Reconciliação é rede de segurança, não fluxo primário.
 
 ### Validação E2E
 
-- NF-e de saída autorizada → envio ao Pratika confirmado em produção (NF 349, 27/05/2026, autorizada e despachada ao WMS em segundos).
-- Etiqueta dos Correios com rastreio registrado → pendente de validação em produção.
+- Aguardando novo teste real ponta a ponta após esta refatoração (envio acoplado + CNPJ cru).
 
-Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration`.
+Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration` e `mem://constraints/wms-pratika-combined-send-and-cnpj-raw`.
+
