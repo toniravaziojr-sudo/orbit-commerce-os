@@ -301,6 +301,7 @@ Deno.serve(async (req) => {
       });
 
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
+      const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
         tenant_id: tenantId,
@@ -310,7 +311,7 @@ Deno.serve(async (req) => {
         status: result.success ? 'success' : 'error',
         request_payload: `invoice_id: ${invoice_id}, chave: ${invoice.chave_acesso || 'N/A'}`,
         response_payload: result.body?.substring(0, 2000),
-        error_message: !result.success ? `HTTP ${result.status}: ${result.body?.substring(0, 500)}` : null,
+        error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
       return new Response(
