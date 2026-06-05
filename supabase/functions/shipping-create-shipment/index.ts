@@ -220,10 +220,16 @@ async function createCorreiosShipment(
 
     // ===== Observação fiscal (DC) =====
     // Inclui observação de DC quando o lojista escolheu 'dc' ou 'both'.
+    // Se a DC nativa do nosso sistema já foi emitida, referencia o número;
+    // caso contrário usa observação genérica satisfazendo o contrato PAC
+    // (o payload da pré-postagem aceita declaração de conteúdo embutida
+    // mesmo sem DC nativa formal — o que importa é a observação + itens).
     let observacao: string | undefined;
     const includeDC = fiscalDoc?.kind === 'dc' || fiscalDoc?.kind === 'both';
-    if (includeDC && fiscalDoc?.dc_number) {
-      observacao = `Declaracao de Conteudo no ${fiscalDoc.dc_number}`;
+    if (includeDC) {
+      observacao = fiscalDoc?.dc_number
+        ? `Declaracao de Conteudo no ${fiscalDoc.dc_number}`
+        : 'Conteudo descrito conforme itens declarados';
     }
 
 
