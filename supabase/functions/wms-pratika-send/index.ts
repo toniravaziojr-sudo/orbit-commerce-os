@@ -336,12 +336,24 @@ Deno.serve(async (req) => {
         .eq('tenant_id', tenantId)
         .single();
 
+      // Sanitização obrigatória: a chave é persistida em formato canônico
+      // "NFe<44 dígitos>" (47 chars). A Pratika (e a Sefaz) só aceitam os
+      // 44 dígitos numéricos. Sem strip, a Pratika devolve <Sucesso>false</Sucesso>
+      // silenciosamente.
+      const rawKey = invoice?.chave_acesso || '';
+      const chaveLimpa = String(rawKey).replace(/\D/g, '');
+      if (chaveLimpa.length !== 44) {
+        console.warn(`[wms-pratika] chave de acesso com tamanho inesperado (${chaveLimpa.length}); valor bruto: ${rawKey}`);
+      }
+
       const envelope = buildSoapEnvelope('AtualizarCodRastreioNfe', {
-        chaveAcesso: invoice?.chave_acesso || '',
+        chaveAcesso: chaveLimpa,
         codRastreio: tracking_code,
       });
 
       const result = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envelope);
+
+      const soapInfo = result.body ? parsePratikaSoapResult(result.body) : { ok: false, message: 'sem resposta' };
 
       await supabase.from('wms_pratika_logs').insert({
         tenant_id: tenantId,
@@ -349,8 +361,9 @@ Deno.serve(async (req) => {
         reference_id: invoice_id,
         reference_type: 'invoice',
         status: result.success ? 'success' : 'error',
+        request_payload: `chave: ${chaveLimpa}, rastreio: ${tracking_code}`,
         response_payload: result.body?.substring(0, 2000),
-        error_message: !result.success ? `HTTP ${result.status}` : null,
+        error_message: !result.success ? `HTTP ${result.status}${soapInfo.message ? ` · ${soapInfo.message}` : ''}` : null,
       });
 
       return new Response(
