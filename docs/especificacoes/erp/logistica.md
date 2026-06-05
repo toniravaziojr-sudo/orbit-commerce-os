@@ -92,6 +92,29 @@ Estados terminais nunca são rebaixados. **O gatilho `posted` em
 e `shipped` não satisfazem mais (correção 2026-06-03 para que a notificação de
 "Postado" só dispare quando o objeto realmente sai).
 
+### Documento fiscal vinculado à pré-postagem (NF · DC · ambos) — 2026-06-05
+
+`shipping-create-shipment` (Correios) decide qual documento fiscal vincula
+à pré-postagem nesta ordem:
+
+1. **Hint explícito do lojista** (`preferred_doc` no request OU em
+   `shipment.metadata.preferred_doc`): `'nfe'`, `'dc'` ou `'both'` — sempre
+   respeitado, com fallback de segurança quando o documento pedido não existe.
+2. **Default sem hint:**
+   - Há NF-e autorizada vinculada → `'both'` (NF estruturada **+** observação
+     de DC **+** `itensDeclaracaoConteudo[]`).
+   - Não há NF-e → `'dc'`.
+
+Motivo do default `'both'`: contratos PAC comerciais dos Correios rejeitam
+pré-postagem só com chave de NF e exigem DC junto (PPN-347 *"Para envio de
+produtos é necessário incluir Declaração de Conteúdo"*). Declaração de
+Conteúdo é gratuita, sempre aceita pelos Correios e não atrapalha contratos
+que aceitam só NF — mandar as duas é o único default seguro multi-contrato.
+Lojistas cujo contrato aceita apenas a chave da NF podem forçar `'nfe'`
+puro via `preferred_doc`.
+
+Anti-regressão: `mem://constraints/correios-default-nfe-plus-dc-and-pratika-key-sanitize`.
+
 ### Impressão de etiqueta, NF-e e Declaração de Conteúdo
 
 A UI da aba **Remessas emitidas** segue a regra: **só fica habilitado o botão
