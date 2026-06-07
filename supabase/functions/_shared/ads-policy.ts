@@ -1038,6 +1038,35 @@ async function fetchMetaBudgetContext(
       };
     }
 
+    // Fallback ABO: se a campanha não tem daily_budget (orçamento por adset),
+    // soma `daily_budget_cents` dos adsets ATIVOS daquela campanha. Apenas
+    // leitura. Não cria nem altera nada.
+    if (!out.campaignSnapshot?.daily_budget_cents) {
+      const { data: adsetRows } = await supabase
+        .from("meta_ad_adsets")
+        .select("daily_budget_cents, effective_status, status")
+        .eq("tenant_id", tenantId)
+        .eq("meta_campaign_id", metaCampaignId);
+      const sum = (adsetRows || []).reduce((acc: number, r: any) => {
+        const active = (r.effective_status || r.status) === "ACTIVE";
+        const v = Number(r.daily_budget_cents);
+        return active && Number.isFinite(v) && v > 0 ? acc + v : acc;
+      }, 0);
+      if (sum > 0) {
+        if (!out.campaignSnapshot) {
+          out.campaignSnapshot = {
+            daily_budget_cents: sum,
+            created_at: null,
+            last_budget_change_at: null,
+            status: null,
+          };
+        } else {
+          out.campaignSnapshot.daily_budget_cents = sum;
+        }
+      }
+    }
+
+
     const { data: lastChange } = await supabase
       .from("ads_autopilot_actions")
       .select("executed_at, approved_at, created_at")
