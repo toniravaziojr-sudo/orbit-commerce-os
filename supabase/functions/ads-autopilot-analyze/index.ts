@@ -4,6 +4,12 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
+import {
+  readTenantMemoryObservational,
+  type TenantMemoryRow,
+} from "../_shared/ads-autopilot/memoryReader.ts";
+import { applyTenantPreferenceGuard } from "../_shared/ads-autopilot/tenantPreferenceGuard.ts";
+
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
