@@ -1596,3 +1596,90 @@ A janela observacional do piloto C.3.2 **recomeça a contar a partir de 2026-06-
 
 ### Regra anti-regressão
 **Qualquer novo caminho de ativação do Ads Autopilot** (por canal, por conta, por campanha, por feature, ou qualquer granularidade futura) **deve obrigatoriamente atualizar o branch `ai_traffic_manager` em `count_active_tenants_for_module` e instalar trigger de evento equivalente ao `trg_account_config_mark_ai_traffic_manager_active_from_account`**. PR que adicione caminho de ativação sem atualizar o gate deve ser bloqueado em revisão.
+
+---
+
+## C.3.2 — Etapa 4: Acoplamento de `decide()` ao bloco observacional (2026-06-07)
+
+### Causa da lacuna
+
+Após a correção da Etapa 3, o gate dos crons voltou a funcionar e o motor passou a gerar propostas para o piloto. No entanto, o campo `policy_check_result.observation` continuava **vazio** nas propostas elegíveis. O motivo: o helper local de cada edge function (`ads-autopilot-analyze` e `ads-autopilot-strategist`) ainda chamava `maybeAttachTechnicalOnlyObservation` com `decision: null` e `context_check.sufficient: false` (`missing: ["c3_1_decide_context_not_wired_yet"]`), legado da entrega C.3.1 onde a allowlist estava vazia e a integração era apenas estrutural.
+
+### Solução aplicada
+
+1. **Helper central no policy engine** — `attachObservationFromActionRecord(actionRecord, acctConfig)` em `supabase/functions/_shared/ads-policy.ts`. Responsável por:
+   - Classificar a ação (`classifyAction`);
+   - Aplicar o gate completo (`shouldAttachObservation`) — barra qualquer ação que não seja do tenant piloto, canal Meta, conta com IA ligada, `autonomy_mode='technical_only'`, `kill_switch=false`, `action_class='automatic_candidate'` e `action_type` no escopo `OBSERVABLE_TECHNICAL_ACTION_TYPES`;
+   - Verificar contexto disponível (orçamento atual/proposto, canal) e marcar `context_check.sufficient=false` quando faltar dado;
+   - Quando o contexto for suficiente, chamar `decide()` real com `lastBudgetChangeAt = acctConfig.last_budget_adjusted_at`;
+   - Mesclar `policy_check_result.observation` no `actionRecord` via `maybeAttachTechnicalOnlyObservation`.
+
+2. **Edge functions delegam ao helper central** — `ads-autopilot-analyze` e `ads-autopilot-strategist` agora têm um wrapper local `attachObservationIfEligible` que apenas chama o helper central dentro de `try/catch` silencioso. Nenhum outro ponto de inserção em `ads_autopilot_actions` foi alterado.
+
+3. **Mapeamento determinístico de decisão**:
+   - `execute_now` → `would_decision='execute_now'`
+   - `schedule` → `would_decision='schedule'` + `would_scheduled_for`
+   - `reject_policy_limit_exceeded` / `reject_policy_missing_context` / `expired_approval` / `reject_duplicate` → `would_decision='reject'`
+   - decisão ausente → `would_decision='insight'`
+   - contexto insuficiente → `would_decision='skipped_insufficient_context'`
+
+### Garantias de segurança preservadas
+
+- `isAutonomyExecutionEnabled()` continua hardcoded `false`.
+- Nenhuma API externa é chamada pelo helper (síncrono, sem `fetch`).
+- Nenhum `UPDATE` em banco. Nenhum side-effect além de mesclar `observation` no objeto em memória.
+- `auto_executed`, `executed_simulated`, `executed_at`, `status` real **nunca** são alterados pelo helper.
+- Defesa em camadas: se o `actionRecord` chegar com `auto_executed=true` ou `executed_simulated=true`, o helper força para `false`.
+- Executor (`ads-autopilot-execute-approved`) e scheduled-runner continuam **ignorando** `policy_check_result.observation`.
+
+### Escopo desta entrega
+
+- **Tenant:** apenas Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+- **Canal:** apenas Meta. Google e TikTok ficam fora.
+- **Tipos de ação:** apenas os já listados em `OBSERVABLE_TECHNICAL_ACTION_TYPES` (variações de `adjust_budget`, `increase_budget`, `decrease_budget`, `schedule_action`, `toggle_tiktok_status`, `update_tiktok_budget`). Pausas, reativações, criações de campanha, criativos e copys **continuam fora** do escopo observacional desta fase.
+
+### Propostas existentes (últimas 24h)
+
+As 4 propostas geradas em 2026-06-07 03:59 BRT são todas de tipo `create_campaign` e `generate_creative`, **fora** do escopo observável da C.3.1/C.3.2 por design. Nenhuma delas foi alterada retroativamente — o correto é não anexar `observation` em ações que não são tecnicamente elegíveis.
+
+### Cobertura de testes
+
+`supabase/functions/_shared/ads-policy.observation.test.ts` — **38 testes verdes** (12 novos para o helper central da C.3.2, cobrindo: ação Meta elegível gera observation; outro tenant não gera; Google/TikTok não geram; `kill_switch=true` não gera; `is_ai_enabled=false` não gera; `autonomy_mode='off'` não gera; `create_campaign` não gera; `adjust_budget` sem orçamentos gera `skipped_insufficient_context`; `adjust_budget +50%` gera `would_decision='reject'`; intervalo curto gera `would_decision='schedule'`; helper nunca marca `auto_executed`/`executed_simulated`/`executed_at`; helper é síncrono e não chama `fetch`).
+
+### Auditoria diária
+
+```sql
+-- Total de observações
+SELECT COUNT(*) AS total_observations
+FROM ads_autopilot_actions
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND policy_check_result ? 'observation';
+
+-- Decisões simuladas por tipo
+SELECT policy_check_result->'observation'->>'would_decision' AS would_decision, COUNT(*) AS total
+FROM ads_autopilot_actions
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND policy_check_result ? 'observation'
+GROUP BY 1 ORDER BY 2 DESC;
+
+-- Garantia de zero autoexecução
+SELECT COUNT(*) AS leak_count
+FROM ads_autopilot_actions
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND (auto_executed = true OR executed_simulated = true);
+
+-- Garantia de que só Meta entrou
+SELECT channel, COUNT(*)
+FROM ads_autopilot_actions
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND policy_check_result ? 'observation'
+GROUP BY channel;
+```
+
+### Janela observacional oficial
+
+A janela observacional **recomeça a contar a partir da primeira `observation` válida gravada** (não da data de deploy desta etapa). Hoje (2026-06-07), `total_observations=0` porque as propostas geradas até agora foram todas de tipos fora do escopo. A contagem oficial inicia quando a IA propuser a primeira ação técnica de orçamento Meta.
+
+### Próxima etapa recomendada
+
+Habilitar a coleta de contextos faltantes (histograma horário, CPA de referência, snapshot de orçamento atual a partir do meta-ads-campaigns) para que mais ações entrem em `context_check.sufficient=true` em vez de `skipped_insufficient_context`. Essa coleta é pré-requisito da futura **Fase C.4** (promoção a autoexecução real), que continua **bloqueada** até decisão explícita do usuário.
