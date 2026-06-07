@@ -1,0 +1,1 @@
+ALTER VIEW public.meta_ad_campaign_cpa_reference SET (security_invoker = on);
