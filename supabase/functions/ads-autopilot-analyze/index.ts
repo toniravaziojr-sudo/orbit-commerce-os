@@ -26,8 +26,208 @@ async function attachObservationIfEligible(
 
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v5.16.0"; // C.3.2 Etapa 6: Deterministic budget proposal trigger (Meta-only, pilot-gated)
 // ===========================================================
+
+// =============================================================================
+// C.3.2 Etapa 6 — Gatilho determinístico de propostas de orçamento (Meta)
+// =============================================================================
+// ESCOPO ESTRITO:
+//   - SOMENTE tenant "Respeite o Homem" (d1a4d0ed-8842-495e-b741-540a9a345b25)
+//   - SOMENTE conta act_251893833881780
+//   - SOMENTE canal "meta"
+//   - Nenhum outro tenant afetado. Google/TikTok fora.
+//
+// COMPORTAMENTO:
+//   - Lê `meta_ad_campaign_cpa_reference` (view criada na Etapa 5).
+//   - Cruza com `meta_ad_campaigns` (status ACTIVE) e usa o async helper de
+//     observação para preencher orçamento via DB (CBO + fallback ABO de adsets).
+//   - Quando há sinal técnico claro (CPA 7d vs 14d fora da banda neutra de ±5%),
+//     gera UMA proposta `adjust_budget` por campanha:
+//       * change_pct = ±10% (padrão conservador)
+//       * teto absoluto = 20% (limite Meta já configurado no policy engine)
+//   - Status real SEMPRE `pending_approval`. Nunca executa, nunca aprova,
+//     nunca chama Meta API, nunca marca auto_executed/executed_simulated.
+//   - `decide()` é chamado pelo `attachObservationIfEligible` para popular
+//     `policy_check_result.observation` com would_decision/would_reason.
+//   - Dedup 24h: pula campanhas com `adjust_budget` em
+//     pending_approval/scheduled/approved nas últimas 24h.
+// =============================================================================
+
+const RESPEITE_O_HOMEM_TENANT_ID = "d1a4d0ed-8842-495e-b741-540a9a345b25";
+const PILOT_META_ACCOUNT_ID = "act_251893833881780";
+const DET_BUDGET_NEUTRAL_BAND_PCT = 5;
+const DET_BUDGET_DEFAULT_CHANGE_PCT = 10;
+const DET_BUDGET_MAX_CHANGE_PCT = 20;
+const DET_BUDGET_MIN_CONVERSIONS_7D = 5;
+const DET_BUDGET_DEDUP_HOURS = 24;
+
+async function generateDeterministicBudgetProposals(
+  supabase: any,
+  tenant_id: string,
+  acctConfig: AccountConfig,
+  sessionId: string,
+  strategyRunId: string,
+): Promise<{
+  generated: number;
+  evaluated: number;
+  skipped: Array<{ meta_campaign_id: string; reason: string }>;
+}> {
+  const out = {
+    generated: 0,
+    evaluated: 0,
+    skipped: [] as Array<{ meta_campaign_id: string; reason: string }>,
+  };
+
+  // ---- Gating estrito (piloto C.3.2 Etapa 6) ----
+  if (tenant_id !== RESPEITE_O_HOMEM_TENANT_ID) return out;
+  if (acctConfig.channel !== "meta") return out;
+  if (acctConfig.ad_account_id !== PILOT_META_ACCOUNT_ID) return out;
+  if (!acctConfig.is_ai_enabled) return out;
+  if (acctConfig.kill_switch === true) return out;
+
+  try {
+    const { data: cpaRows, error: cpaErr } = await supabase
+      .from("meta_ad_campaign_cpa_reference")
+      .select(
+        "meta_campaign_id, cpa_cents_7d, cpa_cents_14d, conversions_7d, conversions_14d, spend_cents_7d, days_with_data_14d, low_confidence",
+      )
+      .eq("tenant_id", tenant_id);
+    if (cpaErr) {
+      console.error(`[ads-autopilot-analyze][${VERSION}] det_budget cpa_view error:`, cpaErr.message);
+      return out;
+    }
+    const campaignIds = (cpaRows || []).map((r: any) => r.meta_campaign_id).filter(Boolean);
+    if (campaignIds.length === 0) return out;
+
+    const { data: campRows } = await supabase
+      .from("meta_ad_campaigns")
+      .select("meta_campaign_id, name, status, effective_status, daily_budget_cents, ad_account_id")
+      .eq("tenant_id", tenant_id)
+      .eq("ad_account_id", acctConfig.ad_account_id)
+      .in("meta_campaign_id", campaignIds);
+    const campMap = new Map<string, any>();
+    (campRows || []).forEach((c: any) => campMap.set(String(c.meta_campaign_id), c));
+
+    const dedupCutoff = new Date(Date.now() - DET_BUDGET_DEDUP_HOURS * 60 * 60 * 1000).toISOString();
+    const { data: recentBudget } = await supabase
+      .from("ads_autopilot_actions")
+      .select("action_data, status, created_at")
+      .eq("tenant_id", tenant_id)
+      .eq("channel", "meta")
+      .eq("action_type", "adjust_budget")
+      .in("status", ["pending_approval", "scheduled", "approved"])
+      .gte("created_at", dedupCutoff)
+      .limit(200);
+    const recentByCamp = new Set<string>();
+    (recentBudget || []).forEach((r: any) => {
+      const cid = r?.action_data?.meta_campaign_id || r?.action_data?.campaign_id;
+      if (cid) recentByCamp.add(String(cid));
+    });
+
+    for (const r of cpaRows || []) {
+      out.evaluated++;
+      const cid = String(r.meta_campaign_id);
+      const camp = campMap.get(cid);
+      if (!camp) { out.skipped.push({ meta_campaign_id: cid, reason: "campaign_not_in_pilot_account" }); continue; }
+      const effStatus = camp.effective_status || camp.status;
+      if (effStatus !== "ACTIVE") { out.skipped.push({ meta_campaign_id: cid, reason: `not_active(${effStatus})` }); continue; }
+      if (r.low_confidence) { out.skipped.push({ meta_campaign_id: cid, reason: "low_confidence_data" }); continue; }
+      if (!r.cpa_cents_7d || !r.cpa_cents_14d) { out.skipped.push({ meta_campaign_id: cid, reason: "missing_cpa_reference" }); continue; }
+      if ((r.conversions_7d || 0) < DET_BUDGET_MIN_CONVERSIONS_7D) {
+        out.skipped.push({ meta_campaign_id: cid, reason: "insufficient_conversions_7d" });
+        continue;
+      }
+      if (recentByCamp.has(cid)) {
+        out.skipped.push({ meta_campaign_id: cid, reason: "dedup_pending_budget_24h" });
+        continue;
+      }
+
+      const cpa7 = Number(r.cpa_cents_7d);
+      const cpa14 = Number(r.cpa_cents_14d);
+      const deltaPct = ((cpa7 - cpa14) / cpa14) * 100;
+
+      let direction: "up" | "down" | null = null;
+      if (deltaPct <= -DET_BUDGET_NEUTRAL_BAND_PCT) direction = "up";
+      else if (deltaPct >= DET_BUDGET_NEUTRAL_BAND_PCT) direction = "down";
+
+      if (!direction) {
+        out.skipped.push({ meta_campaign_id: cid, reason: "cpa_within_neutral_band" });
+        continue;
+      }
+
+      const change_pct = direction === "up" ? DET_BUDGET_DEFAULT_CHANGE_PCT : -DET_BUDGET_DEFAULT_CHANGE_PCT;
+      if (Math.abs(change_pct) > DET_BUDGET_MAX_CHANGE_PCT) {
+        out.skipped.push({ meta_campaign_id: cid, reason: "change_pct_above_platform_cap" });
+        continue;
+      }
+
+      const currentBudget: number | null =
+        camp.daily_budget_cents && camp.daily_budget_cents > 0 ? camp.daily_budget_cents : null;
+      const new_budget_cents: number | null = currentBudget
+        ? Math.round(currentBudget * (1 + change_pct / 100))
+        : null;
+
+      const reasonText = direction === "up"
+        ? `CPA 7d (R$ ${(cpa7 / 100).toFixed(2)}) ${Math.abs(deltaPct).toFixed(1)}% melhor que CPA 14d de referência (R$ ${(cpa14 / 100).toFixed(2)}). Proposta conservadora: +${DET_BUDGET_DEFAULT_CHANGE_PCT}% no orçamento diário.`
+        : `CPA 7d (R$ ${(cpa7 / 100).toFixed(2)}) ${deltaPct.toFixed(1)}% pior que CPA 14d de referência (R$ ${(cpa14 / 100).toFixed(2)}). Proposta conservadora: -${DET_BUDGET_DEFAULT_CHANGE_PCT}% no orçamento diário.`;
+
+      const actionRecord: any = {
+        tenant_id,
+        session_id: sessionId,
+        channel: "meta",
+        action_type: "adjust_budget",
+        action_data: {
+          ad_account_id: acctConfig.ad_account_id,
+          meta_campaign_id: cid,
+          campaign_id: cid,
+          campaign_name: camp.name || null,
+          current_daily_budget_cents: currentBudget,
+          new_budget_cents,
+          proposed_daily_budget_cents: new_budget_cents,
+          change_pct,
+          direction,
+          cpa_cents_7d: cpa7,
+          cpa_cents_14d: cpa14,
+          delta_pct_7d_vs_14d: Number(deltaPct.toFixed(2)),
+          conversions_7d: r.conversions_7d,
+          spend_cents_7d: r.spend_cents_7d,
+          source: "deterministic_budget_trigger_c3_2_etapa6",
+        },
+        reasoning: reasonText,
+        expected_impact: direction === "up"
+          ? "Escalar campanha com CPA 7d melhor que a referência 14d, respeitando teto Meta de 20%."
+          : "Reduzir exposição em campanha com CPA 7d acima da referência 14d, respeitando teto Meta de 20%.",
+        confidence: "medium",
+        metric_trigger: `cpa_7d_vs_14d_delta_${deltaPct.toFixed(1)}pct`,
+        status: "pending_approval",
+        action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_adjust_budget_det_${cid}_${direction}`,
+      };
+
+      await attachObservationIfEligible(actionRecord, acctConfig as any, supabase);
+
+      const { error: insErr } = await supabase
+        .from("ads_autopilot_actions")
+        .insert(actionRecord);
+      if (insErr) {
+        if (insErr.code === "23505") {
+          out.skipped.push({ meta_campaign_id: cid, reason: "duplicate_action_hash" });
+        } else {
+          console.error(`[ads-autopilot-analyze][${VERSION}] det_budget insert error:`, insErr);
+          out.skipped.push({ meta_campaign_id: cid, reason: `insert_error:${insErr.message}` });
+        }
+        continue;
+      }
+      out.generated++;
+      console.log(
+        `[ads-autopilot-analyze][${VERSION}] det_budget proposal: campaign=${cid} direction=${direction} change_pct=${change_pct} delta=${deltaPct.toFixed(2)}% current=${currentBudget ?? "ABO"} new=${new_budget_cents ?? "ABO"}`,
+      );
+    }
+  } catch (e: any) {
+    console.error(`[ads-autopilot-analyze][${VERSION}] det_budget unexpected error:`, e?.message || e);
+  }
+  return out;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
