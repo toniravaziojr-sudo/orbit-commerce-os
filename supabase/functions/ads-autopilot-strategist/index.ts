@@ -3,44 +3,25 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
-import {
-  maybeAttachTechnicalOnlyObservation,
-  classifyAction,
-  type ObservationGateInput,
-  type ObservationBuildInput,
-} from "../_shared/ads-policy.ts";
+import { attachObservationFromActionRecord } from "../_shared/ads-policy.ts";
 
 /**
- * Fase C.3.1 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`
- * a um `actionRecord` antes do INSERT. Allowlist vazia em C.3.1 → no-op real.
+ * Fase C.3.2 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`.
+ * Delega para o helper central no policy engine, que aplica gates, chama
+ * `decide()` real e mescla `observation` no actionRecord antes do INSERT.
  * Engole qualquer erro silenciosamente: observação NUNCA bloqueia o fluxo principal.
  */
 function attachObservationIfEligible(
   actionRecord: Record<string, any>,
-  acctConfig: { tenant_id?: string; is_ai_enabled?: boolean; kill_switch?: boolean; autonomy_mode?: unknown } | null | undefined,
+  acctConfig: { tenant_id?: string; is_ai_enabled?: boolean | null; kill_switch?: boolean | null; autonomy_mode?: unknown; last_budget_adjusted_at?: string | null } | null | undefined,
 ): void {
   try {
-    if (!acctConfig) return;
-    const action_type = String(actionRecord?.action_type || "");
-    const channel = String(actionRecord?.channel || "");
-    const action_class = classifyAction({ action_type, channel });
-    const gate: ObservationGateInput = {
-      tenant_id: String(acctConfig.tenant_id || actionRecord?.tenant_id || ""),
-      action_type,
-      action_class,
-      autonomy_mode: (acctConfig as any).autonomy_mode,
-      is_ai_enabled: acctConfig.is_ai_enabled === true,
-      kill_switch: acctConfig.kill_switch === true,
-    };
-    const build: ObservationBuildInput = {
-      decision: null,
-      context_check: { sufficient: false, missing: ["c3_1_decide_context_not_wired_yet"] },
-    };
-    maybeAttachTechnicalOnlyObservation(actionRecord, gate, build);
+    attachObservationFromActionRecord(actionRecord, acctConfig as any);
   } catch (_e) {
     // no-op
   }
 }
+
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====

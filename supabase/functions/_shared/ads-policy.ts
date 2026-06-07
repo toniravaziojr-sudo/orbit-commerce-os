@@ -859,3 +859,136 @@ export function maybeAttachTechnicalOnlyObservation(
   if (actionRecord.executed_simulated === true) actionRecord.executed_simulated = false;
   return true;
 }
+
+// =============================================================================
+// Fase C.3.2 — Helper central de acoplamento com `decide()` real
+// =============================================================================
+// Usado por `ads-autopilot-analyze` e `ads-autopilot-strategist`. Recebe o
+// `actionRecord` prestes a ser inserido e a config da conta. Quando elegível,
+// chama `decide()` com o contexto disponível e grava `policy_check_result.observation`.
+//
+// Garantias:
+//   - Síncrona, sem I/O externa, sem UPDATE no banco.
+//   - Nunca altera status real, `auto_executed`, `executed_simulated` ou `executed_at`.
+//   - Engole erros silenciosamente — observação NUNCA pode quebrar o fluxo principal.
+//   - Quando o gate barra, devolve `false` sem tocar no `actionRecord`.
+// =============================================================================
+
+export interface ObservationAcctConfigLike {
+  tenant_id?: string;
+  is_ai_enabled?: boolean | null;
+  kill_switch?: boolean | null;
+  autonomy_mode?: unknown;
+  last_budget_adjusted_at?: string | null;
+}
+
+/**
+ * Avalia o contexto disponível para decidir, sem chamar nada externo.
+ * Retorna `sufficient=false` quando faltar dado obrigatório para a `decide()`
+ * gerar um veredicto confiável (ex.: orçamento atual/proposto ausente).
+ */
+function evaluateObservationContext(
+  actionRecord: Record<string, any>,
+): ObservationContextCheck {
+  const missing: string[] = [];
+  const action_type = String(actionRecord?.action_type || "");
+  const data = (actionRecord?.action_data && typeof actionRecord.action_data === "object")
+    ? actionRecord.action_data
+    : {};
+  if (!actionRecord?.channel) missing.push("channel");
+  if (BUDGET_ACTION_TYPES.has(action_type)) {
+    const proposed = Number(
+      data.proposed_daily_budget_cents ??
+      data.new_daily_budget_cents ??
+      data.new_budget_cents ??
+      data.daily_budget_cents ??
+      data.preview?.daily_budget_cents,
+    );
+    const current = Number(
+      data.current_daily_budget_cents ??
+      data.current_budget_cents ??
+      data.preview?.current_daily_budget_cents,
+    );
+    if (!Number.isFinite(proposed) || proposed <= 0) missing.push("proposed_budget_cents");
+    if (!Number.isFinite(current) || current <= 0) missing.push("current_budget_cents");
+  }
+  return { sufficient: missing.length === 0, missing };
+}
+
+/**
+ * Helper central da Fase C.3.2. Deve ser chamado pelos edge functions
+ * imediatamente antes do INSERT em `ads_autopilot_actions`.
+ *
+ * NÃO chama API externa. NÃO faz UPDATE. NÃO altera status real.
+ * Retorna `true` se gravou `policy_check_result.observation`, `false` caso contrário.
+ */
+export function attachObservationFromActionRecord(
+  actionRecord: Record<string, any>,
+  acctConfig: ObservationAcctConfigLike | null | undefined,
+): boolean {
+  try {
+    if (!actionRecord || !acctConfig) return false;
+    const action_type = String(actionRecord.action_type || "");
+    const channel = String(actionRecord.channel || "");
+    const action_class = classifyAction({ action_type, channel });
+    const tenant_id = String(acctConfig.tenant_id || actionRecord.tenant_id || "");
+
+    const gate: ObservationGateInput = {
+      tenant_id,
+      action_type,
+      action_class,
+      autonomy_mode: acctConfig.autonomy_mode,
+      is_ai_enabled: acctConfig.is_ai_enabled === true,
+      kill_switch: acctConfig.kill_switch === true,
+    };
+
+    // Pré-filtra pelo gate ANTES de qualquer trabalho. Se não passar, é no-op.
+    const g = shouldAttachObservation(gate);
+    if (!g.eligible) return false;
+
+    const context_check = evaluateObservationContext(actionRecord);
+
+    // Quando o contexto for insuficiente, NÃO chamamos `decide()` — o
+    // observation será carimbado como `skipped_insufficient_context`.
+    let decision: Decision | null = null;
+    let window_check: Record<string, any> = {};
+    let limit_check: Record<string, any> = {};
+
+    if (context_check.sufficient) {
+      const now = new Date();
+      const actionInput: ActionInput = {
+        id: String(actionRecord.id || actionRecord.action_hash || "pending"),
+        tenant_id,
+        channel,
+        action_type,
+        action_data: actionRecord.action_data || {},
+        status: String(actionRecord.status || "pending"),
+        approved_at: actionRecord.approved_at ?? null,
+        approval_expires_at: actionRecord.approval_expires_at ?? null,
+        created_at: actionRecord.created_at,
+      };
+      decision = decide({
+        action: actionInput,
+        campaignSnapshot: null,
+        accountLimitCents: null,
+        lastBudgetChangeAt: acctConfig.last_budget_adjusted_at ?? null,
+        now,
+      });
+      window_check = { inside_safe_window_brt: isInsideSafeWindow(now) };
+      if (decision && (decision as any).meta) {
+        limit_check = { ...(decision as any).meta };
+      }
+    }
+
+    return maybeAttachTechnicalOnlyObservation(actionRecord, gate, {
+      decision,
+      context_check,
+      window_check,
+      limit_check,
+    });
+  } catch (_e) {
+    // Observação NUNCA pode quebrar o fluxo principal.
+    return false;
+  }
+}
+
