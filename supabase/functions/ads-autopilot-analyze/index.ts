@@ -262,7 +262,91 @@ async function generateDeterministicBudgetProposals(
         action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_adjust_budget_det_${cid}_${direction}`,
       };
 
+      // ---- Etapa 7.mem F.2: simulação silenciosa do Tenant Preference Guard ----
+      // Aplica o Guard apenas para gerar trace observacional. A recomendação
+      // ajustada é DESCARTADA. Nada na sugestão real muda: action_type,
+      // status, change_pct, current_daily_budget_cents, new_budget_cents e
+      // proposed_daily_budget_cents permanecem intactos. policy_check_result
+      // e observation (preenchidos pelo helper abaixo) NÃO são tocados.
+      try {
+        const guardSimActionType = direction === "up" ? "increase_budget" : "decrease_budget";
+        const guardOutput = applyTenantPreferenceGuard({
+          tenant_id,
+          ads_platform: "meta",
+          sales_platform: null,
+          action_type: guardSimActionType,
+          campaign_id: cid,
+          draft: {
+            draft_id: actionRecord.action_hash,
+            action_type: guardSimActionType,
+            params: {
+              current_daily_budget_cents: currentBudget,
+              proposed_daily_budget_cents: new_budget_cents,
+              change_pct,
+              increase_pct: direction === "up" ? Math.abs(change_pct) : 0,
+            },
+            proposed_status: "pending_approval",
+            rationale: reasonText,
+            priority: "normal",
+          },
+          memories: tenantMemories,
+          governance: {
+            kill_switch: acctConfig.kill_switch === true,
+            tenant_explicit_required: false,
+          },
+        });
+
+        actionRecord.action_data.tenant_memory_silent_trace = {
+          tenant_memory_guard_mode: TENANT_MEMORY_GUARD_MODE,
+          tenant_memory_used: guardOutput.trace.tenant_memory_used,
+          memory_candidates_count: tenantMemories.length,
+          memory_ids_used: guardOutput.trace.memory_ids_used,
+          memory_statuses_used: guardOutput.trace.memory_statuses_used,
+          influence_type: guardOutput.trace.influence_type,
+          before_recommendation: {
+            action_type: "adjust_budget",
+            change_pct,
+            current_daily_budget_cents: currentBudget,
+            proposed_daily_budget_cents: new_budget_cents,
+            status: "pending_approval",
+          },
+          simulated_after_recommendation: {
+            action_type: guardOutput.recommendation.action_type,
+            proposed_status: guardOutput.recommendation.proposed_status,
+            priority: guardOutput.recommendation.priority,
+            params: guardOutput.recommendation.params,
+            rationale_changed:
+              guardOutput.recommendation.rationale !== reasonText,
+          },
+          real_recommendation_changed: false,
+          applied_to_decision: false,
+          why_memory_applied: guardOutput.trace.why_memory_applied,
+          why_memory_did_not_apply: guardOutput.trace.why_memory_did_not_apply,
+          fail_open: guardOutput.trace.fail_open,
+          simulated_at: new Date().toISOString(),
+        };
+        console.log(
+          `[ads-autopilot-analyze][${VERSION}][tenant-memory-guard-silent] tenant=${tenant_id} campaign=${cid} mode=${TENANT_MEMORY_GUARD_MODE} candidates=${tenantMemories.length} influence=${guardOutput.trace.influence_type} applied_to_decision=false real_changed=false`,
+        );
+      } catch (guardErr: any) {
+        actionRecord.action_data.tenant_memory_silent_trace = {
+          tenant_memory_guard_mode: TENANT_MEMORY_GUARD_MODE,
+          tenant_memory_used: false,
+          memory_candidates_count: tenantMemories.length,
+          memory_ids_used: [],
+          memory_statuses_used: [],
+          influence_type: "none",
+          real_recommendation_changed: false,
+          applied_to_decision: false,
+          fail_open: true,
+          why_memory_did_not_apply: [`guard_threw_fail_open:${guardErr?.message ?? "unknown"}`],
+          simulated_at: new Date().toISOString(),
+        };
+      }
+
       await attachObservationIfEligible(actionRecord, acctConfig as any, supabase);
+
+
 
       const { error: insErr } = await supabase
         .from("ads_autopilot_actions")
