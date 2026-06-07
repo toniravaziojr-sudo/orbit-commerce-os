@@ -707,6 +707,73 @@ export type Database = {
           },
         ]
       }
+      ads_autopilot_memory_evidence: {
+        Row: {
+          ads_platform: string
+          feedback_id: string
+          id: string
+          is_supporting: boolean
+          key: string
+          memory_id: string | null
+          memory_type: string
+          processed_at: string
+          sales_platform: string
+          scope: string
+          tenant_id: string
+          weight: number
+        }
+        Insert: {
+          ads_platform: string
+          feedback_id: string
+          id?: string
+          is_supporting: boolean
+          key: string
+          memory_id?: string | null
+          memory_type: string
+          processed_at?: string
+          sales_platform: string
+          scope: string
+          tenant_id: string
+          weight?: number
+        }
+        Update: {
+          ads_platform?: string
+          feedback_id?: string
+          id?: string
+          is_supporting?: boolean
+          key?: string
+          memory_id?: string | null
+          memory_type?: string
+          processed_at?: string
+          sales_platform?: string
+          scope?: string
+          tenant_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_memory_evidence_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_feedback"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_autopilot_memory_evidence_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_tenant_memory"
+            referencedColumns: ["memory_id"]
+          },
+          {
+            foreignKeyName: "ads_autopilot_memory_evidence_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_autopilot_sessions: {
         Row: {
           actions_executed: number
