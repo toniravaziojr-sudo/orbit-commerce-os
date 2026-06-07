@@ -240,21 +240,43 @@ Deno.test("build — sempre carimba mode='technical_only_observational' e pilot_
 // maybeAttachTechnicalOnlyObservation — integração defensiva
 // ──────────────────────────────────────────────────────────────────────────────
 
-Deno.test("attach — allowlist vazia ⇒ não grava observation e retorna false", () => {
+Deno.test("attach — tenant fora da allowlist ⇒ não grava observation e retorna false", () => {
   const record: Record<string, any> = {
     action_type: "adjust_budget",
-    tenant_id: BASE_GATE.tenant_id,
+    tenant_id: "00000000-0000-0000-0000-000000000999",
+    auto_executed: false,
+    executed_simulated: false,
+  };
+  const attached = maybeAttachTechnicalOnlyObservation(
+    record,
+    { ...BASE_GATE, tenant_id: "00000000-0000-0000-0000-000000000999" },
+    { context_check: { sufficient: true, missing: [] } },
+  );
+  assertFalse(attached);
+  assertEquals(record.policy_check_result, undefined);
+});
+
+Deno.test("attach — tenant piloto + decisão execute_now ⇒ grava observation", () => {
+  const record: Record<string, any> = {
+    action_type: "adjust_budget",
+    tenant_id: PILOT_TENANT_ID,
     auto_executed: false,
     executed_simulated: false,
   };
   const attached = maybeAttachTechnicalOnlyObservation(
     record,
     BASE_GATE,
-    { context_check: { sufficient: true, missing: [] } },
+    {
+      decision: { kind: "execute_now", reason: "policy_passed" },
+      context_check: { sufficient: true, missing: [] },
+    },
   );
-  assertFalse(attached);
-  assertEquals(record.policy_check_result, undefined);
+  assert(attached);
+  assertEquals(record.policy_check_result.observation.would_decision, "execute_now");
+  assertEquals(record.auto_executed, false);
+  assertEquals(record.executed_simulated, false);
 });
+
 
 Deno.test("attach — quando elegível, observation NUNCA marca auto_executed/executed_simulated", () => {
   // Forçamos elegibilidade simulando o gate manualmente (sem mexer na allowlist
