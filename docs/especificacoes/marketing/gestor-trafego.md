@@ -1683,3 +1683,26 @@ A janela observacional **recomeça a contar a partir da primeira `observation` v
 ### Próxima etapa recomendada
 
 Habilitar a coleta de contextos faltantes (histograma horário, CPA de referência, snapshot de orçamento atual a partir do meta-ads-campaigns) para que mais ações entrem em `context_check.sufficient=true` em vez de `skipped_insufficient_context`. Essa coleta é pré-requisito da futura **Fase C.4** (promoção a autoexecução real), que continua **bloqueada** até decisão explícita do usuário.
+
+---
+
+## C.3.2 — Etapa 5 (07/06/2026): coleta mínima de contexto de orçamento Meta
+
+**Escopo:** restrito ao tenant Respeite o Homem (`d1a4d0ed-…`) e à conta Meta `act_251893833881780`. Sem Google/TikTok. Sem alteração de prompts. Sem autoexecução. Sem chamada de modificação à Meta. Sem alterar `human_approval_mode`, `autonomy_mode`, `is_ai_enabled` ou `kill_switch`. Strategist FASE 1 continua bloqueando `adjust_budget`.
+
+### O que foi entregue
+
+1. **Sync manual e somente leitura de adsets Meta** para a conta piloto. Resultado: 233 adsets sincronizados, 96 com `daily_budget_cents > 0` (ABO).
+2. **Helper observacional assíncrono com fallback de contexto via banco.** Quando o payload da IA não traz `current_daily_budget_cents` nem `last_budget_change_at`, o helper consulta `meta_ad_campaigns` (para CBO) e soma `daily_budget_cents` dos adsets ATIVOS (para ABO) e busca a última ação `adjust_budget` aprovada/executada/agendada para inferir `last_budget_change_at`. Estritamente leitura. Não chama Meta. Não persiste alterações.
+3. **VIEW leve `meta_ad_campaign_cpa_reference`** com CPA 7d e 14d por campanha, calculado on-demand sobre `meta_ad_insights`. Sem tabela materializada e sem cron novo. Inclui sinal `low_confidence=true` quando há menos de 3 dias de dado ou menos de 10 conversões na janela 14d.
+
+### Validações executadas
+
+- Sync: 233 adsets gravados, 0 removidos.
+- View CPA: 2 campanhas ACTIVE com `low_confidence=false` (CPA 7d ≈ R$58,25 e R$72,33).
+- Testes Deno (`ads-policy.observation.test.ts`): 38/38 ok.
+- Linter de segurança após `ALTER VIEW … security_invoker = on`: 0 erro vinculado à entrega.
+
+### Bloco anti-regressão
+
+O sync de adsets é uma **chamada manual e pontual** para destravar o contexto histórico. Sem alteração de cron. A view de CPA é uso interno do piloto observacional — não é fonte oficial de CPA para relatórios. O helper assíncrono mantém o helper síncrono `attachObservationFromActionRecord` exportado para compatibilidade.
