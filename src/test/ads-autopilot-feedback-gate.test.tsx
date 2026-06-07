@@ -113,7 +113,7 @@ describe("Ads Autopilot Feedback Gate — A.2", () => {
     expect(opts.body.tenant_id).toBe(TENANT);
     expect(opts.body.action_id).toBe(ACTION.id);
     expect(opts.body.decision).toBe("approved");
-    expect(opts.body.reason_codes).toEqual(["would_do_manually"]);
+    expect(opts.body.reason_codes).toEqual(["good_budget_logic"]);
     expect(opts.body.ads_platform).toBe("meta");
     expect(opts.body.metrics_snapshot).toEqual({ spend_7d: 100 });
     expect((window as any).__confirmed).toBe(1);
