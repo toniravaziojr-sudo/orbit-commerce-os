@@ -103,7 +103,7 @@ describe("Ads Autopilot Feedback Gate — A.2", () => {
     invokeMock.mockResolvedValue({ data: { success: true, feedback_id: "fb1" }, error: null });
     render(<Harness mode="approve" />);
     fireEvent.click(screen.getByTestId("trigger"));
-    fireEvent.click(screen.getByLabelText(/eu faria isso manualmente/i, { selector: "button" }));
+    fireEvent.click(screen.getByLabelText(/boa lógica de orçamento/i, { selector: "button" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /confirmar aprovação/i }));
     });
