@@ -10,7 +10,7 @@
 // - user_confidence só aceita low|medium|high quando presente.
 
 import { describe, it, expect } from "vitest";
-import { validateFeedbackInput } from "../../supabase/functions/ads-autopilot-feedback-record/index.ts";
+import { validateFeedbackInput } from "@/lib/adsAutopilot/feedbackContract";
 
 const VALID_TENANT = "d1a4d0ed-8842-495e-b741-540a9a345b25";
 
