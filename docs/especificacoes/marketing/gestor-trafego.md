@@ -1728,16 +1728,89 @@ Forçado um ciclo do diagnosticador (`ads-autopilot-analyze`) no tenant piloto, 
 
 A janela observacional de 7 dias **não foi iniciada** — só começa quando ocorrer a primeira `observation` válida ou quando for decidido formalmente medir outro tipo de sinal.
 
-### Próxima etapa (Etapa 6) — planejamento pendente
+### Próxima etapa (Etapa 6) — implementada em 07/06/2026
 
-O gargalo migrou de **contexto** para **geração de proposta de orçamento**. O `ads-autopilot-analyze` ainda não está propondo ações `adjust_budget_up` / `adjust_budget_down` para campanhas existentes, mesmo com CPA e ROAS disponíveis.
+O gargalo migrou de **contexto** para **geração de proposta de orçamento**. A Etapa 6 foi entregue na sequência (ver seção a seguir).
 
-A **Etapa 6** será o **planejamento do gatilho de proposta de orçamento no analyze**, mantendo:
+---
 
-- `technical_only` ativo.
-- `human_approval_mode = all`.
-- Zero autoexecução.
-- Strategist FASE 1 continua bloqueando `adjust_budget`.
-- Sem alterar prompt, lógica estratégica, UI ou autoexecução até o planejamento ser aprovado.
+## C.3.2 — Etapa 6 (07/06/2026): gatilho determinístico de proposta de orçamento no Analyze
 
-Etapa 6 **ainda não foi implementada** — apenas registrada como próxima.
+### Motivo
+
+Após a Etapa 5, o contexto técnico (orçamento, status, CPA) já estava disponível para o piloto, mas nenhuma `observation` era populada porque o `ads-autopilot-analyze` (LLM) não estava propondo `adjust_budget` para campanhas existentes — só `pause_campaign`, `create_campaign` e `generate_creative`. A Etapa 6 cria um **gatilho determinístico, pequeno e auditável** que avalia campanhas Meta do piloto e gera propostas conservadoras de orçamento quando há sinal técnico claro, **sem alterar o prompt do Strategist** e **sem liberar autoexecução**.
+
+### Escopo estrito (gating em código)
+
+A função `generateDeterministicBudgetProposals` no `ads-autopilot-analyze` aplica filtros duros antes de qualquer leitura:
+
+- Somente tenant `d1a4d0ed-8842-495e-b741-540a9a345b25` (Respeite o Homem).
+- Somente conta `act_251893833881780`.
+- Somente canal `meta`.
+- `is_ai_enabled = true` e `kill_switch = false`.
+
+Qualquer outro tenant, conta ou canal sai pela porta de saída sem fazer leitura, escrita ou observação.
+
+### Critérios determinísticos para gerar proposta
+
+Para cada campanha do piloto a função lê a view `meta_ad_campaign_cpa_reference` (Etapa 5) e cruza com `meta_ad_campaigns`:
+
+1. Campanha precisa estar `effective_status = ACTIVE`.
+2. View não pode estar marcada `low_confidence` (< 3 dias de dado ou < 10 conversões em 14d).
+3. Precisa ter CPA 7d **e** CPA 14d definidos.
+4. Precisa ter **≥ 5 conversões nos últimos 7 dias**.
+5. Não pode haver outra proposta `adjust_budget` em `pending_approval/scheduled/approved` para a mesma campanha nas últimas 24h (dedup).
+
+Decisão de direção/percentual:
+
+- `delta_pct = (cpa_7d − cpa_14d) / cpa_14d × 100`
+- Banda neutra: |delta_pct| < 5% → **não gera proposta** (registra `cpa_within_neutral_band`).
+- `delta_pct ≤ −5%` (CPA 7d melhor que 14d) → propõe **+10% no orçamento diário**.
+- `delta_pct ≥ +5%` (CPA 7d pior que 14d) → propõe **−10% no orçamento diário**.
+- Teto absoluto: **20%** (limite Meta já configurado no policy engine). Nunca propõe acima disso.
+
+Para campanhas CBO o orçamento atual vem direto de `meta_ad_campaigns.daily_budget_cents`. Para campanhas ABO o orçamento é resolvido pelo helper assíncrono de observação, que soma `daily_budget_cents` dos adsets ATIVOS via `meta_ad_adsets`.
+
+### Integração com `decide()` e `policy_check_result.observation`
+
+Toda proposta gerada passa pelo `attachObservationFromActionRecordAsync`, que chama `decide()` real e grava em `policy_check_result.observation`:
+
+- `mode = "technical_only_observational"`, `pilot_version`, `would_decision`, `would_reason`.
+- `window_check.inside_safe_window_brt`, `limit_check` (delta_pct/limite), `context_check`.
+- Possíveis valores de `would_decision`: `execute_now`, `schedule`, `reject`, `skipped_insufficient_context`.
+
+### Estado real continua seguro
+
+Mesmo quando `would_decision = execute_now`, o estado real da proposta é sempre:
+
+- `status = pending_approval`.
+- `auto_executed = false`, `executed_simulated = false`, `executed_at = NULL`.
+- Nenhuma chamada à Meta Marketing API é feita.
+- Aprovação humana segue obrigatória via UI da fila (`human_approval_mode = all`).
+- Strategist FASE 1 **não foi alterado** — continua proibido de propor `adjust_budget`. O gatilho da Etapa 6 vive exclusivamente dentro do `ads-autopilot-analyze`, isolado do prompt do Strategist.
+
+### Resultado do ciclo manual de validação (07/06/2026)
+
+Ciclo manual disparado contra `act_251893833881780` (somente Meta, somente Analyze):
+
+- Total avaliado: 2 campanhas elegíveis (1 CBO, 1 ABO).
+- Total gerado: 2 propostas `adjust_budget` (ambas `direction=up, change_pct=+10`).
+- Campanha CBO (R$ 200/dia): observação `would_decision=execute_now`, `reason=policy_passed`, novo orçamento proposto R$ 220/dia, contexto suficiente.
+- Campanha ABO: observação `would_decision=skipped_insufficient_context` porque o agregador de adsets retornou 0 ativos para somar — comportamento esperado e auditado. Mesmo assim a proposta foi gravada como `pending_approval` para o usuário decidir.
+- `leak_count = 0` no tenant inteiro (nenhuma ação com `auto_executed=true` ou `executed_simulated=true`).
+- Nenhuma API Meta de modificação foi chamada.
+- Janela observacional oficial: **inicia a partir desta primeira `observation` válida em 07/06/2026 (ciclo manual)**.
+
+### Restrições mantidas
+
+- UI/UX da fila não foi alterada.
+- Prompt do Strategist não foi alterado.
+- `human_approval_mode`, `autonomy_mode`, `is_ai_enabled` e `kill_switch` não foram alterados.
+- Google e TikTok continuam fora.
+- Nenhum outro tenant é tocado pelo gatilho.
+- Histograma horário, regra mensal de pausa, regra 3× CPA de campanha nova, Modo Piloto/Sandbox e qualquer alteração de criação/pausa/reativação ficam fora desta etapa.
+
+### Próxima etapa recomendada
+
+Acompanhar 7 dias de janela observacional a partir de 07/06/2026, comparando `would_decision` das propostas determinísticas com a decisão humana final na fila. Se a taxa de concordância for alta e nenhuma proposta forçar `would_decision=reject` por limite/janela, abrir Etapa 7 para discutir liberação controlada de autoexecução apenas do tipo `adjust_budget` (ainda restrita ao piloto).
+
