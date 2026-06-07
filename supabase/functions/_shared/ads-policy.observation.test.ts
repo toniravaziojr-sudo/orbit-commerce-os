@@ -86,10 +86,10 @@ const BASE_GATE: ObservationGateInput = {
   kill_switch: false,
 };
 
-Deno.test("gate — allowlist vazia → não elegível (motivo pilot_allowlist_empty)", () => {
-  const r = shouldAttachObservation(BASE_GATE);
+Deno.test("gate — tenant fora da allowlist → não elegível", () => {
+  const r = shouldAttachObservation({ ...BASE_GATE, tenant_id: "00000000-0000-0000-0000-000000000999" });
   assertFalse(r.eligible);
-  assertEquals(r.reason, "pilot_allowlist_empty");
+  assertEquals(r.reason, "tenant_not_in_pilot_allowlist");
 });
 
 Deno.test("gate — tenant_id ausente → não elegível", () => {
@@ -97,6 +97,7 @@ Deno.test("gate — tenant_id ausente → não elegível", () => {
   assertFalse(r.eligible);
   assertEquals(r.reason, "missing_tenant_id");
 });
+
 
 Deno.test("gate — input nulo/inválido → não elegível", () => {
   // deno-lint-ignore no-explicit-any
