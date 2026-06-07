@@ -226,8 +226,10 @@ export function recomputeMemoryFromEvidences(
 
   // Promoção / rebaixamento
   let status: MemoryStatus;
+  // "Pelo menos 5 evidências reais e consistentes" (spec): total >= 5 com
+  // consistência >= 80% e sem 3 contradições recentes.
   const canBeActive =
-    supporting.length >= ACTIVE_MIN_EVIDENCES &&
+    total >= ACTIVE_MIN_EVIDENCES &&
     consistency >= ACTIVE_MIN_CONSISTENCY &&
     recentContradictions < ACTIVE_MAX_RECENT_CONTRADICTIONS;
 
