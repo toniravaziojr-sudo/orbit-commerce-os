@@ -79,28 +79,37 @@ Se houver novo bug nessa interface Fiscal × Logística:
 
 ---
 
-## 3. Gestor de Tráfego com IA — piloto C.3.2 (correção aplicada — observação reinicia 2026-06-07)
+## 3. Gestor de Tráfego com IA — piloto C.3.2 (Etapa 4 entregue — observação acoplada)
 
-### Status: Gate corrigido + primeiro ciclo manual disparado. Aguardando rodada de ciclos automáticos para coletar observações.
+### Status: Decisão simulada acoplada às propostas elegíveis. Aguardando ciclos automáticos gerarem a primeira ação técnica de orçamento.
 
-### O que estava quebrado
-O piloto observacional foi ligado em 2026-06-03 no Respeite o Homem pelo caminho granular (por conta de anúncio), mas o "sinal de recurso em uso" do módulo Gestor de Tráfego só reconhecia o caminho antigo (por canal). Resultado: durante 7 dias os ciclos automáticos pularam o tenant com motivo "nenhum lojista ativo", sem gerar nenhuma sessão, proposta ou observação.
+### O que estava quebrado nesta etapa
+Após a Etapa 3 corrigir o gate dos crons (2026-06-07 manhã), o motor passou a gerar propostas, mas o campo "decisão simulada" (`policy_check_result.observation`) continuava vazio. Motivo: o conector entre a função de decisão e a anexação da observação ainda estava em modo de preparação (legado da Etapa 1), passando contexto vazio.
 
-### Correção aplicada (2026-06-07)
-1. O reconhecedor de tenant ativo passou a aceitar os dois caminhos (canal antigo OU conta granular), com filtros de segurança preservados (IA ligada, kill switch desligado, autonomia ≠ off).
-2. Novo gatilho marca o módulo como ativo na hora em que uma conta é ligada — sem esperar varredura diária.
-3. Painel `/platform/recursos-em-uso` agora mostra o Gestor de Tráfego como ativo (1 lojista).
-4. Primeiro ciclo manual disparado para a conta Meta do Respeite o Homem (somente análise interna; nenhuma chamada de modificação à Meta). Gerou 4 propostas: 2 criação de campanha em "aguardando aprovação humana" e 2 geração de criativo (conteúdo interno).
-5. Nenhum outro tenant foi ativado; Google e TikTok continuam fora; autoexecução continua desligada (auto_executed=0, executed_simulated=0).
+### Correção aplicada (Etapa 4 — 2026-06-07)
+1. Criado helper central de acoplamento no policy engine, que recebe a proposta + config da conta, chama a função de decisão real e mescla a observação no registro antes do INSERT.
+2. As duas funções que geram propostas (analisador e estrategista) agora delegam para esse helper central.
+3. Mapeamento determinístico: execute_now → "execute_now", schedule → "schedule" + data sugerida, qualquer reject → "reject", sem decisão → "insight", contexto faltando → "skipped_insufficient_context".
+4. 38 testes verdes na suíte do bloco observacional (12 novos para o helper central).
+5. As 4 propostas das últimas 24h são todas de tipo `create_campaign` e `generate_creative` — **fora do escopo observável** por design (escopo só inclui ações técnicas de orçamento Meta). Não foram alteradas retroativamente.
 
-### Janela de observação
-Reinicia em **2026-06-07**, primeira data em que os ciclos do piloto efetivamente passaram pelo gate. Dados anteriores não contam.
+### Garantias preservadas
+- Autoexecução continua desligada (hardcoded false).
+- Nenhuma chamada externa de modificação à Meta.
+- Nenhum `auto_executed`/`executed_simulated`/`executed_at` é marcado pelo helper.
+- Google e TikTok continuam fora. Outro tenant não é afetado.
+- Executor e scheduled-runner continuam ignorando o campo `observation` (auditoria apenas).
+- Leak de autoexecução: 0.
+
+### Janela de observação oficial
+Continua reiniciando a partir da **primeira observation válida gravada**. Hoje (2026-06-07) ainda é 0 porque as propostas geradas até agora são todas de tipos fora do escopo. A contagem oficial começa quando a IA propuser a primeira ação técnica de orçamento Meta.
 
 ### Pendências para acompanhamento
-- Confirmar nas próximas 24–72h que os crons automáticos (`ads-autopilot-analyze` a cada 6h, Guardian nos horários BRT) estão gerando propostas sem precisar de disparo manual.
-- O campo `policy_check_result.observation` (Etapa 2 da C.3.2) ainda não é preenchido nas propostas geradas — a integração que liga a função de decisão à anexação da observação não foi exercitada neste ciclo. Avaliar com o usuário se isso entra na próxima rodada.
+- Confirmar nas próximas 24–72h que os crons automáticos geram alguma ação técnica de orçamento Meta para o piloto, populando enfim o campo observation com `would_*` real.
 - Aprovações humanas das 2 propostas de criação de campanha pendentes ficam a critério do usuário; o sistema não vai executar sozinho.
+- Próxima frente (não desta entrega): habilitar coleta de contextos faltantes (histograma horário, CPA de referência, snapshot de orçamento atual) para reduzir casos de `skipped_insufficient_context`. Pré-requisito da futura Fase C.4 (autoexecução real), que continua bloqueada.
 
 ### Documentação atualizada
-- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção "C.3.2 — Etapa 3: Correção do gate de módulo ativo".
-- Memória `mem://constraints/ads-autopilot-activation-gate-parity` (nova, indexada).
+- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção "C.3.2 — Etapa 4: Acoplamento de `decide()` ao bloco observacional".
+- Memória `mem://constraints/ads-autopilot-activation-gate-parity` mantida (regra anti-regressão da Etapa 3).
+
