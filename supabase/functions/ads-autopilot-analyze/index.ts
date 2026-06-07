@@ -68,6 +68,43 @@ const DET_BUDGET_MAX_CHANGE_PCT = 20;
 const DET_BUDGET_MIN_CONVERSIONS_7D = 5;
 const DET_BUDGET_DEDUP_HOURS = 24;
 
+// Etapa 7.mem — Subfase F.2: chave de segurança. Default seguro = "silent".
+// Nesta subfase, qualquer valor diferente de "silent" também é tratado como
+// silent (modo active só é liberado em F.2 ativa, em subfase posterior).
+const TENANT_MEMORY_GUARD_MODE: "silent" | "active" = "silent";
+
+/**
+ * Carrega memórias observacionais do tenant uma única vez por execução do
+ * gatilho determinístico de orçamento. Fail-open: qualquer erro retorna [].
+ */
+async function loadTenantMemoriesForBudgetTrigger(
+  supabase: any,
+  tenant_id: string,
+  ads_platform: string,
+): Promise<TenantMemoryRow[]> {
+  try {
+    const { rows } = await readTenantMemoryObservational(
+      { tenant_id, ads_platform },
+      async (ctx) => {
+        const { data, error } = await supabase
+          .from("ads_autopilot_tenant_memory")
+          .select(
+            "id, tenant_id, sales_platform, ads_platform, memory_type, scope, key, value, confidence, evidence_count, status",
+          )
+          .eq("tenant_id", ctx.tenant_id!)
+          .eq("ads_platform", ctx.ads_platform!)
+          .in("status", ["provisional", "active"])
+          .limit(500);
+        if (error) throw error;
+        return (data || []) as TenantMemoryRow[];
+      },
+    );
+    return rows;
+  } catch (_e) {
+    return [];
+  }
+}
+
 async function generateDeterministicBudgetProposals(
   supabase: any,
   tenant_id: string,
@@ -75,6 +112,11 @@ async function generateDeterministicBudgetProposals(
   sessionId: string,
   strategyRunId: string,
 ): Promise<{
+  generated: number;
+  evaluated: number;
+  skipped: Array<{ meta_campaign_id: string; reason: string }>;
+}> {
+
   generated: number;
   evaluated: number;
   skipped: Array<{ meta_campaign_id: string; reason: string }>;
