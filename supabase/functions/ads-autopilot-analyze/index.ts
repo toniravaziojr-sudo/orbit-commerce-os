@@ -3428,6 +3428,21 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           }
         }
 
+        // C.3.2 Etapa 6 — Gatilho determinístico de orçamento (pilot-gated)
+        try {
+          const detResult = await generateDeterministicBudgetProposals(
+            supabase, tenant_id, acctConfig, sessionId, strategyRunId,
+          );
+          if (detResult.evaluated > 0) {
+            console.log(
+              `[ads-autopilot-analyze][${VERSION}] det_budget summary acct=${acctConfig.ad_account_id} evaluated=${detResult.evaluated} generated=${detResult.generated} skipped=${detResult.skipped.length} reasons=${JSON.stringify(detResult.skipped)}`,
+            );
+            totalActionsPlanned += detResult.generated;
+          }
+        } catch (e: any) {
+          console.error(`[ads-autopilot-analyze][${VERSION}] det_budget block error:`, e?.message || e);
+        }
+
         // Save per-account session
         if (aiText || toolCalls.length > 0) {
           await supabase.from("ads_autopilot_sessions").insert({
