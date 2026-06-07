@@ -784,6 +784,77 @@ export type Database = {
           },
         ]
       }
+      ads_autopilot_tenant_memory: {
+        Row: {
+          ads_platform: string
+          archived_at: string | null
+          confidence: number
+          created_at: string
+          evidence_count: number
+          first_seen_at: string
+          key: string
+          last_confirmed_at: string | null
+          last_contradicted_at: string | null
+          memory_id: string
+          memory_type: string
+          sales_platform: string
+          scope: string
+          source: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          ads_platform: string
+          archived_at?: string | null
+          confidence?: number
+          created_at?: string
+          evidence_count?: number
+          first_seen_at?: string
+          key: string
+          last_confirmed_at?: string | null
+          last_contradicted_at?: string | null
+          memory_id?: string
+          memory_type: string
+          sales_platform: string
+          scope: string
+          source?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          ads_platform?: string
+          archived_at?: string | null
+          confidence?: number
+          created_at?: string
+          evidence_count?: number
+          first_seen_at?: string
+          key?: string
+          last_confirmed_at?: string | null
+          last_contradicted_at?: string | null
+          memory_id?: string
+          memory_type?: string
+          sales_platform?: string
+          scope?: string
+          source?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_tenant_memory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_chat_conversations: {
         Row: {
           ad_account_id: string | null
