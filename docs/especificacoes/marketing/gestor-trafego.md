@@ -1706,3 +1706,38 @@ Habilitar a coleta de contextos faltantes (histograma horário, CPA de referênc
 ### Bloco anti-regressão
 
 O sync de adsets é uma **chamada manual e pontual** para destravar o contexto histórico. Sem alteração de cron. A view de CPA é uso interno do piloto observacional — não é fonte oficial de CPA para relatórios. O helper assíncrono mantém o helper síncrono `attachObservationFromActionRecord` exportado para compatibilidade.
+
+### Ciclo manual de validação (07/06/2026)
+
+Forçado um ciclo do diagnosticador (`ads-autopilot-analyze`) no tenant piloto, somente Meta, modo `technical_only`, sem autoexecução.
+
+- **leak_count = 0** — nenhuma ação `auto_executed` ou `executed_simulated`.
+- **0 chamadas de modificação** à Meta Ads API.
+- **Contexto de orçamento/status/CPA disponível** via sync de adsets + view de CPA + fallback assíncrono do helper.
+- **0 observations** geradas — nenhuma `policy_check_result.observation` foi anexada porque nenhuma ação `adjust_budget*` foi proposta pelo analyze no ciclo.
+- Ações geradas no ciclo: `pause_campaign`, `create_campaign`, `generate_creative` — todas fora do escopo de orçamento.
+
+### Fechamento da Etapa 5
+
+**Etapa 5 fechada em 07/06/2026.** Critérios atendidos:
+
+- ✅ Contexto de orçamento, status e CPA disponível no piloto.
+- ✅ `leak_count = 0`.
+- ✅ Nenhuma API de modificação chamada.
+- ✅ Gargalo de contexto resolvido.
+
+A janela observacional de 7 dias **não foi iniciada** — só começa quando ocorrer a primeira `observation` válida ou quando for decidido formalmente medir outro tipo de sinal.
+
+### Próxima etapa (Etapa 6) — planejamento pendente
+
+O gargalo migrou de **contexto** para **geração de proposta de orçamento**. O `ads-autopilot-analyze` ainda não está propondo ações `adjust_budget_up` / `adjust_budget_down` para campanhas existentes, mesmo com CPA e ROAS disponíveis.
+
+A **Etapa 6** será o **planejamento do gatilho de proposta de orçamento no analyze**, mantendo:
+
+- `technical_only` ativo.
+- `human_approval_mode = all`.
+- Zero autoexecução.
+- Strategist FASE 1 continua bloqueando `adjust_budget`.
+- Sem alterar prompt, lógica estratégica, UI ou autoexecução até o planejamento ser aprovado.
+
+Etapa 6 **ainda não foi implementada** — apenas registrada como próxima.
