@@ -785,3 +785,6 @@ verify_jwt = false
 
 [functions.gateway-attach-fiscal-doc]
 verify_jwt = false
+
+[functions.ads-autopilot-feedback-record]
+verify_jwt = true

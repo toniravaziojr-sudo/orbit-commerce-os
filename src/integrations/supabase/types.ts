@@ -502,6 +502,152 @@ export type Database = {
           },
         ]
       }
+      ads_autopilot_feedback: {
+        Row: {
+          action_class: string | null
+          action_id: string | null
+          action_type: string | null
+          ad_account_id: string | null
+          ads_platform: string
+          campaign_id: string | null
+          campaign_name: string | null
+          created_at: string
+          decided_at: string
+          decided_by: string | null
+          decision: string
+          diff: Json | null
+          functional_state: string | null
+          id: string
+          ignored_context: boolean | null
+          ignored_context_text: string | null
+          metrics_snapshot: Json
+          objective: string | null
+          observation: string | null
+          policy_check_result: Json | null
+          proposed_verdict: string | null
+          reason_codes: string[]
+          reason_text: string | null
+          recommendation_id: string | null
+          sales_platform: string | null
+          should_become_preference: boolean | null
+          suggestion_group_id: string | null
+          tags: string[]
+          tenant_id: string
+          user_confidence: string | null
+          would_do_manually: boolean | null
+        }
+        Insert: {
+          action_class?: string | null
+          action_id?: string | null
+          action_type?: string | null
+          ad_account_id?: string | null
+          ads_platform: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          decided_at?: string
+          decided_by?: string | null
+          decision: string
+          diff?: Json | null
+          functional_state?: string | null
+          id?: string
+          ignored_context?: boolean | null
+          ignored_context_text?: string | null
+          metrics_snapshot?: Json
+          objective?: string | null
+          observation?: string | null
+          policy_check_result?: Json | null
+          proposed_verdict?: string | null
+          reason_codes: string[]
+          reason_text?: string | null
+          recommendation_id?: string | null
+          sales_platform?: string | null
+          should_become_preference?: boolean | null
+          suggestion_group_id?: string | null
+          tags?: string[]
+          tenant_id: string
+          user_confidence?: string | null
+          would_do_manually?: boolean | null
+        }
+        Update: {
+          action_class?: string | null
+          action_id?: string | null
+          action_type?: string | null
+          ad_account_id?: string | null
+          ads_platform?: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          decided_at?: string
+          decided_by?: string | null
+          decision?: string
+          diff?: Json | null
+          functional_state?: string | null
+          id?: string
+          ignored_context?: boolean | null
+          ignored_context_text?: string | null
+          metrics_snapshot?: Json
+          objective?: string | null
+          observation?: string | null
+          policy_check_result?: Json | null
+          proposed_verdict?: string | null
+          reason_codes?: string[]
+          reason_text?: string | null
+          recommendation_id?: string | null
+          sales_platform?: string | null
+          should_become_preference?: boolean | null
+          suggestion_group_id?: string | null
+          tags?: string[]
+          tenant_id?: string
+          user_confidence?: string | null
+          would_do_manually?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_feedback_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_autopilot_feedback_reason_codes: {
+        Row: {
+          action_scope: string[]
+          active: boolean
+          category: string
+          code: string
+          created_at: string
+          description: string | null
+          label_pt_br: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          action_scope?: string[]
+          active?: boolean
+          category: string
+          code: string
+          created_at?: string
+          description?: string | null
+          label_pt_br: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          action_scope?: string[]
+          active?: boolean
+          category?: string
+          code?: string
+          created_at?: string
+          description?: string | null
+          label_pt_br?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ads_autopilot_insights: {
         Row: {
           ad_account_id: string | null
