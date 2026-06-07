@@ -2149,3 +2149,96 @@ Permitir que o Ads Autopilot **carregue** a memória do tenant durante o ciclo, 
 ### Próxima subfase recomendada
 
 **Subfase F — Influência real da memória.** A IA passa a usar as preferências aprendidas para ajustar sugestões e prompts, mantendo 100% de aprovação humana. Antes de F, recomenda-se validar manualmente no painel do Respeite o Homem que o log `tenant-memory-observation` aparece nos próximos ciclos do Strategist.
+
+## Etapa 7.mem — Subfase F.1: Tenant Preference Guard compartilhado
+
+### Objetivo
+
+Criar uma camada **única, pura e determinística** que avalia se uma sugestão rascunhada do Ads Autopilot deve ser mantida, bloqueada, rebaixada, suavizada, enriquecida com rationale ou priorizada com base na Tenant Memory.
+
+O Guard existe e é totalmente testável, mas **ainda não é plugado em nenhum gerador** (Analyze, Strategist, Guardian, gatilho determinístico de orçamento, criativos ou experiments). O plug ocorre apenas a partir da Subfase F.2 em diante, e sempre em modo silencioso primeiro.
+
+### Princípios
+
+- **Puro/determinístico:** sem LLM, sem rede, sem aleatoriedade.
+- **Sem banco:** as memórias chegam **como entrada**, carregadas previamente pelo Reader da Subfase D. O Guard nunca consulta o banco diretamente — isso evita duplicar leitura, custo e divergência.
+- **Sem Meta, sem cron, sem execução, sem aprovação automática.**
+- **Falha aberta:** qualquer erro interno devolve a recomendação original com `fail_open: true` no trace.
+
+### Contrato
+
+Entrada:
+
+- `tenant_id`, `ads_platform`, `sales_platform`, `action_type`, `objective`;
+- `campaign_id`/`product_id` quando existirem;
+- `draft` (a sugestão rascunhada pelo gerador);
+- `memories` (linhas já carregadas pelo Reader D);
+- `governance` (flags já calculadas pelas camadas superiores: plataforma, Governance Layer, Policy Engine, kill switch, requisitos explícitos do tenant);
+- `context` opcional.
+
+Saída:
+
+- `recommendation` — a sugestão original ou ajustada;
+- `trace` — bloco de rastreabilidade (`influence_trace`).
+
+### Influence types implementados
+
+- `none` — nada mudou.
+- `block` — sugestão rebaixada para `needs_human_review` por preferência active contrária.
+- `downgrade` — variação do block (reservada para evoluções futuras; nesta versão é coberta pelo block que muda status).
+- `soften` — parâmetro de orçamento reduzido para o limite conservador aprendido.
+- `enrich_rationale` — apenas anexa observação ao rationale (único efeito possível para memórias `provisional`).
+- `prioritize` — marca prioridade `high` quando a sugestão está alinhada a preferência active aprovada.
+
+### Regras por status da memória
+
+- **active** — pode bloquear, suavizar, priorizar ou enriquecer rationale.
+- **provisional** — só pode enriquecer rationale. **Nunca bloqueia sozinha.**
+- **archived** — ignorada.
+
+### Hierarquia de decisão (não negociável)
+
+1. Segurança / plataforma.
+2. Governance Layer.
+3. Policy Engine.
+4. Matriz por objetivo / regras técnicas do canal.
+5. Configurações explícitas do tenant.
+6. Tenant Memory `active`.
+7. Tenant Memory `provisional`.
+8. Dados atuais da campanha.
+
+Se qualquer camada superior já travou a ação (`platform_locked`, `governance_blocked`, `policy_blocked`, `kill_switch`), o Guard **não aplica influência alguma**. Se a ação é exigida por configuração explícita do tenant (`tenant_explicit_required`), a memória **não pode bloquear**.
+
+### Bloco de rastreabilidade (`influence_trace`)
+
+Toda execução do Guard produz:
+
+- `tenant_memory_used` (bool);
+- `memory_ids_used`;
+- `memory_statuses_used`;
+- `influence_type`;
+- `before_recommendation`;
+- `after_recommendation`;
+- `why_memory_applied`;
+- `why_memory_did_not_apply`;
+- `applied_to_decision` (`true` apenas quando o rascunho retornado de fato mudou);
+- `fail_open` (quando algo falhou e devolvemos o original).
+
+### O que a Subfase F.1 NÃO faz
+
+- Não consulta banco.
+- Não é plugada em Analyze, Strategist, Guardian, gatilho determinístico de orçamento, criativos ou experiments.
+- Não altera nenhuma sugestão real.
+- Não altera UI/UX, prompts, fluxo de aprovação/recusa, Writer (Subfase C), Reader (Subfase D), Policy Engine, Governance Layer, Campaign Verdict Layer, Action Derivation, executor.
+- Não chama Meta. Não usa LLM. Não cria cron. Não ativa autoexecução.
+
+### Validação técnica executada
+
+- 14 testes específicos do Guard passando (`src/test/ads-autopilot-tenant-preference-guard.test.ts`): memória vazia, sem aplicabilidade, provisional somente enriquece, active bloqueia, active suaviza orçamento, active prioriza, archived ignorada, governance bloqueia (memória perde), configuração explícita do tenant sobrepõe bloqueio, fail-open em input inválido, isolamento por `tenant_id`, isolamento por `ads_platform`, `influence_trace` sempre presente, ausência textual de imports a Supabase/Meta/LLM/`fetch` no módulo.
+- Nenhum ciclo de IA (Analyze/Strategist/Guardian) foi rodado.
+- Nenhuma chamada à API da Meta.
+- Nenhuma autoexecução ativada.
+
+### Próxima subfase recomendada
+
+**Subfase F.2 — Plug do Guard no gatilho determinístico de orçamento, em modo silencioso primeiro** (registra o trace e o que aconteceria, sem alterar o output real). Só após validação de F.2 com feedback real do tenant piloto, evoluir para F.3 (Analyze), F.4 (Strategist), F.5 (rationale exposto ao lojista) e F.6 (validação com feedback real).
