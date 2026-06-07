@@ -992,3 +992,173 @@ export function attachObservationFromActionRecord(
   }
 }
 
+// =============================================================================
+// Fase C.3.2 — Etapa 5 — Helper ASSÍNCRONO com fallback de contexto via DB
+// =============================================================================
+// Recebe `actionRecord`, `acctConfig` e um cliente Supabase já autenticado
+// (service role). Quando a ação for de orçamento Meta e o payload da IA não
+// trouxer `current_daily_budget_cents` ou `last_budget_change_at`, o helper
+// consulta tabelas locais já sincronizadas (`meta_ad_campaigns` /
+// `ads_autopilot_actions`) para preencher esse contexto ANTES de chamar
+// `decide()`. Tudo somente leitura. Sem chamadas externas. Sem UPDATE. Engole
+// erros silenciosamente. Mantém `attachObservationFromActionRecord` síncrono
+// como fallback para chamadas antigas.
+// =============================================================================
+
+async function fetchMetaBudgetContext(
+  supabase: any,
+  tenantId: string,
+  actionRecord: Record<string, any>,
+): Promise<{ campaignSnapshot: CampaignSnapshot | null; lastBudgetChangeAt: string | null }> {
+  const out = { campaignSnapshot: null as CampaignSnapshot | null, lastBudgetChangeAt: null as string | null };
+  try {
+    const data = (actionRecord?.action_data && typeof actionRecord.action_data === "object")
+      ? actionRecord.action_data
+      : {};
+    const metaCampaignId: string | null =
+      data.meta_campaign_id ||
+      data.campaign?.meta_campaign_id ||
+      actionRecord.meta_campaign_id ||
+      null;
+    if (!metaCampaignId || !tenantId) return out;
+
+    const { data: campRow } = await supabase
+      .from("meta_ad_campaigns")
+      .select("daily_budget_cents, status, effective_status, created_at, updated_at")
+      .eq("tenant_id", tenantId)
+      .eq("meta_campaign_id", metaCampaignId)
+      .maybeSingle();
+
+    if (campRow) {
+      out.campaignSnapshot = {
+        daily_budget_cents: campRow.daily_budget_cents ?? null,
+        created_at: campRow.created_at ?? null,
+        last_budget_change_at: null,
+        status: campRow.effective_status || campRow.status || null,
+      };
+    }
+
+    const { data: lastChange } = await supabase
+      .from("ads_autopilot_actions")
+      .select("executed_at, approved_at, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("channel", "meta")
+      .eq("action_type", "adjust_budget")
+      .in("status", ["executed", "approved", "scheduled"])
+      .contains("action_data", { meta_campaign_id: metaCampaignId })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const lastTs: string | null =
+      lastChange?.executed_at || lastChange?.approved_at || lastChange?.created_at || null;
+    if (lastTs) {
+      out.lastBudgetChangeAt = lastTs;
+      if (out.campaignSnapshot) out.campaignSnapshot.last_budget_change_at = lastTs;
+    }
+  } catch (_e) {
+    // silencioso — fallback sempre opcional
+  }
+  return out;
+}
+
+/**
+ * Versão assíncrona do helper central da Fase C.3.2. Igual ao síncrono,
+ * mas, quando o contexto vier insuficiente, consulta `meta_ad_campaigns` e
+ * `ads_autopilot_actions` para preencher `campaignSnapshot` e
+ * `last_budget_change_at` antes de chamar `decide()`. Estritamente leitura.
+ */
+export async function attachObservationFromActionRecordAsync(
+  actionRecord: Record<string, any>,
+  acctConfig: ObservationAcctConfigLike | null | undefined,
+  supabase: any,
+): Promise<boolean> {
+  try {
+    if (!actionRecord || !acctConfig) return false;
+    const action_type = String(actionRecord.action_type || "");
+    const channel = String(actionRecord.channel || "");
+    const action_class = classifyAction({ action_type, channel });
+    const tenant_id = String(acctConfig.tenant_id || actionRecord.tenant_id || "");
+
+    const gate: ObservationGateInput = {
+      tenant_id,
+      action_type,
+      action_class,
+      autonomy_mode: acctConfig.autonomy_mode,
+      is_ai_enabled: acctConfig.is_ai_enabled === true,
+      kill_switch: acctConfig.kill_switch === true,
+    };
+
+    const g = shouldAttachObservation(gate);
+    if (!g.eligible) return false;
+
+    let context_check = evaluateObservationContext(actionRecord);
+
+    let campaignSnapshot: CampaignSnapshot | null = null;
+    let lastBudgetChangeAt: string | null = acctConfig.last_budget_adjusted_at ?? null;
+
+    if (
+      !context_check.sufficient &&
+      channel === "meta" &&
+      BUDGET_ACTION_TYPES.has(action_type) &&
+      supabase
+    ) {
+      const ctx = await fetchMetaBudgetContext(supabase, tenant_id, actionRecord);
+      campaignSnapshot = ctx.campaignSnapshot;
+      if (ctx.lastBudgetChangeAt) lastBudgetChangeAt = ctx.lastBudgetChangeAt;
+
+      // Re-injeta `current_daily_budget_cents` no action_data EM MEMÓRIA
+      // (não persiste) para que `evaluateObservationContext` aceite.
+      const data = (actionRecord.action_data && typeof actionRecord.action_data === "object")
+        ? { ...actionRecord.action_data }
+        : {};
+      const currentFromDb = campaignSnapshot?.daily_budget_cents ?? null;
+      if (currentFromDb && !data.current_daily_budget_cents) {
+        data.current_daily_budget_cents = currentFromDb;
+        actionRecord.action_data = data;
+      }
+      context_check = evaluateObservationContext(actionRecord);
+    }
+
+    let decision: Decision | null = null;
+    let window_check: Record<string, any> = {};
+    let limit_check: Record<string, any> = {};
+
+    if (context_check.sufficient) {
+      const now = new Date();
+      const actionInput: ActionInput = {
+        id: String(actionRecord.id || actionRecord.action_hash || "pending"),
+        tenant_id,
+        channel,
+        action_type,
+        action_data: actionRecord.action_data || {},
+        status: String(actionRecord.status || "pending"),
+        approved_at: actionRecord.approved_at ?? null,
+        approval_expires_at: actionRecord.approval_expires_at ?? null,
+        created_at: actionRecord.created_at,
+      };
+      decision = decide({
+        action: actionInput,
+        campaignSnapshot,
+        accountLimitCents: null,
+        lastBudgetChangeAt,
+        now,
+      });
+      window_check = { inside_safe_window_brt: isInsideSafeWindow(now) };
+      if (decision && (decision as any).meta) {
+        limit_check = { ...(decision as any).meta };
+      }
+    }
+
+    return maybeAttachTechnicalOnlyObservation(actionRecord, gate, {
+      decision,
+      context_check,
+      window_check,
+      limit_check,
+    });
+  } catch (_e) {
+    return false;
+  }
+}
+
+
