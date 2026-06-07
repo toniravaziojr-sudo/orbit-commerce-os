@@ -76,3 +76,31 @@ Se houver novo bug nessa interface Fiscal × Logística:
 1. Reler este plano + `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade` + `mem://constraints/fiscal-pv-and-nf-coexistence-partial-indexes`.
 2. Verificar se as três proteções estruturais ainda estão ativas no banco (gatilhos `trg_ensure_shipment_has_remessa`, `trg_guard_remessa_deletion` e a cascata em `fiscal-cancel`).
 3. Decidir junto ao usuário se as pendências de UI acima entram no escopo.
+
+---
+
+## 3. Gestor de Tráfego com IA — piloto C.3.2 (correção aplicada — observação reinicia 2026-06-07)
+
+### Status: Gate corrigido + primeiro ciclo manual disparado. Aguardando rodada de ciclos automáticos para coletar observações.
+
+### O que estava quebrado
+O piloto observacional foi ligado em 2026-06-03 no Respeite o Homem pelo caminho granular (por conta de anúncio), mas o "sinal de recurso em uso" do módulo Gestor de Tráfego só reconhecia o caminho antigo (por canal). Resultado: durante 7 dias os ciclos automáticos pularam o tenant com motivo "nenhum lojista ativo", sem gerar nenhuma sessão, proposta ou observação.
+
+### Correção aplicada (2026-06-07)
+1. O reconhecedor de tenant ativo passou a aceitar os dois caminhos (canal antigo OU conta granular), com filtros de segurança preservados (IA ligada, kill switch desligado, autonomia ≠ off).
+2. Novo gatilho marca o módulo como ativo na hora em que uma conta é ligada — sem esperar varredura diária.
+3. Painel `/platform/recursos-em-uso` agora mostra o Gestor de Tráfego como ativo (1 lojista).
+4. Primeiro ciclo manual disparado para a conta Meta do Respeite o Homem (somente análise interna; nenhuma chamada de modificação à Meta). Gerou 4 propostas: 2 criação de campanha em "aguardando aprovação humana" e 2 geração de criativo (conteúdo interno).
+5. Nenhum outro tenant foi ativado; Google e TikTok continuam fora; autoexecução continua desligada (auto_executed=0, executed_simulated=0).
+
+### Janela de observação
+Reinicia em **2026-06-07**, primeira data em que os ciclos do piloto efetivamente passaram pelo gate. Dados anteriores não contam.
+
+### Pendências para acompanhamento
+- Confirmar nas próximas 24–72h que os crons automáticos (`ads-autopilot-analyze` a cada 6h, Guardian nos horários BRT) estão gerando propostas sem precisar de disparo manual.
+- O campo `policy_check_result.observation` (Etapa 2 da C.3.2) ainda não é preenchido nas propostas geradas — a integração que liga a função de decisão à anexação da observação não foi exercitada neste ciclo. Avaliar com o usuário se isso entra na próxima rodada.
+- Aprovações humanas das 2 propostas de criação de campanha pendentes ficam a critério do usuário; o sistema não vai executar sozinho.
+
+### Documentação atualizada
+- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção "C.3.2 — Etapa 3: Correção do gate de módulo ativo".
+- Memória `mem://constraints/ads-autopilot-activation-gate-parity` (nova, indexada).
