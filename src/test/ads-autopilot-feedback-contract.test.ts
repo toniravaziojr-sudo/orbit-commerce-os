@@ -20,7 +20,7 @@ const baseValid = {
   metrics_snapshot: { cpa_7d_cents: 5400, conv_7d: 23 },
   decision: "approved",
   reason_codes: ["good_budget_logic"],
-};
+} as any;
 
 describe("validateFeedbackInput — contrato A.1", () => {
   it("aceita payload válido de aprovação", () => {
