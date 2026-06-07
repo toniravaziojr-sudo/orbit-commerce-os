@@ -24214,6 +24214,23 @@ export type Database = {
           },
         ]
       }
+      meta_ad_campaign_cpa_reference: {
+        Row: {
+          campaign_id: string | null
+          conversions_14d: number | null
+          conversions_7d: number | null
+          cpa_cents_14d: number | null
+          cpa_cents_7d: number | null
+          days_with_data_14d: number | null
+          days_with_data_7d: number | null
+          low_confidence: boolean | null
+          meta_campaign_id: string | null
+          spend_cents_14d: number | null
+          spend_cents_7d: number | null
+          tenant_id: string | null
+        }
+        Relationships: []
+      }
       sales_pipeline_funnel_metrics: {
         Row: {
           avg_ms_cart: number | null
