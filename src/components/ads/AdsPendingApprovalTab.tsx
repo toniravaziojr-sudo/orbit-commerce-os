@@ -316,18 +316,8 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={action.id}
           action={action}
           childActions={getChildActions(action)}
-          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason, mode) => {
-            setRejectingId(id);
-            rejectAction.mutate({ actionId: id, reason }, {
-              onSettled: () => setRejectingId(null),
-              onSuccess: () => {
-                if (mode === "regenerate") {
-                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
-                }
-              },
-            });
-          }}
+          onApprove={gateApprove}
+          onReject={gateReject}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
@@ -340,24 +330,15 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={`orphan-${parentName}`}
           parentCampaignName={parentName}
           adsets={groupAdsets}
-          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason, mode) => {
-            setRejectingId(id);
-            rejectAction.mutate({ actionId: id, reason }, {
-              onSettled: () => setRejectingId(null),
-              onSuccess: () => {
-                if (mode === "regenerate") {
-                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
-                }
-              },
-            });
-          }}
+          onApprove={gateApprove}
+          onReject={gateReject}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
           adjustingId={adjustingId}
         />
       ))}
+      {feedbackGate.FeedbackDialog}
     </div>
   );
 }
