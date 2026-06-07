@@ -314,3 +314,198 @@ Deno.test("attach — função é SÍNCRONA e não chama fetch (sanity check)", 
     (globalThis as any).fetch = before;
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// C.3.2 — attachObservationFromActionRecord (helper central com decide() real)
+// ──────────────────────────────────────────────────────────────────────────────
+
+const PILOT_ACCT_CONFIG = {
+  tenant_id: PILOT_TENANT_ID,
+  is_ai_enabled: true,
+  kill_switch: false,
+  autonomy_mode: "technical_only" as const,
+  last_budget_adjusted_at: null,
+};
+
+Deno.test("C.3.2 attach — adjust_budget Meta elegível ⇒ grava observation com would_*", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: {
+      campaign_id: "123",
+      current_daily_budget_cents: 10000,
+      new_daily_budget_cents: 11500, // +15% < 20% → ok
+    },
+    status: "scheduled",
+    auto_executed: false,
+    executed_simulated: false,
+  };
+  const ok = attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG);
+  assert(ok);
+  const obs = record.policy_check_result?.observation;
+  assert(obs, "observation deveria estar presente");
+  assertEquals(obs.mode, "technical_only_observational");
+  assertEquals(obs.pilot_version, "c3_v1");
+  assert(["execute_now", "schedule"].includes(obs.would_decision));
+  assertEquals(record.auto_executed, false);
+  assertEquals(record.executed_simulated, false);
+  assert(!("executed_at" in record));
+});
+
+Deno.test("C.3.2 attach — outro tenant ⇒ não grava observation", () => {
+  const record: Record<string, any> = {
+    tenant_id: "00000000-0000-0000-0000-000000000999",
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+  };
+  const ok = attachObservationFromActionRecord(record, {
+    ...PILOT_ACCT_CONFIG,
+    tenant_id: "00000000-0000-0000-0000-000000000999",
+  });
+  assertFalse(ok);
+  assertEquals(record.policy_check_result, undefined);
+});
+
+Deno.test("C.3.2 attach — Google/TikTok ⇒ não grava observation no piloto C.3.2", () => {
+  const recGoogle: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "google",
+    action_type: "create_google_campaign",
+    action_data: {},
+  };
+  assertFalse(attachObservationFromActionRecord(recGoogle, PILOT_ACCT_CONFIG));
+  assertEquals(recGoogle.policy_check_result, undefined);
+  const recTikTok: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "tiktok",
+    action_type: "create_campaign",
+    action_data: {},
+  };
+  assertFalse(attachObservationFromActionRecord(recTikTok, PILOT_ACCT_CONFIG));
+  assertEquals(recTikTok.policy_check_result, undefined);
+});
+
+Deno.test("C.3.2 attach — kill_switch=true ⇒ não grava observation", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+  };
+  assertFalse(attachObservationFromActionRecord(record, { ...PILOT_ACCT_CONFIG, kill_switch: true }));
+});
+
+Deno.test("C.3.2 attach — is_ai_enabled=false ⇒ não grava observation", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+  };
+  assertFalse(attachObservationFromActionRecord(record, { ...PILOT_ACCT_CONFIG, is_ai_enabled: false }));
+});
+
+Deno.test("C.3.2 attach — autonomy_mode='off' ⇒ não grava observation", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+  };
+  assertFalse(attachObservationFromActionRecord(record, { ...PILOT_ACCT_CONFIG, autonomy_mode: "off" }));
+});
+
+Deno.test("C.3.2 attach — fora do escopo (create_campaign) ⇒ não grava observation", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "create_campaign",
+    action_data: { daily_budget_cents: 5000 },
+  };
+  assertFalse(attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG));
+});
+
+Deno.test("C.3.2 attach — adjust_budget sem orçamentos ⇒ skipped_insufficient_context", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { campaign_id: "123" },
+  };
+  const ok = attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG);
+  assert(ok);
+  assertEquals(record.policy_check_result.observation.would_decision, "skipped_insufficient_context");
+  assert(record.policy_check_result.observation.context_check.missing.length > 0);
+});
+
+Deno.test("C.3.2 attach — adjust_budget +50% ⇒ would_decision='reject' (limit_exceeded)", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: {
+      campaign_id: "abc",
+      current_daily_budget_cents: 10000,
+      new_daily_budget_cents: 15000, // +50% > 20%
+    },
+  };
+  const ok = attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG);
+  assert(ok);
+  assertEquals(record.policy_check_result.observation.would_decision, "reject");
+});
+
+Deno.test("C.3.2 attach — adjust_budget com intervalo curto ⇒ would_decision='schedule'", () => {
+  const oneHourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: {
+      campaign_id: "abc",
+      current_daily_budget_cents: 10000,
+      new_daily_budget_cents: 11000,
+    },
+  };
+  const ok = attachObservationFromActionRecord(record, {
+    ...PILOT_ACCT_CONFIG,
+    last_budget_adjusted_at: oneHourAgo,
+  });
+  assert(ok);
+  assertEquals(record.policy_check_result.observation.would_decision, "schedule");
+  assert(record.policy_check_result.observation.would_scheduled_for);
+});
+
+Deno.test("C.3.2 attach — NUNCA marca auto_executed/executed_simulated/executed_at", () => {
+  const record: Record<string, any> = {
+    tenant_id: PILOT_TENANT_ID,
+    channel: "meta",
+    action_type: "adjust_budget",
+    action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+    auto_executed: false,
+    executed_simulated: false,
+  };
+  attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG);
+  assertEquals(record.auto_executed, false);
+  assertEquals(record.executed_simulated, false);
+  assertFalse("executed_at" in record);
+});
+
+Deno.test("C.3.2 attach — síncrono e não chama fetch", () => {
+  const before = (globalThis as any).fetch;
+  let called = 0;
+  (globalThis as any).fetch = () => { called++; throw new Error("fetch proibido em C.3.2"); };
+  try {
+    const record: Record<string, any> = {
+      tenant_id: PILOT_TENANT_ID,
+      channel: "meta",
+      action_type: "adjust_budget",
+      action_data: { current_daily_budget_cents: 10000, new_daily_budget_cents: 11000 },
+    };
+    attachObservationFromActionRecord(record, PILOT_ACCT_CONFIG);
+    assertEquals(called, 0);
+  } finally {
+    (globalThis as any).fetch = before;
+  }
+});
