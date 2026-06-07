@@ -1934,3 +1934,67 @@ Recusa: clique em Recusar → diálogo abre → usuário escolhe motivo(s) → s
 ### Tenant piloto
 
 Captura ativa para todos os tenants que usem o painel; piloto observacional segue restrito a “Respeite o Homem” (tenant `d1a4d0ed-8842-495e-b741-540a9a345b25`, conta Meta `act_251893833881780`). A arquitetura é global e reutilizável.
+
+---
+
+## Etapa 7.mem — Subfase B — Tenant Memory Store
+
+> **Status:** ✅ Entregue — estrutura criada, sem influência sobre a IA
+> **Data:** 2026-06-07
+> **Escopo:** Backend de armazenamento. Sem UI, sem Writer, sem leitura no ciclo.
+
+### Objetivo
+
+Criar a base onde, no futuro, ficarão as **preferências aprendidas** de cada loja sobre como ela quer que a IA de tráfego trabalhe — produtos prioritários, campanhas protegidas, tolerância de CPA, estilo de copy preferido, motivos recorrentes de recusa, padrões de decisão.
+
+Nesta subfase a memória **só nasce**. Não é populada automaticamente, não é lida por nenhum ciclo de IA, e não influencia veredito, sugestão, prompt nem execução.
+
+### Estrutura criada
+
+Uma única base de memória, escopada por: tenant + plataforma de vendas + plataforma de anúncios. Cada item guarda: tipo de memória, escopo, chave, valor, confiança (0 a 1), contagem de evidências, status, origem, primeira observação, última confirmação, última contradição, criação, atualização, arquivamento.
+
+### Status permitidos
+
+- `provisional` (padrão)
+- `active`
+- `archived`
+
+Nada vira `active` automaticamente nesta subfase.
+
+### Validações aplicadas
+
+- Confiança entre 0 e 1.
+- Contagem de evidências inteira e não-negativa.
+- Status restrito à lista controlada.
+- Tipo de memória, escopo e chave obrigatórios.
+- Combinação tenant + plataforma de vendas + plataforma Ads + tipo + escopo + chave é única.
+- Arquivamento é lógico (preenche `archived_at`).
+
+### Isolamento por tenant
+
+- Leitura/escrita restritas a membros da própria loja, via função padrão de acesso por tenant.
+- Outras lojas não leem nem gravam memória do Respeite o Homem.
+- Operações administrativas internas exigem filtro explícito de tenant.
+- Sem rotas públicas/anônimas.
+
+### O que a Subfase B NÃO faz
+
+- Não transforma feedback humano (A.1/A.2) em preferência — isso é Subfase C (Writer).
+- Não carrega memória no ciclo do Ads Autopilot — Subfase D.
+- Não altera veredito, sugestões, prompts, Policy Engine, Governance Layer, Campaign Verdict Layer, Action Derivation nem executor — Subfase F.
+- Não cria Universal Memory Registry.
+- Não ativa autoexecução, não muda `kill_switch`, `human_approval_mode`, `autonomy_mode` nem `is_ai_enabled`.
+- Não chama API da Meta.
+- Não insere/altera dados de outros tenants.
+
+### Validação técnica executada
+
+- Migração aplicada; tabela criada vazia (0 registros).
+- 5 políticas de acesso ativas (SELECT/INSERT/UPDATE/DELETE para membros do tenant + service role com filtro obrigatório).
+- 9 testes específicos passando: campos obrigatórios, status válido/inválido, faixa de confiança, evidence_count, plataformas obrigatórias e invariante de “sem side-effects”.
+- Nenhum ciclo de IA foi rodado.
+- Nenhuma chamada à API da Meta.
+
+### Próxima subfase recomendada
+
+**Subfase C — Tenant Memory Writer.** Consome o histórico de feedback humano (A.1/A.2) e começa a propor itens `provisional` na memória, ainda sem influenciar a IA.
