@@ -3,26 +3,26 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
-import { attachObservationFromActionRecord } from "../_shared/ads-policy.ts";
+import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
 
 /**
- * Fase C.3.2 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`.
- * Delega para o helper central no policy engine, que aplica todos os gates, chama
- * `decide()` real com o contexto disponível e mescla `observation` no actionRecord.
- *
- * NÃO chama API externa. NÃO altera status real. Engole qualquer erro
- * silenciosamente — observação NUNCA pode quebrar o fluxo principal.
+ * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
+ * Delega para o helper central ASSÍNCRONO que aplica gates, faz fallback de
+ * contexto via DB (somente leitura) e chama `decide()` real antes do INSERT.
+ * Engole qualquer erro silenciosamente — observação NUNCA pode quebrar o fluxo.
  */
-function attachObservationIfEligible(
+async function attachObservationIfEligible(
   actionRecord: Record<string, any>,
   acctConfig: { tenant_id?: string; is_ai_enabled?: boolean | null; kill_switch?: boolean | null; autonomy_mode?: unknown; last_budget_adjusted_at?: string | null } | null | undefined,
-): void {
+  supabase: any,
+): Promise<void> {
   try {
-    attachObservationFromActionRecord(actionRecord, acctConfig as any);
+    await attachObservationFromActionRecordAsync(actionRecord, acctConfig as any, supabase);
   } catch (_e) {
     // no-op
   }
 }
+
 
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
@@ -2142,7 +2142,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] DEDUP: Já existe pending_approval para funil=${proposedFunnel} account=${acctConfig.ad_account_id}. Rejeitando duplicata.`);
                 actionRecord.status = "rejected";
                 actionRecord.rejection_reason = `Já existe proposta pendente para o funil "${proposedFunnel === "tof" ? "Público Frio" : proposedFunnel === "bof" ? "Remarketing" : proposedFunnel}". Aprove ou rejeite a existente antes de criar outra.`;
-                attachObservationIfEligible(actionRecord, acctConfig);
+                await attachObservationIfEligible(actionRecord, acctConfig, supabase);
                 const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                 if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Insert error:`, insertErr.message);
                 continue;
@@ -2292,7 +2292,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   console.log(`[ads-autopilot-analyze][${VERSION}] BUDGET GUARD: rejected — ${budgetCheck.reason}`);
                   
                   // Insert action and skip
-                  attachObservationIfEligible(actionRecord, acctConfig);
+                  await attachObservationIfEligible(actionRecord, acctConfig, supabase);
                   const { error: bgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                   if (bgInsertErr && bgInsertErr.code !== "23505") console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, bgInsertErr);
                   totalActionsRejected++;
@@ -2409,7 +2409,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         // Rollback campaign
                         try { await supabase.functions.invoke("meta-ads-campaigns", { body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" } }); } catch {}
                         actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, reason: "targeting_guard_rejected" };
-                        attachObservationIfEligible(actionRecord, acctConfig);
+                        await attachObservationIfEligible(actionRecord, acctConfig, supabase);
                         const { error: tgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
                         if (tgInsertErr && tgInsertErr.code !== "23505") console.error(`Action insert error:`, tgInsertErr);
                         totalActionsRejected++;
@@ -3216,7 +3216,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             totalActionsRejected++;
           }
 
-          attachObservationIfEligible(actionRecord, acctConfig);
+          await attachObservationIfEligible(actionRecord, acctConfig, supabase);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) {
             // v5.11.0: Treat UNIQUE constraint violation as noop (idempotency)

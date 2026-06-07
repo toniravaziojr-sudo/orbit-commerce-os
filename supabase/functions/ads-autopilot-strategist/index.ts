@@ -3,24 +3,26 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
-import { attachObservationFromActionRecord } from "../_shared/ads-policy.ts";
+import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
 
 /**
- * Fase C.3.2 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`.
- * Delega para o helper central no policy engine, que aplica gates, chama
- * `decide()` real e mescla `observation` no actionRecord antes do INSERT.
+ * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
+ * Delega para o helper central ASSÍNCRONO que aplica gates, faz fallback de
+ * contexto via DB (somente leitura) e chama `decide()` real antes do INSERT.
  * Engole qualquer erro silenciosamente: observação NUNCA bloqueia o fluxo principal.
  */
-function attachObservationIfEligible(
+async function attachObservationIfEligible(
   actionRecord: Record<string, any>,
   acctConfig: { tenant_id?: string; is_ai_enabled?: boolean | null; kill_switch?: boolean | null; autonomy_mode?: unknown; last_budget_adjusted_at?: string | null } | null | undefined,
-): void {
+  supabase: any,
+): Promise<void> {
   try {
-    attachObservationFromActionRecord(actionRecord, acctConfig as any);
+    await attachObservationFromActionRecordAsync(actionRecord, acctConfig as any, supabase);
   } catch (_e) {
     // no-op
   }
 }
+
 
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
@@ -3362,7 +3364,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             }
           }
 
-          attachObservationIfEligible(actionRecord, config);
+          await attachObservationIfEligible(actionRecord, config, supabase);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
 
