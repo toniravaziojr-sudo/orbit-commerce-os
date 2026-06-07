@@ -78,13 +78,21 @@ Deno.test("C.3.1 — autoexecução continua desligada (hardcoded false)", () =>
 // ──────────────────────────────────────────────────────────────────────────────
 
 const BASE_GATE: ObservationGateInput = {
-  tenant_id: "00000000-0000-0000-0000-000000000001",
+  tenant_id: PILOT_TENANT_ID,
   action_type: "adjust_budget",
   action_class: "automatic_candidate",
   autonomy_mode: "technical_only",
   is_ai_enabled: true,
   kill_switch: false,
 };
+
+Deno.test("gate — todos os gates ok com tenant piloto → ELEGÍVEL", () => {
+  const r = shouldAttachObservation(BASE_GATE);
+  assert(r.eligible);
+  assertEquals(r.reason, "ok");
+});
+
+
 
 Deno.test("gate — tenant fora da allowlist → não elegível", () => {
   const r = shouldAttachObservation({ ...BASE_GATE, tenant_id: "00000000-0000-0000-0000-000000000999" });
