@@ -277,18 +277,8 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 key={action.id}
                 action={action}
                 childActions={getChildActions(action)}
-                onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-                onReject={(id, reason, mode) => {
-                  setRejectingId(id);
-                  rejectAction.mutate({ actionId: id, reason }, {
-                    onSettled: () => setRejectingId(null),
-                    onSuccess: () => {
-                      if (mode === "regenerate") {
-                        handleAdjust(id, "Usuário rejeitou e solicitou nova proposta");
-                      }
-                    },
-                  });
-                }}
+                onApprove={gateApprove}
+                onReject={gateReject}
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
@@ -301,18 +291,8 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 key={`orphan-${parentName}`}
                 parentCampaignName={parentName}
                 adsets={groupAdsets}
-                onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-                onReject={(id, reason, mode) => {
-                  setRejectingId(id);
-                  rejectAction.mutate({ actionId: id, reason }, {
-                    onSettled: () => setRejectingId(null),
-                    onSuccess: () => {
-                      if (mode === "regenerate") {
-                        handleAdjust(id, "Usuário rejeitou e solicitou nova proposta");
-                      }
-                    },
-                  });
-                }}
+                onApprove={gateApprove}
+                onReject={gateReject}
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
@@ -322,6 +302,8 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
           </div>
         </div>
       </div>
+      {feedbackGate.FeedbackDialog}
     </ScrollArea>
+
   );
 }
