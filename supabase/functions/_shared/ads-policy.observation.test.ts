@@ -16,6 +16,7 @@ import {
   OBSERVATION_PILOT_VERSION,
   OBSERVABLE_TECHNICAL_ACTION_TYPES,
   TECHNICAL_ONLY_OBSERVATION_ALLOWLIST,
+  attachObservationFromActionRecord,
   buildObservationResult,
   isAutonomyExecutionEnabled,
   maybeAttachTechnicalOnlyObservation,
@@ -24,13 +25,17 @@ import {
   type Decision,
 } from "./ads-policy.ts";
 
+const PILOT_TENANT_ID = "d1a4d0ed-8842-495e-b741-540a9a345b25";
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Constantes / Allowlist
 // ──────────────────────────────────────────────────────────────────────────────
 
-Deno.test("C.3.1 — allowlist do piloto observacional inicia VAZIA", () => {
-  assertEquals(TECHNICAL_ONLY_OBSERVATION_ALLOWLIST.length, 0);
+Deno.test("C.3.2 — allowlist contém apenas o tenant piloto Respeite o Homem", () => {
+  assertEquals(TECHNICAL_ONLY_OBSERVATION_ALLOWLIST.length, 1);
+  assertEquals(TECHNICAL_ONLY_OBSERVATION_ALLOWLIST[0], PILOT_TENANT_ID);
 });
+
 
 Deno.test("C.3.1 — pilot_version fixado em 'c3_v1'", () => {
   assertEquals(OBSERVATION_PILOT_VERSION, "c3_v1");
