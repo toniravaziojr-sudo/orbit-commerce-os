@@ -10,6 +10,7 @@ import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { showErrorToast } from '@/lib/error-toast';
+import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
 
 interface AdsPendingApprovalTabProps {
   channelFilter?: string;
@@ -68,6 +69,33 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const feedbackGate = useAdsAutopilotFeedbackGate(tenantId);
+
+  const runApprove = (id: string) => {
+    setApprovingId(id);
+    approveAction.mutate(id, { onSettled: () => setApprovingId(null) });
+  };
+  const runReject = (id: string, reason: string, mode: RejectMode) => {
+    setRejectingId(id);
+    rejectAction.mutate({ actionId: id, reason }, {
+      onSettled: () => setRejectingId(null),
+      onSuccess: () => {
+        if (mode === "regenerate") {
+          adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
+        }
+      },
+    });
+  };
+  const gateApprove = (id: string) => {
+    const action = pendingActions.find(a => a.id === id);
+    if (!action) return runApprove(id);
+    feedbackGate.requestApproval(action, () => runApprove(id));
+  };
+  const gateReject = (id: string, reason: string, mode: RejectMode) => {
+    const action = pendingActions.find(a => a.id === id);
+    if (!action) return runReject(id, reason, mode);
+    feedbackGate.requestRejection(action, () => runReject(id, reason, mode));
+  };
 
   const { data: pendingActions = [], isLoading } = useQuery({
     queryKey: ["ads-pending-approval", tenantId, channelFilter],
@@ -288,18 +316,8 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={action.id}
           action={action}
           childActions={getChildActions(action)}
-          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason, mode) => {
-            setRejectingId(id);
-            rejectAction.mutate({ actionId: id, reason }, {
-              onSettled: () => setRejectingId(null),
-              onSuccess: () => {
-                if (mode === "regenerate") {
-                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
-                }
-              },
-            });
-          }}
+          onApprove={gateApprove}
+          onReject={gateReject}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
@@ -312,24 +330,15 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={`orphan-${parentName}`}
           parentCampaignName={parentName}
           adsets={groupAdsets}
-          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason, mode) => {
-            setRejectingId(id);
-            rejectAction.mutate({ actionId: id, reason }, {
-              onSettled: () => setRejectingId(null),
-              onSuccess: () => {
-                if (mode === "regenerate") {
-                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
-                }
-              },
-            });
-          }}
+          onApprove={gateApprove}
+          onReject={gateReject}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
           adjustingId={adjustingId}
         />
       ))}
+      {feedbackGate.FeedbackDialog}
     </div>
   );
 }

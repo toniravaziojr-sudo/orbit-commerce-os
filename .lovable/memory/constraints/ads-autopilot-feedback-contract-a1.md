@@ -1,6 +1,6 @@
 ---
-name: ads-autopilot-feedback-contract-a1
-description: Contrato de feedback humano do Ads Autopilot (Etapa 7.mem A.1) — motivo obrigatório, isolamento por tenant, sem influência sobre a IA
+name: ads-autopilot-feedback-contract-a1-a2
+description: Contrato de feedback humano do Ads Autopilot (Etapa 7.mem A.1 + UI A.2) — motivo obrigatório, isolamento por tenant, sem influência sobre a IA
 type: constraint
 ---
 
