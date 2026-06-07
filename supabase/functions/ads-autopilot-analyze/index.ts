@@ -32,7 +32,7 @@ async function attachObservationIfEligible(
 
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.16.0"; // C.3.2 Etapa 6: Deterministic budget proposal trigger (Meta-only, pilot-gated)
+const VERSION = "v5.17.0"; // C.3.2 Etapa 7.mem F.2: silent Tenant Preference Guard plug on deterministic budget trigger
 // ===========================================================
 
 // =============================================================================
