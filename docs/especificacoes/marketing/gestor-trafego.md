@@ -1814,3 +1814,66 @@ Ciclo manual disparado contra `act_251893833881780` (somente Meta, somente Analy
 
 Acompanhar 7 dias de janela observacional a partir de 07/06/2026, comparando `would_decision` das propostas determinísticas com a decisão humana final na fila. Se a taxa de concordância for alta e nenhuma proposta forçar `would_decision=reject` por limite/janela, abrir Etapa 7 para discutir liberação controlada de autoexecução apenas do tipo `adjust_budget` (ainda restrita ao piloto).
 
+
+---
+
+## Etapa 7.mem — Subfase A.1 — Captura de Feedback Humano: Contrato e Armazenamento
+
+**Status:** entregue (backend apenas). Sem alteração de UI, sem alteração do fluxo atual de aprovação/recusa, sem influência sobre a IA.
+
+### Objetivo
+
+Criar a base para registrar de forma estruturada cada decisão humana sobre sugestões do Ads Autopilot, para que essa decisão alimente, em subfases posteriores, a Memória Exclusiva do Tenant e — bem mais à frente — a Memória Universal. Esta subfase apenas constrói o contrato e o armazenamento. **Nenhuma decisão da IA muda nesta entrega.**
+
+### O que foi entregue
+
+1. **Catálogo extensível de motivos** com 22 códigos iniciais, divididos em motivos de aprovação (6) e motivos de recusa/revisão (16). Motivos podem ser ativados/desativados no futuro sem refatoração.
+2. **Histórico imutável de feedback** com snapshot completo do contexto da sugestão no momento da decisão (campanha, objetivo, métricas, política, observação) e da decisão em si (decisão, motivos, comentário, sinais auxiliares e, quando aplicável, diferença entre proposta e versão aprovada).
+3. **Ponto único de gravação** acessível apenas por usuários autenticados do próprio tenant, com validação obrigatória do motivo contra o catálogo e do conjunto mínimo de campos do contrato.
+4. **Isolamento estrito por tenant** via políticas de acesso na própria base, mais validação cruzada no ponto de gravação.
+5. **Bateria de testes do contrato** cobrindo aprovação, recusa, pedido de revisão, edição+aprovação, motivo inválido, ausência de motivo, snapshot ausente, decisão inválida, diferença em decisão errada e identificadores mal formados.
+
+### Decisões permitidas
+
+- **Aprovado** — humano concorda com a sugestão.
+- **Recusado** — humano descarta a sugestão.
+- **Pediu revisão** — humano quer que a IA reavalie no próximo ciclo (sem executar e sem rejeitar definitivamente).
+- **Editou e aprovou** — humano alterou campos da proposta antes de aprovar; a diferença entre proposta e versão aprovada é registrada.
+
+Os quatro estados já são aceitos pelo contrato mesmo que a UI ainda não os exponha — para garantir compatibilidade quando a Subfase A.2 (UI mínima) e A.3 (revisão + edição) forem entregues.
+
+### Lista inicial de motivos
+
+**Aprovação:** boa lógica de orçamento; boa recomendação de criativo; alinhado com a meta do negócio; eu faria isso manualmente; conservadora e segura; forte sustentação nos dados.
+
+**Recusa / revisão:** dados insuficientes; produto errado; copy fraca; orçamento alto demais; orçamento baixo demais; campanha ainda em aprendizado; momento errado; conflita com a estratégia; contexto faltando; não escalar este produto; recomendação incoerente; ação duplicada ou conflitante; público errado; problema de rastreamento; criativo incompatível; campanha fria muito agressiva.
+
+Os rótulos em português registrados no catálogo são placeholders técnicos — a versão final dos textos para a UI será aprovada na Subfase A.2.
+
+### Isolamento e segurança
+
+- Cada tenant lê e grava apenas o próprio feedback.
+- Tentativa de gravação com motivo fora do catálogo ou sem motivo é rejeitada tanto no ponto de gravação quanto na própria base.
+- Feedback é imutável: não há edição nem exclusão pelo usuário.
+- O ponto de gravação exige sessão autenticada do tenant.
+
+### O que **não** muda nesta subfase
+
+- Botões de aprovar e recusar continuam exatamente como hoje.
+- Nenhuma tela nova.
+- O motivo **ainda não é obrigatório no fluxo real** — só é obrigatório quando o ponto de gravação de feedback é chamado diretamente. A UI que torna o motivo obrigatório no clique do usuário entra apenas em A.2.
+- Veredito da IA, geração de sugestões, prompts, camada de política, governança da conta, matriz por objetivo e camada de derivação de ação permanecem inalterados.
+- Modo de aprovação humana, kill switch, modo de autonomia e habilitação da IA não foram tocados.
+- Nenhuma chamada à Meta foi feita.
+- Nenhuma autoexecução foi ativada.
+
+### Roadmap das próximas subfases
+
+- **A.2 — Captura via UI mínima:** diálogos de aprovar e recusar com motivo obrigatório e sinais auxiliares; mantém o mesmo contrato.
+- **A.3 — Revisão e edição:** introduz “Pedir revisão” e “Editar e aprovar” no fluxo, com captura da diferença entre proposta e versão aprovada.
+- **B — Memória do Tenant (armazenamento):** estrutura onde as preferências aprendidas daquele tenant + plataforma de vendas + plataforma de anúncios serão guardadas.
+- **C — Escritor da Memória do Tenant:** transforma feedback recorrente em preferência provisional/ativa, com confiança, evidências e versionamento.
+- **D — Leitura observacional no ciclo:** anexa as preferências aplicáveis a cada sugestão (apenas log e anotação).
+- **E — UI de transparência:** tela mostrando por que a sugestão foi gerada e o que foi bloqueado; gestão das preferências do tenant.
+- **F — Influência real:** Verdict Layer e Action Derivation passam a respeitar a hierarquia.
+- **G/H — Memória Universal:** só inicia quando houver volume de feedback estruturado suficiente e/ou um segundo tenant ativo.
