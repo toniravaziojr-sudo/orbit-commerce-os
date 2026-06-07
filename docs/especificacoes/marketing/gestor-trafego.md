@@ -2242,3 +2242,76 @@ Toda execução do Guard produz:
 ### Próxima subfase recomendada
 
 **Subfase F.2 — Plug do Guard no gatilho determinístico de orçamento, em modo silencioso primeiro** (registra o trace e o que aconteceria, sem alterar o output real). Só após validação de F.2 com feedback real do tenant piloto, evoluir para F.3 (Analyze), F.4 (Strategist), F.5 (rationale exposto ao lojista) e F.6 (validação com feedback real).
+
+---
+
+## Etapa 7.mem — Subfase F.2: Plug silencioso no gatilho determinístico de orçamento
+
+### Objetivo
+
+Conectar o Tenant Preference Guard (F.1) ao gatilho determinístico de propostas de orçamento do Ads Autopilot, **exclusivamente em modo silencioso**. Nesta subfase o Guard simula o que faria com base na Tenant Memory, registra rastreabilidade junto à proposta gerada, e a sugestão real continua exatamente igual à versão pré-Guard.
+
+### Escopo
+
+- O Guard é plugado **apenas** no gatilho determinístico de orçamento (gerador de propostas `adjust_budget` baseadas em CPA 7d vs 14d, restrito ao tenant Respeite o Homem e à conta `act_251893833881780`).
+- Analyze amplo (LLM), Strategist, Guardian, criação de campanha, geração de criativo, experiments e pausas continuam **sem** Guard plugado.
+- Tenant piloto: Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`). Outros tenants não são afetados.
+
+### Como o modo silencioso funciona
+
+1. Antes de iterar as campanhas elegíveis, o gatilho carrega uma única vez as memórias observacionais do tenant para a plataforma `meta` (Subfase D / Reader). Memória vazia é esperada e tratada com `memory_candidates_count = 0`.
+2. Para cada proposta `adjust_budget` gerada, o gatilho:
+   - constrói um rascunho equivalente (mapeado para `increase_budget`/`decrease_budget` apenas para fins de simulação, já que o Guard reconhece esses tipos para regras de soften);
+   - chama `applyTenantPreferenceGuard(...)`;
+   - **descarta** `guardOutput.recommendation`;
+   - persiste a proposta original intacta (mesmo `action_type`, `status`, `change_pct`, `current_daily_budget_cents`, `new_budget_cents`, `proposed_daily_budget_cents`, `reasoning`).
+3. O trace é anexado em `action_data.tenant_memory_silent_trace`. Esse campo é puramente observacional e **não** sobrescreve `policy_check_result`, `observation` (preenchidos pelo helper de observação do Policy Engine), nem nenhum campo de orçamento.
+4. Um log estruturado `[ads-autopilot-analyze][...][tenant-memory-guard-silent]` é emitido com `mode`, `candidates`, `influence_type`, `applied_to_decision=false` e `real_changed=false` para inspeção rápida.
+
+### Campos do trace silencioso
+
+`tenant_memory_silent_trace` contém:
+
+- `tenant_memory_guard_mode = "silent"`
+- `tenant_memory_used`
+- `memory_candidates_count`
+- `memory_ids_used`, `memory_statuses_used`
+- `influence_type` (none | block | soften | enrich_rationale | prioritize)
+- `before_recommendation` (estado real persistido)
+- `simulated_after_recommendation` (o que o Guard faria, somente para registro)
+- `real_recommendation_changed = false` (invariante)
+- `applied_to_decision = false` (invariante)
+- `why_memory_applied`, `why_memory_did_not_apply`
+- `fail_open` (true se o Guard ou a leitura de memória falhar)
+- `simulated_at`
+
+### Chave de segurança
+
+Constante interna `TENANT_MEMORY_GUARD_MODE` com default `"silent"`. Não há, nesta subfase, qualquer caminho que ative `"active"` (alteração real). `human_approval_mode`, `autonomy_mode`, `is_ai_enabled` e `kill_switch` permanecem como única fonte de verdade da governança e não são tocados pela F.2.
+
+### Custo / leitura única
+
+A leitura de memória acontece **uma única vez** por execução do gatilho determinístico (não por campanha), reaproveitando o array em todas as iterações. Sem novas chamadas a Meta, sem LLM, sem cron novo.
+
+### O que a Subfase F.2 NÃO faz
+
+- Não altera sugestão real, `action_type`, `action_class`, `status`, orçamento sugerido nem orçamento persistido.
+- Não bloqueia, rebaixa, suaviza nem prioriza sugestões reais.
+- Não altera fluxo de aprovação/recusa, approval queue, Policy Engine, Governance Layer, Action Derivation ou executor.
+- Não ativa autoexecução. Não chama Meta API. Não roda Analyze/Strategist/Guardian.
+- Não cria UI nova, painel de memória, aviso ao lojista ou indicação visual.
+- Não modifica o Writer (Subfase C) nem o Guard (Subfase F.1).
+- Não toca em outro tenant.
+
+### Validação técnica executada
+
+- 6 testes específicos passando (`src/test/ads-autopilot-budget-trigger-guard-silent.test.ts`): memória vazia, provisional, active bloqueante simulada, active de soften simulada, fail-open em input inválido, e invariante de que o trace nunca sobrescreve `policy_check_result`.
+- Nenhum ciclo de IA (Analyze/Strategist/Guardian) foi rodado.
+- Nenhuma chamada à API da Meta.
+- Nenhuma autoexecução ativada.
+- Apenas a edge function `ads-autopilot-analyze` (gatilho determinístico) recebeu o plug; nenhum outro gerador foi tocado.
+
+### Próxima subfase recomendada
+
+**Subfase F.2 ativa** — após o tenant piloto acumular alguns ciclos com `tenant_memory_silent_trace` e o usuário validar (a) que o trace está coerente, (b) que `applied_to_decision` e `real_recommendation_changed` permanecem `false` em todos os registros e (c) que nenhum gerador além do gatilho determinístico aparece com trace, promover a constante para `"active"` apenas no gatilho determinístico de orçamento. Só então avançar para F.3 (Analyze), F.4 (Strategist), F.5 (rationale exposto ao lojista) e F.6 (validação com feedback real).
+

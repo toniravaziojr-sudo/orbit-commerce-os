@@ -4,6 +4,12 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
+import {
+  readTenantMemoryObservational,
+  type TenantMemoryRow,
+} from "../_shared/ads-autopilot/memoryReader.ts";
+import { applyTenantPreferenceGuard } from "../_shared/ads-autopilot/tenantPreferenceGuard.ts";
+
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
@@ -26,7 +32,7 @@ async function attachObservationIfEligible(
 
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.16.0"; // C.3.2 Etapa 6: Deterministic budget proposal trigger (Meta-only, pilot-gated)
+const VERSION = "v5.17.0"; // C.3.2 Etapa 7.mem F.2: silent Tenant Preference Guard plug on deterministic budget trigger
 // ===========================================================
 
 // =============================================================================
@@ -62,6 +68,43 @@ const DET_BUDGET_MAX_CHANGE_PCT = 20;
 const DET_BUDGET_MIN_CONVERSIONS_7D = 5;
 const DET_BUDGET_DEDUP_HOURS = 24;
 
+// Etapa 7.mem — Subfase F.2: chave de segurança. Default seguro = "silent".
+// Nesta subfase, qualquer valor diferente de "silent" também é tratado como
+// silent (modo active só é liberado em F.2 ativa, em subfase posterior).
+const TENANT_MEMORY_GUARD_MODE: "silent" | "active" = "silent";
+
+/**
+ * Carrega memórias observacionais do tenant uma única vez por execução do
+ * gatilho determinístico de orçamento. Fail-open: qualquer erro retorna [].
+ */
+async function loadTenantMemoriesForBudgetTrigger(
+  supabase: any,
+  tenant_id: string,
+  ads_platform: string,
+): Promise<TenantMemoryRow[]> {
+  try {
+    const { rows } = await readTenantMemoryObservational(
+      { tenant_id, ads_platform },
+      async (ctx) => {
+        const { data, error } = await supabase
+          .from("ads_autopilot_tenant_memory")
+          .select(
+            "id, tenant_id, sales_platform, ads_platform, memory_type, scope, key, value, confidence, evidence_count, status",
+          )
+          .eq("tenant_id", ctx.tenant_id!)
+          .eq("ads_platform", ctx.ads_platform!)
+          .in("status", ["provisional", "active"])
+          .limit(500);
+        if (error) throw error;
+        return (data || []) as TenantMemoryRow[];
+      },
+    );
+    return rows;
+  } catch (_e) {
+    return [];
+  }
+}
+
 async function generateDeterministicBudgetProposals(
   supabase: any,
   tenant_id: string,
@@ -69,6 +112,11 @@ async function generateDeterministicBudgetProposals(
   sessionId: string,
   strategyRunId: string,
 ): Promise<{
+  generated: number;
+  evaluated: number;
+  skipped: Array<{ meta_campaign_id: string; reason: string }>;
+}> {
+
   generated: number;
   evaluated: number;
   skipped: Array<{ meta_campaign_id: string; reason: string }>;
@@ -99,6 +147,16 @@ async function generateDeterministicBudgetProposals(
     }
     const campaignIds = (cpaRows || []).map((r: any) => r.meta_campaign_id).filter(Boolean);
     if (campaignIds.length === 0) return out;
+
+    // ---- Etapa 7.mem F.2: leitura única da Tenant Memory por execução ----
+    // Modo silencioso: o resultado NUNCA altera sugestão real, apenas
+    // alimenta o trace anexado em action_data.tenant_memory_silent_trace.
+    const tenantMemories = await loadTenantMemoriesForBudgetTrigger(
+      supabase,
+      tenant_id,
+      "meta",
+    );
+
 
     const { data: campRows } = await supabase
       .from("meta_ad_campaigns")
@@ -204,7 +262,91 @@ async function generateDeterministicBudgetProposals(
         action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_adjust_budget_det_${cid}_${direction}`,
       };
 
+      // ---- Etapa 7.mem F.2: simulação silenciosa do Tenant Preference Guard ----
+      // Aplica o Guard apenas para gerar trace observacional. A recomendação
+      // ajustada é DESCARTADA. Nada na sugestão real muda: action_type,
+      // status, change_pct, current_daily_budget_cents, new_budget_cents e
+      // proposed_daily_budget_cents permanecem intactos. policy_check_result
+      // e observation (preenchidos pelo helper abaixo) NÃO são tocados.
+      try {
+        const guardSimActionType = direction === "up" ? "increase_budget" : "decrease_budget";
+        const guardOutput = applyTenantPreferenceGuard({
+          tenant_id,
+          ads_platform: "meta",
+          sales_platform: null,
+          action_type: guardSimActionType,
+          campaign_id: cid,
+          draft: {
+            draft_id: actionRecord.action_hash,
+            action_type: guardSimActionType,
+            params: {
+              current_daily_budget_cents: currentBudget,
+              proposed_daily_budget_cents: new_budget_cents,
+              change_pct,
+              increase_pct: direction === "up" ? Math.abs(change_pct) : 0,
+            },
+            proposed_status: "pending_approval",
+            rationale: reasonText,
+            priority: "normal",
+          },
+          memories: tenantMemories,
+          governance: {
+            kill_switch: acctConfig.kill_switch === true,
+            tenant_explicit_required: false,
+          },
+        });
+
+        actionRecord.action_data.tenant_memory_silent_trace = {
+          tenant_memory_guard_mode: TENANT_MEMORY_GUARD_MODE,
+          tenant_memory_used: guardOutput.trace.tenant_memory_used,
+          memory_candidates_count: tenantMemories.length,
+          memory_ids_used: guardOutput.trace.memory_ids_used,
+          memory_statuses_used: guardOutput.trace.memory_statuses_used,
+          influence_type: guardOutput.trace.influence_type,
+          before_recommendation: {
+            action_type: "adjust_budget",
+            change_pct,
+            current_daily_budget_cents: currentBudget,
+            proposed_daily_budget_cents: new_budget_cents,
+            status: "pending_approval",
+          },
+          simulated_after_recommendation: {
+            action_type: guardOutput.recommendation.action_type,
+            proposed_status: guardOutput.recommendation.proposed_status,
+            priority: guardOutput.recommendation.priority,
+            params: guardOutput.recommendation.params,
+            rationale_changed:
+              guardOutput.recommendation.rationale !== reasonText,
+          },
+          real_recommendation_changed: false,
+          applied_to_decision: false,
+          why_memory_applied: guardOutput.trace.why_memory_applied,
+          why_memory_did_not_apply: guardOutput.trace.why_memory_did_not_apply,
+          fail_open: guardOutput.trace.fail_open,
+          simulated_at: new Date().toISOString(),
+        };
+        console.log(
+          `[ads-autopilot-analyze][${VERSION}][tenant-memory-guard-silent] tenant=${tenant_id} campaign=${cid} mode=${TENANT_MEMORY_GUARD_MODE} candidates=${tenantMemories.length} influence=${guardOutput.trace.influence_type} applied_to_decision=false real_changed=false`,
+        );
+      } catch (guardErr: any) {
+        actionRecord.action_data.tenant_memory_silent_trace = {
+          tenant_memory_guard_mode: TENANT_MEMORY_GUARD_MODE,
+          tenant_memory_used: false,
+          memory_candidates_count: tenantMemories.length,
+          memory_ids_used: [],
+          memory_statuses_used: [],
+          influence_type: "none",
+          real_recommendation_changed: false,
+          applied_to_decision: false,
+          fail_open: true,
+          why_memory_did_not_apply: [`guard_threw_fail_open:${guardErr?.message ?? "unknown"}`],
+          simulated_at: new Date().toISOString(),
+        };
+      }
+
       await attachObservationIfEligible(actionRecord, acctConfig as any, supabase);
+
+
 
       const { error: insErr } = await supabase
         .from("ads_autopilot_actions")
