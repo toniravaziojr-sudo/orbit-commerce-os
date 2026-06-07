@@ -2093,3 +2093,59 @@ Motivos fora desse mapa **não** geram preferência por motivo nesta subfase (ma
 ### Próxima subfase recomendada
 
 **Subfase D — Leitura observacional da memória.** A IA passa a **ler** a memória do tenant durante o ciclo apenas para registrar telemetria (o que faria diferente se considerasse a memória), ainda **sem influenciar** o veredito. Só na Subfase F a memória começa a influenciar decisões.
+
+## Etapa 7.mem — Subfase D: Leitura Observacional da Tenant Memory
+
+**Status:** Entregue. Modo estritamente observacional. **Nenhum ciclo de IA foi rodado para validar.**
+
+### Objetivo
+
+Permitir que o Ads Autopilot **carregue** a memória do tenant durante o ciclo, **sem usar essa memória para alterar nada**. É a ponte técnica para a futura Subfase F (influência real), construída de forma que possa coexistir com memória vazia, parcial ou completa.
+
+### Como a memória é carregada
+
+- Helper puro `readTenantMemoryObservational` + `filterApplicableMemories` + `buildMemoryObservation` (testáveis sem banco).
+- A leitura real acontece **uma única vez por ciclo** no coletor de contexto do Strategist (`collectStrategistContext`), filtrando por `tenant_id` + `ads_platform` dos canais configurados + status em `['provisional','active']`.
+- Sem `tenant_id` ou sem nenhum canal configurado, a leitura é pulada (sem consulta pesada).
+- Se a consulta falhar, a falha é absorvida: a observação registra `tenant_memory_fetch_failed_observational_only` e o ciclo segue normalmente.
+
+### Onde a observação é registrada
+
+- Campo `tenant_memory_observation` anexado ao retorno do contexto do Strategist (consumível por logs/telemetria, **não** consumido pelo prompt nesta subfase).
+- Log estruturado `[ads-autopilot-strategist][...][tenant-memory-observation]` por execução, com:
+
+```json
+{
+  "tenant_memory_observation": {
+    "mode": "observational_only",
+    "memory_candidates_count": 0,
+    "memory_ids_considered": [],
+    "statuses_considered": [],
+    "applied_to_decision": false,
+    "reason": "tenant_memory_empty_or_not_applicable"
+  }
+}
+```
+
+### Compatibilidade com memória vazia
+
+- Tenant piloto (Respeite o Homem, `d1a4d0ed-8842-495e-b741-540a9a345b25`, Meta `act_251893833881780`) pode ter zero memórias hoje. A entrega foi desenhada para esse cenário: o helper devolve lista vazia, a observação registra `memory_candidates_count: 0` com motivo explícito, e nenhuma decisão muda.
+
+### O que a Subfase D NÃO faz
+
+- Não altera veredito, sugestão, prompt, Policy Engine, Governance Layer, Campaign Verdict Layer, Action Derivation, status de sugestão nem execução.
+- Não altera `policy_check_result` nem observações já existentes (anexa um campo novo dedicado).
+- Não chama a Meta. Não chama LLM. Não cria cron. Não cria UI.
+- Não muda `kill_switch`, `human_approval_mode`, `autonomy_mode` nem `is_ai_enabled`.
+- Não vaza memória entre tenants (filtro server-side por `tenant_id` + revalidação client-side em `filterApplicableMemories`).
+
+### Validação técnica executada
+
+- 21 testes específicos do reader passando (`src/test/ads-autopilot-memory-reader.test.ts`): memória vazia, provisional, active, isolamento por tenant, filtros por `ads_platform`/`sales_platform`/`objective`/`scope`/`memory_type`/`key`/`min_confidence`, falha do fetcher absorvida, ausência de fetch/supabase/Meta no módulo puro, e invariante `applied_to_decision = false` em todos os cenários.
+- Nenhum ciclo de IA (Analyze/Strategist/Guardian) foi rodado para validar esta entrega.
+- Nenhuma chamada à API da Meta.
+- Nenhuma autoexecução ativada.
+
+### Próxima subfase recomendada
+
+**Subfase F — Influência real da memória.** A IA passa a usar as preferências aprendidas para ajustar sugestões e prompts, mantendo 100% de aprovação humana. Antes de F, recomenda-se validar manualmente no painel do Respeite o Homem que o log `tenant-memory-observation` aparece nos próximos ciclos do Strategist.

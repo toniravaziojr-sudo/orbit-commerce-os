@@ -1174,6 +1174,58 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     }
   }
 
+  // ============ ETAPA 7.mem — Subfase D: LEITURA OBSERVACIONAL DA TENANT MEMORY ============
+  // Carrega uma única vez por ciclo as memórias provisional/active do tenant para os canais
+  // ads_platform presentes em `configs`. Esta leitura é estritamente observacional:
+  // não altera veredito, sugestões, prompts, Policy Engine, Governance Layer, Action
+  // Derivation, status ou execução. Apenas anexa um resumo em `tenant_memory_observation`
+  // e loga estruturadamente. Falha silenciosa: memória é puramente observacional nesta subfase.
+  const tenantMemoryObservation: Record<string, any> = {
+    mode: "observational_only",
+    applied_to_decision: false,
+    reason: "tenant_memory_not_active_for_influence",
+    by_ads_platform: {} as Record<string, { candidates: number; ids: string[]; statuses: string[] }>,
+    total_candidates: 0,
+  };
+  try {
+    const adsPlatforms = Array.from(new Set((configs || []).map((c) => c.channel).filter(Boolean)));
+    if (tenantId && adsPlatforms.length > 0) {
+      const { data: memRows, error: memErr } = await supabase
+        .from("ads_autopilot_tenant_memory")
+        .select("id, tenant_id, sales_platform, ads_platform, memory_type, scope, key, value, confidence, evidence_count, status")
+        .eq("tenant_id", tenantId)
+        .in("ads_platform", adsPlatforms)
+        .in("status", ["provisional", "active"])
+        .limit(500);
+      if (memErr) {
+        tenantMemoryObservation.reason = "tenant_memory_fetch_failed_observational_only";
+      } else {
+        const rows = (memRows || []).filter((r: any) => r.tenant_id === tenantId);
+        tenantMemoryObservation.total_candidates = rows.length;
+        for (const r of rows) {
+          const p = String(r.ads_platform || "unknown");
+          if (!tenantMemoryObservation.by_ads_platform[p]) {
+            tenantMemoryObservation.by_ads_platform[p] = { candidates: 0, ids: [], statuses: [] };
+          }
+          const slot = tenantMemoryObservation.by_ads_platform[p];
+          slot.candidates += 1;
+          slot.ids.push(r.id);
+          if (!slot.statuses.includes(r.status)) slot.statuses.push(r.status);
+        }
+        if (rows.length === 0) tenantMemoryObservation.reason = "tenant_memory_empty_or_not_applicable";
+      }
+    } else {
+      tenantMemoryObservation.reason = "missing_tenant_or_ads_platform";
+    }
+  } catch (err: any) {
+    tenantMemoryObservation.reason = "tenant_memory_fetch_failed_observational_only";
+    tenantMemoryObservation.error = err?.message || String(err);
+  }
+  console.log(`[ads-autopilot-strategist][${VERSION}][tenant-memory-observation]`, JSON.stringify({
+    tenant_id: tenantId,
+    ...tenantMemoryObservation,
+  }));
+
   return {
     products,
     categories,
@@ -1207,6 +1259,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     googleAssets,
     tiktokCampaigns,
     tiktokInsights,
+    // Etapa 7.mem — Subfase D: observação carregada uma vez por ciclo, NÃO influencia a IA.
+    tenant_memory_observation: tenantMemoryObservation,
   };
 }
 
