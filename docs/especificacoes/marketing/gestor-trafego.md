@@ -1566,3 +1566,33 @@ ORDER BY total DESC;
 - Kill switch da conta permanece `false` (inalterado).
 - Histograma horário, CPA de referência, regra mensal de pausa, cache de CPA e Modo Piloto/Sandbox continuam fora do escopo.
 - Pausa/reativação continuam fora do escopo observacional.
+
+---
+
+## C.3.2 — Etapa 3: Correção do gate de módulo ativo (2026-06-07)
+
+### Falha encontrada
+Durante 7 dias após a ativação do piloto observacional no tenant Respeite o Homem (conta Meta `act_251893833881780`), **nenhuma sessão, proposta ou observação foi gerada** pelos ciclos automáticos do Ads Autopilot.
+
+### Causa raiz
+O gate de "recurso em uso" do módulo `ai_traffic_manager` (função `count_active_tenants_for_module`) considerava apenas a ativação por canal (`ads_autopilot_configs.is_enabled=true`). O piloto C.3.2 foi ligado pelo caminho granular (`ads_autopilot_account_configs`, por conta de anúncio), que **não era reconhecido pelo gate**. Resultado: todos os crons do Ads Autopilot pulavam a execução com `reason='no_active_tenants'`.
+
+### Correção aplicada
+1. **`count_active_tenants_for_module('ai_traffic_manager')`** agora considera tenant ativo por união dos dois caminhos:
+   - ativação por canal (caminho legado preservado), OU
+   - ativação granular por conta com `is_ai_enabled=true` AND `kill_switch=false` AND `autonomy_mode <> 'off'`.
+2. **Novo gatilho** `trg_account_config_mark_ai_traffic_manager_active_from_account` em `ads_autopilot_account_configs` chama `mark_module_active_by_event('ai_traffic_manager')` imediatamente ao ligar uma conta, sem esperar a varredura diária.
+3. **Refresh imediato** de `system_resource_usage` aplicado na migration. Estado pós-correção: `ai_traffic_manager → active_tenant_count=1, status=active`.
+
+### Primeiro ciclo manual controlado (após a correção)
+- Função disparada: `ads-autopilot-analyze` (não chama API de modificação da Meta; gera proposta interna).
+- Tenant: `d1a4d0ed-8842-495e-b741-540a9a345b25`, conta `act_251893833881780`, canal Meta.
+- Resultado: 4 ações criadas — 2 `create_campaign` em `pending_approval` (aguardam aprovação humana) e 2 `generate_creative` em `executed` (geração interna de criativo, sem chamada de modificação à Meta).
+- `leak_count = 0` (nenhuma ação com `auto_executed=true` ou `executed_simulated=true`).
+- Google e TikTok permaneceram fora do piloto.
+
+### Janela de observação reiniciada
+A janela observacional do piloto C.3.2 **recomeça a contar a partir de 2026-06-07**, primeira data em que ciclos automáticos efetivamente passaram pelo gate. Resultados anteriores a essa data não devem ser usados como referência.
+
+### Regra anti-regressão
+**Qualquer novo caminho de ativação do Ads Autopilot** (por canal, por conta, por campanha, por feature, ou qualquer granularidade futura) **deve obrigatoriamente atualizar o branch `ai_traffic_manager` em `count_active_tenants_for_module` e instalar trigger de evento equivalente ao `trg_account_config_mark_ai_traffic_manager_active_from_account`**. PR que adicione caminho de ativação sem atualizar o gate deve ser bloqueado em revisão.
