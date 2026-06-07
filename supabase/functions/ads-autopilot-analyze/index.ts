@@ -148,6 +148,16 @@ async function generateDeterministicBudgetProposals(
     const campaignIds = (cpaRows || []).map((r: any) => r.meta_campaign_id).filter(Boolean);
     if (campaignIds.length === 0) return out;
 
+    // ---- Etapa 7.mem F.2: leitura única da Tenant Memory por execução ----
+    // Modo silencioso: o resultado NUNCA altera sugestão real, apenas
+    // alimenta o trace anexado em action_data.tenant_memory_silent_trace.
+    const tenantMemories = await loadTenantMemoriesForBudgetTrigger(
+      supabase,
+      tenant_id,
+      "meta",
+    );
+
+
     const { data: campRows } = await supabase
       .from("meta_ad_campaigns")
       .select("meta_campaign_id, name, status, effective_status, daily_budget_cents, ad_account_id")
