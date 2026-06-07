@@ -1998,3 +1998,98 @@ Nada vira `active` automaticamente nesta subfase.
 ### Próxima subfase recomendada
 
 **Subfase C — Tenant Memory Writer.** Consome o histórico de feedback humano (A.1/A.2) e começa a propor itens `provisional` na memória, ainda sem influenciar a IA.
+
+---
+
+## Etapa 7.mem — Subfase C: Tenant Memory Writer
+
+> **Status:** ✅ Entregue — Writer existe, sem influência sobre a IA
+> **Data:** 2026-06-07
+> **Escopo:** Backend determinístico. Sem UI, sem cron novo, sem ciclo de IA.
+
+### Objetivo
+
+Transformar feedbacks humanos (Subfases A.1/A.2) em **preferências aprendidas** na memória da loja (Subfase B). O Writer é o único caminho oficial pelo qual aprovações e recusas viram padrões reconhecíveis pela loja — e continua **observacional**: ainda não é lido pela IA.
+
+### Fontes lidas
+
+- Histórico imutável de feedback humano do Ads Autopilot (criado em A.1).
+- Tenant Memory Store (criado em B) — para preservar status `archived` e detectar rebaixamento.
+
+### O que o Writer grava
+
+- Em um **ledger de evidências** novo (idempotente): registro de qual feedback já contribuiu para qual padrão, com peso e se sustenta ou contradiz o padrão.
+- Em **preferências da loja**: cria/atualiza itens, atualiza confiança, contagem de evidências, última confirmação, última contradição e status.
+- **Nunca** altera o feedback original.
+
+### Tipos de memória suportados nesta subfase
+
+- `approved_action_pattern` / `rejected_action_pattern` (derivados de cada decisão de aprovar/recusar, escopo "ação").
+- `budget_preference` (motivos sobre orçamento).
+- `context_gap_pattern` (motivos sobre falta de contexto).
+- `strategy_conflict_pattern` (motivos sobre conflito com estratégia).
+- `campaign_protection_candidate` (motivos pedindo para não mexer em campanha ganhadora).
+- `product_priority_candidate` / `product_deprioritization_candidate` (motivos sobre priorização de produto).
+- `creative_style_preference` / `copy_style_preference` (motivos sobre criativo/copy).
+- `timing_preference` (motivos sobre momento da ação).
+
+Motivos fora desse mapa **não** geram preferência por motivo nesta subfase (mas continuam contando como histórico e, se houver tipo de ação, geram o padrão de ação correspondente).
+
+### Regras de feedback pontual / provisional / active
+
+- **1 feedback isolado** → registro de evidência apenas, padrão fica `provisional` com confiança baixíssima. Nunca vira `active`.
+- **2+ feedbacks consistentes** no mesmo padrão → padrão `provisional` com confiança crescente.
+- **5+ evidências reais com pelo menos 80% de consistência e menos de 3 contradições recentes** → padrão pode subir para `active`.
+- **Mesmo após `active`**, a memória ainda **não é usada pela IA** nesta subfase. O status apenas prepara as Subfases D e F.
+
+### Peso de "usar como preferência futura"
+
+- Feedback marcado como **"usar como preferência futura" (sim)** entra com peso 2.0 e adiciona bônus de confiança ao padrão.
+- Feedback sem essa marcação entra com peso 1.0 e não recebe o bônus.
+- Feedback com "usar como preferência futura" **falso** segue sendo registrado, mas sozinho não eleva o padrão a `active`.
+
+### Regra de contradição
+
+- Aprovar uma ação registra **contradição** automática contra o padrão espelho de "recusar a mesma ação", e vice-versa.
+- Contradição atualiza `last_contradicted_at` e reduz a confiança.
+- **3 contradições recentes (últimos 30 dias)** rebaixam um padrão `active` para `provisional`. A memória nunca é apagada — só rebaixada ou arquivada explicitamente.
+
+### Cálculo de confiança (determinístico, sem LLM)
+
+`confiança = consistência × volume + bônus_preferência − penalidade_contradições`, sempre entre 0 e 1, arredondada em 4 casas. Volume cresce até atingir 5 evidências. Bônus de preferência é limitado a +0,15. Penalidade por contradições recentes é limitada a −0,40.
+
+### Idempotência
+
+- Cada feedback só pode ser aplicado uma vez por padrão (chave única `tenant + feedback + plataforma de vendas + plataforma Ads + tipo + escopo + chave`).
+- Reexecutar o Writer **não duplica** contagem de evidências.
+- O ledger preserva auditoria de quais feedbacks sustentam cada preferência.
+
+### Isolamento por tenant
+
+- Writer só roda com privilégios elevados (chamada server-to-server controlada) e sempre escopado a um `tenant_id` informado.
+- Ledger e memória só são visíveis para membros do próprio tenant.
+- Não toca em dados de outras lojas.
+
+### O que a Subfase C NÃO faz
+
+- Não usa LLM para interpretar texto livre.
+- Não carrega a memória no ciclo do Ads Autopilot.
+- Não altera veredito, sugestão, prompt, Policy Engine, Governance Layer, Campaign Verdict Layer, Action Derivation nem executor.
+- Não altera status de sugestões.
+- Não chama a Meta. Não ativa autoexecução.
+- Não muda `kill_switch`, `human_approval_mode`, `autonomy_mode` nem `is_ai_enabled`.
+- Não cria cron recorrente nesta etapa (execução é manual e controlada).
+- Não cria UI de gestão de preferências (fica para Subfase futura).
+- Não toca na Base Universal (fora desta etapa).
+
+### Validação técnica executada
+
+- Migração do ledger aplicada; tabela criada vazia (0 registros).
+- 20 testes específicos do Writer passando: derivação de evidências, peso da preferência, espelho de contradição, promoção a `active` somente com 5+ evidências e 80%+ consistência, rebaixamento por 3 contradições recentes, preservação de `archived`, confiança sempre em [0,1] e invariante de "sem side-effects" no módulo puro.
+- Nenhum ciclo de IA foi rodado para validar esta entrega.
+- Nenhuma chamada à API da Meta.
+- Nenhuma autoexecução ativada.
+
+### Próxima subfase recomendada
+
+**Subfase D — Leitura observacional da memória.** A IA passa a **ler** a memória do tenant durante o ciclo apenas para registrar telemetria (o que faria diferente se considerasse a memória), ainda **sem influenciar** o veredito. Só na Subfase F a memória começa a influenciar decisões.
