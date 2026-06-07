@@ -1719,18 +1719,18 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
           <div className="flex flex-col gap-3 py-2">
             <Button
               variant="outline"
-              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1"
+              className="h-auto w-full py-3 px-4 justify-start text-left flex-col items-start gap-1 whitespace-normal"
               onClick={handleRejectAllDismiss}
               disabled={!!rejectingId}
             >
               <span className="font-semibold text-sm">Não quero esta proposta</span>
-              <span className="text-xs text-muted-foreground font-normal">
+              <span className="text-xs text-muted-foreground font-normal whitespace-normal break-words">
                 A proposta será descartada. A IA continuará apenas com os controles automáticos.
               </span>
             </Button>
             <Button
               variant="outline"
-              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1 border-primary/30 hover:border-primary/50"
+              className="h-auto w-full py-3 px-4 justify-start text-left flex-col items-start gap-1 whitespace-normal border-primary/30 hover:border-primary/50"
               onClick={handleRejectAllRegenerate}
               disabled={!!rejectingId}
             >
@@ -1738,7 +1738,7 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 Quero outra proposta
               </span>
-              <span className="text-xs text-muted-foreground font-normal">
+              <span className="text-xs text-muted-foreground font-normal whitespace-normal break-words">
                 A IA gerará novas propostas para substituir estas.
               </span>
             </Button>
