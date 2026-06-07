@@ -3,49 +3,27 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
-import {
-  maybeAttachTechnicalOnlyObservation,
-  classifyAction,
-  type ObservationGateInput,
-  type ObservationBuildInput,
-} from "../_shared/ads-policy.ts";
+import { attachObservationFromActionRecord } from "../_shared/ads-policy.ts";
 
 /**
- * Fase C.3.1 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`
- * a um `actionRecord` antes do INSERT em `ads_autopilot_actions`.
+ * Fase C.3.2 — Helper local NÃO-bloqueante para anexar `policy_check_result.observation`.
+ * Delega para o helper central no policy engine, que aplica todos os gates, chama
+ * `decide()` real com o contexto disponível e mescla `observation` no actionRecord.
  *
- * Em C.3.1 a allowlist está VAZIA → no-op real. Em qualquer falha interna,
- * engole silenciosamente e segue o fluxo (a observação NUNCA pode bloquear
- * o caminho de produção). NÃO chama API externa. NÃO altera status.
+ * NÃO chama API externa. NÃO altera status real. Engole qualquer erro
+ * silenciosamente — observação NUNCA pode quebrar o fluxo principal.
  */
 function attachObservationIfEligible(
   actionRecord: Record<string, any>,
-  acctConfig: { tenant_id?: string; is_ai_enabled?: boolean; kill_switch?: boolean; autonomy_mode?: unknown } | null | undefined,
+  acctConfig: { tenant_id?: string; is_ai_enabled?: boolean | null; kill_switch?: boolean | null; autonomy_mode?: unknown; last_budget_adjusted_at?: string | null } | null | undefined,
 ): void {
   try {
-    if (!acctConfig) return;
-    const action_type = String(actionRecord?.action_type || "");
-    const channel = String(actionRecord?.channel || "");
-    const action_class = classifyAction({ action_type, channel });
-    const gate: ObservationGateInput = {
-      tenant_id: String(acctConfig.tenant_id || actionRecord?.tenant_id || ""),
-      action_type,
-      action_class,
-      autonomy_mode: (acctConfig as any).autonomy_mode,
-      is_ai_enabled: acctConfig.is_ai_enabled === true,
-      kill_switch: acctConfig.kill_switch === true,
-    };
-    const build: ObservationBuildInput = {
-      // C.3.1: integração estrutural — sem chamar `decide()` aqui (allowlist vazia
-      // garante que este caminho nunca é exercitado em produção nesta entrega).
-      decision: null,
-      context_check: { sufficient: false, missing: ["c3_1_decide_context_not_wired_yet"] },
-    };
-    maybeAttachTechnicalOnlyObservation(actionRecord, gate, build);
+    attachObservationFromActionRecord(actionRecord, acctConfig as any);
   } catch (_e) {
-    // Observação NUNCA pode quebrar o fluxo principal.
+    // no-op
   }
 }
+
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
