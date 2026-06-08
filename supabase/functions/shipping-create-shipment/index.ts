@@ -1344,21 +1344,49 @@ Deno.serve(async (req) => {
       }
 
       // ===== WMS Pratika: envio combinado (NF + rastreio juntos) =====
-      // Pratika só considera o documento recebido quando ambos chegam juntos
-      // sob o mesmo CNPJ de 14 dígitos puros.
-      if (resolvedOrderId) {
-        fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            action: 'send_combined',
-            order_id: resolvedOrderId,
-            tenant_id: tenantId,
-          }),
-        }).catch(err => console.error('[shipping-create-shipment] WMS Pratika error:', err));
+      // Ancorado na NF (vale para qualquer Objeto Logístico — PV manual ou pedido real).
+      // Resolve a NF via shipment.invoice_id → nfe_key → source_pedido_venda_id → order_id.
+      if (finalShipmentId) {
+        try {
+          const { data: shipRow } = await supabase
+            .from('shipments')
+            .select('invoice_id, nfe_key, source_pedido_venda_id, order_id')
+            .eq('id', finalShipmentId)
+            .maybeSingle();
+
+          let pratikaInvoiceId: string | null = shipRow?.invoice_id || null;
+          if (!pratikaInvoiceId && shipRow?.nfe_key) {
+            const { data } = await supabase.from('fiscal_invoices')
+              .select('id').eq('tenant_id', tenantId).eq('chave_acesso', shipRow.nfe_key)
+              .eq('status', 'authorized').maybeSingle();
+            pratikaInvoiceId = data?.id || null;
+          }
+          if (!pratikaInvoiceId && shipRow?.source_pedido_venda_id) {
+            const { data } = await supabase.from('fiscal_invoices')
+              .select('id').eq('tenant_id', tenantId)
+              .eq('source_order_invoice_id', shipRow.source_pedido_venda_id)
+              .eq('status', 'authorized')
+              .order('authorized_at', { ascending: false }).limit(1).maybeSingle();
+            pratikaInvoiceId = data?.id || null;
+          }
+
+          const pratikaBody: Record<string, unknown> = { action: 'send_combined', tenant_id: tenantId };
+          if (pratikaInvoiceId) pratikaBody.invoice_id = pratikaInvoiceId;
+          else if (resolvedOrderId) pratikaBody.order_id = resolvedOrderId;
+
+          if (pratikaBody.invoice_id || pratikaBody.order_id) {
+            fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify(pratikaBody),
+            }).catch(err => console.error('[shipping-create-shipment] WMS Pratika error:', err));
+          }
+        } catch (e) {
+          console.error('[shipping-create-shipment] WMS Pratika lookup error:', e);
+        }
       }
 
       console.log(`[shipping-create-shipment] Shipment despachado (shipment=${finalShipmentId})`);
