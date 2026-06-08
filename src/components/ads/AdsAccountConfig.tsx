@@ -130,6 +130,7 @@ function AccountConfigCard({
     funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
     kill_switch: config?.kill_switch || false,
     human_approval_mode: "approve_high_impact",
+    autonomy_mode: config?.autonomy_mode || "off",
     created_at: config?.created_at || null,
     updated_at: config?.updated_at || null,
   };
