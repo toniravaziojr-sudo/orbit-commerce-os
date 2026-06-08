@@ -471,13 +471,14 @@ Deno.serve(async (req) => {
         }).catch(err => console.error('[fiscal-emit] Email error:', err));
       }
 
+      // WMS Pratika — combinado ancorado na NF (vale para PV manual ou pedido real).
       fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
-        body: JSON.stringify({ action: 'send_nfe', invoice_id, tenant_id: tenantId }),
+        body: JSON.stringify({ action: 'send_combined', invoice_id, tenant_id: tenantId }),
       }).catch(err => console.error('[fiscal-emit] WMS Pratika error:', err));
     }
 
