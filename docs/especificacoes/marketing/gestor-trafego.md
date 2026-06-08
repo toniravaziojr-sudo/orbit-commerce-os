@@ -2764,3 +2764,137 @@ Quando ambos caem no mesmo sábado (1º do mês), o **weekly cede** (`reason=wee
 - Reler esta seção 9 + seção 8 (Política Operacional v1).
 - Conferir fila atual de `pending_approval` no tenant antes de qualquer ação.
 - Não recriar política, não rodar Strategist em lote sem cooldown, não ativar autoexecução sem decisão registrada do usuário.
+
+---
+
+## 10. Fase C.4 — Autoexecução técnica governada por toggle (2026-06-08)
+
+A Fase C.4 vira o trinco da autonomia técnica: a IA passa a poder executar automaticamente — sem aprovação humana — **apenas ações técnicas diárias elegíveis**, e apenas quando o usuário liga explicitamente o toggle. Toda decisão estratégica, criativa, comercial e estrutural continua exigindo aprovação humana, como antes.
+
+### 10.1 O toggle
+
+Existe em dois níveis. Default sempre desligado.
+
+| Nível | Local na UI | Label | Persistência |
+|---|---|---|---|
+| **Individual (conta de anúncio)** | Card de configuração da conta, abaixo de "IA Ativa" | Execução automática diária | `ads_autopilot_account_configs.autonomy_mode` (`off` \| `technical_only`) |
+| **Global (tenant)** | Card "Configuração Global", bloco "IA Global" | Execução automática diária | `ads_autopilot_configs.autonomy_mode` no registro `channel='global'` |
+
+Texto auxiliar (PT-BR, idêntico ao da UI):
+- Individual: "Permite que a IA execute automaticamente apenas ações técnicas seguras do dia a dia, como pequenos ajustes de orçamento dentro da janela permitida, pausas emergenciais e reativações operacionais. Campanhas, públicos, criativos, copys, ofertas e decisões estratégicas continuam exigindo aprovação."
+- Global: "Aplica a execução automática de ações técnicas diárias para contas que não possuem configuração individual. Contas com configuração própria seguem sua regra individual." + "Prioridade: Individual > Global > Desligado por padrão."
+
+### 10.2 Hierarquia oficial
+
+`resolveEffectiveAutonomy(accountCfg, globalCfg)` → `{ mode, source }`:
+
+1. Se a conta tem `autonomy_mode` definido (`off` ou `technical_only`) → vence (`source='account'`).
+2. Senão, se o global tem `autonomy_mode` definido → herda (`source='global'`).
+3. Caso contrário → `off` com `source='default_off'`.
+
+Função pura, sem I/O. O `source` é propagado para `policy_check_result.c4_autoexec_gate.effective_source` em toda decisão automática, para auditoria.
+
+### 10.3 IA Ativa vs Execução automática diária
+
+| | IA Ativa | Execução automática diária |
+|---|---|---|
+| Permite que a IA analise, monitore e gere sugestões | ✅ | ✅ |
+| Permite que a IA execute sozinha ações técnicas diárias elegíveis | ❌ | ✅ |
+| Substitui kill switch, Policy Engine, Quality Gate, janela 00:01–03:00, learning phase, maturidade ou limite de orçamento | — | ❌ Nunca. |
+
+### 10.4 Gates obrigatórios da autoexecução (`canAutoExecuteC4`)
+
+Toda autoexecução só acontece quando **todos** os gates abaixo passam, na ordem:
+
+1. **Kill switch global** desligado (prioridade absoluta).
+2. **Kill switch da conta** desligado.
+3. **IA Ativa** ON na conta.
+4. **Toggle efetivo** = `technical_only` (vindo de conta ou global).
+5. Ação **não é** `strategic_pause` (essas SEMPRE são humanas — ver 10.6).
+6. **Classe da ação** ∈ {`automatic_candidate`, `emergency`}.
+7. Maturidade — campanha com ≥ 3 dias e **fora** de learning phase (não aplicado a emergência).
+8. **Janela segura BRT 00:01–04:00** respeitada (não aplicado a emergência).
+9. **Orçamento dentro do limite seguro** configurado (quando o caller informar).
+10. **Policy Engine** retornou `execute_now`.
+
+Falhou qualquer um → a ação **permanece em `pending_approval`** e o motivo do bloqueio é gravado em `policy_check_result.c4_autoexec_gate.reason`. Nunca há chamada à API externa nesse caminho de bloqueio.
+
+> "Bloqueio por política" não é ação executável — é gate de segurança e funciona sempre, independentemente do toggle.
+
+### 10.5 Ações elegíveis à autoexecução (toggle ON + gates ok)
+
+Somente o conjunto fechado abaixo:
+- `adjust_budget` / `increase_budget` / `decrease_budget` (dentro do limite da plataforma e da conta, dentro da janela 00:01–03:00 BRT).
+- `update_tiktok_budget`, `toggle_tiktok_status`.
+- `schedule_action` (re-agendamento interno para a próxima janela segura, com revalidação no momento da execução).
+- `block_action` (decisão de gate interno).
+- Pausas emergenciais operacionais: `emergency_operational_pause`, `pause_emergency_campaign`, `pause_emergency_adset`, `pause_tracking_broken`, `pause_budget_breach`, `pause_broken_link`, `pause_out_of_stock`, `pause_site_down`.
+- Reativações operacionais seguras: `reactivate_*`, `activate_*`.
+
+### 10.6 Ações sempre humanas (mesmo com toggle ON)
+
+- Criar/duplicar campanha, conjunto, anúncio, público, lookalike.
+- Criar/editar criativo, copy.
+- Mudar oferta, promessa, página de destino, segmentação estratégica, objetivo de otimização.
+- Plano estratégico, expansão estrutural.
+- Qualquer ação destrutiva (`delete_*`).
+- Orçamento acima do limite seguro, ação fora da janela, campanha em learning ou com < 3 dias, ação sem dados suficientes.
+- **Pausa estratégica** (ver 10.7).
+
+### 10.7 Pausa estratégica — sempre humana, com expiração diária
+
+São consideradas pausas estratégicas (e portanto SEMPRE vão para aprovação humana, com validade até o próximo 00:01 BRT): `strategic_pause`, `pause_low_roas`, `pause_low_cpa`, `pause_mature_performance`, `pause_dayparting`, `pause_schedule`, `pause_fatigue`, `pause_budget_redistribution`.
+
+| Campo | Valor |
+|---|---|
+| `status` inicial | `pending_approval` |
+| `approval_expires_at` | `getStrategicPauseExpiry(now)` = próximo 00:01 BRT estritamente após a criação |
+| `policy_check_result.ttl_policy` | `strategic_pause_daily_until_next_0001_brt` |
+
+**Fluxo de saída**:
+- Usuário aprovou antes de expirar → revalida gates aplicáveis e executa via fluxo de aprovação normal.
+- Usuário rejeitou antes de expirar → marca `rejected` com `reason_code` normal.
+- Não houve resposta até 00:01 BRT → a edge `ads-autopilot-strategic-pause-expire` (cron `1 3 * * *` UTC) marca como `expired` com `policy_check_result.expiration.reason='strategic_pause_daily_window_expired'`. **Não chama nenhuma API externa.** Mantém histórico/auditoria. Pode ser regerada em outro dia se a IA detectar novamente o mesmo padrão.
+
+**Idempotência da rotina de expiração**: cada `UPDATE` filtra por `status='pending_approval'` no `WHERE`, então uma segunda execução no mesmo minuto não duplica logs nem altera ações já `approved/rejected/executed/auto_executed`.
+
+**Deduplicação diária**: o índice único parcial `idx_aaa_daily_idem_v1` (`tenant_id, channel, action_type, action_day, entity_id` em status `approved/scheduled/executed/auto_executed`) impede duas pausas estratégicas iguais no mesmo dia BRT. Para um motivo distinto no mesmo dia, deve-se variar o `entity_id` ou criar uma `idempotency_key` específica.
+
+### 10.8 Onde o autoexec real acontece
+
+O `ads-autopilot-scheduled-runner` (cron 5 min) ganhou um **segundo passe** após o já existente:
+1. Busca ações `pending_approval` em `policy_engine_version='v1'` (limit 50).
+2. Para cada uma: classifica, resolve autonomy efetivo (conta + global), carrega snapshot de campanha (se Meta), roda `decide()`, calcula janela e maturidade, monta `canAutoExecuteC4`.
+3. Gate `ok` → stamp `status='approved'` + `auto_executed=true` + `approved_at`/`approval_expires_at` + invoca `ads-autopilot-execute-approved` com `from_runner=true`.
+4. Gate falhou → atualiza apenas `policy_check_result.c4_autoexec_gate` com o motivo; a ação continua disponível para o usuário aprovar manualmente.
+
+Strategic pause é vetada já no início do passe.
+
+### 10.9 Auditoria e reversão
+
+- Cada autoexecução grava: `effective_mode`, `effective_source`, `policy_decision_kind`, decisão final do gate, hora.
+- Cada bloqueio grava o gate que barrou.
+- Desligar o toggle (individual ou global) tem efeito **imediato** no próximo ciclo do runner.
+- Kill switch (global ou da conta) continua sendo o botão de pânico universal — barra na ordem 1 do gate.
+
+### 10.10 Defaults na entrega
+
+- Toggle global: **OFF**.
+- Toggle individual em todas as contas (inclusive piloto observacional Respeite o Homem): **OFF** — o usuário decide quando ligar.
+- Telemetria observacional da Fase C.3.x permanece intacta como camada de comparação ("o que a IA executaria" vs "o que ela executou").
+
+### 10.11 Testes (28 novos, 0 regressão)
+
+Arquivo: `supabase/functions/_shared/ads-policy.c4.test.ts`.
+
+Cobre: hierarquia individual > global > default off; toggle OFF default; ON sobrescreve OFF e vice-versa; valor inválido cai em default off; `isAutonomyExecutionEnabled` libera apenas `technical_only`; todos os 14 motivos do gate (autonomy_off, kill_switch_global, kill_switch_account, ai_disabled, strategic_pause_always_human, action_class_not_eligible, in_learning_phase, campaign_too_new, outside_safe_window, budget_above_safe_limit, policy_engine_rejected, missing_context); emergência ignora janela/maturidade/learning; strategic_pause sempre bloqueia mesmo com tudo verde; classificação dos novos tipos (strategic_pause → needs_approval, emergency_operational_pause → emergency); `getStrategicPauseExpiry` retorna o próximo 00:01 BRT (4 cenários) e é determinística.
+
+Resultado: **28/28 verdes** + os 89 testes anteriores da policy também verdes (sem regressão).
+
+### 10.12 O que não muda nesta entrega
+
+- Não toca F.1 / F.2 / Tenant Memory / Quality Gate / cadência semanal/mensal.
+- Não muda `human_approval_mode`, `kill_switch`, `is_ai_enabled` de nenhum tenant.
+- Não chama Meta/Google/TikTok nos testes nem na entrega.
+- Não altera sidebar, navegação ou layout fora dos dois cards de toggle.
+- Não cria campanha, criativo, copy ou oferta real.
