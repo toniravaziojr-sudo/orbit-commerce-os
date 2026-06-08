@@ -2462,3 +2462,41 @@ Após esta entrega, rodar **um ciclo controlado `implement_campaigns`** para val
 1. Sugestões com criativo existente vinculado ao produto certo passam normalmente.
 2. "Fast Upgrade" e Kit×Shampoo continuam bloqueados antes de chegarem à fila aprovável.
 3. `generate_creative` para produto fantasma retorna `skipped` sem custo.
+
+## Auto-resolução determinística de criativo (Etapa 7.qg.c)
+
+### Evidência
+
+Mesmo após 7.qg.b, o ciclo `implement_campaigns` do tenant Respeite o Homem gerou 15 propostas `create_campaign` e **15/15** foram bloqueadas em `invalid_missing_creative`, embora o tenant tivesse **20 criativos `ready`** vinculados aos produtos certos (Shampoo: 8 / Kit: 6 / Fast Upgrade: 3 / Kit 2x: 2 / Balm: 2). O Quality Gate funcionou — mas a auto-resolução de criativo foi pulada.
+
+### Causa raiz
+
+O resolvedor de produto usava match **estrito por nome** (`name.trim() === product_name.trim()`). Quando o modelo enviava `product_id` correto mas `product_name` com variação de acento/espaço/caixa, `matchedProduct` ficava nulo. O bloco de auto-resolução só rodava `if (matchedProduct)`, então a consulta a `ads_creative_assets` nunca acontecia e `creative_asset_id` permanecia nulo — caindo direto em `invalid_missing_creative`.
+
+### Correção (resolver determinístico)
+
+1. Novo módulo puro `supabase/functions/_shared/ads-autopilot/creativeResolver.ts`:
+   - `resolveProduct`: prioridade **product_id → nome exato → nome normalizado** (lower, sem acento, sem pontuação). Sem `includes`/`startsWith`.
+   - `selectReadyCreative`: filtra por `product_id` + `status=ready` + `asset_url` não-nulo. Kit vs isolado é protegido pelo filtro estrito por `product_id`.
+2. Handler `create_campaign` do Strategist agora usa o resolver e roda a consulta a `ads_creative_assets` também quando apenas `args.product_id` está presente — elimina o falso-positivo.
+3. Log estruturado `[creative-resolver]`: `declared_product_id`, `declared_product_name`, `resolved_product_id`, `ready_creative_count`, `selected_creative_id`, `skipped_reason`.
+
+### Fast Upgrade
+
+`Fast Upgrade` é **produto real ativo** do catálogo do tenant (id `87911d83-dfe0-4437-a54f-1a1f8d406fde`, 3 criativos `ready`). O Quality Gate só bloqueia se copy/criativo divergirem desse `product_id`; produto isolado resolve normalmente e recebe seu próprio criativo.
+
+### Regras preservadas
+
+- Quality Gate v1.1 **não foi relaxado**.
+- Sem `creative_asset_id` e sem inventário ready para o produto → `invalid_missing_creative`.
+- Kit nunca recebe criativo de isolado (filtro por `product_id`).
+- Nenhuma chamada Meta, geração de criativo ou consumo de crédito neste preflight.
+
+### Validação desta entrega
+
+- 28 testes `vitest` passando: 13 do Quality Gate + 15 do `creativeResolver` (`src/test/ads-autopilot-creative-resolver.test.ts`).
+- **Nenhum ciclo real de IA**, nenhum criativo gerado, nenhuma chamada Meta, nenhuma autoexecução.
+
+### Próxima validação recomendada
+
+Rodar um ciclo controlado `implement_campaigns` separado para confirmar em produção que propostas coerentes saem `pending_approval`, o log `[creative-resolver]` registra `selected_creative_id`, e sugestões sem material continuam bloqueadas.
