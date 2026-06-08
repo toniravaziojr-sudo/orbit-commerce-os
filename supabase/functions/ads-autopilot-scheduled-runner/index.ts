@@ -11,8 +11,9 @@ import {
   isApprovalStillValid,
   type ActionInput,
 } from "../_shared/ads-policy.ts";
+import { isWithinBudgetWindow, CADENCE_POLICY_VERSION } from "../_shared/ads-autopilot/cadencePolicy.ts";
 
-const VERSION = "v1.1.0"; // Fase B.1
+const VERSION = "v1.2.0"; // Política Operacional v1 — janela 00:01–03:00 BRT p/ orçamento
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
