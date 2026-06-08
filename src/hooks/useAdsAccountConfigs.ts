@@ -27,6 +27,8 @@ export interface AccountConfig {
   funnel_splits: Record<string, number> | null;
   kill_switch: boolean;
   human_approval_mode: string;
+  /** Fase C.4 — Execução automática diária por conta. 'off' | 'technical_only'. Default 'off'. */
+  autonomy_mode: "off" | "technical_only";
   created_at: string | null;
   updated_at: string | null;
 }
