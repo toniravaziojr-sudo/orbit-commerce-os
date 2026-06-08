@@ -50,10 +50,22 @@ export interface QualityGateArgs {
   [k: string]: unknown;
 }
 
+export interface QualityGateTenantCreative {
+  id: string;
+  product_id?: string | null;
+  tenant_id?: string | null;
+}
+
 export interface QualityGateInput {
   args: QualityGateArgs;
   matchedProduct: QualityGateProduct | null;
   catalog: QualityGateProduct[];
+  /**
+   * Inventário de criativos do tenant. Quando fornecido, o gate valida
+   * que `creative_asset_id` existe, pertence ao tenant e está vinculado
+   * ao mesmo produto da campanha.
+   */
+  tenantCreatives?: QualityGateTenantCreative[];
 }
 
 export interface QualityGateResult {
