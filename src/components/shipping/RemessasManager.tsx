@@ -162,7 +162,14 @@ export function RemessasManager() {
           }
         });
       }
-      return rows;
+      // Objetos dentro de uma remessa: ordem por número do pedido desc;
+      // fallback para número do PV quando não há pedido vinculado.
+      const { sortByNumberDesc } = await import('@/lib/sort-numeric');
+      return sortByNumberDesc(
+        rows,
+        (r: any) => r?.order?.order_number ?? r?.pv?.numero,
+        (r: any) => r?.created_at,
+      );
     },
     enabled: !!openRemessa?.id,
   });
