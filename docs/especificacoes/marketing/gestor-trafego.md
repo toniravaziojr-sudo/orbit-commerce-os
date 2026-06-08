@@ -2947,3 +2947,21 @@ Além dos quatro estados de origem (`human_approval`, `policy_auto_execution`, `
 - Histórico/auditoria preservados (ambos os blocos persistidos) ✅
 
 **Testes**: 2 testes novos em `ads-policy.c4-audit.test.ts`, ambos passando. Nenhuma chamada externa, nenhuma ação real executada.
+
+### 10.15 Patch de UI — toggle global conectado na aba "Configurações Gerais" (2026-06-08)
+
+**Sintoma reportado pelo usuário:** "Porque a IA global não tem o toggle de ativação?"
+
+**Causa:** o componente do toggle global de execução automática diária havia sido construído na Fase C.4 inicial, mas não foi inserido na aba "Configurações Gerais" do Gestor de Tráfego IA — só o toggle individual (por conta de anúncio) estava visível. O backend, a hierarquia (Individual > Global > Default OFF), a auditoria e os gates já operavam normalmente; faltava apenas o controle de superfície na UI global.
+
+**Correção aplicada:**
+- Adicionado card próprio "Execução automática diária (fallback global)" em `AdsGlobalSettingsTab`, logo abaixo do card "IA Global".
+- Estado `autonomyMode` sincronizado com `globalConfig.autonomy_mode` via `useEffect`.
+- Handler `handleAutonomyToggle` persiste imediatamente via `onSave({ channel: 'global', autonomy_mode: next, ... })`, sem esperar o botão "Salvar Configuração Global" (controle de segurança).
+- `handleSave` também passa a incluir `autonomy_mode`, para que edições combinadas não percam o estado do toggle.
+- Card fica desabilitado quando "IA Global" está desligada (`disabled={isSaving || !isGlobalEnabled}`).
+- Default permanece `off`. Nenhuma migração necessária — a coluna `autonomy_mode` já existe em `ads_autopilot_configs` desde a C.4 inicial.
+- Nenhum gate, função, cron, prompt ou contrato de auditoria foi alterado.
+
+**Documentação:** `docs/especificacoes/transversais/mapa-ui.md` atualizado para refletir a localização real do toggle global.
+
