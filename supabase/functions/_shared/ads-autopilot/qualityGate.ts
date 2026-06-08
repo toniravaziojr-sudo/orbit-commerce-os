@@ -281,3 +281,60 @@ export function runCreateCampaignQualityGate(
     version: QUALITY_GATE_VERSION,
   };
 }
+
+// =====================================================================
+// Quality Gate para generate_creative — preflight ANTES de consumir
+// crédito de geração. Garante que produto existe no catálogo e que copy
+// adicional (se fornecida) não diverge do produto declarado.
+// =====================================================================
+
+export interface GenerateCreativeArgs {
+  product_name?: string | null;
+  product_id?: string | null;
+  headline?: string | null;
+  primary_text?: string | null;
+  copy_text?: string | null;
+  style_preference?: string | null;
+  [k: string]: unknown;
+}
+
+export interface GenerateCreativeGateInput {
+  args: GenerateCreativeArgs;
+  matchedProduct: QualityGateProduct | null;
+  catalog: QualityGateProduct[];
+}
+
+export function runGenerateCreativeQualityGate(
+  input: GenerateCreativeGateInput,
+): QualityGateResult {
+  const reason_codes: string[] = [];
+  const details: Record<string, unknown> = {};
+  const { args, matchedProduct, catalog } = input;
+
+  const declared = (args.product_name || "").trim();
+  if (!matchedProduct) {
+    reason_codes.push("invalid_generate_creative_unknown_product");
+    details.declared_product_name = declared || null;
+  }
+
+  const copyBlob = [args.headline, args.primary_text, args.copy_text]
+    .filter(Boolean)
+    .join(" \n ");
+
+  if (matchedProduct && copyBlob) {
+    const other = copyMentionsAnyCatalogProduct(copyBlob, catalog, matchedProduct);
+    const mentionsLinked = copyMentionsProduct(copyBlob, matchedProduct);
+    if (other && (!mentionsLinked || isKit(matchedProduct) !== isKit(other))) {
+      reason_codes.push("invalid_generate_creative_offer_mismatch");
+      details.other_product_in_copy = other.name;
+      details.linked_product = matchedProduct.name;
+    }
+  }
+
+  return {
+    ok: reason_codes.length === 0,
+    reason_codes,
+    details,
+    version: QUALITY_GATE_VERSION,
+  };
+}
