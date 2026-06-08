@@ -132,13 +132,26 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Carregar snapshot mínimo para ações de orçamento (usado também pelo gate C.4)
+    let campaignSnapshot: any = null;
+    const entityIdGuess = action.action_data?.entity_id || action.action_data?.campaign_id ||
+                          action.action_data?.meta_campaign_id || null;
+    if (entityIdGuess && action.channel === "meta") {
+      const { data: snap } = await supabase
+        .from("meta_ad_campaigns")
+        .select("daily_budget_cents, created_at, status")
+        .eq("tenant_id", tenant_id)
+        .or(`id.eq.${entityIdGuess},meta_campaign_id.eq.${entityIdGuess}`)
+        .maybeSingle();
+      campaignSnapshot = snap;
+    }
+
     // ====== HARDENING C.4 — Revalidação de gates antes de chamada externa ====
     // Quando a ação chega marcada como `auto_executed=true` (vinda do runner),
     // o executor REVALIDA todos os gates da Fase C.4 antes de qualquer chamada
     // externa. Se algum gate falhar, devolve a ação para `pending_approval`,
     // registra `gate_failed` em `autoexec_audit` e NÃO chama API externa.
     if (action.auto_executed === true) {
-      // Strategic pause nunca autoexecuta — defesa em profundidade
       if (isStrategicPauseAction(action.action_type)) {
         await supabase.from("ads_autopilot_actions").update({
           status: "pending_approval",
@@ -189,7 +202,6 @@ Deno.serve(async (req) => {
       const brtM = nowGate.getUTCMinutes();
       const insideWindow = (brtH === 0 && brtM >= 1) || (brtH >= 1 && brtH < 4);
 
-      // Pré-decide para alimentar policy_decision_kind do gate
       const preDecision = decide({
         action: {
           id: action.id, tenant_id: action.tenant_id, channel: action.channel,
@@ -197,7 +209,7 @@ Deno.serve(async (req) => {
           status: action.status, approved_at: action.approved_at,
           approval_expires_at: action.approval_expires_at, created_at: action.created_at,
         },
-        campaignSnapshot: campaignSnapshot ?? null,
+        campaignSnapshot,
         now: nowGate,
       });
 
@@ -246,19 +258,6 @@ Deno.serve(async (req) => {
     }
     // ====== /HARDENING C.4 ===================================================
 
-
-    let campaignSnapshot: any = null;
-    const entityIdGuess = action.action_data?.entity_id || action.action_data?.campaign_id ||
-                          action.action_data?.meta_campaign_id || null;
-    if (entityIdGuess && action.channel === "meta") {
-      const { data: snap } = await supabase
-        .from("meta_ad_campaigns")
-        .select("daily_budget_cents, created_at, status")
-        .eq("tenant_id", tenant_id)
-        .or(`id.eq.${entityIdGuess},meta_campaign_id.eq.${entityIdGuess}`)
-        .maybeSingle();
-      campaignSnapshot = snap;
-    }
 
     const actionForPolicy: ActionInput = {
       id: action.id,
