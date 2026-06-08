@@ -2336,6 +2336,28 @@ async function executeToolCall(
     // Format price correctly — price is already in BRL, NOT cents (ads-data-scaling-standards)
     const productPriceDisplay = matchedProduct?.price ? `R$ ${Number(matchedProduct.price).toFixed(2)}` : null;
 
+    // ============ PREFLIGHT — Resolução determinística de criativo ============
+    // Antes do Quality Gate, tentamos casar o criativo válido do tenant
+    // (ads_creative_assets ready, mesmo product_id). Isto evita falso-positivo
+    // de `invalid_missing_creative` quando o Strategist não inlinou o asset.
+    let tenantCreatives: any[] = [];
+    if (matchedProduct) {
+      const { data: assets } = await supabase
+        .from("ads_creative_assets")
+        .select("id, asset_url, product_id, tenant_id, funnel_stage, format, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("product_id", matchedProduct.id)
+        .eq("status", "ready")
+        .not("asset_url", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      tenantCreatives = assets || [];
+      if (!args.creative_asset_id && !args.creative_url && tenantCreatives.length > 0) {
+        args.creative_asset_id = tenantCreatives[0].id;
+        args.creative_url = tenantCreatives[0].asset_url;
+      }
+    }
+
     // ============ QUALITY GATE — Subfase saneamento create_campaign ============
     // Validação determinística pura: produto×copy×criativo×destino×orçamento.
     // Sem LLM, sem Meta. Falha = `skipped` (não-aprovável) com reason_codes.
@@ -2350,6 +2372,9 @@ async function executeToolCall(
           ? { id: matchedProduct.id, name: matchedProduct.name, price: matchedProduct.price }
           : null,
         catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+        tenantCreatives: tenantCreatives.map((c: any) => ({
+          id: c.id, product_id: c.product_id, tenant_id: c.tenant_id,
+        })),
       };
       const gate = runCreateCampaignQualityGate(gateInput);
       if (!gate.ok) {
