@@ -304,16 +304,16 @@ Deno.serve(async (req) => {
     }
 
     // WMS Pratika — disparo reativo combinado (NF + rastreio juntos).
-    // Se ainda não há rastreio, a função responde "waiting" e o gatilho de
-    // rastreio dispara o envio quando o segundo lado ficar pronto.
-    if (status === 'autorizado' && invoice.order_id) {
+    // Ancorado na NF (não no pedido): vale para NF de venda originada de PV manual ou pedido real.
+    // Se ainda não há rastreio, a função responde "waiting" e o gatilho de rastreio reenvia depois.
+    if (status === 'autorizado') {
       fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
-        body: JSON.stringify({ action: 'send_combined', order_id: invoice.order_id, tenant_id: invoice.tenant_id }),
+        body: JSON.stringify({ action: 'send_combined', invoice_id: invoice.id, tenant_id: invoice.tenant_id }),
       }).catch(err => console.error('[fiscal-webhook] WMS Pratika error:', err));
     }
 
