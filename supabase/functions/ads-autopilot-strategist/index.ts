@@ -6,6 +6,7 @@ import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
 import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
+import { resolveCustomerAudienceForMetaAccount, buildCustomerExclusionMetadata, isColdFunnelStage } from "../_shared/ads-autopilot/customerAudience.ts";
 import {
   scoreProposal,
   applyLimits,
@@ -2438,8 +2439,47 @@ async function executeToolCall(
       console.warn(`[ads-autopilot-strategist][${VERSION}] creative-resolver skipped: no product_id available`);
     }
 
+    // ============ FRENTE 1 — Exclusão automática de Clientes em Públicos Frios ============
+    // Antes do Quality Gate, se a campanha for fria/prospecting, resolvemos o
+    // público de Clientes do sistema e o injetamos como exclusão. Se não existir,
+    // o gate bloqueia com `cold_audience_requires_customer_exclusion`.
+    let customerAudienceResolution: any = null;
+    let customerExclusionMetadata: Record<string, unknown> | null = null;
+    try {
+      if (config.channel === "meta" && isColdFunnelStage(args.funnel_stage)) {
+        customerAudienceResolution = await resolveCustomerAudienceForMetaAccount(
+          supabase,
+          tenantId,
+          config.ad_account_id,
+        );
+        const applied = customerAudienceResolution.found && !!customerAudienceResolution.meta_audience_id;
+        if (applied) {
+          const current: Array<any> = Array.isArray(args.excluded_audience_ids) ? args.excluded_audience_ids : [];
+          const currentIds = current.map((e: any) => String(e?.id ?? e));
+          if (!currentIds.includes(String(customerAudienceResolution.meta_audience_id))) {
+            args.excluded_audience_ids = [
+              ...current,
+              { id: customerAudienceResolution.meta_audience_id, name: customerAudienceResolution.audience_name },
+            ];
+          }
+        }
+        customerExclusionMetadata = buildCustomerExclusionMetadata(customerAudienceResolution, true);
+        console.log(
+          `[ads-autopilot-strategist][${VERSION}] cold-audience-exclusion`,
+          JSON.stringify({
+            funnel_stage: args.funnel_stage,
+            found: customerAudienceResolution.found,
+            meta_audience_id: customerAudienceResolution.meta_audience_id,
+            applied,
+          }),
+        );
+      }
+    } catch (caErr: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] customer-audience resolver failed (fail-open):`, caErr?.message);
+    }
+
     // ============ QUALITY GATE — Subfase saneamento create_campaign ============
-    // Validação determinística pura: produto×copy×criativo×destino×orçamento.
+    // Validação determinística pura: produto×copy×criativo×destino×orçamento×exclusão_clientes.
     // Sem LLM, sem Meta. Falha = `skipped` (não-aprovável) com reason_codes.
     try {
       const gateInput = {
@@ -2455,6 +2495,13 @@ async function executeToolCall(
         tenantCreatives: tenantCreatives.map((c: any) => ({
           id: c.id, product_id: c.product_id, tenant_id: c.tenant_id,
         })),
+        customerAudience: customerAudienceResolution
+          ? {
+              found: customerAudienceResolution.found,
+              meta_audience_id: customerAudienceResolution.meta_audience_id,
+              audience_name: customerAudienceResolution.audience_name,
+            }
+          : undefined,
       };
       const gate = runCreateCampaignQualityGate(gateInput);
       if (!gate.ok) {
@@ -2468,6 +2515,7 @@ async function executeToolCall(
             ad_account_id: config.ad_account_id,
             product_id: matchedProduct?.id || args.product_id || null,
             product_name: matchedProduct?.name || args.product_name || null,
+            customer_audience_exclusion: customerExclusionMetadata,
             quality_gate: {
               ok: false,
               version: gate.version,
@@ -2475,7 +2523,9 @@ async function executeToolCall(
               details: gate.details,
               blocked_at: new Date().toISOString(),
             },
-            reason: `Quality Gate bloqueou sugestão: ${gate.reason_codes.join(", ")}`,
+            reason: gate.reason_codes.includes("cold_audience_requires_customer_exclusion")
+              ? "Crie ou sincronize o público de Clientes antes de propor campanhas frias."
+              : `Quality Gate bloqueou sugestão: ${gate.reason_codes.join(", ")}`,
           },
         };
       }
@@ -2492,6 +2542,7 @@ async function executeToolCall(
         product_id: matchedProduct?.id || args.product_id || null,
         product_name: matchedProduct?.name || args.product_name || null,
         product_price: matchedProduct?.price || null,
+        customer_audience_exclusion: customerExclusionMetadata,
         preview: {
           campaign_name: args.campaign_name,
           objective: args.objective,
@@ -2553,6 +2604,9 @@ async function executeToolCall(
           // Scheduling
           start_time: args.start_time || null,
           end_time: args.end_time || null,
+
+          // Frente 1 — Exclusão de Clientes em Públicos Frios (UI lê daqui)
+          customer_audience_exclusion: customerExclusionMetadata,
         },
       } 
     };

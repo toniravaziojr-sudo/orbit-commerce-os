@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
@@ -51,8 +52,19 @@ function CampaignPreview({ data }: { data: Record<string, any> }) {
           <DetailRow label="Categorias Especiais" value={data.special_ad_categories?.join(", ") || "Nenhuma"} />
         )}
         {(preview.funnel_stage || data.funnel_stage) && (
-          <DetailRow label="Funil" value={preview.funnel_stage || data.funnel_stage} />
+          <DetailRow label="Funil" value={getFunnelLabel(preview.funnel_stage || data.funnel_stage).label} />
         )}
+        {(() => {
+          const exclusion = getCustomerExclusionLine(data, preview);
+          if (!exclusion) return null;
+          return (
+            <DetailRow
+              label="Exclusões"
+              value={exclusion.applied ? exclusion.label : `${exclusion.label}${exclusion.hint ? ` — ${exclusion.hint}` : ""}`}
+              highlight={!exclusion.applied}
+            />
+          );
+        })()}
         {(preview.product_name || data.product_name) && (
           <DetailRow label="Produto" value={`${preview.product_name || data.product_name}${preview.product_price_display ? ` — ${preview.product_price_display}` : ''}`} />
         )}

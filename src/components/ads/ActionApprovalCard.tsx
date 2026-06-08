@@ -19,6 +19,7 @@ import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIco
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
@@ -46,15 +47,8 @@ export interface OrphanAdsetGroupCardProps {
   adjustingId?: string | null;
 }
 
-const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
-  tof: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
-  cold: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
-  bof: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
-  remarketing: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
-  mof: { label: "Público Morno", color: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20" },
-  test: { label: "Teste", color: "bg-purple-500/10 text-purple-700 border-purple-500/20" },
-  leads: { label: "Captação", color: "bg-green-500/10 text-green-700 border-green-500/20" },
-};
+// Funnel labels live in @/lib/ads/audienceLabels (Frente 2 — Labels amigáveis).
+// Keep this comment as a pointer so future edits don't reintroduce a local map.
 
 const CAMPAIGN_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   sales: { label: "Venda Direta", color: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
@@ -616,7 +610,7 @@ function formatFieldValue(value: any): string {
 function CampaignDetailsTab({ data, preview, action, childActions }: { data: Record<string, any>; preview: Record<string, any>; action: PendingAction; childActions?: PendingAction[] }) {
   const campaignTypeInfo = inferCampaignType(data);
   const funnel = preview.funnel_stage || data.funnel_stage || null;
-  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+  const funnelInfo = funnel ? getFunnelLabel(funnel) : null;
 
   // Merge all child adset data for fallback lookups
   const childDataList = (childActions || []).map(c => {
@@ -1221,7 +1215,8 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const funnel = preview.funnel_stage || data.funnel_stage || null;
-  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+  const funnelInfo = funnel ? getFunnelLabel(funnel) : null;
+  const exclusionInfo = getCustomerExclusionLine(data, preview);
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const campaignName = preview.campaign_name || data.campaign_name || null;
   const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
@@ -1339,6 +1334,23 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                 <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{campaignName}</span>
               )}
             </div>
+
+            {/* Frente 1 — Linha de exclusão de Clientes (Públicos Frios) */}
+            {exclusionInfo && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                {exclusionInfo.applied ? (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
+                    <Users className="h-2.5 w-2.5" />
+                    {exclusionInfo.label}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 bg-amber-500/10 text-amber-700 border-amber-500/20" title={exclusionInfo.hint || ""}>
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {exclusionInfo.label}
+                  </Badge>
+                )}
+              </div>
+            )}
 
             {/* "Ver completo" button */}
             <Button

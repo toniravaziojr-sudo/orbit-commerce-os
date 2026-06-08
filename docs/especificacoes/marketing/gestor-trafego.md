@@ -2965,3 +2965,97 @@ Além dos quatro estados de origem (`human_approval`, `policy_auto_execution`, `
 
 **Documentação:** `docs/especificacoes/transversais/mapa-ui.md` atualizado para refletir a localização real do toggle global.
 
+---
+
+## 11. Evolução estratégica — Fase 1 (2026-06-08)
+
+Esta fase entrega apenas as duas primeiras frentes da evolução estratégica aprovadas pelo usuário. **Fases adiantes** (botão "Nova Estratégia", fluxo de campanhas em duas etapas, geração de criativos pós-aprovação, mudanças no Motor Universal de Créditos) **não estão incluídas** nesta entrega.
+
+### 11.1 Frente 1 — Público Frio sempre exclui Clientes
+
+**Regra de negócio:** toda campanha/conjunto classificada como **Público Frio** (`funnel_stage ∈ {cold, tof, frio, prospecting, prospect, prospeccao}`) deve **excluir automaticamente** o público de Clientes/Compradores já sincronizado pelo sistema. Esta entrega vale **apenas para Meta Ads**; Google/TikTok seguem sem essa obrigatoriedade.
+
+**Detecção determinística do público de Clientes:**
+- Lista de sistema `is_system=true` com `name='Clientes'` no tenant
+- → Mapeamento ativo em `audience_sync_mappings` com `platform='meta'`, `status='active'` e `ad_account_id` da campanha
+- → `platform_audience_id` é o ID do público a ser excluído
+
+**Estados possíveis:**
+
+| Estado | Comportamento |
+|---|---|
+| Público existe + exclusão aplicada | ✅ Proposta passa, metadata `customer_audience_exclusion_enabled=true` salva no `action_data` e no `preview` |
+| Público existe + exclusão ausente | ❌ Strategist injeta exclusão automaticamente antes do gate; se ainda assim faltar, gate bloqueia |
+| Público não sincronizado nesta conta | ❌ Gate bloqueia com `reason_code = cold_audience_requires_customer_exclusion` e mensagem "Crie ou sincronize o público de Clientes antes de propor campanhas frias." |
+
+**Quality Gate v1.3.0:** novo reason_code `cold_audience_requires_customer_exclusion`. Acionado quando `isCold(args)` e a `customerAudience` informada não está disponível **ou** seu `meta_audience_id` não aparece em `excluded_audience_ids`. Quando o chamador não informa `customerAudience` (callers legados), o gate registra `details.customer_audience_check = "skipped_no_resolver_input"` sem bloquear (back-compat).
+
+**Defesa em profundidade (executor `v4.1.0`):** antes de publicar uma campanha fria na Meta, `ads-autopilot-execute-approved` re-resolve o público de Clientes e:
+- Se não encontrar → retorna `success:false` com `reason_code: cold_audience_requires_customer_exclusion` e bloqueia a publicação
+- Se encontrar mas exclusão estiver ausente do payload → injeta a exclusão automaticamente antes da chamada à Meta
+- Se a resolução falhar → retorna `success:false` com `reason_code: cold_audience_revalidation_failed`
+
+**Metadata persistida em `action_data.customer_audience_exclusion`:**
+```json
+{
+  "customer_audience_exclusion_enabled": true,
+  "customer_audience_id": "120244679266150057",
+  "customer_audience_name": "Clientes - Atualizado 07/06/2026",
+  "customer_audience_list_id": "46154bee-…",
+  "customer_audience_missing": false,
+  "exclusion_reason": "cold_audience_must_exclude_existing_customers",
+  "resolved_at": "2026-06-08T…Z",
+  "source": "audience_sync_mapping"
+}
+```
+
+**Importante (escopo desta fase):** o sistema **não chama Meta** para criar/sincronizar o público de Clientes nesta entrega. Usa apenas dados já existentes. Se ausente, bloqueia e orienta.
+
+### 11.2 Frente 2 — Labels amigáveis de funil/público
+
+**Regra:** termos técnicos crus (`cold`, `warm`, `hot`, `tof`, `mof`, `bof`, `customers`, ...) **nunca aparecem na UI final**. O valor técnico continua salvo no banco/payload; a tradução acontece **na camada de apresentação** via helper único `src/lib/ads/audienceLabels.ts` (`getFunnelLabel(raw)`).
+
+**Mapeamento canônico aprovado:**
+
+| Valor técnico | Label exibida | Bucket |
+|---|---|---|
+| `cold` / `tof` / `frio` / `prospecting` / `prospect` / `prospeccao` | **Público Frio** | cold |
+| `warm` / `mof` / `morno` / `remarketing` / `retargeting` | **Remarketing** | warm |
+| `hot` / `bof` / `quente` | **Público Quente** | hot |
+| `customers` / `clientes` / `compradores` | **Clientes** | customers |
+| `retention` / `recompra` / `repurchase` | **Retenção / Recompra** | retention |
+| `test` / `teste` | **Teste** | test |
+| `leads` / `lead` | **Captação de Leads** | leads |
+| qualquer outro / vazio | **Público não classificado** | unknown |
+
+**Componentes atualizados:**
+- `ActionApprovalCard` — badge superior usa `getFunnelLabel(funnel)`; nova linha de exclusões (Frente 1) com badge verde "Excluindo: Clientes" quando aplicada, ou badge âmbar "Sem público de Clientes nesta conta" quando faltando.
+- `ActionDetailDialog` — campo "Funil" exibe a label amigável; novo campo "Exclusões" exibe a linha de Clientes ou o pré-requisito ausente.
+- Mapa local antigo `FUNNEL_LABELS` removido (substituído pelo helper único).
+
+### 11.3 Fora de escopo desta fase (não implementado)
+
+- Botão "Nova Estratégia"
+- Análise estratégica manual completa por orçamento
+- Fluxo de campanha em duas etapas (proposta estratégica → aprovação de criativos)
+- Geração de criativos atrelada à aprovação da Etapa 1
+- Mudanças no Motor Universal de Créditos
+- Novos estados de aprovação (`strategy_proposed`, `creative_prompt_approved`, etc.)
+- Mudanças na cadência semanal/mensal
+- Mudanças em Fase C.4 (autoexecução técnica diária, expiração de strategic_pause, auditoria)
+
+### 11.4 Testes
+
+`supabase/functions/_shared/ads-autopilot/qualityGate.cold-exclusion.test.ts` — 8 testes:
+- versão do gate `1.3.0`
+- back-compat sem `customerAudience`
+- bloqueia quando público faltando
+- bloqueia quando exclusão não aplicada
+- passa quando público existe + exclusão aplicada
+- warm/remarketing não exige exclusão
+- helper `isColdFunnelStage` reconhece sinônimos PT/EN
+- helper `buildCustomerExclusionMetadata` sinaliza aplicado vs ausente
+
+Regressão na suíte C.4 e ads-policy completa: **72/72 passando**.
+
+
