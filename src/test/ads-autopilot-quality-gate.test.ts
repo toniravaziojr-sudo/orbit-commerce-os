@@ -358,4 +358,48 @@ describe("Quality Gate v1.1 — generate_creative preflight", () => {
     expect(r.ok).toBe(true);
     expect(r.reason_codes).toEqual([]);
   });
+
+  // ============ v1.1.2 — CTA obrigatório para SALES ============
+  it("v1.1.2 — bloqueia create_campaign SALES sem CTA", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Sales - Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Contra Queda",
+        primary_text: "Experimente o Shampoo Calvície Zero hoje.",
+        creative_asset_id: "abc",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p",
+        funnel_stage: "tof",
+        objective: "OUTCOME_SALES",
+        daily_budget_cents: 2500,
+        cta: "",
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_missing_cta");
+  });
+
+  it("v1.1.2 — aceita create_campaign SALES com CTA SHOP_NOW", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Sales - Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Contra Queda",
+        primary_text: "Experimente o Shampoo Calvície Zero hoje.",
+        creative_asset_id: "abc",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p",
+        funnel_stage: "tof",
+        objective: "OUTCOME_SALES",
+        daily_budget_cents: 2500,
+        cta: "SHOP_NOW",
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+    });
+    expect(r.ok).toBe(true);
+  });
 });
