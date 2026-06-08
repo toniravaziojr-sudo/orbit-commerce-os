@@ -1684,7 +1684,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             </CardTitle>
             <div className="flex items-center gap-2">
               <Input
-                placeholder="Buscar por número, cliente..."
+                placeholder="Buscar por número, nome, CPF/CNPJ, e-mail ou telefone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-64"
