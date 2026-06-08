@@ -23,7 +23,7 @@
 //   - invalid_generate_creative_offer_mismatch
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.1.0";
+export const QUALITY_GATE_VERSION = "1.1.1";
 
 export interface QualityGateProduct {
   id: string;
