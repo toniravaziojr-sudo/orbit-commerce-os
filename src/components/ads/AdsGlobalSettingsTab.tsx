@@ -86,6 +86,8 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+      autonomy_mode: autonomyMode,
+      
       
       safety_rules: {
         ...(globalConfig?.safety_rules as any || {}),
