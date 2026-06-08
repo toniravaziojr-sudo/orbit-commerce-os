@@ -2350,17 +2350,22 @@ async function executeToolCall(
   if (toolName === "create_campaign") {
     // v1.12.0: Enrich campaign action with resolved product data
     console.log(`[ads-autopilot-strategist][${VERSION}] create_campaign → pending_approval (always)`);
-    
-    // v1.14.0: STRICT EXACT match only — no fuzzy, no startsWith, no includes
-    // User is responsible for providing the exact product name in strategic prompt
-    const matchedProduct = args.product_name 
-      ? context.products.find((p: any) => p.name.trim() === args.product_name.trim()) 
-      : args.product_id 
-        ? context.products.find((p: any) => p.id === args.product_id)
-        : null;
-    
+
+    // v1.45.0 — Resolução robusta: product_id → nome exato → nome normalizado.
+    // O matching estrito por nome (v1.14.0) gerava falso-positivo quando o
+    // modelo passava product_id correto mas product_name com variação de
+    // acento/espaço/caixa, deixando matchedProduct=null e impedindo a
+    // auto-resolução de criativo ready (caso real do tenant Respeite o Homem).
+    const resolved = resolveProduct({
+      args: { product_id: args.product_id, product_name: args.product_name },
+      catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+    });
+    const matchedProduct = resolved
+      ? context.products.find((p: any) => p.id === resolved.id) || null
+      : null;
+
     if (args.product_name && !matchedProduct) {
-      console.warn(`[ads-autopilot-strategist][${VERSION}] ⚠️ EXACT match failed for product_name="${args.product_name}". No fuzzy fallback — user must provide exact name.`);
+      console.warn(`[ads-autopilot-strategist][${VERSION}] ⚠️ product not resolved (id=${args.product_id || "∅"}, name="${args.product_name}")`);
     }
 
     // Resolve product image
@@ -2374,25 +2379,44 @@ async function executeToolCall(
     const productPriceDisplay = matchedProduct?.price ? `R$ ${Number(matchedProduct.price).toFixed(2)}` : null;
 
     // ============ PREFLIGHT — Resolução determinística de criativo ============
-    // Antes do Quality Gate, tentamos casar o criativo válido do tenant
-    // (ads_creative_assets ready, mesmo product_id). Isto evita falso-positivo
-    // de `invalid_missing_creative` quando o Strategist não inlinou o asset.
+    // Busca o inventário de criativos ready do tenant para o product_id
+    // resolvido. Se o produto não pôde ser resolvido mas args.product_id foi
+    // fornecido pelo modelo, ainda assim consultamos por aquele product_id
+    // como fallback seguro (a query é tenant-scoped). Kit vs isolado fica
+    // automaticamente protegido pelo filtro estrito por product_id.
     let tenantCreatives: any[] = [];
-    if (matchedProduct) {
+    const lookupProductId = matchedProduct?.id || args.product_id || null;
+    if (lookupProductId) {
       const { data: assets } = await supabase
         .from("ads_creative_assets")
-        .select("id, asset_url, product_id, tenant_id, funnel_stage, format, created_at")
+        .select("id, asset_url, product_id, tenant_id, status, funnel_stage, format, created_at")
         .eq("tenant_id", tenantId)
-        .eq("product_id", matchedProduct.id)
+        .eq("product_id", lookupProductId)
         .eq("status", "ready")
         .not("asset_url", "is", null)
         .order("created_at", { ascending: false })
         .limit(20);
       tenantCreatives = assets || [];
-      if (!args.creative_asset_id && !args.creative_url && tenantCreatives.length > 0) {
-        args.creative_asset_id = tenantCreatives[0].id;
-        args.creative_url = tenantCreatives[0].asset_url;
+      const selection = selectReadyCreative({
+        product: matchedProduct ? { id: matchedProduct.id, name: matchedProduct.name, price: matchedProduct.price } : (args.product_id ? { id: String(args.product_id), name: matchedProduct?.name || String(args.product_name || "") } : null),
+        tenantCreatives,
+      });
+      if (!args.creative_asset_id && !args.creative_url && selection.asset) {
+        args.creative_asset_id = selection.asset.id;
+        args.creative_url = selection.asset.asset_url;
       }
+      console.log(
+        `[ads-autopilot-strategist][${VERSION}] creative-resolver`,
+        JSON.stringify(
+          describeResolverDecision({
+            product: matchedProduct ? { id: matchedProduct.id, name: matchedProduct.name } : null,
+            args: { product_id: args.product_id, product_name: args.product_name },
+            result: selection,
+          }),
+        ),
+      );
+    } else {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] creative-resolver skipped: no product_id available`);
     }
 
     // ============ QUALITY GATE — Subfase saneamento create_campaign ============
