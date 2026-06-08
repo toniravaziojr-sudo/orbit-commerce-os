@@ -2898,3 +2898,30 @@ Resultado: **28/28 verdes** + os 89 testes anteriores da policy também verdes (
 - Não chama Meta/Google/TikTok nos testes nem na entrega.
 - Não altera sidebar, navegação ou layout fora dos dois cards de toggle.
 - Não cria campanha, criativo, copy ou oferta real.
+
+### 10.13 Hardening de auditoria — origem inequívoca da decisão (2026-06-08)
+
+A Fase C.4 mantém, por compatibilidade com o executor existente, o status `approved` tanto para aprovação manual quanto para autoexecução pela política. A distinção entre as duas origens passa a ficar registrada de forma **persistente e auditável** em `policy_check_result.autoexec_audit`, com os campos:
+
+| Campo | Valores |
+|---|---|
+| `approval_source` | `human_approval` \| `policy_auto_execution` \| `rejected_by_user` \| `blocked_by_policy` |
+| `human_approved` | `true` apenas para `human_approval` |
+| `approved_by_user` | espelha `human_approved` |
+| `auto_executed` | `true` apenas para `policy_auto_execution` |
+| `auto_execution_phase` | `c4_enabled` (apenas em caminhos C.4) |
+| `effective_autonomy_mode` | `technical_only` \| `off` (apenas em caminhos C.4) |
+| `effective_autonomy_source` | `account` \| `global` \| `default_off` (apenas em caminhos C.4) |
+| `executed_by` | `user` \| `policy` \| `null` |
+| `policy_gate_result` | `{ ok, reason, inputs }` quando aplicável |
+| `approved_by` / `rejected_by` | UUID do usuário, quando aplicável |
+| `at` | timestamp da decisão |
+
+**Nenhum schema novo foi criado** — o campo `policy_check_result` (jsonb) já existia. As colunas `approved_by_user_id` e `auto_executed` continuam sendo usadas como antes; o `autoexec_audit` apenas torna a origem inequívoca para telas, logs e consultas.
+
+**Revalidação no executor**: ao receber uma ação com `auto_executed=true`, `ads-autopilot-execute-approved` **revalida** os gates da Fase C.4 (`canAutoExecuteC4`) **antes de qualquer chamada externa**. Se o gate falhar (ou se for `strategic_pause`), a ação volta para `pending_approval`, grava `autoexec_audit.approval_source='blocked_by_policy'` com `policy_gate_result.revalidated_at_executor=true` e **não** chama Meta/Google/TikTok. Falha na chamada externa continua sendo registrada como `status='failed'` — nunca como `executed`.
+
+**Strategic pause**: defesa em profundidade aplicada em três pontos — no segundo passe do runner, no início da revalidação do executor e dentro do próprio `canAutoExecuteC4`. Nenhum caminho de autoexecução pode atingir uma pausa estratégica.
+
+**Testes**: `supabase/functions/_shared/ads-policy.c4-audit.test.ts` (12 testes) cobrindo: autoexec C.4 nunca registra aprovação humana; aprovação manual registra `human_approval`; `status='approved'` é desambiguado pelo `autoexec_audit`; rejeição manual registra `rejected_by_user`; bloqueio por gate registra `blocked_by_policy`; executor revalida gates antes de chamada externa; gate falhando impede execução externa; falha externa não vira sucesso; `strategic_pause` nunca autoexecuta; hierarquia conta > global > default off é respeitada.
+
