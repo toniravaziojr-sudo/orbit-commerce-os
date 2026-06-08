@@ -44,6 +44,7 @@ interface AdsAccountConfigProps {
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
   onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
+  onToggleAutonomy: (accountId: string, enabled: boolean) => void;
 }
 
 const STRATEGY_OPTIONS = [
@@ -63,6 +64,7 @@ function AccountConfigCard({
   isSaving,
   onToggleAI,
   onToggleKillSwitch,
+  onToggleAutonomy,
   tenantId,
 }: {
   accountId: string;
@@ -74,6 +76,7 @@ function AccountConfigCard({
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
   onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
+  onToggleAutonomy: (accountId: string, enabled: boolean) => void;
   tenantId: string | undefined;
 }) {
   const [budgetMode, setBudgetMode] = useState(config?.budget_mode || "monthly");
@@ -130,6 +133,7 @@ function AccountConfigCard({
     funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
     kill_switch: config?.kill_switch || false,
     human_approval_mode: "approve_high_impact",
+    autonomy_mode: config?.autonomy_mode || "off",
     created_at: config?.created_at || null,
     updated_at: config?.updated_at || null,
   };
@@ -227,7 +231,40 @@ function AccountConfigCard({
       </CardHeader>
 
       <CardContent className="pt-0 space-y-5">
-        {/* Budget */}
+        {/* Fase C.4 — Execução automática diária (por conta) */}
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                <Label htmlFor={`autonomy-toggle-${accountId}`} className="text-sm font-semibold">
+                  Execução automática diária
+                </Label>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  {config?.autonomy_mode === "technical_only" ? "Ativada" : "Desligada"}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                Permite que a IA execute automaticamente apenas ações técnicas seguras do dia a dia,
+                como pequenos ajustes de orçamento dentro da janela permitida, pausas emergenciais e
+                reativações operacionais. Campanhas, públicos, criativos, copys, ofertas e decisões
+                estratégicas continuam exigindo aprovação.
+              </p>
+            </div>
+            <Switch
+              id={`autonomy-toggle-${accountId}`}
+              checked={config?.autonomy_mode === "technical_only"}
+              onCheckedChange={(checked) => onToggleAutonomy(accountId, checked)}
+              disabled={!isAIEnabled}
+            />
+          </div>
+          {!isAIEnabled && (
+            <p className="text-[10px] text-muted-foreground mt-2 italic">
+              Ative a IA desta conta para habilitar a execução automática diária.
+            </p>
+          )}
+        </div>
+
         <div className="space-y-2">
           <Label className="text-sm font-semibold flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-primary" />
@@ -542,7 +579,7 @@ function AccountConfigCard({
   );
 }
 
-export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch }: AdsAccountConfigProps) {
+export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch, onToggleAutonomy }: AdsAccountConfigProps) {
   const { currentTenant } = useAuth();
   if (adAccounts.length === 0) return null;
 
@@ -564,6 +601,7 @@ export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnab
           isSaving={isSaving}
           onToggleAI={onToggleAI}
           onToggleKillSwitch={onToggleKillSwitch}
+          onToggleAutonomy={onToggleAutonomy}
           tenantId={currentTenant?.id}
         />
       ))}

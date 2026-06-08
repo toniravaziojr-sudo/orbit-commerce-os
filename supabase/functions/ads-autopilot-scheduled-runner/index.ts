@@ -1,19 +1,29 @@
 // =============================================================================
 // ads-autopilot-scheduled-runner
-// Roda a cada 5 min. Processa ações status='scheduled' com policy_engine_version='v1'.
-// Reaplica a política antes de executar. Ignora ações legadas.
-// Fase B.1: gate operacional por conta (is_ai_enabled + kill_switch) e TTL.
+// Roda a cada 5 min.
+//   (A) Processa ações status='scheduled' (engine v1). Reaplica a política.
+//   (B) Fase C.4: também varre ações 'pending_approval' classificadas como
+//       automatic_candidate/emergency e, se TODOS os gates passarem
+//       (resolveEffectiveAutonomy='technical_only', IA ativa, kill switch off
+//       conta+global, classe elegível, janela segura, maturidade, orçamento,
+//       Policy Engine), auto-aprova e dispara o executor com auto_executed=true.
+// Strategic pause NUNCA é elegível ao caminho (B).
 // =============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   decide,
   POLICY_ENGINE_VERSION,
   isApprovalStillValid,
+  resolveEffectiveAutonomy,
+  canAutoExecuteC4,
+  classifyAction,
+  isStrategicPauseAction,
+  getApprovalTtlHours,
   type ActionInput,
 } from "../_shared/ads-policy.ts";
 import { isWithinBudgetWindow, CADENCE_POLICY_VERSION } from "../_shared/ads-autopilot/cadencePolicy.ts";
 
-const VERSION = "v1.2.0"; // Política Operacional v1 — janela 00:01–03:00 BRT p/ orçamento
+const VERSION = "v1.3.0"; // Fase C.4 — autoexecução técnica governada por toggle
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,8 +237,191 @@ Deno.serve(async (req) => {
     }
   }
 
-  console.log(`[ads-autopilot-scheduled-runner][${VERSION}] summary`, summary);
-  return new Response(JSON.stringify({ success: true, summary }), {
+  // ===========================================================================
+  // FASE C.4 — Segundo passe: autoexecução técnica governada por toggle
+  // ===========================================================================
+  // Varre `pending_approval` engine v1 elegíveis. Para cada uma:
+  //   1) Resolve autonomy efetivo (conta > global > default off).
+  //   2) Aplica `canAutoExecuteC4` (kill switch, IA, classe, janela, etc.).
+  //   3) Se ok, faz stamp de auto-aprovação (approved_at + TTL) e invoca o
+  //      executor com from_runner=true + auto_executed=true.
+  //   4) Se não ok, NÃO altera a ação — segue para aprovação humana normal.
+  // ===========================================================================
+  const c4Summary = { picked: 0, auto_executed: 0, blocked: 0, errors: 0 };
+  try {
+    const { data: pendingRows } = await supabase
+      .from("ads_autopilot_actions")
+      .select("*")
+      .eq("status", "pending_approval")
+      .eq("policy_engine_version", POLICY_ENGINE_VERSION)
+      .order("created_at", { ascending: true })
+      .limit(50);
+
+    // Cache simples de global config por tenant
+    const globalCache = new Map<string, any>();
+
+    for (const r of (pendingRows || [])) {
+      c4Summary.picked++;
+      try {
+        // 0) Strategic pause NUNCA passa pelo caminho C.4
+        if (isStrategicPauseAction(r.action_type)) {
+          c4Summary.blocked++;
+          continue;
+        }
+
+        const action_class = classifyAction({ action_type: r.action_type, channel: r.channel });
+        if (action_class !== "automatic_candidate" && action_class !== "emergency") {
+          c4Summary.blocked++;
+          continue;
+        }
+
+        const adAccountId = extractAdAccountId(r);
+        if (!adAccountId) { c4Summary.blocked++; continue; }
+
+        // Carrega config da conta + global
+        const { data: acct } = await supabase
+          .from("ads_autopilot_account_configs")
+          .select("autonomy_mode, is_ai_enabled, kill_switch, budget_cents")
+          .eq("tenant_id", r.tenant_id)
+          .eq("channel", r.channel)
+          .eq("ad_account_id", adAccountId)
+          .maybeSingle();
+
+        let globalCfg = globalCache.get(r.tenant_id);
+        if (globalCfg === undefined) {
+          const { data: g } = await supabase
+            .from("ads_autopilot_configs")
+            .select("autonomy_mode, kill_switch")
+            .eq("tenant_id", r.tenant_id)
+            .eq("channel", "global")
+            .maybeSingle();
+          globalCfg = g || null;
+          globalCache.set(r.tenant_id, globalCfg);
+        }
+
+        const eff = resolveEffectiveAutonomy(acct, globalCfg);
+
+        // Reaplica `decide()` para conhecer veredicto da política
+        const actionInput: ActionInput = {
+          id: r.id,
+          tenant_id: r.tenant_id,
+          channel: r.channel,
+          action_type: r.action_type,
+          action_data: r.action_data,
+          status: r.status,
+          approved_at: null,
+          approval_expires_at: null,
+          created_at: r.created_at,
+        };
+        let snap: any = null;
+        const entity = r.action_data?.entity_id || r.action_data?.campaign_id ||
+                       r.action_data?.meta_campaign_id || null;
+        if (entity && r.channel === "meta") {
+          const { data: cs } = await supabase
+            .from("meta_ad_campaigns")
+            .select("daily_budget_cents, created_at, status")
+            .eq("tenant_id", r.tenant_id)
+            .or(`id.eq.${entity},meta_campaign_id.eq.${entity}`)
+            .maybeSingle();
+          snap = cs;
+        }
+        const policyNow = new Date();
+        const decision = decide({ action: actionInput, campaignSnapshot: snap, now: policyNow });
+
+        // Maturidade
+        const campaignAgeDays = snap?.created_at
+          ? (Date.now() - new Date(snap.created_at).getTime()) / 86400000
+          : null;
+
+        // Janela segura BRT 00:01–04:00
+        const brtH = (policyNow.getUTCHours() - 3 + 24) % 24;
+        const brtM = policyNow.getUTCMinutes();
+        const insideWindow = (brtH === 0 && brtM >= 1) || (brtH >= 1 && brtH < 4);
+
+        const gate = canAutoExecuteC4({
+          effective_mode: eff.mode,
+          effective_source: eff.source,
+          is_ai_enabled: acct?.is_ai_enabled === true,
+          account_kill_switch: acct?.kill_switch === true,
+          global_kill_switch: globalCfg?.kill_switch === true,
+          action_type: r.action_type,
+          action_class,
+          policy_decision_kind: decision.kind,
+          campaign_age_days: campaignAgeDays,
+          in_learning_phase: null,
+          inside_safe_window: insideWindow,
+          budget_within_limit: null,
+        });
+
+        if (!gate.ok) {
+          c4Summary.blocked++;
+          await supabase.from("ads_autopilot_actions").update({
+            policy_check_result: {
+              ...(r.policy_check_result || {}),
+              c4_autoexec_gate: {
+                ok: false,
+                reason: gate.reason,
+                effective_mode: eff.mode,
+                effective_source: eff.source,
+                at: policyNow.toISOString(),
+              },
+            },
+          }).eq("id", r.id);
+          continue;
+        }
+
+        // OK — stamp de auto-aprovação + invoke executor
+        const ttl = getApprovalTtlHours(r.action_type);
+        const approvedAt = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + ttl * 3600 * 1000).toISOString();
+        const { data: stamped } = await supabase
+          .from("ads_autopilot_actions")
+          .update({
+            status: "approved",
+            approved_at: approvedAt,
+            approval_expires_at: expiresAt,
+            auto_executed: true,
+            policy_check_result: {
+              ...(r.policy_check_result || {}),
+              c4_autoexec_gate: {
+                ok: true,
+                reason: "ok",
+                effective_mode: eff.mode,
+                effective_source: eff.source,
+                at: approvedAt,
+              },
+            },
+          })
+          .eq("id", r.id)
+          .eq("status", "pending_approval")
+          .select("id")
+          .maybeSingle();
+
+        if (!stamped) { c4Summary.blocked++; continue; }
+
+        const { error: execErr } = await supabase.functions.invoke("ads-autopilot-execute-approved", {
+          body: { tenant_id: r.tenant_id, action_id: r.id, from_runner: true },
+        });
+        if (execErr) {
+          c4Summary.errors++;
+          await supabase.from("ads_autopilot_actions").update({
+            status: "failed",
+            error_message: `c4_autoexec_invoke_failed: ${execErr.message}`,
+          }).eq("id", r.id);
+        } else {
+          c4Summary.auto_executed++;
+        }
+      } catch (e: any) {
+        c4Summary.errors++;
+        console.error(`[scheduled-runner][${VERSION}] C.4 autoexec error on ${r.id}:`, e.message);
+      }
+    }
+  } catch (e: any) {
+    console.error(`[scheduled-runner][${VERSION}] C.4 pass error:`, e.message);
+  }
+
+  console.log(`[ads-autopilot-scheduled-runner][${VERSION}] summary`, summary, "c4", c4Summary);
+  return new Response(JSON.stringify({ success: true, summary, c4: c4Summary }), {
     status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

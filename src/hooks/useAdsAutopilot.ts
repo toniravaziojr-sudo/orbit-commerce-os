@@ -37,6 +37,8 @@ export interface AutopilotConfig {
   funnel_splits: Record<string, any> | null;
   kill_switch: boolean | null;
   human_approval_mode: string | null;
+  /** Fase C.4 — Execução automática diária global. 'off' | 'technical_only'. Default 'off'. */
+  autonomy_mode: "off" | "technical_only" | null;
   created_at: string;
   updated_at: string;
 }

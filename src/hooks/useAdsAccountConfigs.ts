@@ -27,6 +27,8 @@ export interface AccountConfig {
   funnel_splits: Record<string, number> | null;
   kill_switch: boolean;
   human_approval_mode: string;
+  /** Fase C.4 — Execução automática diária por conta. 'off' | 'technical_only'. Default 'off'. */
+  autonomy_mode: "off" | "technical_only";
   created_at: string | null;
   updated_at: string | null;
 }
@@ -155,6 +157,38 @@ export function useAdsAccountConfigs() {
     onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
+  /**
+   * Fase C.4 — Liga/desliga "Execução automática diária" por conta.
+   * `enabled=true` → `autonomy_mode='technical_only'`; senão `'off'`.
+   */
+  const toggleAutonomy = useMutation({
+    mutationFn: async ({ channel, ad_account_id, enabled }: { channel: string; ad_account_id: string; enabled: boolean }) => {
+      const mode = enabled ? "technical_only" : "off";
+      const existing = configsQuery.data?.find(
+        c => c.channel === channel && c.ad_account_id === ad_account_id
+      );
+      if (existing) {
+        const { error } = await supabase
+          .from("ads_autopilot_account_configs")
+          .update({ autonomy_mode: mode } as any)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("ads_autopilot_account_configs")
+          .insert({ tenant_id: tenantId, channel, ad_account_id, autonomy_mode: mode } as any);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, { enabled }) => {
+      queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
+      toast.success(enabled
+        ? "Execução automática diária ATIVADA para esta conta"
+        : "Execução automática diária desativada — ações voltam para aprovação");
+    },
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
+  });
+
   return {
     configs: configsQuery.data || [],
     isLoading: configsQuery.isLoading,
@@ -163,6 +197,7 @@ export function useAdsAccountConfigs() {
     saveAccountConfig,
     toggleAI,
     toggleKillSwitch,
+    toggleAutonomy,
   };
 }
 

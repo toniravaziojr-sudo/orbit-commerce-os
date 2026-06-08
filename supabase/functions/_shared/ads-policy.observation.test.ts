@@ -67,8 +67,12 @@ Deno.test("C.3.1 — scope observável inclui os tipos técnicos de baixo risco"
   }
 });
 
-Deno.test("C.3.1 — autoexecução continua desligada (hardcoded false)", () => {
-  assertEquals(isAutonomyExecutionEnabled("technical_only"), false);
+Deno.test("C.4 — autoexecução técnica liberada quando autonomy_mode='technical_only'", () => {
+  // Atualizado de C.3.1 (hardcoded false) → C.4 (governada por toggle).
+  // O contrato observacional do bloco C.3.x continua intacto (allowlist do piloto
+  // permanece como gate adicional para gravação de `policy_check_result.observation`),
+  // mas a função do motor agora reflete o toggle do tenant.
+  assertEquals(isAutonomyExecutionEnabled("technical_only"), true);
   assertEquals(isAutonomyExecutionEnabled("off"), false);
   assertEquals(isAutonomyExecutionEnabled("anything_else"), false);
 });

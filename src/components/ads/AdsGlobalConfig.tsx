@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { Bot, Settings2, DollarSign, Target } from "lucide-react";
+import { Bot, Settings2, DollarSign, Target, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
@@ -23,6 +25,9 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
   const [targetRoi, setTargetRoi] = useState(
     (globalConfig?.safety_rules as any)?.target_roi?.toString() || ""
   );
+  const [autonomyMode, setAutonomyMode] = useState<"off" | "technical_only">(
+    (globalConfig?.autonomy_mode === "technical_only" ? "technical_only" : "off")
+  );
 
   useEffect(() => {
     if (globalConfig) {
@@ -30,6 +35,7 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
       setBudgetValue((globalConfig.budget_cents / 100).toString());
       setInstructions(globalConfig.user_instructions || "");
       setTargetRoi((globalConfig.safety_rules as any)?.target_roi?.toString() || "");
+      setAutonomyMode(globalConfig.autonomy_mode === "technical_only" ? "technical_only" : "off");
     }
   }, [globalConfig]);
 
@@ -40,6 +46,25 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
       budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
       objective: "sales",
       user_instructions: instructions || null,
+      autonomy_mode: autonomyMode,
+      safety_rules: {
+        ...(globalConfig?.safety_rules as any || {}),
+        target_roi: parseFloat(targetRoi || "0") || null,
+      },
+    });
+  };
+
+  const handleAutonomyToggle = (checked: boolean) => {
+    const next: "off" | "technical_only" = checked ? "technical_only" : "off";
+    setAutonomyMode(next);
+    // Persiste imediatamente — toggle de segurança não precisa esperar "Salvar"
+    onSave({
+      channel: "global",
+      budget_mode: budgetMode,
+      budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
+      objective: "sales",
+      user_instructions: instructions || null,
+      autonomy_mode: next,
       safety_rules: {
         ...(globalConfig?.safety_rules as any || {}),
         target_roi: parseFloat(targetRoi || "0") || null,
@@ -73,6 +98,36 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
 
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-6">
+            {/* Fase C.4 — Execução automática diária (GLOBAL) */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <Label htmlFor="autonomy-global-toggle" className="text-sm font-semibold">
+                      Execução automática diária
+                    </Label>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {autonomyMode === "technical_only" ? "Ativada" : "Desligada"}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    Aplica a execução automática de ações técnicas diárias para contas que não
+                    possuem configuração individual. Contas com configuração própria seguem sua
+                    regra individual.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-2 italic">
+                    Prioridade: Individual &gt; Global &gt; Desligado por padrão.
+                  </p>
+                </div>
+                <Switch
+                  id="autonomy-global-toggle"
+                  checked={autonomyMode === "technical_only"}
+                  onCheckedChange={handleAutonomyToggle}
+                />
+              </div>
+            </div>
+
             {/* Budget */}
             <div className="space-y-2">
               <Label>Orçamento Total</Label>

@@ -385,6 +385,10 @@ export default function AdsManager() {
                 accountConfigs.toggleKillSwitch.mutate({ channel, ad_account_id: accountId, enabled });
               };
 
+              const handleToggleAutonomy = (accountId: string, enabled: boolean) => {
+                accountConfigs.toggleAutonomy.mutate({ channel, ad_account_id: accountId, enabled });
+              };
+
               const handleOpenAIConfig = (accountId: string) => {
                 setOpenAIConfigAccountId(prev => prev === accountId ? null : accountId);
               };
@@ -412,6 +416,7 @@ export default function AdsManager() {
                       isSaving={accountConfigs.saveAccountConfig.isPending}
                       onToggleAI={handleToggleAI}
                       onToggleKillSwitch={handleToggleKillSwitch}
+                      onToggleAutonomy={handleToggleAutonomy}
                     />
                   )}
 

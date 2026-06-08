@@ -331,6 +331,7 @@ export type Database = {
         Row: {
           ai_model: string
           allocation_mode: string
+          autonomy_mode: string
           budget_cents: number
           budget_mode: string
           channel: string
@@ -361,6 +362,7 @@ export type Database = {
         Insert: {
           ai_model?: string
           allocation_mode?: string
+          autonomy_mode?: string
           budget_cents?: number
           budget_mode?: string
           channel: string
@@ -391,6 +393,7 @@ export type Database = {
         Update: {
           ai_model?: string
           allocation_mode?: string
+          autonomy_mode?: string
           budget_cents?: number
           budget_mode?: string
           channel?: string

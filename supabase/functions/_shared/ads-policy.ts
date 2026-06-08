@@ -103,12 +103,15 @@ export function normalizeAutonomyMode(value: unknown): AutonomyMode {
 }
 
 /**
- * Fase C.2 — Nenhuma autonomia automática é liberada nesta fase, qualquer que
- * seja o `autonomy_mode`. Esta função existe para deixar o contrato explícito
- * em código: enquanto o sistema estiver em C.2, autoexecução = false.
+ * Fase C.4 — Autoexecução técnica governada por toggle.
+ * Retorna `true` quando o modo efetivo for `technical_only`. A liberação real
+ * de execução automática ainda depende dos demais gates (kill switch, IA ativa,
+ * janela segura, classe da ação, Policy Engine, etc.) — esta função apenas
+ * indica que o toggle do tenant/conta autoriza o motor a considerar a
+ * autoexecução de ações técnicas elegíveis.
  */
-export function isAutonomyExecutionEnabled(_mode: AutonomyMode | unknown): false {
-  return false;
+export function isAutonomyExecutionEnabled(mode: AutonomyMode | unknown): boolean {
+  return normalizeAutonomyMode(mode) === "technical_only";
 }
 
 export type CampaignClass =
@@ -253,12 +256,25 @@ const ACTION_CLASS_MAP: Record<string, { cls: ActionClass; reason: string }> = {
   strategic_plan:                { cls: "needs_approval", reason: "strategic_plan_requires_approval" },
 
   // ───────── C) emergency (risco real — execução técnica futura imediata sob critérios)
-  kill_switch_account:     { cls: "emergency", reason: "kill_switch" },
-  pause_emergency_campaign:{ cls: "emergency", reason: "emergency_pause" },
-  pause_emergency_adset:   { cls: "emergency", reason: "emergency_pause" },
-  pause_tracking_broken:   { cls: "emergency", reason: "tracking_broken" },
-  pause_budget_breach:     { cls: "emergency", reason: "budget_breach" },
-  pause_broken_link:       { cls: "emergency", reason: "broken_link" },
+  kill_switch_account:        { cls: "emergency", reason: "kill_switch" },
+  pause_emergency_campaign:   { cls: "emergency", reason: "emergency_pause" },
+  pause_emergency_adset:      { cls: "emergency", reason: "emergency_pause" },
+  pause_tracking_broken:      { cls: "emergency", reason: "tracking_broken" },
+  pause_budget_breach:        { cls: "emergency", reason: "budget_breach" },
+  pause_broken_link:          { cls: "emergency", reason: "broken_link" },
+  emergency_operational_pause:{ cls: "emergency", reason: "emergency_operational_pause" },
+  pause_out_of_stock:         { cls: "emergency", reason: "product_out_of_stock" },
+  pause_site_down:            { cls: "emergency", reason: "site_down" },
+
+  // ───────── B') strategic pause — NUNCA autoexecuta (sempre humana)
+  strategic_pause:               { cls: "needs_approval", reason: "strategic_pause_requires_approval" },
+  pause_low_roas:                { cls: "needs_approval", reason: "strategic_pause_low_roas" },
+  pause_low_cpa:                 { cls: "needs_approval", reason: "strategic_pause_low_cpa" },
+  pause_mature_performance:      { cls: "needs_approval", reason: "strategic_pause_mature_performance" },
+  pause_dayparting:              { cls: "needs_approval", reason: "strategic_pause_dayparting" },
+  pause_schedule:                { cls: "needs_approval", reason: "strategic_pause_schedule" },
+  pause_fatigue:                 { cls: "needs_approval", reason: "strategic_pause_fatigue" },
+  pause_budget_redistribution:   { cls: "needs_approval", reason: "strategic_budget_redistribution" },
 
   // ───────── D) observational (NUNCA chama API externa)
   insight:        { cls: "observational", reason: "insight_only" },
@@ -1191,3 +1207,193 @@ export async function attachObservationFromActionRecordAsync(
 }
 
 
+
+// =============================================================================
+// Fase C.4 — Autoexecução técnica governada por toggle
+// =============================================================================
+// Libera autoexecução real (auto_executed=true) apenas quando TODOS os gates
+// passam: IA ativa, kill switch off (global + conta), toggle efetivo
+// `technical_only`, classe `automatic_candidate`/`emergency`, ação não é
+// strategic_pause, janela segura quando aplicável, campanha madura, orçamento
+// dentro do limite, Policy Engine aprova. Caso contrário, a ação SEMPRE vai
+// para `pending_approval` (ou permanece nele).
+//
+// Strategic pause (pausa por ROAS/CPA ruim, performance madura, dayparting,
+// fadiga, redistribuição estratégica) NUNCA autoexecuta. Sempre pending_approval
+// com expiração no próximo 00:01 BRT.
+// =============================================================================
+
+export const AUTONOMY_PHASE_C4 = "c4_enabled";
+
+/**
+ * Tipos de ação considerados pausa estratégica — sempre humanas, com TTL
+ * diário até o próximo 00:01 BRT.
+ */
+export const STRATEGIC_PAUSE_ACTION_TYPES = new Set<string>([
+  "strategic_pause",
+  "pause_low_roas",
+  "pause_low_cpa",
+  "pause_mature_performance",
+  "pause_dayparting",
+  "pause_schedule",
+  "pause_fatigue",
+  "pause_budget_redistribution",
+]);
+
+/**
+ * Tipos de pausa emergencial operacional — elegíveis a autoexecução técnica
+ * quando o toggle estiver ON e todos os gates passarem.
+ */
+export const EMERGENCY_OPERATIONAL_PAUSE_TYPES = new Set<string>([
+  "emergency_operational_pause",
+  "pause_emergency_campaign",
+  "pause_emergency_adset",
+  "pause_tracking_broken",
+  "pause_budget_breach",
+  "pause_broken_link",
+  "pause_out_of_stock",
+  "pause_site_down",
+]);
+
+export function isStrategicPauseAction(actionType: string | null | undefined): boolean {
+  if (!actionType) return false;
+  return STRATEGIC_PAUSE_ACTION_TYPES.has(actionType);
+}
+
+export function isEmergencyOperationalPause(actionType: string | null | undefined): boolean {
+  if (!actionType) return false;
+  return EMERGENCY_OPERATIONAL_PAUSE_TYPES.has(actionType);
+}
+
+/**
+ * Calcula o próximo 00:01 BRT estritamente após `now`. Usado como TTL de
+ * sugestões `strategic_pause`. Se `now` já estiver depois das 00:01 BRT de
+ * hoje, retorna 00:01 BRT de amanhã.
+ */
+export function getStrategicPauseExpiry(now: Date = new Date()): Date {
+  // 00:01 BRT = 03:01 UTC
+  const next = new Date(now);
+  if (next.getUTCHours() < 3 || (next.getUTCHours() === 3 && next.getUTCMinutes() < 1)) {
+    // Hoje, 03:01 UTC ainda no futuro
+  } else {
+    next.setUTCDate(next.getUTCDate() + 1);
+  }
+  next.setUTCHours(3, 1, 0, 0);
+  return next;
+}
+
+export type AutonomySource = "account" | "global" | "default_off";
+
+export interface AutonomyConfigLike {
+  autonomy_mode?: unknown;
+}
+
+/**
+ * Resolve o `autonomy_mode` efetivo segundo a hierarquia oficial:
+ *   Individual (conta) > Global (tenant) > Default OFF.
+ *
+ * Função PURA. Não consulta banco, não chama externos.
+ */
+export function resolveEffectiveAutonomy(
+  accountCfg: AutonomyConfigLike | null | undefined,
+  globalCfg: AutonomyConfigLike | null | undefined,
+): { mode: AutonomyMode; source: AutonomySource } {
+  if (accountCfg && (accountCfg.autonomy_mode === "off" || accountCfg.autonomy_mode === "technical_only")) {
+    return { mode: normalizeAutonomyMode(accountCfg.autonomy_mode), source: "account" };
+  }
+  if (globalCfg && (globalCfg.autonomy_mode === "off" || globalCfg.autonomy_mode === "technical_only")) {
+    return { mode: normalizeAutonomyMode(globalCfg.autonomy_mode), source: "global" };
+  }
+  return { mode: "off", source: "default_off" };
+}
+
+export interface AutoExecGateInput {
+  // Toggle efetivo
+  effective_mode: AutonomyMode;
+  effective_source: AutonomySource;
+  // Estado operacional
+  is_ai_enabled: boolean;
+  account_kill_switch: boolean;
+  global_kill_switch: boolean;
+  // Classificação da ação
+  action_type: string;
+  action_class: ActionClass;
+  // Decisão do Policy Engine
+  policy_decision_kind?: Decision["kind"];
+  // Maturidade
+  campaign_age_days?: number | null;
+  in_learning_phase?: boolean | null;
+  // Janela
+  inside_safe_window?: boolean;
+  // Orçamento
+  budget_within_limit?: boolean | null;
+}
+
+export type AutoExecGateReason =
+  | "ok"
+  | "autonomy_off"
+  | "ai_disabled"
+  | "kill_switch_global"
+  | "kill_switch_account"
+  | "strategic_pause_always_human"
+  | "action_class_not_eligible"
+  | "policy_engine_rejected"
+  | "outside_safe_window"
+  | "in_learning_phase"
+  | "campaign_too_new"
+  | "budget_above_safe_limit"
+  | "missing_context";
+
+/**
+ * Gate completo da Fase C.4 — decide se uma proposta pode virar
+ * `auto_executed` agora. Função PURA, sem I/O.
+ */
+export function canAutoExecuteC4(input: AutoExecGateInput): { ok: boolean; reason: AutoExecGateReason } {
+  if (!input || !input.action_type) return { ok: false, reason: "missing_context" };
+
+  // 1) Kill switches têm prioridade absoluta
+  if (input.global_kill_switch === true) return { ok: false, reason: "kill_switch_global" };
+  if (input.account_kill_switch === true) return { ok: false, reason: "kill_switch_account" };
+
+  // 2) IA precisa estar ativa
+  if (input.is_ai_enabled !== true) return { ok: false, reason: "ai_disabled" };
+
+  // 3) Toggle efetivo
+  if (input.effective_mode !== "technical_only") return { ok: false, reason: "autonomy_off" };
+
+  // 4) Strategic pause NUNCA autoexecuta
+  if (isStrategicPauseAction(input.action_type)) {
+    return { ok: false, reason: "strategic_pause_always_human" };
+  }
+
+  // 5) Apenas automatic_candidate e emergency são elegíveis
+  if (input.action_class !== "automatic_candidate" && input.action_class !== "emergency") {
+    return { ok: false, reason: "action_class_not_eligible" };
+  }
+
+  // 6) Maturidade / learning (não bloqueia emergência operacional)
+  const isEmergency = input.action_class === "emergency";
+  if (!isEmergency) {
+    if (input.in_learning_phase === true) return { ok: false, reason: "in_learning_phase" };
+    if (typeof input.campaign_age_days === "number" && input.campaign_age_days < 3) {
+      return { ok: false, reason: "campaign_too_new" };
+    }
+  }
+
+  // 7) Janela segura BRT (quando aplicável — emergência ignora)
+  if (!isEmergency && input.inside_safe_window === false) {
+    return { ok: false, reason: "outside_safe_window" };
+  }
+
+  // 8) Orçamento dentro do limite seguro (quando aplicável)
+  if (input.budget_within_limit === false) {
+    return { ok: false, reason: "budget_above_safe_limit" };
+  }
+
+  // 9) Policy Engine
+  if (input.policy_decision_kind && input.policy_decision_kind !== "execute_now") {
+    return { ok: false, reason: "policy_engine_rejected" };
+  }
+
+  return { ok: true, reason: "ok" };
+}
