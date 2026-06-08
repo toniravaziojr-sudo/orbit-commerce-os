@@ -63,6 +63,28 @@ export function useAdsPendingActions(channelFilter?: string) {
       // TTL conservador default = 24h (Fase B). Refinamento por categoria fica para Fase C.
       const expiresIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
+      // Hardening de auditoria (Fase C.4): a aprovação manual precisa ficar
+      // explicitamente distinta de uma autoexecução por política. Lemos o
+      // policy_check_result atual e anexamos `autoexec_audit.approval_source=human_approval`.
+      const { data: current } = await supabase
+        .from("ads_autopilot_actions" as any)
+        .select("policy_check_result")
+        .eq("id", actionId)
+        .maybeSingle();
+
+      const humanAudit = {
+        approval_source: "human_approval",
+        human_approved: true,
+        approved_by_user: true,
+        auto_executed: false,
+        auto_execution_phase: null,
+        effective_autonomy_mode: null,
+        effective_autonomy_source: null,
+        executed_by: "user",
+        approved_by: userRes.user?.id ?? null,
+        at: nowIso,
+      };
+
       const { error } = await supabase
         .from("ads_autopilot_actions" as any)
         .update({
@@ -70,6 +92,11 @@ export function useAdsPendingActions(channelFilter?: string) {
           approved_at: nowIso,
           approved_by_user_id: userRes.user?.id ?? null,
           approval_expires_at: expiresIso,
+          auto_executed: false,
+          policy_check_result: {
+            ...((current as any)?.policy_check_result || {}),
+            autoexec_audit: humanAudit,
+          },
         } as any)
         .eq("id", actionId);
       if (error) throw error;
