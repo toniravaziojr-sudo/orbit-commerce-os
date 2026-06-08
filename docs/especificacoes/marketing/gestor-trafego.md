@@ -2925,3 +2925,25 @@ A Fase C.4 mantém, por compatibilidade com o executor existente, o status `appr
 
 **Testes**: `supabase/functions/_shared/ads-policy.c4-audit.test.ts` (12 testes) cobrindo: autoexec C.4 nunca registra aprovação humana; aprovação manual registra `human_approval`; `status='approved'` é desambiguado pelo `autoexec_audit`; rejeição manual registra `rejected_by_user`; bloqueio por gate registra `blocked_by_policy`; executor revalida gates antes de chamada externa; gate falhando impede execução externa; falha externa não vira sucesso; `strategic_pause` nunca autoexecuta; hierarquia conta > global > default off é respeitada.
 
+
+### 10.14 Microvalidação — 5º estado distinguível: strategic_pause expirada (2026-06-08)
+
+Além dos quatro estados de origem (`human_approval`, `policy_auto_execution`, `rejected_by_user`, `blocked_by_policy`), a sugestão `strategic_pause` que não foi tratada até 00:01 BRT precisa ser claramente distinguível em auditoria e consultas. Como a expiração não é uma origem de aprovação, mantemos `approval_source` intocado e adicionamos `decision_outcome='expired'` no mesmo bloco `policy_check_result.autoexec_audit`.
+
+**Onde fica registrado**:
+- `ads_autopilot_actions.status = 'expired'` (status terminal, fora da fila ativa que filtra `pending_approval`).
+- `policy_check_result.expiration` — bloco existente, mantido: `reason='strategic_pause_daily_window_expired'`, `ttl_policy`, `expired_at`, `pilot_version`.
+- `policy_check_result.autoexec_audit` — novos campos: `decision_outcome='expired'`, `expiration_reason='strategic_pause_daily_window_expired'`, `expired_at`, `human_approved=false`, `auto_executed=false`, `expired_by='policy_ttl'`, `expired_by_function='ads-autopilot-strategic-pause-expire'`.
+
+**Não houve migração** — `policy_check_result` é jsonb e ambos os blocos coexistem.
+
+**Critério de aceite — checado**:
+- Aprovação manual → `autoexec_audit.approval_source='human_approval'` ✅
+- Autoexecução C.4 → `autoexec_audit.approval_source='policy_auto_execution'` ✅
+- Rejeição manual → `autoexec_audit.approval_source='rejected_by_user'` ✅
+- Bloqueio por gate → `autoexec_audit.approval_source='blocked_by_policy'` ✅
+- `strategic_pause` expirada → `status='expired'` + `autoexec_audit.decision_outcome='expired'` + `expiration.reason='strategic_pause_daily_window_expired'` ✅
+- Fila ativa (`status='pending_approval'`) não inclui expiradas ✅
+- Histórico/auditoria preservados (ambos os blocos persistidos) ✅
+
+**Testes**: 2 testes novos em `ads-policy.c4-audit.test.ts`, ambos passando. Nenhuma chamada externa, nenhuma ação real executada.
