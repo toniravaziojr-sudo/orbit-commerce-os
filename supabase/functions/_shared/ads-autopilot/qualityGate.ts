@@ -17,9 +17,13 @@
 //   - invalid_missing_destination
 //   - invalid_creative_product_mismatch
 //   - invalid_cold_campaign_budget_too_aggressive
+//   - invalid_creative_not_in_tenant
+//   - invalid_creative_product_link_mismatch
+//   - invalid_generate_creative_unknown_product
+//   - invalid_generate_creative_offer_mismatch
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.0.0";
+export const QUALITY_GATE_VERSION = "1.1.0";
 
 export interface QualityGateProduct {
   id: string;
