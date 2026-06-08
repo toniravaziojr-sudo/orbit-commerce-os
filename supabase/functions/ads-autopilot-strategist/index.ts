@@ -3419,6 +3419,8 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             totalRejected++;
           } else if (result.status === "failed") {
             actionRecord.error_message = result.data?.error || "Erro desconhecido";
+          } else if (result.status === "skipped") {
+            actionRecord.rejection_reason = result.data?.reason || "Sugestão bloqueada (skipped)";
           }
 
           // DEDUP RULE: Before inserting a new strategic_plan, supersede any existing pending ones
