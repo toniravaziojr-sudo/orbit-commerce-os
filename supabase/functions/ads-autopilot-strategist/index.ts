@@ -4,6 +4,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
+import { runCreateCampaignQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
