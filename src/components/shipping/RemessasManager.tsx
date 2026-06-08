@@ -140,7 +140,7 @@ export function RemessasManager() {
       if (!openRemessa?.id) return [] as RemessaObjeto[];
       const { data, error } = await supabase
         .from('shipments')
-        .select('id, tracking_code, carrier, delivery_status, created_at, source_pedido_venda_id, order:orders(order_number, customer_name)')
+        .select('id, numero, tracking_code, carrier, delivery_status, created_at, source_pedido_venda_id, order:orders(order_number, customer_name)')
         .eq('remessa_id', openRemessa.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -162,12 +162,13 @@ export function RemessasManager() {
           }
         });
       }
-      // Objetos dentro de uma remessa: ordem por número do pedido desc;
-      // fallback para número do PV quando não há pedido vinculado.
+      // Objetos dentro de uma remessa: ordem pela numeração própria do
+      // Objeto de Postagem (decrescente). Recriações sempre voltam ao
+      // lugar correto.
       const { sortByNumberDesc } = await import('@/lib/sort-numeric');
       return sortByNumberDesc(
         rows,
-        (r: any) => r?.order?.order_number ?? r?.pv?.numero,
+        (r: any) => r?.numero,
         (r: any) => r?.created_at,
       );
     },
@@ -331,7 +332,7 @@ export function RemessasManager() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Pedido de Venda</TableHead>
+                          <TableHead>Objeto</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Rastreio</TableHead>
                           <TableHead>Status</TableHead>
@@ -341,11 +342,18 @@ export function RemessasManager() {
                         {objetos!.map(o => {
                           const pvNumero = o.pv?.numero != null ? `PV ${o.pv.numero}` : null;
                           const orderNumero = o.order?.order_number ? `#${o.order.order_number}` : null;
-                          const referencia = pvNumero || orderNumero || '—';
+                          const referenciaSecundaria = pvNumero || orderNumero || '—';
                           const cliente = o.pv?.dest_nome || o.order?.customer_name || '—';
                           return (
                             <TableRow key={o.id}>
-                              <TableCell className="font-medium">{referencia}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex flex-col leading-tight">
+                                  <span>#{(o as any).numero ?? '—'}</span>
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    {referenciaSecundaria}
+                                  </span>
+                                </div>
+                              </TableCell>
                               <TableCell className="text-sm">{cliente}</TableCell>
                               <TableCell className="font-mono text-xs">{o.tracking_code || '—'}</TableCell>
                               <TableCell>

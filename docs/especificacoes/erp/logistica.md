@@ -919,17 +919,55 @@ Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration` e `m
 
 ---
 
+## Numeração própria do Objeto de Postagem (2026-06-08)
+
+**Decisão de produto.** Cada Objeto de Postagem (`public.shipments`) tem
+**número próprio sequencial por loja**, no mesmo padrão de Pedido, Pedido de
+Venda, Nota Fiscal e Remessa.
+
+- Coluna `shipments.numero bigint NOT NULL`, único por `(tenant_id, numero)`.
+- Alocação automática em `BEFORE INSERT` via trigger
+  `trg_shipments_set_numero` → função
+  `public.allocate_shipment_numero(p_tenant_id)` (SECURITY DEFINER,
+  advisory lock por tenant).
+- Vale para qualquer origem de criação: PV manual, PV duplicado, pedido
+  pago (auto), reconciliação de PV órfão, retentativa. Nenhum chamador
+  passa `numero` explicitamente.
+- Objetos antigos receberam número retroativo único por loja, ordenados
+  por `created_at ASC`, na própria migração.
+- Reemissão, auto-cura ou reabertura **não reusam** número de objeto
+  cancelado — a sequência é monotonicamente crescente.
+
+### Exibição
+- Coluna "Pedido" das listas de Objetos passou a se chamar **"Objeto"** e
+  mostra `#{shipments.numero}` em destaque, com o Pedido (`Pedido #X`) ou
+  PV (`PV X`) como referência secundária na mesma célula.
+- Aba "Rastreios" e tabela interna da Remessa seguem o mesmo padrão.
+
+### Criação manual proibida
+- Foi removido do sistema o botão **"Criar novo objeto"** da aba "Prontos
+  para emitir". Edição de rascunho existente (destinatário, serviço)
+  continua disponível pelo ícone de lápis na linha.
+- Todo Objeto de Postagem nasce a partir de um Pedido de Venda — não
+  existe mais caminho para criar objeto "do nada" pelo módulo de
+  Logística.
+
+Memória anti-regressão: `mem://constraints/shipment-own-numero-and-no-manual-create`.
+
+---
+
 ## Ordenação das Listagens (Objetos, Remessas, Rastreios)
 
 **Atualizado em 2026-06-08.** Todas as listagens do módulo seguem o **Padrão de Ordenação de Listagens Operacionais** (ver `transversais/padroes-operacionais.md`):
 
-| Lista | Chave primária | Fallback / Desempate |
+| Lista | Chave primária | Desempate |
 |---|---|---|
-| Objetos de Postagem — Prontos para Emitir | nº do pedido vinculado | nº do PV (PV manual) → data desc |
-| Objetos de Postagem — Objetos Emitidos | nº do pedido vinculado | nº do PV → data desc |
-| Objetos de Postagem — Pendentes | nº do pedido vinculado | nº do PV → data desc |
-| Remessas | nº da remessa | data desc |
-| Objetos dentro de uma Remessa | nº do pedido vinculado | nº do PV → data desc |
-| Rastreios | nº do pedido vinculado | data desc |
+| Objetos de Postagem — Prontos para Emitir | `shipments.numero` (próprio) | data desc |
+| Objetos de Postagem — Objetos Emitidos | `shipments.numero` (próprio) | data desc |
+| Objetos de Postagem — Pendentes | `shipments.numero` (próprio) | data desc |
+| Remessas | nº da remessa (`shipping_remessas.numero`) | data desc |
+| Objetos dentro de uma Remessa | `shipments.numero` (próprio) | data desc |
+| Rastreios | `shipments.numero` (próprio) | data desc |
 
-**Por quê:** evita que objetos recriados por reconciliação (ex.: após cancelamento de NF de homologação) apareçam no topo só por terem data nova. O objeto recuperado volta para o lugar numérico correto.
+**Por quê:** evita que objetos recriados por reconciliação (ex.: após cancelamento de NF) apareçam no topo só por terem data nova. O objeto recuperado volta para o lugar numérico correto pela própria sequência do Objeto de Postagem.
+

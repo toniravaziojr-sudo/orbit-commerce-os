@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2, RefreshCw, ScrollText, Files } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Lock, Loader2, RefreshCw, ScrollText, Files } from 'lucide-react';
 import { DraftShipmentDialog } from './DraftShipmentDialog';
 import {
   AlertDialog,
@@ -50,15 +50,17 @@ import { toast } from 'sonner';
 import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
 import { sortByNumberDesc } from "@/lib/sort-numeric";
 
-// Chave de ordenação de Objetos de Postagem: número do pedido vinculado
-// (preferência) ou número do PV quando não há pedido. Mantém os itens em
-// ordem numérica decrescente do módulo.
+// Chave de ordenação de Objetos de Postagem: número próprio do objeto
+// (sequencial por loja). Garante que objetos recriados (auto-cura,
+// duplicação, reemissão) sempre voltem para o lugar correto pela
+// numeração nativa, e não pela data de criação.
 function shipmentOrderKey(s: any): unknown {
-  return s?.order?.order_number ?? s?.pv?.numero ?? null;
+  return s?.numero ?? null;
 }
 
 interface ShipmentRecord {
   id: string;
+  numero: number;
   order_id: string;
   source_pedido_venda_id?: string | null;
   tracking_code: string;
@@ -160,7 +162,7 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, source_pedido_venda_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          id, numero, order_id, source_pedido_venda_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -217,7 +219,7 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, source_pedido_venda_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id, remessa_id,
+          id, numero, order_id, source_pedido_venda_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id, remessa_id,
           order:orders(order_number, customer_name, status),
           remessa:shipping_remessas(numero)
         `)
@@ -328,7 +330,7 @@ export function ShipmentGenerator() {
       const { data, error } = await supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, source_pedido_venda_id, tracking_code, carrier, service_name, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          id, numero, order_id, source_pedido_venda_id, tracking_code, carrier, service_name, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -614,12 +616,11 @@ export function ShipmentGenerator() {
 
 
 
-  // === Ações manuais nos rascunhos ===
-  const openCreateDraft = () => {
-    setEditingShipmentId(null);
-    setDraftDialogOpen(true);
-  };
-
+  // === Ações nos rascunhos ===
+  // Criação manual de objeto de postagem foi removida do sistema:
+  // todo objeto deve nascer a partir de um Pedido de Venda (manual,
+  // duplicado ou criado automaticamente a partir de pedido pago).
+  // Esta função abre apenas o fluxo de EDIÇÃO de um objeto já existente.
   const openEditDraft = (id: string) => {
     setEditingShipmentId(id);
     setDraftDialogOpen(true);
@@ -869,9 +870,6 @@ export function ShipmentGenerator() {
                   </span>
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={openCreateDraft} className="gap-1">
-                    <Plus className="h-3.5 w-3.5" /> Criar novo objeto
-                  </Button>
                   <Button
                     size="sm"
                     onClick={handleGenerateShipments}
@@ -920,7 +918,7 @@ export function ShipmentGenerator() {
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead>Pedido</TableHead>
+                          <TableHead>Objeto</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Frete</TableHead>
                           <TableHead>Destino</TableHead>
@@ -948,7 +946,12 @@ export function ShipmentGenerator() {
                                 />
                               </TableCell>
                               <TableCell className="font-medium">
-                                {order?.order_number ? `#${order.order_number}` : (shipment.pv?.numero ? `PV ${shipment.pv.numero}` : '—')}
+                                <div className="flex flex-col leading-tight">
+                                  <span>#{shipment.numero}</span>
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    {order?.order_number ? `Pedido #${order.order_number}` : (shipment.pv?.numero ? `PV ${shipment.pv.numero}` : '—')}
+                                  </span>
+                                </div>
                               </TableCell>
                               <TableCell className="max-w-[120px] truncate">
                                 {order?.customer_name || shipment.pv?.dest_nome || '—'}
@@ -1093,7 +1096,7 @@ export function ShipmentGenerator() {
                             onCheckedChange={toggleAllIssued}
                           />
                         </TableHead>
-                        <TableHead>Pedido</TableHead>
+                        <TableHead>Objeto</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Remessa</TableHead>
                         <TableHead>Rastreio</TableHead>
@@ -1113,11 +1116,16 @@ export function ShipmentGenerator() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">
-                            {shipment.order?.order_number
-                              ? `#${shipment.order.order_number}`
-                              : shipment.pv?.numero
-                                ? `PV ${shipment.pv.numero}`
-                                : `Rascunho ${shipment.id.substring(0, 8)}`}
+                            <div className="flex flex-col leading-tight">
+                              <span>#{shipment.numero}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                {shipment.order?.order_number
+                                  ? `Pedido #${shipment.order.order_number}`
+                                  : shipment.pv?.numero
+                                    ? `PV ${shipment.pv.numero}`
+                                    : '—'}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="max-w-[100px] truncate">
                             {shipment.order?.customer_name || shipment.pv?.dest_nome || '—'}
@@ -1217,11 +1225,12 @@ export function ShipmentGenerator() {
                       const customerName = (shipment.order as any)?.customer_name
                         || shipment.pv?.dest_nome
                         || 'Sem cliente vinculado';
-                      const headerLabel = orderNumber
-                        ? `#${orderNumber}`
+                      const refLabel = orderNumber
+                        ? `Pedido #${orderNumber}`
                         : shipment.pv?.numero
                           ? `PV ${shipment.pv.numero}`
-                          : `Rascunho ${shipment.id.substring(0, 8)}`;
+                          : '—';
+                      const headerLabel = `#${shipment.numero} · ${refLabel}`;
                       return (
                         <div
                           key={shipment.id}

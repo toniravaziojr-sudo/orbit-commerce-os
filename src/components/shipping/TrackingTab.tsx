@@ -110,7 +110,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
       let query = supabase
         .from('shipments')
         .select(`
-          id, order_id, source_pedido_venda_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
+          id, numero, order_id, source_pedido_venda_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
           order:orders(order_number, customer_name, customer_email)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -161,11 +161,12 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
           }
         }
       }
-      // Ordem padrão: número do pedido decrescente (módulo de Logística).
+      // Ordem padrão: número próprio do Objeto de Postagem, decrescente.
+      // Objetos recriados (auto-cura, reemissão) sempre voltam ao lugar correto.
       const { sortByNumberDesc } = await import('@/lib/sort-numeric');
       return sortByNumberDesc(
         shipments as ShipmentWithOrder[],
-        (s: any) => s?.order?.order_number,
+        (s: any) => s?.numero,
         (s: any) => s?.created_at,
       );
     },
@@ -302,7 +303,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Pedido</TableHead>
+                        <TableHead>Objeto</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Código de Rastreio</TableHead>
                         <TableHead>Transportadora</TableHead>
@@ -318,7 +319,12 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                           onClick={() => setSelectedShipment(shipment)}
                         >
                           <TableCell className="font-medium">
-                            #{shipment.order?.order_number || '—'}
+                            <div className="flex flex-col leading-tight">
+                              <span>#{(shipment as any).numero ?? '—'}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                {shipment.order?.order_number ? `Pedido #${shipment.order.order_number}` : '—'}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell>{shipment.order?.customer_name || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">
@@ -352,7 +358,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Rastreamento - #{selectedShipment?.order?.order_number || '—'}
+              Rastreamento - Objeto #{(selectedShipment as any)?.numero ?? '—'}
             </DialogTitle>
           </DialogHeader>
 
