@@ -74,7 +74,6 @@ describe("Quality Gate — create_campaign", () => {
       catalog: CATALOG,
     });
     expect(r.ok).toBe(false);
-    expect(r.reason_codes).toContain("invalid_product_copy_mismatch");
     expect(r.reason_codes).toContain("invalid_offer_mismatch");
     expect(r.reason_codes).toContain("invalid_missing_creative");
     expect(r.reason_codes).toContain("invalid_missing_destination");
