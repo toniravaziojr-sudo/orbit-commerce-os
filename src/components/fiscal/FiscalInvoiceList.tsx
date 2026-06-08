@@ -241,17 +241,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   });
 
   // Apply search and date filters
+  // Busca cobre: número, nome (sem acento), CPF/CNPJ, chave de acesso, pedido,
+  // e-mail e telefone do destinatário. Normaliza acentos para que "joao" case "João".
+  const normalizeText = (v: unknown) =>
+    String(v ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  const onlyDigits = (v: unknown) => String(v ?? '').replace(/\D/g, '');
   const filteredInvoices = statusFilteredInvoices?.filter(inv => {
     // Filter by search
     if (searchTerm) {
-      const search = searchTerm.toLowerCase();
+      const search = normalizeText(searchTerm);
+      const searchDigits = onlyDigits(searchTerm);
+      const nome = normalizeText((inv as any).dest_nome);
+      const email = normalizeText((inv as any).dest_email);
+      const chave = normalizeText((inv as any).chave_acesso);
+      const orderId = normalizeText((inv as any).order_id);
+      const numero = String((inv as any).numero ?? '');
+      const docDigits = onlyDigits((inv as any).dest_cpf_cnpj);
+      const telDigits = onlyDigits((inv as any).dest_telefone);
       const matchesSearch = (
-        inv.numero.toString().includes(search) ||
-        inv.dest_nome.toLowerCase().includes(search) ||
-        inv.dest_cpf_cnpj.replace(/\D/g, '').includes(search.replace(/\D/g, '')) ||
-        inv.chave_acesso?.toLowerCase().includes(search) ||
-        inv.order_id?.toLowerCase().includes(search) ||
-        (inv as any).dest_email?.toLowerCase().includes(search)
+        (search && numero.includes(search)) ||
+        (search && nome.includes(search)) ||
+        (search && email.includes(search)) ||
+        (search && chave.includes(search)) ||
+        (search && orderId.includes(search)) ||
+        (searchDigits && docDigits.includes(searchDigits)) ||
+        (searchDigits && telDigits.includes(searchDigits))
       );
       if (!matchesSearch) return false;
     }
