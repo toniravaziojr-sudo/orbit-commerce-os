@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     await supabaseClient
       .from('shipments')
       .update({
-        delivery_status: 'cancelled',
+        delivery_status: 'canceled',
         action_reason: 'invoice_cancelled',
         requires_action: false,
         invoice_id: null,
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
       })
       .or(shipmentFilters)
       .eq('tenant_id', tenantId)
-      .neq('delivery_status', 'cancelled');
+      .neq('delivery_status', 'canceled');
 
     if (invoice.source_order_invoice_id) {
       await supabaseClient
