@@ -2542,6 +2542,7 @@ async function executeToolCall(
         product_id: matchedProduct?.id || args.product_id || null,
         product_name: matchedProduct?.name || args.product_name || null,
         product_price: matchedProduct?.price || null,
+        customer_audience_exclusion: customerExclusionMetadata,
         preview: {
           campaign_name: args.campaign_name,
           objective: args.objective,
