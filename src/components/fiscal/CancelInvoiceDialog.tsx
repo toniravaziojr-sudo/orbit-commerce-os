@@ -40,7 +40,7 @@ type ShipmentCheck = {
   delivered_at: string | null;
 };
 
-const ALLOWED = new Set(['draft', 'label_created', 'cancelled']);
+const ALLOWED = new Set(['draft', 'label_created', 'canceled']);
 
 function buildBlockMessage(s: ShipmentCheck): string {
   const tracking = s.tracking_code ? ` (rastreio: ${s.tracking_code})` : '';
