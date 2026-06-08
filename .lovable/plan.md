@@ -1,139 +1,88 @@
-# Plano — Numeração própria do Objeto de Postagem + remoção da criação manual
 
-## Contexto
+# Ajuste do fluxo Fiscal × Logístico (NF cancelada / PV excluído)
 
-Hoje, na aba de Objetos de Postagem da Logística, a coluna "Pedido" mostra o
-número do **Pedido** quando ele existe e cai para o número do **Pedido de
-Venda** quando não existe (PV manual/duplicado). Isso mistura duas numerações
-diferentes na mesma lista, e por isso objetos recriados ou recuperados aparecem
-em posição estranha.
+## Regras de negócio aprovadas
 
-Além disso, existe hoje no canto da aba "Prontos para emitir" um botão **"Criar
-novo objeto"** que abre um diálogo para criar um Objeto de Postagem sem passar
-por Pedido de Venda. Isso fere a regra canônica do sistema (vínculo do objeto
-precisa ser sempre com o Pedido de Venda) e gera objetos órfãos sem produto,
-sem peso e sem rastreabilidade fiscal.
+### Regra 1 — Quando posso cancelar uma NF
+A NF de venda só pode ser cancelada se **não houver objeto logístico associado** OU se o objeto estiver em um destes estados:
+- "Etiqueta gerada" (objeto criado/pronto, ainda não despachado fisicamente)
+- "Cancelado"
 
-## Objetivo
+Em qualquer outro estado do objeto (postado, em trânsito, saindo para entrega, entregue ou devolvido), o cancelamento é **bloqueado** tanto no botão (desabilitado com tooltip) quanto na confirmação (mensagem em destaque dentro do diálogo) e também no servidor.
 
-1. Dar ao **Objeto de Postagem** uma numeração própria, sequencial por loja, no
-   mesmo padrão do Pedido, Pedido de Venda, Nota Fiscal e Remessa.
-2. Atribuir esse número automaticamente no momento em que o objeto é criado,
-   independente da origem (PV manual, duplicação ou pedido pago real).
-3. Garantir que objetos recriados por auto-cura, reconciliação ou
-   reprocessamento usem o **próximo número da sequência** e por isso caiam
-   sempre na ordem correta da lista (decrescente pelo número do próprio
-   objeto).
-4. Remover do sistema a possibilidade de criar Objeto de Postagem manualmente
-   pela tela de Logística.
+#### Mensagens exibidas ao usuário (PT-BR, em destaque no diálogo)
+- Objeto **postado / em trânsito / saindo para entrega**:
+  > "Não é possível cancelar esta NF: o pedido já foi despachado e está em rota de entrega (rastreio: AP000000000BR). Para cancelar a NF, primeiro cancele o objeto de postagem no módulo de Logística."
+- Objeto **entregue**:
+  > "Não é possível cancelar esta NF: o pedido já foi entregue ao cliente (rastreio: AP000000000BR, entregue em 08/06/2026). Notas de pedidos entregues não podem ser canceladas — utilize uma NF de devolução se for o caso."
+- Objeto **devolvido**:
+  > "Não é possível cancelar esta NF: o pedido foi devolvido. Registre uma NF de devolução em vez de cancelar a original."
 
-## O que muda
+Em todos os casos, o número do rastreio e a data relevante aparecem dentro da mensagem para o usuário entender o porquê do bloqueio.
 
-### Numeração própria do Objeto de Postagem
+### Regra 2 — O que acontece com o PV quando a NF é cancelada
+- O PV volta para **"Pedido em aberto"** (status visual).
+- **Nenhuma observação extra** é exibida (sem "NF cancelada", sem "Pedido sem itens", sem nada).
+- Qualquer pendência fiscal antiga grudada no PV é **limpa**, porque o PV volta ao começo do ciclo e pode ser reaproveitado para emitir uma nova NF.
 
-- Cada Objeto de Postagem passa a ter um número próprio, sequencial por loja,
-  começando em 1.
-- O número é gravado no momento da criação e nunca muda, mesmo em reemissão
-  ou auto-cura.
-- Objetos antigos (legado) recebem um número retroativo único, na ordem
-  cronológica em que foram criados, para não embaralhar a lista.
-- A listagem da aba "Objetos de Postagem" (Prontos, Emitidos e Pendentes)
-  passa a exibir e ordenar por **esse** número (decrescente). Acaba a mistura
-  com número do Pedido/PV.
-- Onde antes a lista mostrava `##592` (número do pedido), passa a mostrar o
-  número do objeto. O número do Pedido/PV vinculado continua disponível como
-  informação secundária na linha (para o operador continuar enxergando a
-  origem), apenas deixa de ser a chave de ordenação.
+### Regra 3 — O que acontece quando excluo um PV
+O objeto logístico vinculado segue o PV:
 
-### Remoção da criação manual
+| Situação do objeto | O que acontece |
+|---|---|
+| Objeto sem remessa | Excluído junto com o PV |
+| Objeto sozinho dentro de uma remessa | Objeto **e** remessa excluídos |
+| Objeto em uma remessa com outros objetos | Objeto **marcado como "cancelado" dentro da remessa** (não exclui o objeto nem a remessa) |
 
-- Remover o botão **"Criar novo objeto"** da aba "Prontos para emitir".
-- Remover o diálogo/fluxo de criação manual que esse botão abre.
-- Manter intactas todas as outras ações (editar destinatário, emitir etiqueta,
-  gerar Declaração de Conteúdo, excluir objeto, retentativa).
-- Reforçar a regra: **Objeto de Postagem só nasce a partir de um Pedido de
-  Venda** (manual, duplicado ou criado automaticamente a partir de pedido
-  pago). Pedidos via gateway (Frenet) continuam fora desse fluxo, como já é
-  hoje.
-
-### Governança / anti-regressão
-
-- Atualizar a documentação de Logística e o padrão operacional transversal
-  registrando:
-  - Objeto de Postagem tem numeração própria.
-  - Ordenação obrigatória pelo número do próprio módulo, decrescente.
-  - Proibida criação manual de Objeto de Postagem fora do fluxo do Pedido
-    de Venda.
-- Registrar memória anti-regressão travando essas duas regras.
-- Atualizar o mapa de UI com a remoção do botão.
-
-## Resultado final
-
-- Toda criação ou recriação de Objeto de Postagem (manual, duplicação, pedido
-  real, auto-cura) recebe o próximo número da sequência da loja.
-- A lista fica sempre na ordem numérica decrescente do próprio objeto —
-  duplicação, reemissão ou recuperação sempre cai no lugar certo.
-- Não existe mais caminho na UI para criar um Objeto de Postagem "do nada".
-
-## Pendência cruzada (já validada antes deste plano)
-
-A correção do fluxo de auto-cura do PV órfão (Maria da Glória / PV 395)
-continua valendo e é **pré-requisito** para este plano: sem ela, o
-recém-numerado objeto recriado nunca chegaria a ser enfileirado. Aquela
-correção é feita junto, no mesmo deploy:
-
-- Unicidade da fila de rascunhos passa a valer só para entradas em aberto
-  (concluídas/canceladas/falhas não bloqueiam reabertura).
-- Reconciliação automática detecta PV ativo sem objeto válido e enfileira
-  nova tentativa.
-- Dedup do processador só considera objeto ativo (ignora cancelado).
-
-## Validação após aplicar
-
-1. Criar um PV novo manual → conferir que o objeto nasce com o próximo
-   número da sequência e aparece no topo da lista.
-2. Duplicar um PV existente → conferir que o objeto novo recebe um número
-   novo (não herda o do original) e fica acima na lista.
-3. Conferir que objetos antigos continuam visíveis, com número retroativo,
-   na ordem cronológica correta.
-4. Conferir que o botão "Criar novo objeto" não existe mais em nenhuma aba
-   do módulo de Logística.
-5. PV 395 (Maria) ganha objeto na próxima execução do cron, com número novo
-   na sequência.
-
-## Fora do escopo
-
-- Numeração de Remessas, Pedido, Pedido de Venda e Nota Fiscal — sem
-  mudanças.
-- Pedidos via gateway (Frenet) — fluxo intacto.
-- UI das outras abas (Remessas, Rastreios, Dashboard) — só passam a usar o
-  novo campo para ordenar; layout não muda.
-
-## Bloco técnico (opcional)
-
-- Nova coluna `numero` (`bigint`) em `shipments`, sequencial por
-  `tenant_id`, alocada por função `allocate_shipment_numero(p_tenant_id)`
-  (mesmo padrão de `allocate_remessa_numero`). Índice único parcial
-  `(tenant_id, numero)` e índice de ordenação
-  `(tenant_id, numero DESC)`.
-- Atribuição via trigger `BEFORE INSERT` em `shipments` quando `numero IS
-  NULL`. Cobre criação por `scheduler-tick` (PHASE 1.6),
-  `shipping-create-shipment`, reconciliação e qualquer caminho legado, sem
-  precisar tocar cada chamador.
-- Backfill único, ordenado por `created_at ASC` por tenant, atribuindo
-  números a registros existentes.
-- `ShipmentGenerator` / `RemessasManager` / `TrackingTab` passam a:
-  - exibir `shipment.numero` como coluna primária;
-  - ordenar via `sortByNumberDesc(items, s => s.numero, s => s.created_at)`.
-  - manter o número do PV/Pedido como info secundária.
-- Remover em `ShipmentGenerator.tsx`: botão "Criar novo objeto" (linha
-  ~872), `openCreateDraft` handler, dialog e estado relacionado. Limpar
-  imports órfãos.
-- Atualizar `src/integrations/supabase/types.ts` automaticamente após a
-  migração.
+A remessa deixa de contar este objeto nos totais quando ele está cancelado.
 
 ---
 
-Mantenho o plano consolidado: numeração própria + remoção do botão de
-criação manual, junto com o pré-requisito de auto-cura já acordado. Posso
-seguir para a implementação?
+## O que muda no sistema
+
+### A. Trava no cancelamento de NF (com mensagens claras)
+- Antes de chamar o cancelamento, o sistema consulta o estado do objeto logístico vinculado.
+- Se o estado não permitir, o botão de "Cancelar NF" fica desabilitado com tooltip resumido e, ao tentar abrir o diálogo, a mensagem completa (com rastreio e data) aparece em destaque dentro do próprio diálogo, substituindo o formulário de justificativa.
+- A API recusa a operação com a mesma mensagem em PT-BR (defesa em profundidade).
+
+### B. Cancelamento da NF → PV em aberto, sem observação
+- Ao cancelar a NF, o sistema limpa as pendências antigas do PV e força o recálculo do status.
+- A regra de derivação passa a tratar "NF derivada cancelada" como sinal explícito de **voltar para "em aberto"**, sem deixar resíduo de pendência herdada.
+
+### C. Nova cascata de exclusão do PV
+- A cascata atual (que apaga objeto + remessa vazia) passa a respeitar o agrupamento:
+  - Remessa com **1 único objeto** → cascata TOTAL (apaga objeto e remessa).
+  - Remessa com **vários objetos** → o objeto do PV excluído fica **marcado como cancelado** dentro da remessa.
+- O diálogo de exclusão do PV mostra o que vai acontecer em linguagem clara antes de confirmar.
+
+### D. Estado pós-correção do caso atual (PV 403 / NF 404 / AP053729025BR)
+- Limpa a pendência fantasma "Pedido sem itens" do PV 403.
+- Trata o objeto AP053729025BR conforme a nova regra (objeto isolado, sem remessa → liberado para exclusão junto com o PV).
+- Libera a exclusão da NF 404 e do PV 403 para você refazer o teste do zero.
+
+---
+
+## Validação técnica (executada ao final)
+1. Consulta direta no banco confirmando: PV 403 em "em aberto" sem pendências, objeto AP053729025BR no estado correto, NF 404 excluível.
+2. Simulação dos três cenários da Regra 3 (objeto sem remessa, sozinho na remessa, acompanhado).
+3. Tentativa de cancelar uma NF com objeto "postado" → deve recusar com a mensagem completa em PT-BR.
+4. Cancelar uma NF com objeto "etiqueta gerada" → PV volta para "em aberto" limpo.
+
+---
+
+## Documentação a atualizar (mesma entrega)
+1. `docs/especificacoes/erp/logistica.md` — seções "Exclusão em cascata" e "Cancelamento de NF × Objeto" (incluindo as mensagens exibidas).
+2. `docs/especificacoes/erp/fiscal.md` (ou equivalente) — regra de retorno do PV para "em aberto" e bloqueios de cancelamento.
+3. `docs/especificacoes/transversais/mapa-ui.md` — diálogos de cancelar NF (com novas mensagens) e excluir PV.
+4. Memórias anti-regressão:
+   - Atualizar `mem://constraints/shipping-pv-delete-cascade-by-shipment-state` (objeto acompanhado vira cancelado, não some).
+   - Criar `mem://constraints/nf-cancel-blocked-by-shipment-state` (trava + mensagens PT-BR obrigatórias com rastreio e data).
+   - Criar `mem://constraints/nf-cancel-reopens-pv-clean` (PV volta para em aberto, sem observação).
+
+---
+
+## Bloco técnico (opcional, para registro)
+- Edge `fiscal-cancel`: pré-validação consultando `shipments` por `invoice_id`/`source_pedido_venda_id`/`nfe_key`; permitir só `delivery_status IN ('draft','label_created','cancelled')` ou ausência de shipment; payload de erro `code: 'shipment_blocks_cancel'` + `message` PT-BR com `tracking_code` e `delivered_at` quando aplicável. Após cancelar com sucesso, limpar `pendencia_motivos` do PV pai e chamar `recompute_pv_pedido_status`.
+- Função `derive_pv_pedido_status`: tratar "NF derivada cancelada" como sinal de "em_aberto" (não terminal).
+- Trigger `cascade_delete_shipments_on_pv_delete`: se a remessa tem outros shipments, `UPDATE shipments SET delivery_status='cancelled', cancelled_reason='pv_deleted'`; senão, `DELETE` (e a remessa vazia cai pelo gatilho existente).
+- Frontend `FiscalInvoiceList`: hook lê o shipment vinculado, desabilita o botão "Cancelar NF" com tooltip resumido e renderiza a mensagem completa dentro do diálogo (Alert em destaque) com `tracking_code` e `delivered_at` formatados em BRT.
