@@ -19,6 +19,7 @@ import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIco
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
