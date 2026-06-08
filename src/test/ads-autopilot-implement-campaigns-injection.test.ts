@@ -127,7 +127,7 @@ describe("implement_campaigns — auto-resolução de criativo + Quality Gate", 
         product_name: "Kit Banho Calvície Zero",
         campaign_name: "Kit Banho Calvície Zero — TOF",
         headlines: ["Kit Banho Calvície Zero completo"],
-        primary_texts: ["Kit Banho Calvície Zero: shampoo + balm para barba e cabelo."],
+        primary_texts: ["Kit Banho Calvície Zero para o cuidado diário do seu cabelo."],
         destination_url: "https://loja.com/p/kit-banho-calvicie-zero",
       }),
     );
