@@ -358,6 +358,18 @@ Deno.serve(async (req) => {
           await supabase.from("ads_autopilot_actions").update({
             policy_check_result: {
               ...(r.policy_check_result || {}),
+              autoexec_audit: {
+                approval_source: "blocked_by_policy",
+                human_approved: false,
+                approved_by_user: false,
+                auto_executed: false,
+                auto_execution_phase: "c4_enabled",
+                effective_autonomy_mode: eff.mode,
+                effective_autonomy_source: eff.source,
+                executed_by: null,
+                policy_gate_result: { ok: false, reason: gate.reason },
+                at: policyNow.toISOString(),
+              },
               c4_autoexec_gate: {
                 ok: false,
                 reason: gate.reason,
