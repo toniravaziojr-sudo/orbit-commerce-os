@@ -44,6 +44,7 @@ interface AdsAccountConfigProps {
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
   onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
+  onToggleAutonomy: (accountId: string, enabled: boolean) => void;
 }
 
 const STRATEGY_OPTIONS = [
