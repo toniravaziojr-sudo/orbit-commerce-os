@@ -218,13 +218,13 @@ describe("Quality Gate v1.1.1 — anti falso positivo offer_mismatch", () => {
     expect(r.reason_codes).toContain("invalid_offer_mismatch");
   });
 
-  it("AINDA bloqueia quando copy menciona 2 tokens exclusivos do outro produto (kit + banho)", () => {
+  it("AINDA bloqueia quando copy menciona 2 tokens exclusivos do outro produto (balm + banho)", () => {
     const r = runCreateCampaignQualityGate({
       args: {
         campaign_name: "[AI] Shampoo",
         product_name: "Shampoo Calvície Zero",
-        headlines: ["Combine seu kit favorito"],
-        primary_texts: ["Use o kit junto com o banho diário para máximo resultado."],
+        headlines: ["Combine com seu balm favorito"],
+        primary_texts: ["Use o balm pós-banho diariamente para máximo resultado."],
         creative_asset_id: "abc",
         creative_url: "https://x/y.png",
         destination_url: "https://loja/p/shampoo",
