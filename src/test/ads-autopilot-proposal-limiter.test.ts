@@ -112,15 +112,15 @@ describe("applyLimits — cooldown / dedup", () => {
     expect(r.supersedeIds).toEqual(["e1"]);
   });
 
-  it("expirou cooldown — aceita normalmente", () => {
+  it("expirou cooldown — aceita normalmente (template diferente, produto diferente)", () => {
     const r = applyLimits({
       args: baseArgs,
       newScore: 80,
       existingPending: [
         {
           id: "e1",
-          product_id: "p-shampoo",
-          funnel_stage: "tof",
+          product_id: "p-outro",
+          funnel_stage: "bof",
           ad_format: "single_image",
           campaign_name: "c1",
           score: 80,
