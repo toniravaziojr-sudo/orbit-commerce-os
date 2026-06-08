@@ -332,7 +332,7 @@ export function RemessasManager() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Pedido de Venda</TableHead>
+                          <TableHead>Objeto</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Rastreio</TableHead>
                           <TableHead>Status</TableHead>
