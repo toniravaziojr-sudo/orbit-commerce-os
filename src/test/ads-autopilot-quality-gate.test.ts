@@ -313,6 +313,7 @@ describe("Quality Gate v1.1 — create_campaign × inventário de criativos do t
         funnel_stage: "mof",
         objective: "conversions",
         daily_budget_cents: 5000,
+        cta: "SHOP_NOW",
       },
       matchedProduct: productById("p-shampoo"),
       catalog: CATALOG,
