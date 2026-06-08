@@ -225,9 +225,9 @@ Deno.test("C.2 normalizeAutonomyMode — valores inválidos/ausentes viram off",
   assertEquals(normalizeAutonomyMode({}), "off");
 });
 
-Deno.test("C.2 isAutonomyExecutionEnabled — SEMPRE false nesta fase", () => {
+Deno.test("C.4 isAutonomyExecutionEnabled — true só para technical_only", () => {
   assertEquals(isAutonomyExecutionEnabled("off"), false);
-  assertEquals(isAutonomyExecutionEnabled("technical_only"), false);
+  assertEquals(isAutonomyExecutionEnabled("technical_only"), true);
   assertEquals(isAutonomyExecutionEnabled("anything"), false);
   assertEquals(isAutonomyExecutionEnabled(undefined), false);
 });
