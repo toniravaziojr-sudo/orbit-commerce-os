@@ -117,14 +117,15 @@ function copyMentionsProduct(
  * positivo entre "Shampoo Calvície Zero" e "Kit Banho Calvície Zero", que
  * compartilham "calvicie" e "zero".
  *
- * v1.1.1 — Threshold mínimo SEMPRE 2 hits. A versão anterior usava
- * `Math.min(2, uniq.length)`, permitindo bloqueio por 1 único token genérico
- * quando o outro produto tinha apenas 1 token exclusivo. Isso causou falso
- * positivo no tenant Respeite o Homem: copy de "Shampoo Calvície Zero"
- * mencionando a palavra "banho" disparava match com "Kit Banho Calvície Zero"
- * (uniq=["banho"], hits=1 ≥ min(2,1)=1) e gerava `invalid_offer_mismatch`
- * indevido. Com threshold fixo em 2, exige menção real a 2 tokens exclusivos
- * (ex.: "kit" + "banho") para configurar mistura de oferta.
+ * v1.1.1 — Threshold mínimo SEMPRE 2 hits para tokens isolados. A versão
+ * anterior usava `Math.min(2, uniq.length)`, permitindo bloqueio por 1 único
+ * token genérico quando o outro produto tinha apenas 1 token exclusivo. Isso
+ * causou falso positivo no tenant Respeite o Homem: copy de "Shampoo
+ * Calvície Zero" mencionando a palavra "banho" disparava match com "Kit
+ * Banho Calvície Zero" (uniq=["banho"], hits=1 ≥ min(2,1)=1) e gerava
+ * `invalid_offer_mismatch` indevido. Fallback adicional: se o NOME COMPLETO
+ * normalizado do outro produto (≥8 chars) aparece como substring na copy,
+ * mantém o bloqueio — preserva detecção de menção literal ao produto rival.
  */
 function copyMentionsAnyCatalogProduct(
   copyBlob: string,
@@ -136,8 +137,12 @@ function copyMentionsAnyCatalogProduct(
   const exceptToks = new Set(except ? tokens(except.name) : []);
   for (const p of catalog) {
     if (except && p.id === except.id) continue;
+    // Fallback forte: nome completo aparece literalmente na copy.
+    const otherNorm = norm(p.name);
+    if (otherNorm.length >= 8 && haystack.includes(otherNorm)) return p;
+
     const uniq = tokens(p.name).filter((t) => !exceptToks.has(t));
-    if (uniq.length < 2) continue; // produto sem 2 tokens exclusivos não pode disparar mistura
+    if (uniq.length < 2) continue; // produto sem 2 tokens exclusivos não dispara mistura
     const hits = uniq.filter((t) => haystack.includes(t)).length;
     if (hits >= 2) return p;
   }
