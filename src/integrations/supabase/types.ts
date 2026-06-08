@@ -17947,6 +17947,7 @@ export type Database = {
           metadata: Json | null
           next_poll_at: string | null
           nfe_key: string | null
+          numero: number
           order_id: string | null
           poll_error_count: number | null
           provider_shipment_id: string | null
@@ -17978,6 +17979,7 @@ export type Database = {
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
+          numero: number
           order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
@@ -18009,6 +18011,7 @@ export type Database = {
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
+          numero?: number
           order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
@@ -24726,6 +24729,10 @@ export type Database = {
       allocate_remessa_numero: {
         Args: { p_tenant_id: string }
         Returns: string
+      }
+      allocate_shipment_numero: {
+        Args: { p_tenant_id: string }
+        Returns: number
       }
       append_delivery_attempt: {
         Args: { _attempt: Json; _message_id: string }
