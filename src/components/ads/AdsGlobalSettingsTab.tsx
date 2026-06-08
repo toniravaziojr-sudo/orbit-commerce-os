@@ -155,6 +155,36 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         </CardContent>
       </Card>
 
+      {/* Autoexecução diária (global fallback) */}
+      <Card className={`border-2 transition-colors ${autonomyMode === "technical_only" ? "border-amber-500/40 bg-amber-500/5" : "border-muted"}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${autonomyMode === "technical_only" ? "bg-amber-500/10" : "bg-muted"}`}>
+                <Zap className={`h-5 w-5 ${autonomyMode === "technical_only" ? "text-amber-600" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">
+                  Execução automática diária (fallback global) ·{" "}
+                  <span className={autonomyMode === "technical_only" ? "text-amber-600" : "text-muted-foreground"}>
+                    {autonomyMode === "technical_only" ? "Ativada" : "Desligada"}
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground max-w-2xl">
+                  Quando ativada, a IA pode executar automaticamente ações técnicas do dia a dia (ajustes de orçamento dentro dos limites, pausa por gasto sem retorno, retomada segura) nas contas que não tiverem regra própria. Decisões estratégicas (criação de campanha, criativos, públicos, pausa estratégica) continuam exigindo sua aprovação.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={autonomyMode === "technical_only"}
+              onCheckedChange={handleAutonomyToggle}
+              disabled={isSaving || !isGlobalEnabled}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+
       <Alert className="border-blue-500/30 bg-blue-500/5">
         <Info className="h-4 w-4 text-blue-500" />
         <AlertTitle className="text-blue-700 dark:text-blue-400 font-semibold">
