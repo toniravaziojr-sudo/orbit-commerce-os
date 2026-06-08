@@ -1274,9 +1274,20 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .eq('id', invoice.id);
 
       if (error) {
-        // Bloqueio do banco (guard_pv_deletion_from_paid_order)
-        if (String(error.message || '').includes('PV_FROM_PAID_ORDER_PROTECTED')) {
+        const msg = String(error.message || '');
+        const isPv = ((invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida')) === 'pedido_venda';
+        const label = isPv ? 'Pedido de Venda' : 'Nota Fiscal';
+        // Bloqueio: pedido pago / origem ativa
+        if (msg.includes('PV_FROM_PAID_ORDER_PROTECTED')) {
           toast.error('Este Pedido de Venda pertence a um pedido pago e não pode ser excluído. Cancele o pedido de origem na tela de Pedidos.');
+          setConfirmDeleteInvoice(null);
+          setLinkedShipmentImpact(null);
+          setPaidOrderBlock(null);
+          return;
+        }
+        // Bloqueio: objeto logístico em andamento ou entregue
+        if (msg.includes('PV_SHIPMENT_IN_PROGRESS')) {
+          toast.error('Este Pedido de Venda tem um objeto de postagem em andamento ou já entregue ao cliente. Cancele o envio no módulo de Logística antes de excluir.');
           setConfirmDeleteInvoice(null);
           setLinkedShipmentImpact(null);
           setPaidOrderBlock(null);
@@ -1284,14 +1295,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         }
         throw error;
       }
-      toast.success('Registro excluído');
+      toast.success(((invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida')) === 'pedido_venda' ? 'Pedido de Venda excluído' : 'Nota Fiscal excluída');
       setConfirmDeleteInvoice(null);
       setLinkedShipmentImpact(null);
       setPaidOrderBlock(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
-      toast.error('Erro ao excluir nota');
+      const isPv = ((invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida')) === 'pedido_venda';
+      toast.error(isPv ? 'Erro ao excluir Pedido de Venda' : 'Erro ao excluir Nota Fiscal');
     } finally {
       setIsDeletingInvoice(false);
     }
