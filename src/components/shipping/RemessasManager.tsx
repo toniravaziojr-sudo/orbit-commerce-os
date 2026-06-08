@@ -122,7 +122,14 @@ export function RemessasManager() {
       }
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as RemessaRow[];
+      const { sortByNumberDesc } = await import('@/lib/sort-numeric');
+      // Remessa: ordem decrescente do número da remessa (ex.: REM-012 vem
+      // antes de REM-011); empate por data desc.
+      return sortByNumberDesc(
+        (data || []) as RemessaRow[],
+        (r) => r.numero,
+        (r) => r.created_at,
+      );
     },
     enabled: !!currentTenant?.id,
   });
