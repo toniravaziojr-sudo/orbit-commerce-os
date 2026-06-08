@@ -339,6 +339,41 @@ export function runCreateCampaignQualityGate(
     details.cold_budget_cents = budget;
   }
 
+  // 8) Frente 1 — Pública Fria deve excluir o público de Clientes/Compradores.
+  //    Requer:
+  //      a) `input.customerAudience` informado (chamador resolveu o público do sistema);
+  //      b) se found=true, seu meta_audience_id presente em excluded_audience_ids;
+  //      c) se found=false, bloqueia com pré-requisito ausente.
+  //    Fail-safe: se chamador não informar customerAudience, não bloqueia
+  //    (preserva compatibilidade com callers antigos), mas registra detalhe.
+  if (isCold(args)) {
+    const ca = input.customerAudience;
+    if (ca === undefined || ca === null) {
+      details.customer_audience_check = "skipped_no_resolver_input";
+    } else if (!ca.found || !ca.meta_audience_id) {
+      reason_codes.push("cold_audience_requires_customer_exclusion");
+      details.customer_audience_status = "missing_in_account";
+      details.customer_audience_hint =
+        "Crie ou sincronize o público de Clientes antes de propor campanhas frias.";
+    } else {
+      const excluded = (args as any).excluded_audience_ids as Array<any> | undefined;
+      const excludedIds = Array.isArray(excluded)
+        ? excluded.map((e) => String(e?.id ?? e)).filter(Boolean)
+        : [];
+      const has = excludedIds.includes(String(ca.meta_audience_id));
+      if (!has) {
+        reason_codes.push("cold_audience_requires_customer_exclusion");
+        details.customer_audience_status = "exclusion_not_applied";
+        details.customer_audience_id = ca.meta_audience_id;
+        details.customer_audience_name = ca.audience_name || null;
+      } else {
+        details.customer_audience_status = "exclusion_applied";
+        details.customer_audience_id = ca.meta_audience_id;
+        details.customer_audience_name = ca.audience_name || null;
+      }
+    }
+  }
+
   return {
     ok: reason_codes.length === 0,
     reason_codes,
