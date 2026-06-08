@@ -50,6 +50,9 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
     (globalConfig?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
+  const [autonomyMode, setAutonomyMode] = useState<"off" | "technical_only">(
+    globalConfig?.autonomy_mode === "technical_only" ? "technical_only" : "off"
+  );
   
   const [showTemplate, setShowTemplate] = useState(false);
 
@@ -65,6 +68,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setStrategyMode(globalConfig.strategy_mode || "balanced");
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
       setFunnelSplits((globalConfig.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
+      setAutonomyMode(globalConfig.autonomy_mode === "technical_only" ? "technical_only" : "off");
       
     }
   }, [globalConfig]);
@@ -82,6 +86,8 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+      autonomy_mode: autonomyMode,
+      
       
       safety_rules: {
         ...(globalConfig?.safety_rules as any || {}),
@@ -95,6 +101,30 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
 
   const handleSplitChange = (key: string, val: string) => {
     setFunnelSplits(prev => ({ ...prev, [key]: parseInt(val) || 0 }));
+  };
+
+  const handleAutonomyToggle = (checked: boolean) => {
+    const next: "off" | "technical_only" = checked ? "technical_only" : "off";
+    setAutonomyMode(next);
+    // Persiste imediatamente — toggle de segurança não espera "Salvar"
+    onSave({
+      channel: "global",
+      budget_mode: budgetMode,
+      budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
+      objective: "sales",
+      user_instructions: instructions || null,
+      strategy_mode: strategyMode,
+      funnel_split_mode: funnelSplitMode,
+      funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+      autonomy_mode: next,
+      safety_rules: {
+        ...(globalConfig?.safety_rules as any || {}),
+        target_roi: parseFloat(targetRoi || "0") || null,
+        min_roi_cold: parseFloat(minRoiCold || "0") || null,
+        min_roi_warm: parseFloat(minRoiWarm || "0") || null,
+        roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
+      },
+    });
   };
 
   return (
@@ -124,6 +154,36 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
           </div>
         </CardContent>
       </Card>
+
+      {/* Autoexecução diária (global fallback) */}
+      <Card className={`border-2 transition-colors ${autonomyMode === "technical_only" ? "border-amber-500/40 bg-amber-500/5" : "border-muted"}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${autonomyMode === "technical_only" ? "bg-amber-500/10" : "bg-muted"}`}>
+                <Zap className={`h-5 w-5 ${autonomyMode === "technical_only" ? "text-amber-600" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">
+                  Execução automática diária (fallback global) ·{" "}
+                  <span className={autonomyMode === "technical_only" ? "text-amber-600" : "text-muted-foreground"}>
+                    {autonomyMode === "technical_only" ? "Ativada" : "Desligada"}
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground max-w-2xl">
+                  Quando ativada, a IA pode executar automaticamente ações técnicas do dia a dia (ajustes de orçamento dentro dos limites, pausa por gasto sem retorno, retomada segura) nas contas que não tiverem regra própria. Decisões estratégicas (criação de campanha, criativos, públicos, pausa estratégica) continuam exigindo sua aprovação.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={autonomyMode === "technical_only"}
+              onCheckedChange={handleAutonomyToggle}
+              disabled={isSaving || !isGlobalEnabled}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Alert className="border-blue-500/30 bg-blue-500/5">
         <Info className="h-4 w-4 text-blue-500" />
