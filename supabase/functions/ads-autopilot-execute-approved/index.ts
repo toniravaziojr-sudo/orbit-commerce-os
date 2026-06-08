@@ -11,9 +11,13 @@ import {
   isStrategicPauseAction,
   type ActionInput,
 } from "../_shared/ads-policy.ts";
+import {
+  resolveCustomerAudienceForMetaAccount,
+  isColdFunnelStage,
+} from "../_shared/ads-autopilot/customerAudience.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.0.0"; // Fase B: Execution Policy Engine gate (sem mudar lógica de execução)
+const VERSION = "v4.1.0"; // Frente 1: revalidação de exclusão de Clientes em fria
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
