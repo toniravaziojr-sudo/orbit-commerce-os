@@ -50,6 +50,9 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
     (globalConfig?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
+  const [autonomyMode, setAutonomyMode] = useState<"off" | "technical_only">(
+    globalConfig?.autonomy_mode === "technical_only" ? "technical_only" : "off"
+  );
   
   const [showTemplate, setShowTemplate] = useState(false);
 
