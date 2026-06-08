@@ -2604,6 +2604,9 @@ async function executeToolCall(
           // Scheduling
           start_time: args.start_time || null,
           end_time: args.end_time || null,
+
+          // Frente 1 — Exclusão de Clientes em Públicos Frios (UI lê daqui)
+          customer_audience_exclusion: customerExclusionMetadata,
         },
       } 
     };
