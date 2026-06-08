@@ -718,18 +718,22 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 
 **PV manual/duplicado nasce "em aberto" (2026-05-28):** todo Pedido de Venda criado manualmente ou por duplicação (sem pedido real vinculado) já nasce com status "Pedido em aberto". Isso aciona o espelho na hora e a remessa-rascunho aparece automaticamente em "Prontos para emitir remessa", com destinatário, endereço, transportadora, serviço, peso e dimensões herdados do PV de origem. Caso real corrigido: PV 353 do Respeite o Homem (duplicado do 352) — entrava sem status e por isso não gerava remessa.
 
-**Exclusão em cascata — TOTAL (revista em 2026-06-03):** ao excluir um Pedido
-de Venda, todo objeto de postagem vinculado é removido **junto**, sem
-exceções, pelo gatilho `trg_cascade_delete_shipments_on_pv_delete`. Vale para
-rascunho, etiqueta gerada, postado, em trânsito, entregue, devolvido —
-qualquer `delivery_status`. Se a remessa agrupadora ficar vazia e estiver em
-`rascunho` ou `emitida`, ela também é removida pelo gatilho
-`trg_cleanup_empty_remessa_after_shipment_delete`.
+**Exclusão em cascata — respeita agrupamento por remessa (rev 2026-06-08):**
 
-A regra anterior (que preservava objetos em movimento) foi descontinuada na
-mesma entrega: como a exclusão de PV de pedido pago passou a ser bloqueada
-(ver abaixo), o único caminho para remover o PV é cancelar o pedido de
-origem — e nesse caso o objeto também deve sair.
+Ao excluir um Pedido de Venda raiz, o gatilho
+`trg_cascade_delete_shipments_on_pv_delete` percorre cada objeto de postagem
+vinculado e decide individualmente:
+
+| Situação do objeto | O que acontece |
+|---|---|
+| Objeto sem remessa (`remessa_id IS NULL`) | Objeto excluído. |
+| Objeto sozinho na sua remessa | Objeto excluído. A remessa-agrupadora fica vazia e é removida pelo gatilho `trg_cleanup_empty_remessa_after_shipment_delete` (apenas em `rascunho` ou `emitida`). |
+| Objeto acompanhado por outros na mesma remessa | Objeto **marcado como cancelado dentro da remessa** (`delivery_status = 'cancelled'`, `action_reason = 'pv_deleted'`). Não exclui nem o objeto nem a remessa — preserva o histórico do agrupador despachado. |
+
+A regra anterior (2026-06-03), que apagava todo objeto sem exceção,
+provocava buracos em remessas agrupadas com múltiplos objetos. A revisão
+2026-06-08 alinha a cascata ao modelo "objeto é despachado dentro de uma
+remessa": o agrupador sempre sobrevive enquanto tiver objetos vivos.
 
 **Bloqueio de exclusão de PV de pedido pago (2026-06-03):** a tela Fiscal
 não permite mais excluir um Pedido de Venda vinculado a um pedido pago e
@@ -745,9 +749,10 @@ cliente, total, itens, quem excluiu, quando) via gatilho
 `trg_audit_pv_deletion`. Registro permanente para recuperação manual em caso
 de exclusão por engano.
 
-Anti-regressão: ver `mem://constraints/shipping-pv-delete-cascade-by-shipment-state`,
+Anti-regressão: `mem://constraints/shipping-pv-delete-cascade-by-shipment-state`,
 `mem://constraints/pv-from-paid-order-deletion-protected` e
 `mem://constraints/shipping-draft-mirrors-pedido-venda`.
+
 
 ---
 
