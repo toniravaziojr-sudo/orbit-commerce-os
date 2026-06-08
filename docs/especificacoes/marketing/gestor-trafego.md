@@ -2543,3 +2543,72 @@ A causa do sintoma na execução anterior foi a versão da função em produçã
 ### Próxima validação recomendada
 
 Rodar um único ciclo controlado `implement_campaigns` no tenant Respeite o Homem para confirmar, em produção, que ao menos uma proposta sai `pending_approval` com `creative_asset_id` preenchido e que o log estruturado `[creative-resolver]` registra `selected_creative_id` para cada produto com inventário ready.
+
+---
+
+## 7.qg.e — Controle de volume do Strategist `implement_campaigns` (v1.46.0)
+
+### Problema observado
+Após estabilizar o Quality Gate v1.1.1 e a auto-resolução de criativo, o ciclo controlado de `implement_campaigns` no tenant Respeite o Homem produziu **57 propostas `create_campaign`** em uma única execução (48 `pending_approval` + 9 `skipped`). Volume excessivo para revisão humana e risco de saturar a fila operacional.
+
+### Limite por ciclo (proposal-limiter v1.0.0)
+Módulo determinístico em `supabase/functions/_shared/ads-autopilot/proposalLimiter.ts`. Sem LLM, sem Meta, sem geração de criativo. Aplicado **antes do INSERT** de cada `create_campaign` que sairia como `pending_approval`.
+
+Limites padrão:
+
+| Parâmetro | Valor | Constante |
+|---|---|---|
+| Máximo de propostas pending por ciclo | 3 | `DEFAULT_MAX_PROPOSALS_PER_CYCLE` |
+| Máximo por produto por ciclo | 1 | `DEFAULT_MAX_PROPOSALS_PER_PRODUCT_PER_CYCLE` |
+| Janela de cooldown por template | 24h | `DEFAULT_COOLDOWN_MS` |
+
+### Ranking determinístico (sem LLM)
+Função `scoreProposal(args, ctx)` pontua cada proposta antes da decisão:
+
+- +50 se Quality Gate aprovou
+- +25 se `creative_asset_id` está vinculado ao mesmo `product_id`
+- +6/+2 por completude de headlines (≥2/≥3)
+- +6/+2 por completude de primary texts (≥2/≥3)
+- +5 por `destination_url` presente
+- +2 por `objective` preenchido
+- +10 de bônus de **diversidade** (produto ainda não coberto por outra pending da rodada)
+- +4 se budget conservador (até R$ 50/dia)
+- −8 se TOF/cold com budget ≥ R$ 200/dia
+
+Score serve como tie-breaker quando o limite é atingido: nova proposta substitui pending existente apenas se `newScore > existing.score + 5`.
+
+### Deduplicação e cooldown
+Chave de template: `{product_id}|{funnel_stage}|{ad_format}` (`templateKey`). Regras aplicadas em ordem:
+
+1. **Cooldown 24h por template:** se já existe pending recente com mesmo template, nova proposta vira `superseded` (motivo `duplicate_template`), salvo se for claramente melhor (substitui as fracas).
+2. **Cap por produto:** se o produto já tem `pending_approval` na fila, nova vira `superseded` (motivo `product_cap_reached`) ou substitui a mais fraca.
+3. **Cap global:** se já há 3 pending na fila, nova vira `superseded` (motivo `cycle_cap_reached`) ou substitui a mais fraca.
+
+Toda decisão é registrada em `action_data.proposal_limiter` (versão, decisão, motivo, limites usados, timestamp) e o score em `action_data.proposal_score`.
+
+### Limpeza operacional da rodada anterior
+A rodada com 48 pending foi normalizada **sem exclusão física**: 45 sugestões foram marcadas `superseded` com `rejection_reason = excessive_campaign_suggestions_after_pipeline_validation` e auditoria preservada em `action_data.operational_cleanup` (timestamp, motivo, IDs mantidos). 3 sugestões foram mantidas com diversidade de produto e funil, e budgets conservadores:
+
+- Fast Upgrade — Cold, R$ 15/dia
+- Shampoo Calvície Zero — Cold, R$ 25/dia
+- Kit Banho Calvície Zero (2x) — Warm/RMKT, R$ 22,50/dia
+
+### Correção do falso positivo em `invalid_offer_mismatch` (Quality Gate v1.1.1)
+O Quality Gate bloqueava copies do Shampoo Calvície Zero mencionando a palavra "banho" como `invalid_offer_mismatch`, porque o produto rival "Kit Banho Calvície Zero" tinha apenas 1 token exclusivo após desconto dos compartilhados ("banho"), e a regra antiga `Math.min(2, uniq.length)` permitia bloqueio com 1 único hit. Correção:
+
+- Threshold mínimo passou a ser **sempre 2 hits** para tokens isolados.
+- Produtos com menos de 2 tokens exclusivos (vs. o vinculado) **não disparam** mistura por tokens.
+- Fallback preservado: se o **nome completo normalizado** (≥8 chars) do outro produto aparece literalmente na copy, o bloqueio é mantido. Exemplo: copy do Shampoo escrevendo "Experimente o Kit Banho Calvície Zero" continua bloqueada.
+
+### Garantias operacionais
+- Quality Gate continua rígido (nenhum reason_code foi removido; apenas a regra de mistura por token foi calibrada para eliminar falso positivo comprovado).
+- Nenhuma chamada Meta de modificação é feita pelo limiter.
+- Nenhuma autoexecução é ativada.
+- Nenhum criativo é gerado pelo limiter (zero crédito consumido).
+- O limiter falha em modo `fail-open`: em qualquer exceção, o INSERT segue como `pending_approval` original — limiter nunca derruba o fluxo.
+
+### Telemetria
+Logs estruturados emitidos no edge:
+- `proposal-limiter ACCEPT product=<id> score=<n>`
+- `proposal-limiter SUPERSEDE_SELF product=<id> reason=<code> score=<n>`
+- `proposal-limiter REPLACE superseded=<n> product=<id> score=<n>`
