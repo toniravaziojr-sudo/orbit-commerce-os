@@ -1215,7 +1215,8 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const funnel = preview.funnel_stage || data.funnel_stage || null;
-  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+  const funnelInfo = funnel ? getFunnelLabel(funnel) : null;
+  const exclusionInfo = getCustomerExclusionLine(data, preview);
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const campaignName = preview.campaign_name || data.campaign_name || null;
   const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
