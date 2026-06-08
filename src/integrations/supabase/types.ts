@@ -14848,6 +14848,7 @@ export type Database = {
           marketplace_source: string | null
           next_payment_check_at: string | null
           order_number: string
+          order_number_int: number | null
           paid_at: string | null
           payment_check_count: number | null
           payment_gateway: string | null
@@ -14945,6 +14946,7 @@ export type Database = {
           marketplace_source?: string | null
           next_payment_check_at?: string | null
           order_number: string
+          order_number_int?: number | null
           paid_at?: string | null
           payment_check_count?: number | null
           payment_gateway?: string | null
@@ -15042,6 +15044,7 @@ export type Database = {
           marketplace_source?: string | null
           next_payment_check_at?: string | null
           order_number?: string
+          order_number_int?: number | null
           paid_at?: string | null
           payment_check_count?: number | null
           payment_gateway?: string | null
