@@ -47,15 +47,8 @@ export interface OrphanAdsetGroupCardProps {
   adjustingId?: string | null;
 }
 
-const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
-  tof: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
-  cold: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
-  bof: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
-  remarketing: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
-  mof: { label: "Público Morno", color: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20" },
-  test: { label: "Teste", color: "bg-purple-500/10 text-purple-700 border-purple-500/20" },
-  leads: { label: "Captação", color: "bg-green-500/10 text-green-700 border-green-500/20" },
-};
+// Funnel labels live in @/lib/ads/audienceLabels (Frente 2 — Labels amigáveis).
+// Keep this comment as a pointer so future edits don't reintroduce a local map.
 
 const CAMPAIGN_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   sales: { label: "Venda Direta", color: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
