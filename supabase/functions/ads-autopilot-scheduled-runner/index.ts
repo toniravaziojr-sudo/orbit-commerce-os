@@ -94,6 +94,32 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // 3b) Janela operacional de orçamento — adjust_budget só executa 00:01–03:00 BRT.
+      // Fora da janela, reagenda para o próximo slot às 00:01 BRT.
+      if (r.action_type === "adjust_budget" && !isWithinBudgetWindow(now)) {
+        // Próximo 00:01 BRT (UTC = BRT+3 → 03:01 UTC)
+        const next = new Date(now);
+        next.setUTCDate(next.getUTCDate() + (next.getUTCHours() >= 6 ? 1 : 0));
+        next.setUTCHours(3, 1, 0, 0);
+        if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+        summary.rescheduled++;
+        await supabase.from("ads_autopilot_actions").update({
+          status: "scheduled",
+          scheduled_for: next.toISOString(),
+          policy_check_result: {
+            ...(r.policy_check_result || {}),
+            runner_gate: {
+              reason: "outside_budget_operational_window",
+              window_brt: "00:01-03:00",
+              cadence_policy_version: CADENCE_POLICY_VERSION,
+              rescheduled_for: next.toISOString(),
+              at: now.toISOString(),
+            },
+          },
+        }).eq("id", r.id);
+        continue;
+      }
+
       // 4) Gate operacional — conta/IA/kill switch
       const adAccountId = extractAdAccountId(r);
       if (adAccountId) {
