@@ -190,6 +190,7 @@ describe("Quality Gate v1.1.1 — anti falso positivo offer_mismatch", () => {
         funnel_stage: "tof",
         objective: "OUTCOME_SALES",
         daily_budget_cents: 2500,
+        cta: "SHOP_NOW",
       },
       matchedProduct: FULL_CATALOG[0],
       catalog: FULL_CATALOG,
