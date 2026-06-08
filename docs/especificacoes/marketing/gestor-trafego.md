@@ -2612,3 +2612,25 @@ Logs estruturados emitidos no edge:
 - `proposal-limiter ACCEPT product=<id> score=<n>`
 - `proposal-limiter SUPERSEDE_SELF product=<id> reason=<code> score=<n>`
 - `proposal-limiter REPLACE superseded=<n> product=<id> score=<n>`
+
+## 7.qg.f — CTA obrigatório para SALES + limpeza de adsets fora de escopo (Quality Gate v1.1.2)
+
+### Contexto
+Após o controle de volume (7.qg.e), a validação do tenant Respeite o Homem deixou 3 sugestões `create_campaign` em `pending_approval`. Auditoria revelou:
+- 2 das 3 sugestões estavam com CTA vazio mas com `objective=OUTCOME_SALES` — não deveriam ser aprováveis, pois campanha de vendas sem CTA não pode ir ao ar.
+- 5 sugestões `create_adset` ficaram pendentes para uma campanha existente, fora do escopo da rodada de validação de campanhas novas.
+
+### Regra de CTA obrigatório (v1.1.2)
+O Quality Gate de `create_campaign` agora valida CTA para qualquer `objective` que case com os padrões: `sale`, `sales`, `conversion`, `conversions`, `outcome_sales`, `purchase`, `catalog`, `outcome_traffic`, `traffic`, `lead`, `leads`, `outcome_leads`.
+
+- CTA é lido de `args.cta`, `args.cta_type` ou `args.creative.cta` (nessa ordem).
+- Se ausente/vazio/whitespace, o gate emite `invalid_missing_cta` e a sugestão vai para `skipped`.
+- Default seguro para SALES: `SHOP_NOW`. Se o Strategist montar uma proposta SALES sem CTA, a opção institucional é **normalizar** o CTA para `SHOP_NOW` antes do gate, registrando em `action_data.quality_gate.cta_normalized_by_default=true` para auditoria. Se a normalização não for possível (objetivo não-padrão sem default mapeado), a proposta é marcada `skipped` com `invalid_missing_cta`.
+- Quality Gate **não foi relaxado**: a regra é aditiva, mantendo todos os bloqueios anteriores (produto/copy/oferta/criativo/destino/budget agressivo).
+
+### Limpeza operacional de adsets fora do escopo
+Sugestões `create_adset` que apareçam fora do escopo de uma validação de campanha (ex.: remarketing de campanha legada quando a rodada validou apenas criação de campanha) devem ser auditadas e movidas para `status=superseded` com `rejection_reason=adset_suggestions_out_of_scope_for_campaign_validation`. Nenhum delete físico — auditoria preservada em `action_data.audit`.
+
+### Validação
+- Testes: `src/test/ads-autopilot-quality-gate.test.ts` cobre SALES sem CTA (bloqueio) e SALES com `SHOP_NOW` (aceito). 151/151 testes verdes.
+- Nenhum ciclo real foi rodado. Nenhuma chamada Meta foi feita.

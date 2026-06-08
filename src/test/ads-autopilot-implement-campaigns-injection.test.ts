@@ -109,6 +109,7 @@ const baseArgs = (overrides: Record<string, unknown> = {}) => ({
   objective: "OUTCOME_SALES",
   daily_budget_cents: 5000,
   ad_format: "single_image",
+  cta: "SHOP_NOW",
   ...overrides,
 });
 

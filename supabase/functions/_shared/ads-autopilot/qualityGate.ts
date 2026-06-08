@@ -23,7 +23,36 @@
 //   - invalid_generate_creative_offer_mismatch
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.1.1";
+export const QUALITY_GATE_VERSION = "1.1.2";
+
+// CTAs aceitos pela Meta para campanhas de vendas/conversão.
+// Mantemos uma lista permissiva — basta haver algum CTA não vazio para
+// passar; campos vazios/whitespace disparam invalid_missing_cta.
+const SALES_OBJECTIVE_PATTERNS = [
+  "sale",
+  "sales",
+  "conversion",
+  "conversions",
+  "outcome_sales",
+  "purchase",
+  "catalog",
+  "outcome_traffic",
+  "traffic",
+  "lead",
+  "leads",
+  "outcome_leads",
+];
+
+function requiresCta(args: { objective?: string | null; funnel_stage?: string | null }): boolean {
+  const obj = String(args.objective || "").toLowerCase();
+  if (!obj) return false;
+  return SALES_OBJECTIVE_PATTERNS.some((p) => obj.includes(p));
+}
+
+function extractCta(args: Record<string, unknown>): string {
+  const raw = (args.cta ?? args.cta_type ?? (args as any)?.creative?.cta ?? "") as unknown;
+  return String(raw || "").trim();
+}
 
 export interface QualityGateProduct {
   id: string;
@@ -269,6 +298,17 @@ export function runCreateCampaignQualityGate(
   // 6) Destino/landing obrigatório.
   if (requiresDestination(args) && !args.destination_url) {
     reason_codes.push("invalid_missing_destination");
+  }
+
+  // 6b) CTA obrigatório para campanhas de vendas/conversão/tráfego/lead.
+  // Em v1.1.2 — campanha SALES sem CTA não pode ficar aprovável.
+  // Aceita CTA em args.cta, args.cta_type ou args.creative.cta.
+  if (requiresCta(args)) {
+    const cta = extractCta(args as unknown as Record<string, unknown>);
+    if (!cta) {
+      reason_codes.push("invalid_missing_cta");
+      details.objective = args.objective;
+    }
   }
 
   // 7) Campanha fria TOF com orçamento agressivo + falhas estruturais.
