@@ -296,3 +296,70 @@ Deno.test("hierarquia conta > global > default — autoexec usa o efetivo", () =
   });
   assertEquals(gate2.ok, true);
 });
+
+// =============================================================================
+// Microvalidação: 5º estado distinguível — strategic_pause expirada
+// Replica o shape gravado por `ads-autopilot-strategic-pause-expire`.
+// =============================================================================
+function buildExpiredStrategicPauseRow(prev?: Record<string, unknown>) {
+  const nowIso = new Date().toISOString();
+  return {
+    status: "expired",
+    policy_check_result: {
+      ...(prev || {}),
+      expiration: {
+        reason: "strategic_pause_daily_window_expired",
+        ttl_policy: "strategic_pause_daily_until_next_0001_brt",
+        expired_at: nowIso,
+        pilot_version: "v1.0.0",
+      },
+      autoexec_audit: {
+        decision_outcome: "expired",
+        expiration_reason: "strategic_pause_daily_window_expired",
+        expired_at: nowIso,
+        human_approved: false,
+        auto_executed: false,
+        expired_by: "policy_ttl",
+        expired_by_function: "ads-autopilot-strategic-pause-expire",
+        pilot_version: "v1.0.0",
+      },
+    },
+  };
+}
+
+Deno.test("C.4 audit — strategic_pause expirada é distinguível e fora da fila ativa", () => {
+  const row = buildExpiredStrategicPauseRow();
+  // Distinguível
+  assertEquals(row.status, "expired");
+  const audit = (row.policy_check_result as any).autoexec_audit;
+  assertEquals(audit.decision_outcome, "expired");
+  assertEquals(audit.expiration_reason, "strategic_pause_daily_window_expired");
+  assertEquals(audit.human_approved, false);
+  assertEquals(audit.auto_executed, false);
+  assert(typeof audit.expired_at === "string");
+  // Fila ativa filtra status='pending_approval' → expirada nunca aparece
+  assert(row.status !== "pending_approval");
+  // Histórico preservado: expiration + autoexec_audit ambos presentes
+  assert((row.policy_check_result as any).expiration);
+  assert((row.policy_check_result as any).autoexec_audit);
+});
+
+Deno.test("C.4 audit — strategic_pause é classificada e nunca auto-executa", () => {
+  assert(isStrategicPauseAction("strategic_pause"));
+  // Tipo estratégico não passa pelo gate de auto-execução
+  const gate = canAutoExecuteC4({
+    effective_mode: "technical_only",
+    effective_source: "account",
+    is_ai_enabled: true,
+    account_kill_switch: false,
+    global_kill_switch: false,
+    action_type: "strategic_pause",
+    action_class: classifyAction({ action_type: "strategic_pause", channel: "meta" }),
+    policy_decision_kind: "execute_now",
+    campaign_age_days: 30,
+    in_learning_phase: false,
+    inside_safe_window: true,
+    budget_within_limit: true,
+  });
+  assertEquals(gate.ok, false);
+});

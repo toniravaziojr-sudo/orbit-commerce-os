@@ -50,16 +50,33 @@ Deno.serve(async (req) => {
 
     for (const r of (rows || [])) {
       try {
+        const prevPolicy = ((r as any).policy_check_result || {}) as Record<string, unknown>;
+        const prevAudit = (prevPolicy.autoexec_audit || {}) as Record<string, unknown>;
         const { data: upd } = await supabase
           .from("ads_autopilot_actions")
           .update({
             status: "expired",
             policy_check_result: {
-              ...((r as any).policy_check_result || {}),
+              ...prevPolicy,
               expiration: {
                 reason: "strategic_pause_daily_window_expired",
                 ttl_policy: "strategic_pause_daily_until_next_0001_brt",
                 expired_at: nowIso,
+                pilot_version: VERSION,
+              },
+              // Hardening de auditoria (Fase C.4 — microvalidação):
+              // 5º estado distinguível. Não sobrescreve approval_source prévio
+              // (que permanece NULL para sugestões nunca aprovadas), e adiciona
+              // decision_outcome='expired' com motivo explícito.
+              autoexec_audit: {
+                ...prevAudit,
+                decision_outcome: "expired",
+                expiration_reason: "strategic_pause_daily_window_expired",
+                expired_at: nowIso,
+                human_approved: false,
+                auto_executed: false,
+                expired_by: "policy_ttl",
+                expired_by_function: "ads-autopilot-strategic-pause-expire",
                 pilot_version: VERSION,
               },
             },
