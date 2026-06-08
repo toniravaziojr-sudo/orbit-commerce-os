@@ -48,6 +48,14 @@ import { useCreateShipment, useDispatchShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
 
 import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
+import { sortByNumberDesc } from "@/lib/sort-numeric";
+
+// Chave de ordenação de Objetos de Postagem: número do pedido vinculado
+// (preferência) ou número do PV quando não há pedido. Mantém os itens em
+// ordem numérica decrescente do módulo.
+function shipmentOrderKey(s: any): unknown {
+  return s?.order?.order_number ?? s?.pv?.numero ?? null;
+}
 
 interface ShipmentRecord {
   id: string;
