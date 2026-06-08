@@ -176,7 +176,9 @@ describe("implement_campaigns — auto-resolução de criativo + Quality Gate", 
     expect(r.gate.reason_codes).toContain("invalid_missing_creative");
   });
 
-  it("bloqueia quando o modelo tenta vincular criativo de outro produto", () => {
+  it("bloqueia quando o modelo tenta vincular creative_asset_id que não está no inventário do produto", () => {
+    // Strategist filtra inventário por lookupProductId (p-shampoo), então
+    // um creative_asset_id de Kit cai fora da lista tenant-scoped do gate.
     const r = runImplementCampaignsTool(
       baseArgs({
         product_id: "p-shampoo",
@@ -186,7 +188,7 @@ describe("implement_campaigns — auto-resolução de criativo + Quality Gate", 
     );
     expect(r.gate.ok).toBe(false);
     expect(r.gate.reason_codes).toEqual(
-      expect.arrayContaining(["invalid_creative_product_link_mismatch"]),
+      expect.arrayContaining(["invalid_creative_not_in_tenant"]),
     );
   });
 
