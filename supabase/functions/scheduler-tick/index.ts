@@ -793,20 +793,10 @@ Deno.serve(async (req) => {
               const { data: existingShipment } = await dupQuery;
 
               if (existingShipment && existingShipment.length > 0) {
-                console.log(`[scheduler-tick] shipping queue: active shipment already exists (id=${existingShipment[0].id}), skipping`);
+                console.log(`[scheduler-tick] shipping queue: active shipment already exists (id=${existingShipment[0].id}, pv=${item.source_pedido_venda_id}, order=${item.order_id}), marking queue done`);
                 await supabaseShipping
                   .from('shipping_draft_queue')
-                  .update({
-                    status: 'done',
-                    processed_at: new Date().toISOString(),
-                    // Forense: marca qual shipment foi considerado para o dedup.
-                    // A reconciliação automática usa isso para detectar sumiço posterior.
-                    metadata: {
-                      ...(item.metadata || {}),
-                      dedup_shipment_id: existingShipment[0].id,
-                      dedup_at: new Date().toISOString(),
-                    },
-                  })
+                  .update({ status: 'done', processed_at: new Date().toISOString() })
                   .eq('id', item.id);
                 continue;
               }
