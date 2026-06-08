@@ -1,19 +1,29 @@
 // =============================================================================
 // ads-autopilot-scheduled-runner
-// Roda a cada 5 min. Processa ações status='scheduled' com policy_engine_version='v1'.
-// Reaplica a política antes de executar. Ignora ações legadas.
-// Fase B.1: gate operacional por conta (is_ai_enabled + kill_switch) e TTL.
+// Roda a cada 5 min.
+//   (A) Processa ações status='scheduled' (engine v1). Reaplica a política.
+//   (B) Fase C.4: também varre ações 'pending_approval' classificadas como
+//       automatic_candidate/emergency e, se TODOS os gates passarem
+//       (resolveEffectiveAutonomy='technical_only', IA ativa, kill switch off
+//       conta+global, classe elegível, janela segura, maturidade, orçamento,
+//       Policy Engine), auto-aprova e dispara o executor com auto_executed=true.
+// Strategic pause NUNCA é elegível ao caminho (B).
 // =============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   decide,
   POLICY_ENGINE_VERSION,
   isApprovalStillValid,
+  resolveEffectiveAutonomy,
+  canAutoExecuteC4,
+  classifyAction,
+  isStrategicPauseAction,
+  getApprovalTtlHours,
   type ActionInput,
 } from "../_shared/ads-policy.ts";
 import { isWithinBudgetWindow, CADENCE_POLICY_VERSION } from "../_shared/ads-autopilot/cadencePolicy.ts";
 
-const VERSION = "v1.2.0"; // Política Operacional v1 — janela 00:01–03:00 BRT p/ orçamento
+const VERSION = "v1.3.0"; // Fase C.4 — autoexecução técnica governada por toggle
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
