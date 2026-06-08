@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2, RefreshCw, ScrollText, Files } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Lock, Loader2, RefreshCw, ScrollText, Files } from 'lucide-react';
 import { DraftShipmentDialog } from './DraftShipmentDialog';
 import {
   AlertDialog,
