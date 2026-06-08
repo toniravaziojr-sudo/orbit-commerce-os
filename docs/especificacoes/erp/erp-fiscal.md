@@ -294,7 +294,15 @@ estiver em um destes estados:
 - `draft` — etiqueta ainda em preparo (sem rastreio).
 - `label_created` — etiqueta gerada / objeto despachado para a transportadora
   mas **ainda não postado fisicamente**.
-- `cancelled` — objeto já cancelado.
+- `canceled` — objeto já cancelado.
+
+> ⚠️ **Grafia oficial do status (rev 2026-06-08b):** o valor canônico do
+> enum `delivery_status` em `shipments` é `canceled` (um L, padrão
+> americano). A grafia `cancelled` (dois L) **não existe** nesse enum e
+> qualquer comparação/UPDATE com `'cancelled'` quebra a automação com
+> erro de cast (`invalid input value for enum delivery_status`). Atenção
+> ao escrever triggers, edge functions e validações na UI. A grafia
+> `cancelled` (dois L) só vale para `fiscal_invoices.status` (NF).
 
 Qualquer outro estado (`posted`, `in_transit`, `out_for_delivery`,
 `delivered`, `returned`, `returning`) **bloqueia** o cancelamento. A trava é
@@ -316,7 +324,7 @@ justificativa e mostra uma mensagem em destaque; (2) a edge function
 
 1. **Objetos vinculados → cancelados.** Todos os shipments referenciando a
    NF (`invoice_id` ou `source_pedido_venda_id`) são marcados com
-   `delivery_status = 'cancelled'`, `action_reason = 'invoice_cancelled'`,
+   `delivery_status = 'canceled'`, `action_reason = 'invoice_cancelled'`,
    `requires_action = false`, e o `invoice_id` é **desligado** (passa a
    `NULL`) — isso libera a exclusão da nota cancelada quando o lojista
    quiser limpar o registro.
@@ -328,11 +336,12 @@ justificativa e mostra uma mensagem em destaque; (2) a edge function
 3. **FK `shipments.invoice_id` agora é `ON DELETE SET NULL`** — exclusões
    futuras da NF cancelada não esbarram em referência pendente.
 
-Anti-regressão: `mem://constraints/nf-cancel-blocked-by-shipment-state` e
-`mem://constraints/nf-cancel-reopens-pv-clean`. Caso de origem: PV 403 /
-NF 404 / objeto AP053729025BR (Respeite o Homem, 2026-06-08) — o ciclo
-anterior deixou a observação fantasma "Pedido sem itens" no PV e
-impedia a exclusão da NF.
+Anti-regressão: `mem://constraints/nf-cancel-blocked-by-shipment-state`,
+`mem://constraints/nf-cancel-reopens-pv-clean` e
+`mem://constraints/shipping-delivery-status-enum-spelling-canonical`.
+Caso de origem: PV 403 / NF 404 / objeto AP053729025BR (Respeite o Homem,
+2026-06-08) — o ciclo anterior deixou a observação fantasma "Pedido sem
+itens" no PV e impedia a exclusão da NF.
 
 
 
