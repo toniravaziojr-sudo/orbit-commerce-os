@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   validateFeedbackInput,
   type FeedbackInput,
-} from "../../../src/lib/adsAutopilot/feedbackContract.ts";
+} from "../_shared/ads-autopilot/feedbackContract.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

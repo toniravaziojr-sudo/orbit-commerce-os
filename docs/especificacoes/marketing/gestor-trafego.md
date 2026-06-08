@@ -2315,3 +2315,93 @@ A leitura de memória acontece **uma única vez** por execução do gatilho dete
 
 **Subfase F.2 ativa** — após o tenant piloto acumular alguns ciclos com `tenant_memory_silent_trace` e o usuário validar (a) que o trace está coerente, (b) que `applied_to_decision` e `real_recommendation_changed` permanecem `false` em todos os registros e (c) que nenhum gerador além do gatilho determinístico aparece com trace, promover a constante para `"active"` apenas no gatilho determinístico de orçamento. Só então avançar para F.3 (Analyze), F.4 (Strategist), F.5 (rationale exposto ao lojista) e F.6 (validação com feedback real).
 
+
+---
+
+## Quality Gate de criação de campanha (Etapa 7.qg)
+
+### Problema
+
+A IA estava entregando sugestões `create_campaign` no painel de aprovação humana com:
+
+1. Produto/codinome inexistente no catálogo (ex.: "Fast Upgrade").
+2. Divergência entre produto vinculado e copy/headline (ex.: Kit Banho vinculado, copy fala de Shampoo isolado).
+3. Sem criativo anexado.
+4. Sem landing/destino definido.
+5. Orçamento agressivo (R$ 300/dia) em TOF frio sem nenhuma das bases acima.
+
+O lojista não tinha como saber, dentro do painel, que essas sugestões estavam incoerentes. Ele só percebia ao abrir uma a uma. Risco: aprovação acidental de campanha que promove produto inexistente, queima de verba e desaprovação editorial pela Meta.
+
+### Decisão
+
+Criar um **Quality Gate** determinístico, puro e local, executado pelo gerador antes de persistir a sugestão. Quando o gate bloqueia, a sugestão é gravada com status `skipped`, jamais aparece como aprovável e fica registrada com `quality_gate.reason_codes` para auditoria e futuro aprendizado da memória do tenant.
+
+O gate **não** chama LLM, **não** chama Meta, **não** consulta banco. Trabalha apenas com:
+
+- argumentos da tool `create_campaign`
+- produto vinculado já resolvido pelo Strategist
+- catálogo de produtos do tenant já carregado no contexto da execução
+
+### Regras
+
+| Reason code | Quando dispara |
+|---|---|
+| `invalid_unknown_product_name` | `product_name` declarado mas não encontrado no catálogo |
+| `invalid_product_catalog_mismatch` | Nenhum produto declarado nem vinculado |
+| `invalid_product_copy_mismatch` | Produto vinculado não é mencionado na copy/headline |
+| `invalid_offer_mismatch` | Outro produto do catálogo é mencionado na copy usando tokens exclusivos (Kit vs isolado, etc.) |
+| `invalid_creative_product_mismatch` | Há criativo anexado mas copy diverge do produto vinculado |
+| `invalid_missing_creative` | `creative_asset_id` e `creative_url` ambos nulos (criativo é obrigatório em `create_campaign`) |
+| `invalid_missing_destination` | Objetivo de conversão/tráfego/vendas/leads sem `destination_url` |
+| `invalid_cold_campaign_budget_too_aggressive` | TOF frio com `daily_budget_cents >= 20.000` somado a qualquer falha estrutural acima |
+
+### Comportamento quando bloqueia
+
+- `status = 'skipped'` na tabela `ads_autopilot_actions`
+- `rejection_reason = 'Quality Gate v1.0.0: <lista de reason codes>'`
+- `action_data.quality_gate = { ok:false, version, reason_codes, details, blocked_at }`
+- Sugestão **não** entra na lista de pendentes (hook `useAdsPendingActions` filtra por `status='pending_approval'`)
+- **Nada é executado**, nada vai para Meta, nenhuma autoexecução é ativada
+
+### Fail-open
+
+Se o próprio gate lançar exceção, o Strategist segue o fluxo normal (registra warning no log e devolve `pending_approval`). O gate nunca pode derrubar a geração de sugestões.
+
+### O que NÃO mudou
+
+- Campanhas de criação **continuam exigindo aprovação humana** quando o gate passa.
+- Policy Engine, Governance Layer, Tenant Memory Writer e Tenant Preference Guard (F.1/F.2) não foram tocados.
+- Autoexecução continua desligada.
+- Nenhuma chamada de modificação à Meta foi feita.
+- UI do painel não mudou. O modal de feedback não mudou (apenas o backend dele foi corrigido — ver abaixo).
+
+### Correção do modal de feedback (Subfase A.2)
+
+Erro reportado: `Failed to send a request to the Edge Function` ao confirmar recusa/aprovação.
+
+Causa: a Edge Function `ads-autopilot-feedback-record` importava o validador de payload de um caminho do app (`../../../src/lib/...`) que **não existe no bundle deployado da Edge Function**. Isso fazia a função falhar no boot, sem nem chegar a executar — daí o erro genérico do cliente.
+
+Correção: o contrato de validação foi movido para `supabase/functions/_shared/ads-autopilot/feedbackContract.ts` (cópia self-contained, mantida em paridade com a versão canônica do app). A Edge Function agora importa de um caminho válido em runtime.
+
+Validação: chamada real à função com payload mínimo válido retornou `200 success: true` com `feedback_id` gerado e `side_effects` zerados (`autoexec_triggered=false`, `meta_api_called=false`, `suggestion_status_changed=false`). Nenhum efeito colateral.
+
+### Tratamento das sugestões incoerentes existentes
+
+As duas sugestões pendentes do tenant Respeite o Homem (`act_251893833881780`) foram quarentenadas com `status='skipped'` e `quality_gate.backfill=true`. Saíram da fila de aprovação. **Nenhum dado foi apagado** — campanhas Meta, insights, configurações, feedback, memória e catálogo de produtos seguem intactos.
+
+### Próxima recomendação
+
+Após observar 2–3 ciclos com o gate ativo no Strategist, avaliar:
+
+1. Promover os reason codes do gate para o catálogo de `ads_autopilot_feedback_reason_codes` (hoje os códigos vivem só no payload do gate). Permite que o Tenant Memory Writer aprenda padrões do tipo "tenant rejeita campanhas sem destino".
+2. Estender o gate para `create_adset` quando o Strategist passar a quebrar campanhas em conjuntos por gerador.
+3. Considerar gate equivalente para `generate_creative` (bloquear geração de criativo para produto inexistente, evitando desperdício de crédito).
+
+### Validação técnica executada
+
+- 7 testes `vitest` específicos passando (`src/test/ads-autopilot-quality-gate.test.ts`) cobrindo: produto inexistente, divergência produto×copy ("Fast Upgrade" vinculado a Shampoo real), Kit×isolado, sem criativo, sem destino, TOF frio agressivo, e caso totalmente coerente que deve passar.
+- Edge Function `ads-autopilot-feedback-record` re-deployada e testada com payload real → 200 success.
+- Nenhum ciclo de Analyze/Strategist/Guardian rodado.
+- Nenhuma chamada de modificação à Meta.
+- Nenhuma autoexecução ativada.
+- Subfase F.2 (Tenant Preference Guard silencioso no gatilho de orçamento) segue intacta — este gate é independente e atua em outro gerador.
