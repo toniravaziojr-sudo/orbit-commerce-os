@@ -68,6 +68,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setStrategyMode(globalConfig.strategy_mode || "balanced");
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
       setFunnelSplits((globalConfig.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
+      setAutonomyMode(globalConfig.autonomy_mode === "technical_only" ? "technical_only" : "off");
       
     }
   }, [globalConfig]);
