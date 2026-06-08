@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Tenant guard via filtro composto
     const { data: invoice, error: invoiceError } = await supabaseClient
       .from('fiscal_invoices')
-      .select('id, tenant_id, status, focus_ref, order_id, cancelled_at')
+      .select('id, tenant_id, status, focus_ref, order_id, cancelled_at, source_order_invoice_id')
       .eq('id', invoice_id)
       .eq('tenant_id', tenantId)
       .maybeSingle();
@@ -76,8 +76,53 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ===================================================================
+    // TRAVA POR ESTADO DO OBJETO LOGÍSTICO (plano 2026-06-08)
+    // Cancelar NF só é permitido se NÃO houver objeto OU se o objeto
+    // estiver em 'draft' (etiqueta em preparo), 'label_created'
+    // (etiqueta gerada, ainda não despachada) ou 'cancelled'.
+    // Qualquer estado em movimento bloqueia com mensagem PT-BR.
+    // ===================================================================
+    const ALLOWED_SHIPMENT_STATES = new Set(['draft', 'label_created', 'cancelled']);
+    const { data: linkedShipments } = await supabaseClient
+      .from('shipments')
+      .select('id, tracking_code, delivery_status, delivered_at, source_pedido_venda_id')
+      .or(
+        [
+          `invoice_id.eq.${invoice_id}`,
+          invoice.source_order_invoice_id ? `source_pedido_venda_id.eq.${invoice.source_order_invoice_id}` : '',
+        ].filter(Boolean).join(',')
+      )
+      .eq('tenant_id', tenantId);
+
+    const blocking = (linkedShipments ?? []).find(s => !ALLOWED_SHIPMENT_STATES.has(String(s.delivery_status ?? '')));
+    if (blocking) {
+      const tracking = blocking.tracking_code ? ` (rastreio: ${blocking.tracking_code})` : '';
+      let msg = '';
+      const st = String(blocking.delivery_status ?? '');
+      if (st === 'delivered') {
+        const dt = blocking.delivered_at ? new Date(blocking.delivered_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '';
+        msg = `Não é possível cancelar esta NF: o pedido já foi entregue ao cliente${tracking}${dt ? `, entregue em ${dt}` : ''}. Notas de pedidos entregues não podem ser canceladas — utilize uma NF de devolução se for o caso.`;
+      } else if (st === 'returned' || st === 'returning') {
+        msg = `Não é possível cancelar esta NF: o pedido foi devolvido${tracking}. Registre uma NF de devolução em vez de cancelar a original.`;
+      } else {
+        msg = `Não é possível cancelar esta NF: o pedido já foi despachado e está em rota de entrega${tracking}. Para cancelar a NF, primeiro cancele o objeto de postagem no módulo de Logística.`;
+      }
+      return jsonResponse({
+        success: false,
+        error: msg,
+        code: 'shipment_blocks_cancel',
+        blocking_shipment: {
+          tracking_code: blocking.tracking_code,
+          delivery_status: blocking.delivery_status,
+          delivered_at: blocking.delivered_at,
+        },
+      });
+    }
+
     if (!invoice.focus_ref) {
       return jsonResponse({ success: false, error: 'NF-e não foi enviada para Focus NFe', code: 'no_focus_ref' });
+
     }
 
     const { data: settings } = await supabaseClient
@@ -136,43 +181,49 @@ Deno.serve(async (req) => {
         event_data: { justificativa, response: result.data },
       });
 
+    // ===================================================================
+    // PÓS-CANCELAMENTO (plano 2026-06-08)
+    // 1) Shipments vinculados (já validados como 'draft'/'label_created'/'cancelled')
+    //    → marca como 'cancelled' + action_reason='invoice_cancelled' + desvincula
+    //    invoice_id para liberar exclusão futura da NF.
+    // 2) PV pai (source_order_invoice_id) → limpa pendencia_motivos e recalcula
+    //    pedido_status (volta para "em aberto" sem observação extra).
+    // ===================================================================
+    const shipmentFilters = [
+      `invoice_id.eq.${invoice_id}`,
+      invoice.source_order_invoice_id ? `source_pedido_venda_id.eq.${invoice.source_order_invoice_id}` : '',
+    ].filter(Boolean).join(',');
+
+    await supabaseClient
+      .from('shipments')
+      .update({
+        delivery_status: 'cancelled',
+        action_reason: 'invoice_cancelled',
+        requires_action: false,
+        invoice_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .or(shipmentFilters)
+      .eq('tenant_id', tenantId)
+      .neq('delivery_status', 'cancelled');
+
+    if (invoice.source_order_invoice_id) {
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update({ pendencia_motivos: null, updated_at: new Date().toISOString() })
+        .eq('id', invoice.source_order_invoice_id)
+        .eq('tenant_id', tenantId);
+      await supabaseClient.rpc('recompute_pv_pedido_status', { p_pv_id: invoice.source_order_invoice_id });
+    }
+
     if (invoice.order_id) {
       await supabaseClient.from('order_history').insert({
         order_id: invoice.order_id,
         action: 'fiscal_invoice_cancelled',
-        description: `[NF-e CANCELADA] Justificativa: ${justificativa}. ` +
-          `Reveja o status do pedido e a etiqueta de envio (se houver).`,
+        description: `[NF-e CANCELADA] Justificativa: ${justificativa}.`,
       });
-
-      // (a) Apaga etiquetas em rascunho (ainda não emitidas) vinculadas a esta NF.
-      // O gatilho de proteção do agrupador permite isso porque drafts não têm tracking.
-      const { error: delDraftErr, count: delDraftCount } = await supabaseClient
-        .from('shipments')
-        .delete({ count: 'exact' })
-        .eq('order_id', invoice.order_id)
-        .eq('invoice_id', invoice_id)
-        .or('tracking_code.is.null,tracking_code.eq.')
-        .eq('manually_adjusted', false);
-      if (delDraftErr) {
-        console.warn('[fiscal-cancel] falha ao apagar rascunhos de etiqueta:', delDraftErr.message);
-      } else if ((delDraftCount ?? 0) > 0) {
-        console.log(`[fiscal-cancel] ${delDraftCount} rascunho(s) de etiqueta apagado(s)`);
-      }
-
-      // (b) Marca etiquetas já emitidas (com rastreio) como exigindo ação.
-      // Operação física continua, mas a UI bloqueia novos despachos até decisão do lojista.
-      await supabaseClient
-        .from('shipments')
-        .update({
-          requires_action: true,
-          action_reason: 'invoice_cancelled',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('order_id', invoice.order_id)
-        .not('tracking_code', 'is', null)
-        .eq('requires_action', false)
-        .is('delivered_at', null);
     }
+
 
 
     chargeAfter({

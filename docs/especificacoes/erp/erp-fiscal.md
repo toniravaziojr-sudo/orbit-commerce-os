@@ -285,15 +285,55 @@ Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal
 
 **Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
 
-#### Cascata para a Logística ao cancelar a NF (rev 2026-06-05)
+#### Cancelamento de NF × Objeto Logístico (rev 2026-06-08)
 
-Quando uma NF é cancelada (estado `cancelled`), a tela Fiscal cascateia automaticamente para os objetos de postagem vinculados ao mesmo pedido / Pedido de Venda:
+**Trava obrigatória — quando posso cancelar uma NF.** O cancelamento só é
+permitido se **não houver objeto de postagem vinculado** OU se o objeto
+estiver em um destes estados:
 
-- Objetos **em rascunho** (sem código de rastreio) são **excluídos** — etiqueta-rascunho de uma NF cancelada não tem propósito.
-- Objetos **já despachados** (com rastreio) são **marcados como "exige ação"** com motivo "NF cancelada". A operação física segue, mas a aba Logística passa a exibir banner exigindo decisão (reemitir NF, devolver, etc.) e bloqueia novos despachos do mesmo pedido.
-- Objetos com edição manual do lojista são preservados.
+- `draft` — etiqueta ainda em preparo (sem rastreio).
+- `label_created` — etiqueta gerada / objeto despachado para a transportadora
+  mas **ainda não postado fisicamente**.
+- `cancelled` — objeto já cancelado.
 
-Detalhe complementar na doc de Logística §"Integridade Objeto × Agrupador × NF". Caso de origem: pedido #583 Maria (Respeite o Homem, 2026-06-05). Anti-regressão: `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`.
+Qualquer outro estado (`posted`, `in_transit`, `out_for_delivery`,
+`delivered`, `returned`, `returning`) **bloqueia** o cancelamento. A trava é
+aplicada em duas camadas: (1) o diálogo de cancelamento na UI faz uma
+pré-checagem ao abrir e, se houver bloqueio, oculta o formulário de
+justificativa e mostra uma mensagem em destaque; (2) a edge function
+`fiscal-cancel` repete a checagem antes de chamar a Focus NFe e devolve
+`success: false, code: 'shipment_blocks_cancel'` com a mesma mensagem.
+
+**Mensagens exibidas (PT-BR, sempre com rastreio quando disponível):**
+
+| Estado do objeto | Mensagem |
+|---|---|
+| `posted` / `in_transit` / `out_for_delivery` | "Não é possível cancelar esta NF: o pedido já foi despachado e está em rota de entrega (rastreio: AP000000000BR). Para cancelar a NF, primeiro cancele o objeto de postagem no módulo de Logística." |
+| `delivered` | "Não é possível cancelar esta NF: o pedido já foi entregue ao cliente (rastreio: AP000000000BR, entregue em 08/06/2026). Notas de pedidos entregues não podem ser canceladas — utilize uma NF de devolução se for o caso." |
+| `returned` / `returning` | "Não é possível cancelar esta NF: o pedido foi devolvido. Registre uma NF de devolução em vez de cancelar a original." |
+
+**Pós-cancelamento bem-sucedido (com objeto em `label_created` ou sem objeto):**
+
+1. **Objetos vinculados → cancelados.** Todos os shipments referenciando a
+   NF (`invoice_id` ou `source_pedido_venda_id`) são marcados com
+   `delivery_status = 'cancelled'`, `action_reason = 'invoice_cancelled'`,
+   `requires_action = false`, e o `invoice_id` é **desligado** (passa a
+   `NULL`) — isso libera a exclusão da nota cancelada quando o lojista
+   quiser limpar o registro.
+2. **PV pai volta para "em aberto", limpo.** A `pendencia_motivos` do
+   Pedido de Venda raiz é zerada e o `pedido_status` é recalculado via
+   `recompute_pv_pedido_status`. Não é exibida observação extra (nem
+   "NF cancelada", nem "Pedido sem itens", nem nada). O PV fica disponível
+   para emitir uma nova NF.
+3. **FK `shipments.invoice_id` agora é `ON DELETE SET NULL`** — exclusões
+   futuras da NF cancelada não esbarram em referência pendente.
+
+Anti-regressão: `mem://constraints/nf-cancel-blocked-by-shipment-state` e
+`mem://constraints/nf-cancel-reopens-pv-clean`. Caso de origem: PV 403 /
+NF 404 / objeto AP053729025BR (Respeite o Homem, 2026-06-08) — o ciclo
+anterior deixou a observação fantasma "Pedido sem itens" no PV e
+impedia a exclusão da NF.
+
 
 
 
