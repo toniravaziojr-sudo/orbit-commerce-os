@@ -233,6 +233,25 @@ export function runCreateCampaignQualityGate(
     reason_codes.push("invalid_missing_creative");
   }
 
+  // 5b) Se inventário de criativos do tenant foi fornecido e a sugestão
+  // referencia creative_asset_id, validar pertencimento e vínculo de produto.
+  if (args.creative_asset_id && Array.isArray(input.tenantCreatives)) {
+    const found = input.tenantCreatives.find((c) => c.id === args.creative_asset_id);
+    if (!found) {
+      reason_codes.push("invalid_creative_not_in_tenant");
+      details.creative_asset_id = args.creative_asset_id;
+    } else if (
+      matchedProduct &&
+      found.product_id &&
+      found.product_id !== matchedProduct.id
+    ) {
+      reason_codes.push("invalid_creative_product_link_mismatch");
+      details.creative_asset_id = args.creative_asset_id;
+      details.creative_product_id = found.product_id;
+      details.linked_product_id = matchedProduct.id;
+    }
+  }
+
   // 6) Destino/landing obrigatório.
   if (requiresDestination(args) && !args.destination_url) {
     reason_codes.push("invalid_missing_destination");
