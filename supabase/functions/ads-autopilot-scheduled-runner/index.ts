@@ -371,18 +371,49 @@ Deno.serve(async (req) => {
         }
 
         // OK — stamp de auto-aprovação + invoke executor
+        // HARDENING DE AUDITORIA (Fase C.4): registrar de forma persistente
+        // que esta ação foi liberada por POLÍTICA, não por humano. O status
+        // `approved` permanece por compatibilidade com o executor; o campo
+        // `policy_check_result.autoexec_audit` é a fonte de verdade da origem.
         const ttl = getApprovalTtlHours(r.action_type);
         const approvedAt = new Date().toISOString();
         const expiresAt = new Date(Date.now() + ttl * 3600 * 1000).toISOString();
+        const autoexecAudit = {
+          approval_source: "policy_auto_execution",
+          human_approved: false,
+          approved_by_user: false,
+          auto_executed: true,
+          auto_execution_phase: "c4_enabled",
+          effective_autonomy_mode: eff.mode,
+          effective_autonomy_source: eff.source,
+          executed_by: "policy",
+          policy_gate_result: {
+            ok: true,
+            reason: "ok",
+            inputs: {
+              action_type: r.action_type,
+              action_class,
+              policy_decision_kind: decision.kind,
+              campaign_age_days: campaignAgeDays,
+              inside_safe_window: insideWindow,
+              global_kill_switch: globalCfg?.kill_switch === true,
+              account_kill_switch: acct?.kill_switch === true,
+              is_ai_enabled: acct?.is_ai_enabled === true,
+            },
+          },
+          at: approvedAt,
+        };
         const { data: stamped } = await supabase
           .from("ads_autopilot_actions")
           .update({
             status: "approved",
             approved_at: approvedAt,
             approval_expires_at: expiresAt,
+            approved_by_user_id: null, // explicitamente: sem usuário humano
             auto_executed: true,
             policy_check_result: {
               ...(r.policy_check_result || {}),
+              autoexec_audit: autoexecAudit,
               c4_autoexec_gate: {
                 ok: true,
                 reason: "ok",
