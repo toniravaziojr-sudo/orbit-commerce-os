@@ -174,24 +174,69 @@ Deno.serve(async (req) => {
     }
 
     // ============= SEND COMBINED (oficial: NF + rastreio juntos) =============
+    // Ancorado na NF FISCAL — funciona para qualquer NF de venda autorizada,
+    // independentemente de ter pedido vinculado (PV manual também dispara).
+    // Aceita invoice_id (preferido) ou order_id (legado).
     if (action === 'send_combined') {
-      if (!order_id) {
-        return new Response(JSON.stringify({ success: false, error: 'order_id é obrigatório' }),
+      if (!invoice_id && !order_id) {
+        return new Response(JSON.stringify({ success: false, error: 'invoice_id ou order_id é obrigatório' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const { data: invoice } = await supabase
+      // 1) Resolver a NF (ancora oficial).
+      let invoiceQuery = supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, xml_url, status')
-        .eq('order_id', order_id).eq('tenant_id', tenantId).eq('status', 'authorized')
-        .order('authorized_at', { ascending: false }).limit(1).maybeSingle();
+        .select('id, order_id, source_order_invoice_id, chave_acesso, xml_url, status, tipo_nota, fiscal_stage')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'authorized');
 
-      const { data: shipment } = await supabase
-        .from('shipments')
-        .select('id, tracking_code')
-        .eq('order_id', order_id).eq('tenant_id', tenantId)
-        .not('tracking_code', 'is', null)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      invoiceQuery = invoice_id
+        ? invoiceQuery.eq('id', invoice_id)
+        : invoiceQuery.eq('order_id', order_id);
+
+      const { data: invoice } = await invoiceQuery
+        .order('authorized_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Bloquear tipos de NF que não são venda (entrada, devolução, transferência, remessa).
+      const SALES_TIPO_NOTA = new Set(['', 'venda', 'saida']);
+      if (invoice?.tipo_nota && !SALES_TIPO_NOTA.has(String(invoice.tipo_nota).toLowerCase())) {
+        return new Response(JSON.stringify({ success: false, skipped: true, reason: `NF tipo '${invoice.tipo_nota}' não é enviada à Pratika` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Só NF (não enviar Pedido de Venda).
+      if (invoice?.fiscal_stage && !['nf', 'emitida'].includes(String(invoice.fiscal_stage))) {
+        return new Response(JSON.stringify({ success: false, skipped: true, reason: 'Documento não é NF (é Pedido de Venda)' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const resolvedInvoiceId = invoice?.id || null;
+      const resolvedOrderId = invoice?.order_id || order_id || null;
+
+      // 2) Resolver a Remessa (Objeto Logístico) pela NF — cascata robusta:
+      //    a) shipments.invoice_id = NF.id
+      //    b) shipments.nfe_key = NF.chave_acesso (44 dígitos)
+      //    c) shipments.source_pedido_venda_id = NF.source_order_invoice_id (PV)
+      //    d) shipments.order_id = NF.order_id (legado)
+      let shipment: { id: string; tracking_code: string | null } | null = null;
+      const chaveLimpaForShip = String(invoice?.chave_acesso || '').replace(/\D/g, '');
+      const trackingSel = 'id, tracking_code';
+
+      const tryLookup = async (col: string, val: string) => {
+        if (shipment) return;
+        const r = await supabase.from('shipments').select(trackingSel)
+          .eq('tenant_id', tenantId).eq(col, val)
+          .not('tracking_code', 'is', null)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (r.data) shipment = r.data;
+      };
+
+      if (resolvedInvoiceId) await tryLookup('invoice_id', resolvedInvoiceId);
+      if (chaveLimpaForShip.length === 44) await tryLookup('nfe_key', chaveLimpaForShip);
+      if (invoice?.source_order_invoice_id) await tryLookup('source_pedido_venda_id', invoice.source_order_invoice_id);
+      if (resolvedOrderId) await tryLookup('order_id', resolvedOrderId);
 
       const hasNfe = !!(invoice?.id && invoice.xml_url);
       const hasTracking = !!shipment?.tracking_code;
@@ -200,17 +245,21 @@ Deno.serve(async (req) => {
         const motivo = !hasNfe && !hasTracking
           ? 'aguardando NF autorizada e código de rastreio'
           : !hasNfe ? 'aguardando NF autorizada' : 'aguardando código de rastreio';
-        console.log(`[wms-pratika] send_combined waiting pedido ${order_id}: ${motivo}`);
+        console.log(`[wms-pratika] send_combined waiting invoice=${resolvedInvoiceId} order=${resolvedOrderId}: ${motivo}`);
         return new Response(JSON.stringify({ success: false, skipped: true, waiting: true, reason: motivo }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Idempotência do combined
+      // Idempotência — chave estável é a NF (invoice_id). Compat com registros antigos por order_id.
       if (!force) {
+        const orFilter = resolvedOrderId
+          ? `reference_id.eq.${invoice.id},reference_id.eq.${resolvedOrderId}`
+          : `reference_id.eq.${invoice.id}`;
         const { data: existingCombined } = await supabase
           .from('wms_pratika_logs').select('id, created_at')
-          .eq('tenant_id', tenantId).eq('reference_id', order_id)
+          .eq('tenant_id', tenantId)
           .eq('operation', 'combined').eq('status', 'success')
+          .or(orFilter)
           .limit(1).maybeSingle();
         if (existingCombined) {
           return new Response(JSON.stringify({ success: true, already_sent: true, sent_at: existingCombined.created_at }),
@@ -218,19 +267,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Validar chave da NF
       const chaveLimpa = String(invoice.chave_acesso || '').replace(/\D/g, '');
       if (chaveLimpa.length !== 44) {
         const msg = `Chave de acesso inválida (${chaveLimpa.length} dígitos)`;
         await supabase.from('wms_pratika_logs').insert({
-          tenant_id: tenantId, operation: 'combined', reference_id: order_id,
-          reference_type: 'order', status: 'error', error_message: msg,
+          tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+          reference_type: 'invoice', status: 'error', error_message: msg,
         });
         return new Response(JSON.stringify({ success: false, stage: 'validation', error: msg }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // ETAPA 1: Enviar XML da NF (pular se já enviada)
+      // ETAPA 1: Enviar XML da NF (pular se já enviada com sucesso)
       let nfeAlreadyOk = false;
       if (!force) {
         const { data: nfeOk } = await supabase
@@ -259,8 +307,8 @@ Deno.serve(async (req) => {
 
         if (!xmlContent) {
           await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
-            reference_type: 'order', status: 'error',
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'error',
             error_message: 'XML da NFe não disponível para envio combinado',
           });
           return new Response(JSON.stringify({ success: false, stage: 'nfe', error: 'XML da NFe não disponível' }),
@@ -282,8 +330,8 @@ Deno.serve(async (req) => {
 
         if (!nfeResult.success) {
           await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
-            reference_type: 'order', status: 'error',
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'error',
             error_message: `Falha na etapa NF: ${nfeErrMsg}`,
           });
           return new Response(JSON.stringify({ success: false, stage: 'nfe', error: nfeErrMsg }),
@@ -321,8 +369,8 @@ Deno.serve(async (req) => {
 
         if (!trkResult.success) {
           await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: order_id,
-            reference_type: 'order', status: 'error',
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'error',
             error_message: `NF enviada, falha no rastreio: ${trkErrMsg}`,
           });
           return new Response(JSON.stringify({ success: false, stage: 'tracking', error: trkErrMsg, nfe_sent: true }),
@@ -330,10 +378,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Sucesso combinado
       await supabase.from('wms_pratika_logs').insert({
-        tenant_id: tenantId, operation: 'combined', reference_id: order_id,
-        reference_type: 'order', status: 'success',
+        tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+        reference_type: 'invoice', status: 'success',
         request_payload: `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`,
       });
 
