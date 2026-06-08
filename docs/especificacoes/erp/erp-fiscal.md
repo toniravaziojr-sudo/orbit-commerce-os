@@ -2287,3 +2287,27 @@ A fila de **Remessas (Logística)** lista exatamente os Pedidos de Venda com sta
 - Remessas com etiqueta já postada nunca são removidas — exigem tratamento manual.
 
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
+
+---
+
+## Busca e Ordenação das Listagens (Pedidos de Venda e Notas Fiscais)
+
+**Atualizado em 2026-06-08.**
+
+### Campo de busca
+A caixa de busca (mesma nas duas abas) procura nos campos abaixo, **com normalização de acentos** (buscar "joao" encontra "João"):
+
+| Campo | Critério |
+|---|---|
+| Número do PV / NF | substring |
+| Nome do destinatário | substring, sem acento, case-insensível |
+| CPF / CNPJ | só dígitos do termo digitado vs só dígitos do cadastro |
+| E-mail | substring, sem acento |
+| Telefone | só dígitos do termo vs só dígitos do cadastro |
+| Chave de acesso da NF | substring |
+| ID do pedido vinculado | substring |
+
+Se o termo digitado não tiver dígitos, a busca por CPF/CNPJ e telefone é ignorada (não casa "tudo").
+
+### Ordenação
+Ambas as abas seguem o **Padrão de Ordenação de Listagens Operacionais** (ver `transversais/padroes-operacionais.md`): número decrescente, com data como desempate. PVs/NFs recriados por reconciliação aparecem no lugar numérico correto, não no topo.
