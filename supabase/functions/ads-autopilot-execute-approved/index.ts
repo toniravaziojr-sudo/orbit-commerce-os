@@ -132,7 +132,121 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Carregar snapshot mínimo para ações de orçamento
+    // ====== HARDENING C.4 — Revalidação de gates antes de chamada externa ====
+    // Quando a ação chega marcada como `auto_executed=true` (vinda do runner),
+    // o executor REVALIDA todos os gates da Fase C.4 antes de qualquer chamada
+    // externa. Se algum gate falhar, devolve a ação para `pending_approval`,
+    // registra `gate_failed` em `autoexec_audit` e NÃO chama API externa.
+    if (action.auto_executed === true) {
+      // Strategic pause nunca autoexecuta — defesa em profundidade
+      if (isStrategicPauseAction(action.action_type)) {
+        await supabase.from("ads_autopilot_actions").update({
+          status: "pending_approval",
+          auto_executed: false,
+          approved_at: null,
+          approval_expires_at: null,
+          policy_check_result: {
+            ...(action.policy_check_result || {}),
+            autoexec_audit: {
+              approval_source: "blocked_by_policy",
+              human_approved: false,
+              auto_executed: false,
+              auto_execution_phase: "c4_enabled",
+              policy_gate_result: { ok: false, reason: "strategic_pause_always_human" },
+              at: new Date().toISOString(),
+            },
+          },
+        }).eq("id", action_id);
+        return new Response(JSON.stringify({
+          success: false,
+          policy: { decision_kind: "autoexec_gate_failed", reason: "strategic_pause_always_human" },
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const adAccountIdGate = action.action_data?.ad_account_id ||
+        action.action_data?.preview?.ad_account_id || null;
+
+      const { data: acctCfg } = adAccountIdGate ? await supabase
+        .from("ads_autopilot_account_configs")
+        .select("autonomy_mode, is_ai_enabled, kill_switch, budget_cents")
+        .eq("tenant_id", tenant_id)
+        .eq("channel", action.channel)
+        .eq("ad_account_id", adAccountIdGate)
+        .maybeSingle() : { data: null };
+
+      const { data: globalCfg } = await supabase
+        .from("ads_autopilot_configs")
+        .select("autonomy_mode, kill_switch")
+        .eq("tenant_id", tenant_id)
+        .eq("channel", "global")
+        .maybeSingle();
+
+      const eff = resolveEffectiveAutonomy(acctCfg, globalCfg);
+      const actClass = classifyAction({ action_type: action.action_type, channel: action.channel });
+
+      const nowGate = new Date();
+      const brtH = (nowGate.getUTCHours() - 3 + 24) % 24;
+      const brtM = nowGate.getUTCMinutes();
+      const insideWindow = (brtH === 0 && brtM >= 1) || (brtH >= 1 && brtH < 4);
+
+      // Pré-decide para alimentar policy_decision_kind do gate
+      const preDecision = decide({
+        action: {
+          id: action.id, tenant_id: action.tenant_id, channel: action.channel,
+          action_type: action.action_type, action_data: action.action_data,
+          status: action.status, approved_at: action.approved_at,
+          approval_expires_at: action.approval_expires_at, created_at: action.created_at,
+        },
+        campaignSnapshot: campaignSnapshot ?? null,
+        now: nowGate,
+      });
+
+      const gate = canAutoExecuteC4({
+        effective_mode: eff.mode,
+        effective_source: eff.source,
+        is_ai_enabled: acctCfg?.is_ai_enabled === true,
+        account_kill_switch: acctCfg?.kill_switch === true,
+        global_kill_switch: globalCfg?.kill_switch === true,
+        action_type: action.action_type,
+        action_class: actClass,
+        policy_decision_kind: preDecision.kind,
+        campaign_age_days: campaignSnapshot?.created_at
+          ? (Date.now() - new Date(campaignSnapshot.created_at).getTime()) / 86400000
+          : null,
+        in_learning_phase: null,
+        inside_safe_window: insideWindow,
+        budget_within_limit: null,
+      });
+
+      if (!gate.ok) {
+        await supabase.from("ads_autopilot_actions").update({
+          status: "pending_approval",
+          auto_executed: false,
+          approved_at: null,
+          approval_expires_at: null,
+          policy_check_result: {
+            ...(action.policy_check_result || {}),
+            autoexec_audit: {
+              approval_source: "blocked_by_policy",
+              human_approved: false,
+              auto_executed: false,
+              auto_execution_phase: "c4_enabled",
+              effective_autonomy_mode: eff.mode,
+              effective_autonomy_source: eff.source,
+              policy_gate_result: { ok: false, reason: gate.reason, revalidated_at_executor: true },
+              at: nowGate.toISOString(),
+            },
+          },
+        }).eq("id", action_id);
+        return new Response(JSON.stringify({
+          success: false,
+          policy: { decision_kind: "autoexec_gate_failed", reason: gate.reason },
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+    // ====== /HARDENING C.4 ===================================================
+
+
     let campaignSnapshot: any = null;
     const entityIdGuess = action.action_data?.entity_id || action.action_data?.campaign_id ||
                           action.action_data?.meta_campaign_id || null;
