@@ -1335,6 +1335,23 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               )}
             </div>
 
+            {/* Frente 1 — Linha de exclusão de Clientes (Públicos Frios) */}
+            {exclusionInfo && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                {exclusionInfo.applied ? (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
+                    <Users className="h-2.5 w-2.5" />
+                    {exclusionInfo.label}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 bg-amber-500/10 text-amber-700 border-amber-500/20" title={exclusionInfo.hint || ""}>
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {exclusionInfo.label}
+                  </Badge>
+                )}
+              </div>
+            )}
+
             {/* "Ver completo" button */}
             <Button
               variant="ghost"
