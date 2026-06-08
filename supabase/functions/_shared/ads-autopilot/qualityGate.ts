@@ -116,6 +116,15 @@ function copyMentionsProduct(
  * exclusivos (não compartilhados com o produto vinculado). Evita falso
  * positivo entre "Shampoo Calvície Zero" e "Kit Banho Calvície Zero", que
  * compartilham "calvicie" e "zero".
+ *
+ * v1.1.1 — Threshold mínimo SEMPRE 2 hits. A versão anterior usava
+ * `Math.min(2, uniq.length)`, permitindo bloqueio por 1 único token genérico
+ * quando o outro produto tinha apenas 1 token exclusivo. Isso causou falso
+ * positivo no tenant Respeite o Homem: copy de "Shampoo Calvície Zero"
+ * mencionando a palavra "banho" disparava match com "Kit Banho Calvície Zero"
+ * (uniq=["banho"], hits=1 ≥ min(2,1)=1) e gerava `invalid_offer_mismatch`
+ * indevido. Com threshold fixo em 2, exige menção real a 2 tokens exclusivos
+ * (ex.: "kit" + "banho") para configurar mistura de oferta.
  */
 function copyMentionsAnyCatalogProduct(
   copyBlob: string,
@@ -128,9 +137,9 @@ function copyMentionsAnyCatalogProduct(
   for (const p of catalog) {
     if (except && p.id === except.id) continue;
     const uniq = tokens(p.name).filter((t) => !exceptToks.has(t));
-    if (uniq.length === 0) continue;
+    if (uniq.length < 2) continue; // produto sem 2 tokens exclusivos não pode disparar mistura
     const hits = uniq.filter((t) => haystack.includes(t)).length;
-    if (hits >= Math.min(2, uniq.length)) return p;
+    if (hits >= 2) return p;
   }
   return null;
 }
