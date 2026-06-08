@@ -21,9 +21,10 @@
 //   - invalid_creative_product_link_mismatch
 //   - invalid_generate_creative_unknown_product
 //   - invalid_generate_creative_offer_mismatch
+//   - cold_audience_requires_customer_exclusion   (Frente 1 — Fase A)
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.2.0";
+export const QUALITY_GATE_VERSION = "1.3.0";
 
 // CTAs aceitos pela Meta para campanhas de vendas/conversão.
 // Mantemos uma lista permissiva — basta haver algum CTA não vazio para
