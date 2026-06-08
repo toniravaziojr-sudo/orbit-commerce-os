@@ -396,6 +396,10 @@ export function useFiscalInvoices(filters?: {
         .from('fiscal_invoices')
         .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source, status, resolved_shipping_provider_kind)')
         .eq('tenant_id', tenantId)
+        // Ordem padrão do módulo Fiscal: número decrescente. Mantém o lugar
+        // correto de PVs/NFs recriados por reconciliação (não vão pro topo
+        // só por terem data nova). Empate: data desc.
+        .order('numero', { ascending: false })
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
 

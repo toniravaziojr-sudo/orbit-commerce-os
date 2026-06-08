@@ -916,3 +916,20 @@ A cada 30 minutos, uma rotina varre pedidos das últimas 24h com NF autorizada *
 
 Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration` e `mem://constraints/wms-pratika-combined-send-and-cnpj-raw`.
 
+
+---
+
+## Ordenação das Listagens (Objetos, Remessas, Rastreios)
+
+**Atualizado em 2026-06-08.** Todas as listagens do módulo seguem o **Padrão de Ordenação de Listagens Operacionais** (ver `transversais/padroes-operacionais.md`):
+
+| Lista | Chave primária | Fallback / Desempate |
+|---|---|---|
+| Objetos de Postagem — Prontos para Emitir | nº do pedido vinculado | nº do PV (PV manual) → data desc |
+| Objetos de Postagem — Objetos Emitidos | nº do pedido vinculado | nº do PV → data desc |
+| Objetos de Postagem — Pendentes | nº do pedido vinculado | nº do PV → data desc |
+| Remessas | nº da remessa | data desc |
+| Objetos dentro de uma Remessa | nº do pedido vinculado | nº do PV → data desc |
+| Rastreios | nº do pedido vinculado | data desc |
+
+**Por quê:** evita que objetos recriados por reconciliação (ex.: após cancelamento de NF de homologação) apareçam no topo só por terem data nova. O objeto recuperado volta para o lugar numérico correto.

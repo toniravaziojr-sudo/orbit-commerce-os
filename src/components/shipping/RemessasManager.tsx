@@ -122,7 +122,14 @@ export function RemessasManager() {
       }
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as RemessaRow[];
+      const { sortByNumberDesc } = await import('@/lib/sort-numeric');
+      // Remessa: ordem decrescente do número da remessa (ex.: REM-012 vem
+      // antes de REM-011); empate por data desc.
+      return sortByNumberDesc(
+        (data || []) as RemessaRow[],
+        (r) => r.numero,
+        (r) => r.created_at,
+      );
     },
     enabled: !!currentTenant?.id,
   });
@@ -155,7 +162,14 @@ export function RemessasManager() {
           }
         });
       }
-      return rows;
+      // Objetos dentro de uma remessa: ordem por número do pedido desc;
+      // fallback para número do PV quando não há pedido vinculado.
+      const { sortByNumberDesc } = await import('@/lib/sort-numeric');
+      return sortByNumberDesc(
+        rows,
+        (r: any) => r?.order?.order_number ?? r?.pv?.numero,
+        (r: any) => r?.created_at,
+      );
     },
     enabled: !!openRemessa?.id,
   });

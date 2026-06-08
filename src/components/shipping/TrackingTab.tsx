@@ -161,7 +161,13 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
           }
         }
       }
-      return shipments as ShipmentWithOrder[];
+      // Ordem padrão: número do pedido decrescente (módulo de Logística).
+      const { sortByNumberDesc } = await import('@/lib/sort-numeric');
+      return sortByNumberDesc(
+        shipments as ShipmentWithOrder[],
+        (s: any) => s?.order?.order_number,
+        (s: any) => s?.created_at,
+      );
     },
     enabled: !!currentTenant?.id,
   });

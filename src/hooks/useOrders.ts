@@ -209,7 +209,11 @@ export function useOrders(options?: {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       
+      // Ordem padrão do módulo Pedidos: número do pedido decrescente.
+      // Itens recriados/sincronizados voltam ao lugar correto na lista
+      // (não vão pro topo só por terem data de criação nova).
       const { data, error, count } = await query
+        .order('order_number_int', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .range(from, to);
 
