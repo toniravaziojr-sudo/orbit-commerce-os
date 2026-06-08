@@ -610,7 +610,7 @@ function formatFieldValue(value: any): string {
 function CampaignDetailsTab({ data, preview, action, childActions }: { data: Record<string, any>; preview: Record<string, any>; action: PendingAction; childActions?: PendingAction[] }) {
   const campaignTypeInfo = inferCampaignType(data);
   const funnel = preview.funnel_stage || data.funnel_stage || null;
-  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+  const funnelInfo = funnel ? getFunnelLabel(funnel) : null;
 
   // Merge all child adset data for fallback lookups
   const childDataList = (childActions || []).map(c => {
