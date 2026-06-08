@@ -2336,7 +2336,50 @@ async function executeToolCall(
     // Format price correctly — price is already in BRL, NOT cents (ads-data-scaling-standards)
     const productPriceDisplay = matchedProduct?.price ? `R$ ${Number(matchedProduct.price).toFixed(2)}` : null;
 
-    return { 
+    // ============ QUALITY GATE — Subfase saneamento create_campaign ============
+    // Validação determinística pura: produto×copy×criativo×destino×orçamento.
+    // Sem LLM, sem Meta. Falha = `skipped` (não-aprovável) com reason_codes.
+    try {
+      const gateInput = {
+        args: {
+          ...args,
+          headline: args.headlines?.[0] || args.headline || null,
+          primary_text: args.primary_texts?.[0] || args.primary_text || null,
+        },
+        matchedProduct: matchedProduct
+          ? { id: matchedProduct.id, name: matchedProduct.name, price: matchedProduct.price }
+          : null,
+        catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+      };
+      const gate = runCreateCampaignQualityGate(gateInput);
+      if (!gate.ok) {
+        console.warn(
+          `[ads-autopilot-strategist][${VERSION}] create_campaign BLOCKED by Quality Gate v${gate.version}: ${gate.reason_codes.join(",")}`,
+        );
+        return {
+          status: "skipped",
+          data: {
+            ...args,
+            ad_account_id: config.ad_account_id,
+            product_id: matchedProduct?.id || args.product_id || null,
+            product_name: matchedProduct?.name || args.product_name || null,
+            quality_gate: {
+              ok: false,
+              version: gate.version,
+              reason_codes: gate.reason_codes,
+              details: gate.details,
+              blocked_at: new Date().toISOString(),
+            },
+            reason: `Quality Gate bloqueou sugestão: ${gate.reason_codes.join(", ")}`,
+          },
+        };
+      }
+    } catch (gateErr: any) {
+      // Fail-open: gate nunca pode derrubar o fluxo principal.
+      console.error(`[ads-autopilot-strategist][${VERSION}] Quality Gate threw (fail-open):`, gateErr?.message);
+    }
+
+    return {
       status: "pending_approval", 
       data: { 
         ...args, 
