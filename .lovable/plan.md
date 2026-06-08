@@ -1,73 +1,139 @@
+# Plano — Numeração própria do Objeto de Postagem + remoção da criação manual
 
-## Diagnóstico revisado (causa raiz do fluxo, não do caso)
+## Contexto
 
-O caso da Maria da Glória (PV 395) não é incidente isolado — é sintoma de **3 falhas combinadas no fluxo de criação do objeto de postagem**:
+Hoje, na aba de Objetos de Postagem da Logística, a coluna "Pedido" mostra o
+número do **Pedido** quando ele existe e cai para o número do **Pedido de
+Venda** quando não existe (PV manual/duplicado). Isso mistura duas numerações
+diferentes na mesma lista, e por isso objetos recriados ou recuperados aparecem
+em posição estranha.
 
-**Falha 1 — Dedup cego no processador da fila de rascunhos.**
-Quando o processador encontra qualquer objeto de postagem já existente para aquele Pedido de Venda, ele marca o item da fila como "concluído", mesmo que esse objeto seja de uma tentativa antiga (no caso, uma NF de homologação descartada depois). Se aquele objeto desaparecer em seguida (cancelamento de NF, limpeza), o PV fica sem objeto e sem rastro de que precisa de um novo.
+Além disso, existe hoje no canto da aba "Prontos para emitir" um botão **"Criar
+novo objeto"** que abre um diálogo para criar um Objeto de Postagem sem passar
+por Pedido de Venda. Isso fere a regra canônica do sistema (vínculo do objeto
+precisa ser sempre com o Pedido de Venda) e gera objetos órfãos sem produto,
+sem peso e sem rastreabilidade fiscal.
 
-**Falha 2 — Limpeza de NF cancelada removeu o objeto válido.**
-O descarte de NF de homologação levou junto o objeto de postagem. Hoje o sistema é 100% produção, então isso não se repete por essa via — mas o resíduo do PV 395 ficou.
+## Objetivo
 
-**Falha 3 — A reconciliação automática existente não consegue consertar esses casos.**
-A rotina de 15 em 15 minutos que recria objetos órfãos não enfileira novamente porque a fila tem regra de "1 entrada por PV" — e como já existe uma entrada antiga marcada como "concluída", a nova é bloqueada e o PV fica órfão para sempre.
+1. Dar ao **Objeto de Postagem** uma numeração própria, sequencial por loja, no
+   mesmo padrão do Pedido, Pedido de Venda, Nota Fiscal e Remessa.
+2. Atribuir esse número automaticamente no momento em que o objeto é criado,
+   independente da origem (PV manual, duplicação ou pedido pago real).
+3. Garantir que objetos recriados por auto-cura, reconciliação ou
+   reprocessamento usem o **próximo número da sequência** e por isso caiam
+   sempre na ordem correta da lista (decrescente pelo número do próprio
+   objeto).
+4. Remover do sistema a possibilidade de criar Objeto de Postagem manualmente
+   pela tela de Logística.
 
-**Conclusão:** o PV 395 não é o problema. O problema é que o sistema não tem como se autocurar quando o objeto some depois de a fila ter sido marcada como concluída.
+## O que muda
 
----
+### Numeração própria do Objeto de Postagem
 
-## O que será corrigido (correção de fluxo)
+- Cada Objeto de Postagem passa a ter um número próprio, sequencial por loja,
+  começando em 1.
+- O número é gravado no momento da criação e nunca muda, mesmo em reemissão
+  ou auto-cura.
+- Objetos antigos (legado) recebem um número retroativo único, na ordem
+  cronológica em que foram criados, para não embaralhar a lista.
+- A listagem da aba "Objetos de Postagem" (Prontos, Emitidos e Pendentes)
+  passa a exibir e ordenar por **esse** número (decrescente). Acaba a mistura
+  com número do Pedido/PV.
+- Onde antes a lista mostrava `##592` (número do pedido), passa a mostrar o
+  número do objeto. O número do Pedido/PV vinculado continua disponível como
+  informação secundária na linha (para o operador continuar enxergando a
+  origem), apenas deixa de ser a chave de ordenação.
 
-### 1. Regra de unicidade da fila vira "só enquanto está aberta"
-A trava de "1 entrada por PV" passa a valer apenas para entradas em aberto (pendente/em processamento). Entradas concluídas, canceladas ou falhas ficam preservadas para auditoria, mas não impedem que a reconciliação abra uma nova quando precisar. Isso destrava a autocura.
+### Remoção da criação manual
 
-### 2. Reconciliação automática passa a tratar PVs órfãos com histórico
-A rotina já existente passa a detectar também o cenário "PV ativo, pedido pago, sem objeto, mas com entrada antiga concluída na fila" — e enfileira uma nova tentativa. Continua respeitando todos os filtros atuais (não toca em marketplace, gateway, cancelado, chargeback, devolução).
+- Remover o botão **"Criar novo objeto"** da aba "Prontos para emitir".
+- Remover o diálogo/fluxo de criação manual que esse botão abre.
+- Manter intactas todas as outras ações (editar destinatário, emitir etiqueta,
+  gerar Declaração de Conteúdo, excluir objeto, retentativa).
+- Reforçar a regra: **Objeto de Postagem só nasce a partir de um Pedido de
+  Venda** (manual, duplicado ou criado automaticamente a partir de pedido
+  pago). Pedidos via gateway (Frenet) continuam fora desse fluxo, como já é
+  hoje.
 
-### 3. Dedup do processador fica honesto
-A verificação de duplicidade passa a considerar apenas objetos de postagem **ativos** (ignora os cancelados/descartados). Se não houver objeto ativo, o processador cria de fato — não marca a fila como concluída por engano. Adicionalmente, registra qual objeto foi considerado como "já existente" para auditoria futura.
+### Governança / anti-regressão
 
-### 4. Conserto da Maria da Glória sai de graça
-Com as correções acima em vigor, a próxima execução automática da rotina (a cada 15 min) detecta o PV 395 como órfão, enfileira uma nova entrada e o processador cria o objeto de postagem normalmente. Nenhuma chamada manual ao Correios, nenhum mexer em pedido real, nenhum despacho automático — o objeto aparece como rascunho na aba Remessas, pronto para o operador emitir quando quiser.
+- Atualizar a documentação de Logística e o padrão operacional transversal
+  registrando:
+  - Objeto de Postagem tem numeração própria.
+  - Ordenação obrigatória pelo número do próprio módulo, decrescente.
+  - Proibida criação manual de Objeto de Postagem fora do fluxo do Pedido
+    de Venda.
+- Registrar memória anti-regressão travando essas duas regras.
+- Atualizar o mapa de UI com a remoção do botão.
 
----
+## Resultado final
 
-## O que NÃO muda
+- Toda criação ou recriação de Objeto de Postagem (manual, duplicação, pedido
+  real, auto-cura) recebe o próximo número da sequência da loja.
+- A lista fica sempre na ordem numérica decrescente do próprio objeto —
+  duplicação, reemissão ou recuperação sempre cai no lugar certo.
+- Não existe mais caminho na UI para criar um Objeto de Postagem "do nada".
 
-- Nenhuma mudança na tela de Remessas, Fiscal ou Pedidos.
-- Nenhuma mudança em regra de negócio (status, prazos, fluxo PV→NF, Pratika, Correios).
-- Nenhum despacho automático novo. O sistema continua só **gerando rascunho**; a emissão de etiqueta segue manual.
-- PV de marketplace, gateway (Frenet), cancelado, chargeback e devolução continuam fora da reconciliação, como hoje.
-- PV manual sem pedido real continua sob controle exclusivo do usuário.
+## Pendência cruzada (já validada antes deste plano)
 
----
+A correção do fluxo de auto-cura do PV órfão (Maria da Glória / PV 395)
+continua valendo e é **pré-requisito** para este plano: sem ela, o
+recém-numerado objeto recriado nunca chegaria a ser enfileirado. Aquela
+correção é feita junto, no mesmo deploy:
+
+- Unicidade da fila de rascunhos passa a valer só para entradas em aberto
+  (concluídas/canceladas/falhas não bloqueiam reabertura).
+- Reconciliação automática detecta PV ativo sem objeto válido e enfileira
+  nova tentativa.
+- Dedup do processador só considera objeto ativo (ignora cancelado).
 
 ## Validação após aplicar
 
-1. Confirmar que o PV 395 ganhou uma nova entrada na fila no ciclo seguinte de reconciliação.
-2. Confirmar que o objeto de postagem da Maria da Glória foi criado como rascunho.
-3. Confirmar que ela aparece na aba Remessas como pronta para emitir.
-4. Confirmar que nenhum outro PV ativo foi tocado indevidamente (varredura nos 290 PVs do tenant).
-5. Confirmar que pedidos cancelados/chargeback/marketplace/gateway continuaram ignorados.
+1. Criar um PV novo manual → conferir que o objeto nasce com o próximo
+   número da sequência e aparece no topo da lista.
+2. Duplicar um PV existente → conferir que o objeto novo recebe um número
+   novo (não herda o do original) e fica acima na lista.
+3. Conferir que objetos antigos continuam visíveis, com número retroativo,
+   na ordem cronológica correta.
+4. Conferir que o botão "Criar novo objeto" não existe mais em nenhuma aba
+   do módulo de Logística.
+5. PV 395 (Maria) ganha objeto na próxima execução do cron, com número novo
+   na sequência.
+
+## Fora do escopo
+
+- Numeração de Remessas, Pedido, Pedido de Venda e Nota Fiscal — sem
+  mudanças.
+- Pedidos via gateway (Frenet) — fluxo intacto.
+- UI das outras abas (Remessas, Rastreios, Dashboard) — só passam a usar o
+  novo campo para ordenar; layout não muda.
+
+## Bloco técnico (opcional)
+
+- Nova coluna `numero` (`bigint`) em `shipments`, sequencial por
+  `tenant_id`, alocada por função `allocate_shipment_numero(p_tenant_id)`
+  (mesmo padrão de `allocate_remessa_numero`). Índice único parcial
+  `(tenant_id, numero)` e índice de ordenação
+  `(tenant_id, numero DESC)`.
+- Atribuição via trigger `BEFORE INSERT` em `shipments` quando `numero IS
+  NULL`. Cobre criação por `scheduler-tick` (PHASE 1.6),
+  `shipping-create-shipment`, reconciliação e qualquer caminho legado, sem
+  precisar tocar cada chamador.
+- Backfill único, ordenado por `created_at ASC` por tenant, atribuindo
+  números a registros existentes.
+- `ShipmentGenerator` / `RemessasManager` / `TrackingTab` passam a:
+  - exibir `shipment.numero` como coluna primária;
+  - ordenar via `sortByNumberDesc(items, s => s.numero, s => s.created_at)`.
+  - manter o número do PV/Pedido como info secundária.
+- Remover em `ShipmentGenerator.tsx`: botão "Criar novo objeto" (linha
+  ~872), `openCreateDraft` handler, dialog e estado relacionado. Limpar
+  imports órfãos.
+- Atualizar `src/integrations/supabase/types.ts` automaticamente após a
+  migração.
 
 ---
 
-## Documentação a atualizar (na mesma entrega)
-
-- Atualizar a regra oficial de reconciliação de objeto órfão para refletir a nova unicidade parcial e o tratamento de entradas concluídas órfãs.
-- Atualizar a especificação de logística com o novo comportamento do dedup do processador.
-- Registrar como regra anti-regressão: "dedup do processador só considera objeto ativo; fila aceita reabertura via reconciliação quando PV está ativo e sem objeto".
-
----
-
-## Detalhes técnicos (bloco opcional)
-
-- Tornar o índice `shipping_draft_queue_pv_unique` parcial: `WHERE status IN ('pending','processing')`.
-- Ajustar `reconcile_orphan_pv_shipments` para detectar PVs ativos sem `shipments` e sem entrada `pending/processing` na fila (a presença de entrada `done/cancelled/failed` deixa de bloquear).
-- Em `scheduler-tick` PHASE 1.6, alterar dedup para `delivery_status <> 'cancelled'` (ou equivalente "ativo"); ao decidir pular por dedup, gravar `dedup_shipment_id` em `shipping_draft_queue.metadata` para forense.
-- Conserto do PV 395 deixa de exigir intervenção: cai naturalmente no cron `reconcile-orphan-pv-shipments-15m` após o deploy. Opcionalmente, disparar a função manualmente uma vez logo após o deploy para encurtar a espera.
-- Sem novas tabelas, sem nova UI, sem novo cron, sem nova edge function.
-
----
-
-Confirma que eu sigo nessa direção?
+Mantenho o plano consolidado: numeração própria + remoção do botão de
+criação manual, junto com o pré-requisito de auto-cura já acordado. Posso
+seguir para a implementação?
