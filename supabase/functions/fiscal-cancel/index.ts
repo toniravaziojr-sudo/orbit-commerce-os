@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Tenant guard via filtro composto
     const { data: invoice, error: invoiceError } = await supabaseClient
       .from('fiscal_invoices')
-      .select('id, tenant_id, status, focus_ref, order_id, cancelled_at')
+      .select('id, tenant_id, status, focus_ref, order_id, cancelled_at, source_order_invoice_id')
       .eq('id', invoice_id)
       .eq('tenant_id', tenantId)
       .maybeSingle();
@@ -76,8 +76,53 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ===================================================================
+    // TRAVA POR ESTADO DO OBJETO LOGÍSTICO (plano 2026-06-08)
+    // Cancelar NF só é permitido se NÃO houver objeto OU se o objeto
+    // estiver em 'draft' (etiqueta em preparo), 'label_created'
+    // (etiqueta gerada, ainda não despachada) ou 'cancelled'.
+    // Qualquer estado em movimento bloqueia com mensagem PT-BR.
+    // ===================================================================
+    const ALLOWED_SHIPMENT_STATES = new Set(['draft', 'label_created', 'cancelled']);
+    const { data: linkedShipments } = await supabaseClient
+      .from('shipments')
+      .select('id, tracking_code, delivery_status, delivered_at, source_pedido_venda_id')
+      .or(
+        [
+          `invoice_id.eq.${invoice_id}`,
+          invoice.source_order_invoice_id ? `source_pedido_venda_id.eq.${invoice.source_order_invoice_id}` : '',
+        ].filter(Boolean).join(',')
+      )
+      .eq('tenant_id', tenantId);
+
+    const blocking = (linkedShipments ?? []).find(s => !ALLOWED_SHIPMENT_STATES.has(String(s.delivery_status ?? '')));
+    if (blocking) {
+      const tracking = blocking.tracking_code ? ` (rastreio: ${blocking.tracking_code})` : '';
+      let msg = '';
+      const st = String(blocking.delivery_status ?? '');
+      if (st === 'delivered') {
+        const dt = blocking.delivered_at ? new Date(blocking.delivered_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '';
+        msg = `Não é possível cancelar esta NF: o pedido já foi entregue ao cliente${tracking}${dt ? `, entregue em ${dt}` : ''}. Notas de pedidos entregues não podem ser canceladas — utilize uma NF de devolução se for o caso.`;
+      } else if (st === 'returned' || st === 'returning') {
+        msg = `Não é possível cancelar esta NF: o pedido foi devolvido${tracking}. Registre uma NF de devolução em vez de cancelar a original.`;
+      } else {
+        msg = `Não é possível cancelar esta NF: o pedido já foi despachado e está em rota de entrega${tracking}. Para cancelar a NF, primeiro cancele o objeto de postagem no módulo de Logística.`;
+      }
+      return jsonResponse({
+        success: false,
+        error: msg,
+        code: 'shipment_blocks_cancel',
+        blocking_shipment: {
+          tracking_code: blocking.tracking_code,
+          delivery_status: blocking.delivery_status,
+          delivered_at: blocking.delivered_at,
+        },
+      });
+    }
+
     if (!invoice.focus_ref) {
       return jsonResponse({ success: false, error: 'NF-e não foi enviada para Focus NFe', code: 'no_focus_ref' });
+
     }
 
     const { data: settings } = await supabaseClient
