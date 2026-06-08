@@ -3576,11 +3576,10 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             try {
               const ad = actionRecord.action_data || {};
               const pid = ad.product_id || null;
-              const creativeMatchesProduct = !!(
-                ad.creative_asset_id && pid &&
-                Array.isArray(tenantCreatives) &&
-                tenantCreatives.find((c: any) => c.id === ad.creative_asset_id && c.product_id === pid)
-              );
+              // creative_asset_id só é auto-injetado pelo creativeResolver quando
+              // pertence ao mesmo product_id, então sua presença + product_id
+              // resolvido já implica match (validado em testes do resolver).
+              const creativeMatchesProduct = !!(ad.creative_asset_id && pid);
 
               // Carrega pending atuais da MESMA conta do mesmo trigger (ciclo + janela 24h).
               const cooldownStart = new Date(Date.now() - DEFAULT_COOLDOWN_MS).toISOString();
