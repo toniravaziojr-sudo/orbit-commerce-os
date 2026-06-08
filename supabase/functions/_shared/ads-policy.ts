@@ -256,12 +256,25 @@ const ACTION_CLASS_MAP: Record<string, { cls: ActionClass; reason: string }> = {
   strategic_plan:                { cls: "needs_approval", reason: "strategic_plan_requires_approval" },
 
   // ───────── C) emergency (risco real — execução técnica futura imediata sob critérios)
-  kill_switch_account:     { cls: "emergency", reason: "kill_switch" },
-  pause_emergency_campaign:{ cls: "emergency", reason: "emergency_pause" },
-  pause_emergency_adset:   { cls: "emergency", reason: "emergency_pause" },
-  pause_tracking_broken:   { cls: "emergency", reason: "tracking_broken" },
-  pause_budget_breach:     { cls: "emergency", reason: "budget_breach" },
-  pause_broken_link:       { cls: "emergency", reason: "broken_link" },
+  kill_switch_account:        { cls: "emergency", reason: "kill_switch" },
+  pause_emergency_campaign:   { cls: "emergency", reason: "emergency_pause" },
+  pause_emergency_adset:      { cls: "emergency", reason: "emergency_pause" },
+  pause_tracking_broken:      { cls: "emergency", reason: "tracking_broken" },
+  pause_budget_breach:        { cls: "emergency", reason: "budget_breach" },
+  pause_broken_link:          { cls: "emergency", reason: "broken_link" },
+  emergency_operational_pause:{ cls: "emergency", reason: "emergency_operational_pause" },
+  pause_out_of_stock:         { cls: "emergency", reason: "product_out_of_stock" },
+  pause_site_down:            { cls: "emergency", reason: "site_down" },
+
+  // ───────── B') strategic pause — NUNCA autoexecuta (sempre humana)
+  strategic_pause:               { cls: "needs_approval", reason: "strategic_pause_requires_approval" },
+  pause_low_roas:                { cls: "needs_approval", reason: "strategic_pause_low_roas" },
+  pause_low_cpa:                 { cls: "needs_approval", reason: "strategic_pause_low_cpa" },
+  pause_mature_performance:      { cls: "needs_approval", reason: "strategic_pause_mature_performance" },
+  pause_dayparting:              { cls: "needs_approval", reason: "strategic_pause_dayparting" },
+  pause_schedule:                { cls: "needs_approval", reason: "strategic_pause_schedule" },
+  pause_fatigue:                 { cls: "needs_approval", reason: "strategic_pause_fatigue" },
+  pause_budget_redistribution:   { cls: "needs_approval", reason: "strategic_budget_redistribution" },
 
   // ───────── D) observational (NUNCA chama API externa)
   insight:        { cls: "observational", reason: "insight_only" },
