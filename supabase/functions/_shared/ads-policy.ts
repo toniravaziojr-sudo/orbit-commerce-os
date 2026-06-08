@@ -103,12 +103,15 @@ export function normalizeAutonomyMode(value: unknown): AutonomyMode {
 }
 
 /**
- * Fase C.2 — Nenhuma autonomia automática é liberada nesta fase, qualquer que
- * seja o `autonomy_mode`. Esta função existe para deixar o contrato explícito
- * em código: enquanto o sistema estiver em C.2, autoexecução = false.
+ * Fase C.4 — Autoexecução técnica governada por toggle.
+ * Retorna `true` quando o modo efetivo for `technical_only`. A liberação real
+ * de execução automática ainda depende dos demais gates (kill switch, IA ativa,
+ * janela segura, classe da ação, Policy Engine, etc.) — esta função apenas
+ * indica que o toggle do tenant/conta autoriza o motor a considerar a
+ * autoexecução de ações técnicas elegíveis.
  */
-export function isAutonomyExecutionEnabled(_mode: AutonomyMode | unknown): false {
-  return false;
+export function isAutonomyExecutionEnabled(mode: AutonomyMode | unknown): boolean {
+  return normalizeAutonomyMode(mode) === "technical_only";
 }
 
 export type CampaignClass =
