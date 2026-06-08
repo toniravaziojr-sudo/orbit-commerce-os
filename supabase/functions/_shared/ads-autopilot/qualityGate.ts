@@ -88,23 +88,33 @@ function copyMentionsProduct(
   if (!haystack) return false;
   const productNorm = norm(product.name);
   if (!productNorm) return false;
-  // Exata
   if (haystack.includes(productNorm)) return true;
-  // Pelo menos 2 tokens significativos do nome do produto
   const ptoks = tokens(product.name);
   if (ptoks.length === 0) return false;
   const hits = ptoks.filter((t) => haystack.includes(t)).length;
   return hits >= Math.min(2, ptoks.length);
 }
 
+/**
+ * Detecta outro produto do catálogo mencionado na copy usando APENAS tokens
+ * exclusivos (não compartilhados com o produto vinculado). Evita falso
+ * positivo entre "Shampoo Calvície Zero" e "Kit Banho Calvície Zero", que
+ * compartilham "calvicie" e "zero".
+ */
 function copyMentionsAnyCatalogProduct(
   copyBlob: string,
   catalog: QualityGateProduct[],
   except: QualityGateProduct | null,
 ): QualityGateProduct | null {
+  const haystack = norm(copyBlob);
+  if (!haystack) return null;
+  const exceptToks = new Set(except ? tokens(except.name) : []);
   for (const p of catalog) {
     if (except && p.id === except.id) continue;
-    if (copyMentionsProduct(copyBlob, p)) return p;
+    const uniq = tokens(p.name).filter((t) => !exceptToks.has(t));
+    if (uniq.length === 0) continue;
+    const hits = uniq.filter((t) => haystack.includes(t)).length;
+    if (hits >= Math.min(2, uniq.length)) return p;
   }
   return null;
 }
