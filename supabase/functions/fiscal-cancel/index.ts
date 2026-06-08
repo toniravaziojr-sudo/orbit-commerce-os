@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     // (etiqueta gerada, ainda não despachada) ou 'cancelled'.
     // Qualquer estado em movimento bloqueia com mensagem PT-BR.
     // ===================================================================
-    const ALLOWED_SHIPMENT_STATES = new Set(['draft', 'label_created', 'cancelled']);
+    const ALLOWED_SHIPMENT_STATES = new Set(['draft', 'label_created', 'canceled']);
     const { data: linkedShipments } = await supabaseClient
       .from('shipments')
       .select('id, tracking_code, delivery_status, delivered_at, source_pedido_venda_id')
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     await supabaseClient
       .from('shipments')
       .update({
-        delivery_status: 'cancelled',
+        delivery_status: 'canceled',
         action_reason: 'invoice_cancelled',
         requires_action: false,
         invoice_id: null,
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
       })
       .or(shipmentFilters)
       .eq('tenant_id', tenantId)
-      .neq('delivery_status', 'cancelled');
+      .neq('delivery_status', 'canceled');
 
     if (invoice.source_order_invoice_id) {
       await supabaseClient
