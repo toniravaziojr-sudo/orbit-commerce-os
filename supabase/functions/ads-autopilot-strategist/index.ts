@@ -2161,6 +2161,39 @@ async function executeToolCall(
           if (toolName === "generate_creative") {
     // v1.20.0: STRICT matching — NO fallback to products[0] to prevent wrong product images
     const topProduct = context.products.find((p: any) => p.name.trim() === (args.product_name || "").trim());
+
+    // ============ PREFLIGHT generate_creative — evita gasto de crédito ============
+    try {
+      const gcGate = runGenerateCreativeQualityGate({
+        args,
+        matchedProduct: topProduct
+          ? { id: topProduct.id, name: topProduct.name, price: topProduct.price }
+          : null,
+        catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+      });
+      if (!gcGate.ok) {
+        console.warn(
+          `[ads-autopilot-strategist][${VERSION}] generate_creative BLOCKED by Quality Gate v${gcGate.version}: ${gcGate.reason_codes.join(",")}`,
+        );
+        return {
+          status: "skipped",
+          data: {
+            ...args,
+            quality_gate: {
+              ok: false,
+              version: gcGate.version,
+              reason_codes: gcGate.reason_codes,
+              details: gcGate.details,
+              blocked_at: new Date().toISOString(),
+            },
+            reason: `Preflight de criativo bloqueou: ${gcGate.reason_codes.join(", ")}`,
+          },
+        };
+      }
+    } catch (gcErr: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] generate_creative gate threw (fail-open):`, gcErr?.message);
+    }
+
     if (!topProduct) {
       console.error(`[ads-autopilot-strategist][${VERSION}] generate_creative: produto "${args.product_name}" NÃO encontrado no catálogo. Rejeitando para evitar imagem genérica.`);
       return { status: "failed", data: { error: `Produto "${args.product_name}" não encontrado no catálogo. Use o nome EXATO do catálogo.` } };
