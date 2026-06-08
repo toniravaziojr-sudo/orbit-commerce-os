@@ -23,7 +23,7 @@
 //   - invalid_generate_creative_offer_mismatch
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.1.2";
+export const QUALITY_GATE_VERSION = "1.2.0";
 
 // CTAs aceitos pela Meta para campanhas de vendas/conversão.
 // Mantemos uma lista permissiva — basta haver algum CTA não vazio para

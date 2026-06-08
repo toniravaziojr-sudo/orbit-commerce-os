@@ -16,6 +16,14 @@ import {
   DEFAULT_COOLDOWN_MS,
   type ExistingPendingProposal,
 } from "../_shared/ads-autopilot/proposalLimiter.ts";
+import {
+  evaluateStrategistCooldown,
+  evaluatePendingQueueGate,
+  shouldWeeklyYieldToMonthly,
+  MAX_PENDING_APPROVAL_QUEUE,
+  CADENCE_POLICY_VERSION,
+  type StrategistTriggerKind,
+} from "../_shared/ads-autopilot/cadencePolicy.ts";
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
@@ -3822,6 +3830,79 @@ Deno.serve(async (req) => {
     const trigger = (body.trigger || "weekly") as StrategistTrigger;
     const targetAccountId = body.target_account_id || null;
     const revisionFeedback = body.revision_feedback || null;
+    const isManualBypass = body.bypass_cadence_policy === true; // reservado a admin/sistema
+
+    // ---- Política Operacional v1: cooldown + fila + supressão weekly×monthly ----
+    if (tenantId && !isManualBypass) {
+      const now = new Date();
+      // Suprime weekly quando cair no mesmo sábado do mensal.
+      if (trigger === "weekly" && shouldWeeklyYieldToMonthly(now)) {
+        return ok({
+          skipped: true,
+          reason: "weekly_yielded_to_monthly_same_saturday",
+          cadence_policy_version: CADENCE_POLICY_VERSION,
+        });
+      }
+
+      // Mapeia trigger para cooldown e tabela de última execução.
+      let cooldownTrigger: StrategistTriggerKind | null = null;
+      if (trigger === "implement_campaigns") cooldownTrigger = "manual_implement_campaigns";
+      else if (trigger === "weekly") cooldownTrigger = "weekly";
+      else if (trigger === "monthly") cooldownTrigger = "monthly";
+
+      if (cooldownTrigger) {
+        const { data: lastSession } = await supabase
+          .from("ads_autopilot_sessions")
+          .select("created_at, trigger_type")
+          .eq("tenant_id", tenantId)
+          .eq("trigger_type", trigger)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const cooldownDecision = evaluateStrategistCooldown({
+          trigger: cooldownTrigger,
+          lastRunAt: lastSession?.created_at ?? null,
+          now,
+        });
+        if (!cooldownDecision.allowed) {
+          console.warn(`[ads-autopilot-strategist][${VERSION}] cooldown active for ${trigger}`);
+          return ok({
+            skipped: true,
+            reason: cooldownDecision.reason,
+            trigger,
+            cooldown_ms: cooldownDecision.cooldown_ms,
+            elapsed_ms: cooldownDecision.elapsed_ms,
+            cadence_policy_version: CADENCE_POLICY_VERSION,
+          });
+        }
+      }
+
+      // Gate de fila pending_approval ≥5 — bloqueia geração estrutural.
+      if (trigger === "implement_campaigns" || trigger === "weekly" || trigger === "monthly") {
+        const { count: pendingCount } = await supabase
+          .from("ads_autopilot_actions")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("status", "pending_approval");
+
+        const queueGate = evaluatePendingQueueGate({
+          pendingCount: pendingCount ?? 0,
+          actionType: "create_campaign",
+        });
+        if (!queueGate.allowed) {
+          console.warn(`[ads-autopilot-strategist][${VERSION}] queue limit reached: ${pendingCount}`);
+          return ok({
+            skipped: true,
+            reason: "pending_queue_limit_reached",
+            pending_count: pendingCount,
+            max_queue: MAX_PENDING_APPROVAL_QUEUE,
+            cadence_policy_version: CADENCE_POLICY_VERSION,
+          });
+        }
+      }
+    }
+
 
     // Cron mode: run for all tenants with active accounts
     if (!tenantId) {
