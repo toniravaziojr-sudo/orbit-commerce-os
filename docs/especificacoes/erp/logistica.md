@@ -807,15 +807,38 @@ Qualquer objeto de postagem que ganhe código de rastreio passa a ter, obrigator
 **2. Remessa com objetos ativos não pode ser apagada.**
 Tentar excluir uma Remessa agrupadora que ainda tem objetos ativos vinculados (com rastreio e não cancelados) é bloqueado com a mensagem: *"Não é possível excluir esta remessa: existem N objeto(s) de postagem ativo(s) vinculado(s)."* Para excluir, é preciso primeiro cancelar/desvincular os objetos.
 
-**3. Cancelar a NF cascateia para os objetos vinculados.**
-Quando uma Nota Fiscal é cancelada na tela Fiscal:
-- Objetos **ainda em rascunho** (sem rastreio) vinculados àquela NF são **excluídos automaticamente** — não faz sentido manter etiqueta-rascunho de uma NF que deixou de existir.
-- Objetos **já despachados** (com rastreio) são **marcados como "exige ação"** com motivo "NF cancelada" — a operação física segue, mas a UI bloqueia novos despachos do mesmo pedido e exige decisão do operador (reemitir NF, devolver, etc.).
-- Objetos editados manualmente pelo lojista são preservados.
+**3. Cancelar a NF respeita o estado do objeto vinculado (rev 2026-06-08).**
+O cancelamento de NF é **bloqueado** quando o objeto logístico vinculado está
+em andamento (`postado`, `em trânsito`, `saindo para entrega`), `entregue` ou
+`devolvido`. Só é permitido quando o objeto está em `etiqueta gerada` /
+`cancelado` ou quando não existe objeto. Ao cancelar com sucesso:
+- O objeto vinculado é marcado como `cancelado` (motivo "NF cancelada") e
+  desvinculado da nota.
+- O Pedido de Venda pai volta para **"Pedido em aberto"** sem nenhuma
+  observação herdada (sem "NF cancelada", sem "Pedido sem itens"), com as
+  pendências antigas zeradas.
+- A NF cancelada fica liberada para exclusão (vínculo com o objeto é
+  desfeito).
 
-**Caso de origem:** pedido #583 da Maria (Respeite o Homem, 2026-06-05) — teste E2E sobre pedido real produziu NF cancelada + etiqueta despachada órfã sem agrupador. Limpeza pontual feita (PV voltou a "Em aberto"); as três proteções acima foram instaladas para evitar recorrência.
+**Regra geral (resumo das 3 perguntas do operador):**
+1. **Objeto logístico só é excluído** como consequência da exclusão do PV,
+   e mesmo assim a exclusão do PV é **bloqueada** se o objeto estiver em
+   andamento ou entregue.
+2. **NF só pode ser cancelada** se o objeto vinculado estiver em "etiqueta
+   gerada", "cancelado" ou inexistente — nunca com objeto em andamento ou
+   entregue.
+3. **Ao cancelar uma NF** com objeto em "etiqueta gerada" / "cancelado" /
+   inexistente, o PV volta para "Pedido em aberto" limpo, pronto para
+   gerar nova NF.
 
-Anti-regressão: ver `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`.
+**Caso de origem:** pedido #583 da Maria (Respeite o Homem, 2026-06-05) e
+PV 403 / NF 404 (2026-06-08) — testes E2E que motivaram as três proteções
+acima.
+
+Anti-regressão: ver `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`,
+`mem://constraints/nf-cancel-blocked-by-shipment-state` e
+`mem://constraints/nf-cancel-reopens-pv-clean`.
+
 
 ---
 
