@@ -150,6 +150,7 @@ describe("Quality Gate — create_campaign", () => {
         funnel_stage: "tof",
         objective: "conversions",
         daily_budget_cents: 10000,
+        cta: "SHOP_NOW",
       },
       matchedProduct: productById("p-shampoo"),
       catalog: CATALOG,
