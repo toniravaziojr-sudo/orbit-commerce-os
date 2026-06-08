@@ -303,7 +303,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Pedido</TableHead>
+                        <TableHead>Objeto</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Código de Rastreio</TableHead>
                         <TableHead>Transportadora</TableHead>
