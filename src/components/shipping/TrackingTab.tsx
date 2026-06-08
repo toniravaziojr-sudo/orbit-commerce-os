@@ -168,6 +168,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
         (s: any) => s?.order?.order_number,
         (s: any) => s?.created_at,
       );
+    },
     enabled: !!currentTenant?.id,
   });
 
