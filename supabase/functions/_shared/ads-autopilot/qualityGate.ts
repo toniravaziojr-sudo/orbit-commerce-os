@@ -96,6 +96,16 @@ export interface QualityGateInput {
    * ao mesmo produto da campanha.
    */
   tenantCreatives?: QualityGateTenantCreative[];
+  /**
+   * Resultado da resolução do público de Clientes/Compradores do sistema
+   * para a conta de anúncios (Frente 1). Quando informado e a campanha
+   * for classificada como Pública Fria, o gate exige exclusão aplicada.
+   */
+  customerAudience?: {
+    found: boolean;
+    meta_audience_id: string | null;
+    audience_name?: string | null;
+  } | null;
 }
 
 export interface QualityGateResult {
