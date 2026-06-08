@@ -232,3 +232,32 @@ ctx.waitUntil(caches.default.put(cacheKey, cacheable));
 2. 5 requests seguidos na MESMA URL: `X-CC-Cache` deve ir de MISS → HIT a partir da 2ª. Se ficar sempre MISS, conferir `Set-Cookie` na response.
 3. `curl -sI https://<dominio>/assets/<arquivo>.js` — `X-CC-Cache: HIT` + `cache-control: public, max-age=2592000, immutable`
 4. Endpoint `/_debug` do Worker retorna `cache.usesWaitUntil: true` e `strategy: edge_rendered_html_first_v2`
+
+---
+
+## N. Ordenação de Listagens Operacionais (Pedidos, PVs, NFs, Objetos, Remessas, Rastreios)
+
+> **Status:** 🟢 Ativo desde 2026-06-08
+
+### Regra
+Toda listagem operacional do core comercial deve aparecer em **ordem decrescente pelo número nativo do módulo**, não pela data de criação do registro.
+
+- Pedidos → número do pedido (`#592`, `#591`, ...).
+- Pedidos de Venda (Fiscal) → número do PV.
+- Notas Fiscais → número da NF.
+- Objetos de Postagem (3 abas em Logística) → número do pedido vinculado, com fallback para número do PV quando não há pedido (PV manual/duplicado).
+- Remessas (agrupadores) → número da remessa.
+- Rastreios → número do pedido vinculado.
+
+**Empate (mesmo número):** desempata por data de criação decrescente.
+
+### Motivação (anti-regressão)
+Quando um item é recriado por reconciliação (ex.: PV/objeto recriado após cancelamento de NF de homologação descartada), ele ganha data nova e, se a ordenação for por data, vai para o topo mesmo tendo número antigo — confundindo o operador. A ordenação por número garante que o registro recuperado volta para o lugar correto na lista, sem parecer "novo".
+
+### Implementação
+- **Servidor (paginado):** ordenação ocorre na consulta SQL. Pedidos têm coluna gerada `order_number_int` (parte numérica do `order_number`) com índice composto `(tenant_id, order_number_int DESC NULLS LAST, created_at DESC)`. Fiscal usa `numero` (integer nativo).
+- **Cliente (listas pequenas):** util `src/lib/sort-numeric.ts` (`sortByNumberDesc`) ordena após o fetch. Usado em Objetos de Postagem, Remessas e Rastreios.
+
+### Anti-padrão
+- `.order('created_at', desc)` como ordenação primária em qualquer lista que tenha número.
+- Ordenar por número apenas no front quando há paginação no servidor (a página vem com itens errados).
