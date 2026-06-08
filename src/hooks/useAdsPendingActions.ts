@@ -117,9 +117,32 @@ export function useAdsPendingActions(channelFilter?: string) {
 
   const rejectAction = useMutation({
     mutationFn: async ({ actionId, reason }: { actionId: string; reason: string }) => {
+      const { data: userRes } = await supabase.auth.getUser();
+      const { data: current } = await supabase
+        .from("ads_autopilot_actions" as any)
+        .select("policy_check_result")
+        .eq("id", actionId)
+        .maybeSingle();
+      const rejectAudit = {
+        approval_source: "rejected_by_user",
+        human_approved: false,
+        approved_by_user: false,
+        auto_executed: false,
+        executed_by: null,
+        rejected_by: userRes.user?.id ?? null,
+        rejection_reason: reason,
+        at: new Date().toISOString(),
+      };
       const { error } = await supabase
         .from("ads_autopilot_actions" as any)
-        .update({ status: "rejected", rejection_reason: reason } as any)
+        .update({
+          status: "rejected",
+          rejection_reason: reason,
+          policy_check_result: {
+            ...((current as any)?.policy_check_result || {}),
+            autoexec_audit: rejectAudit,
+          },
+        } as any)
         .eq("id", actionId);
       if (error) throw error;
     },
