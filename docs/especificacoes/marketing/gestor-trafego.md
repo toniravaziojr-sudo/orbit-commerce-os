@@ -2634,3 +2634,108 @@ Sugestões `create_adset` que apareçam fora do escopo de uma validação de cam
 ### Validação
 - Testes: `src/test/ads-autopilot-quality-gate.test.ts` cobre SALES sem CTA (bloqueio) e SALES com `SHOP_NOW` (aceito). 151/151 testes verdes.
 - Nenhum ciclo real foi rodado. Nenhuma chamada Meta foi feita.
+
+## 8 — Política Operacional v1 (Cadência)
+
+> Módulo: `supabase/functions/_shared/ads-autopilot/cadencePolicy.ts` v1.0.0  
+> Testes: `src/test/ads-autopilot-cadence-policy.test.ts` (33 testes)  
+> Aprovada pelo usuário em 2026-06-08. Pesquisa de tempos por plataforma baseada em documentação oficial Meta / Google Ads / TikTok.
+
+### 8.1 Princípios
+- **Operação diária = manter o que existe**. Orçamento, pausas emergenciais, religar campanhas, leitura, alertas, saúde de site/estoque/tracking.
+- **Estratégia = semanal/mensal ou manual com cooldown**. Criar campanha, criativo, público, copy, oferta, duplicação, mudanças estruturais.
+- **Nenhuma nova autoexecução foi ativada nesta entrega.** Modo permanece `technical_only` + `approve_high_impact`.
+
+### 8.2 Perfis por plataforma
+Cada perfil separa explicitamente o que é **oficialmente documentado** do que é **padrão conservador operacional**.
+
+| Item | Meta | Google | TikTok |
+|---|---|---|---|
+| Janela de aprendizado (dias) | 7 (oficial) | 7 (oficial) | 7 (oficial) |
+| Mín. conversões | 50/sem (oficial) | ~50 ou 3 ciclos (oficial) | 50/ad group (oficial) |
+| Mín. dias antes de otimizar | 3 (conservador) | 7 (conservador) | 3 (conservador) |
+| Intervalo entre ajustes de orçamento | 72h (conservador) | 72h (conservador) | 72h (conservador) |
+| % máx. variação de orçamento/ciclo | **20% (conservador, NÃO oficial)** | 20% (conservador) | 20% (conservador) |
+| Janela observacional | 4 dias (3–7) | 7 dias | 4 dias |
+| Dayparting | Não recomendado (oficial) | Permitido (oficial) | Não recomendado (conservador) |
+
+**Fontes oficiais consultadas:** Meta Business Help Centre (about learning phase + significant edits + pacing/scheduling), Google Ads Help (learning phase, smart bidding), TikTok Web Auction Best Practices Guide. **O número 20% para variação de orçamento NÃO é publicado oficialmente por nenhuma plataforma — é prática consolidada e fica marcada como `conservative_operational_default` no código.**
+
+### 8.3 Idade da campanha
+- `<3 dias`: **no_touch** (apenas observar).
+- `3–7 dias`: **observe_only** (sem ajuste real, salvo emergência).
+- `≥7 dias + fora de learning + dados suficientes`: **optimize_allowed**.
+- Em learning phase: **no_touch** independente da idade.
+
+### 8.4 Janela operacional de orçamento (00:01–03:00 BRT)
+- `adjust_budget` só executa real entre 00:01 e 03:00 BRT.
+- Fora da janela, o Scheduled Runner **reagenda** automaticamente para o próximo 00:01 BRT e registra `runner_gate.reason=outside_budget_operational_window`.
+- Preparar / agendar / propor permanece permitido o tempo todo.
+
+### 8.5 Ações proibidas no ciclo diário
+Bloqueadas por padrão no Analyze diário: `create_campaign`, `create_adset`, `generate_creative`, `create_audience`, `create_lookalike_audience`, `duplicate_campaign`, `update_campaign_copy`, `update_offer`.
+
+Permitidas: `adjust_budget`, `pause_campaign` (somente emergencial), `activate_campaign`, `report_insight`, `alert`.
+
+### 8.6 Pausas
+- **Emergencial** (permitida no diário, técnica): `site_down`, `out_of_stock`, `abnormal_spend`, `tracking_broken_with_performance_drop`, `operational_risk`, `fraud_detected`, `meta_account_alert`.
+- **Estratégica** (apenas semanal/mensal, sempre aprovação humana): `low_performance`, `dayparting`, `manual_strategic`, `reorganize_account`, `test_pause`.
+- Motivo desconhecido = bloqueado por padrão.
+
+### 8.7 Cadência dos motores
+| Motor | Cron | Horário BRT | Observações |
+|---|---|---|---|
+| Analyze | 2×/dia | 06:00 / 18:00 | `ads-autopilot-analyze-0600-brt`, `-1800-brt` |
+| Guardian | 4×/dia (mantido) | 00:01, 12:00, 13:00, 16:00 | dedupe 2h por campanha+ação |
+| Scheduled Runner | a cada 5 min (mantido) | — | `adjust_budget` só executa 00:01–03:00 BRT |
+| Strategist `implement_campaigns` | **sem cron diário automático** | manual | cooldown 6h |
+| Strategist weekly | 1×/sem | sábado 01:00 | `ads-autopilot-strategist-weekly-sat-0100-brt` — cooldown 6d — suprimido se for 1º sábado do mês |
+| Strategist monthly | 1×/mês (1º sábado) | sábado 02:00 | `ads-autopilot-strategist-monthly-1st-sat-0200-brt` — cooldown 28d — supersede weekly no mesmo dia |
+| Creative weekly | mantido | quarta 08:00 | — |
+| Experiments | mantido | terça 08:00 | — |
+| Weekly Insights | mantido | segunda 08:00 | — |
+
+### 8.8 Cooldowns e limite de fila
+- Strategist manual `implement_campaigns`: **6h**.
+- Strategist weekly: **6 dias**.
+- Strategist monthly: **28 dias**.
+- Fila global `pending_approval ≥ 5` → Strategist **pula** geração estrutural e registra `skipped: pending_queue_limit_reached`.
+- Cap por ciclo (já existente): 3 propostas aprováveis / 1 por produto.
+
+### 8.9 Públicos
+- **Frio**: sempre exclui clientes (corrigido automaticamente pela política se ausente).
+- **Morno**: retenção padrão 30 dias quando ausente (ajustável por volume).
+- **Quente**: retenção padrão 14 dias quando ausente.
+- Tenants com pouco tráfego podem estender janelas via instruções estratégicas.
+
+### 8.10 Autonomia (estado atual = inalterado)
+- Modo: `technical_only` + `approve_high_impact`.
+- Pode ser autônomo no futuro (não ativado): ajuste pequeno de orçamento na janela, redução por regra clara, pausa emergencial, religar por regra, alertas/insights, geração interna de criativo sem publicação.
+- Sempre humano: criar campanha, criar adset, publicar criativo, alterar copy, alterar oferta, duplicar, mudar público estratégico, pausa estratégica, orçamento >20%, qualquer mudança visível.
+
+### 8.11 Conflito weekly × monthly
+Quando ambos caem no mesmo sábado (1º do mês), o **weekly cede** (`reason=weekly_yielded_to_monthly_same_saturday`). O monthly incorpora a análise semanal e gera um único pacote.
+
+### 8.12 Pesquisa por plataforma — fontes
+**Meta (oficial):**
+- facebook.com/business/help/112167992830700 (About the learning phase)
+- facebook.com/business/help/316478108955072 (Significant edits and learning phase)
+- developers.facebook.com/docs/marketing-api/bidding/overview/pacing-and-scheduling
+
+**Google Ads (oficial):**
+- support.google.com/google-ads/answer/13020501 (Learning phase and duration)
+- support.google.com/google-ads/answer/10970825 (How bidding algorithms learn)
+- support.google.com/google-ads/answer/7065882 (About Smart Bidding)
+
+**TikTok (oficial):**
+- ads.tiktok.com/business/library/Web_Auction_Best_Practices_Guide.pdf
+
+### 8.13 Validação executada
+- Suíte `src/test/ads-autopilot-cadence-policy.test.ts`: **33/33 testes verdes**.
+- Suíte completa do projeto: ver relatório de entrega.
+- **Nenhum ciclo real foi rodado.** **Nenhuma chamada Meta foi feita.** **Nenhuma autoexecução foi ativada.**
+
+### 8.14 Limites desta entrega
+- Hooks adicionados nos pontos críticos: Strategist (cooldown + fila), Scheduled Runner (janela 00:01–03:00 BRT para `adjust_budget`), Quality Gate (CTA já enforçado em v1.1.2 — agora marcado como v1.2.0).
+- Analyze: o bloqueio diário de ações estruturais é enforçado pela política compartilhada (`isDailyActionAllowed`); a aplicação no prompt do Analyze já restringe na origem via `phase2_actions` (linha 461 do `ads-autopilot-analyze/index.ts`). A função `isDailyActionAllowed` fica disponível como gate adicional.
+- Google/TikTok: perfis prontos no módulo (`PLATFORM_PROFILES.google` / `.tiktok`), mas sem execução real no piloto.
