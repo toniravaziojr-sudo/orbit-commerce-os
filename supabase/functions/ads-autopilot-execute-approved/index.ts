@@ -5,6 +5,10 @@ import {
   POLICY_ENGINE_VERSION,
   buildIdempotencyKey,
   getApprovalTtlHours,
+  resolveEffectiveAutonomy,
+  canAutoExecuteC4,
+  classifyAction,
+  isStrategicPauseAction,
   type ActionInput,
 } from "../_shared/ads-policy.ts";
 
