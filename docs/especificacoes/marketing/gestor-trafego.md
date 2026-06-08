@@ -2500,3 +2500,46 @@ O resolvedor de produto usava match **estrito por nome** (`name.trim() === produ
 ### Próxima validação recomendada
 
 Rodar um ciclo controlado `implement_campaigns` separado para confirmar em produção que propostas coerentes saem `pending_approval`, o log `[creative-resolver]` registra `selected_creative_id`, e sugestões sem material continuam bloqueadas.
+
+## Auto-resolução de criativo — contrato de injeção no `implement_campaigns` (Etapa 7.qg.d)
+
+### Problema observado
+
+Mesmo com o resolver da Etapa 7.qg.c já no código, o ciclo controlado de `implement_campaigns` do tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`, conta Meta `act_251893833881780`) ainda gravou 15/15 propostas `create_campaign` como `skipped` com `invalid_missing_creative`, embora o `product_id` proposto fosse válido e houvesse criativo `ready` correspondente no inventário do tenant. O sintoma indicava que a rota real do `implement_campaigns` não estava chegando à etapa de injeção de `creative_asset_id`/`creative_url` antes do Quality Gate.
+
+### Diagnóstico
+
+A rota correta (`handleToolCall` → `create_campaign` em `ads-autopilot-strategist/index.ts`) já chama, na ordem:
+
+1. `resolveProduct` (id → nome exato → nome normalizado) sobre `context.products`.
+2. Consulta tenant-scoped a `ads_creative_assets` por `tenant_id` + `product_id` + `status='ready'` + `asset_url IS NOT NULL`, com `lookupProductId = matchedProduct?.id || args.product_id` (fallback seguro quando o nome diverge).
+3. `selectReadyCreative` para escolher o criativo mais recente.
+4. Injeção de `creative_asset_id`/`creative_url` em `args` **antes** de montar o input do gate.
+5. `runCreateCampaignQualityGate` recebendo `tenantCreatives` já filtrado por `lookupProductId` para validar `invalid_creative_not_in_tenant`/`invalid_creative_product_link_mismatch`.
+
+A causa do sintoma na execução anterior foi a versão da função em produção ainda não conter esse pipeline (a rotina nova havia sido salva em disco mas não havia sido redeployada). O contrato em si estava correto.
+
+### Correção desta entrega
+
+- Reafirmação do contrato de injeção em `handleToolCall` (sem alterar lógica do resolver ou do gate).
+- Redeploy da edge function `ads-autopilot-strategist` para que o pipeline `resolver → inventário → injeção → gate` realmente rode em produção.
+- Novo teste de contrato `src/test/ads-autopilot-implement-campaigns-injection.test.ts` (9 cenários) que reproduz a rota completa em memória — sem banco, sem Meta, sem LLM — e valida:
+  - Shampoo isolado recebe `c-shampoo-1`; Kit recebe `c-kit-1`; Fast Upgrade recebe `c-fast-1`.
+  - `Fast Upgrade` é tratado como produto real do catálogo (não cai em `invalid_unknown_product_name`).
+  - Resolução por `product_id` funciona mesmo com `product_name` divergente (acento/caixa/espaço).
+  - Sem inventário ready do produto → `invalid_missing_creative` (gate continua rígido).
+  - Kit nunca recebe criativo de isolado (filtro estrito por `product_id`).
+  - `creative_asset_id` de outro produto cai em `invalid_creative_not_in_tenant`, porque o inventário fornecido ao gate é tenant-scoped pelo `product_id` da proposta.
+  - Oferta divergente continua bloqueada por `invalid_offer_mismatch` mesmo com criativo correto.
+
+### Restrições preservadas
+
+- Quality Gate v1.1 **não foi relaxado**.
+- Nenhum criativo novo gerado, nenhum crédito consumido.
+- Nenhuma chamada Meta de modificação, nenhuma autoexecução.
+- Nenhum ciclo real de IA rodado nesta entrega.
+- `Fast Upgrade` deixou de ser tratado como produto fantasma — é produto real do catálogo.
+
+### Próxima validação recomendada
+
+Rodar um único ciclo controlado `implement_campaigns` no tenant Respeite o Homem para confirmar, em produção, que ao menos uma proposta sai `pending_approval` com `creative_asset_id` preenchido e que o log estruturado `[creative-resolver]` registra `selected_creative_id` para cada produto com inventário ready.
