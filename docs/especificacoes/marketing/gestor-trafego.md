@@ -2739,3 +2739,28 @@ Quando ambos caem no mesmo sábado (1º do mês), o **weekly cede** (`reason=wee
 - Hooks adicionados nos pontos críticos: Strategist (cooldown + fila), Scheduled Runner (janela 00:01–03:00 BRT para `adjust_budget`), Quality Gate (CTA já enforçado em v1.1.2 — agora marcado como v1.2.0).
 - Analyze: o bloqueio diário de ações estruturais é enforçado pela política compartilhada (`isDailyActionAllowed`); a aplicação no prompt do Analyze já restringe na origem via `phase2_actions` (linha 461 do `ads-autopilot-analyze/index.ts`). A função `isDailyActionAllowed` fica disponível como gate adicional.
 - Google/TikTok: perfis prontos no módulo (`PLATFORM_PROFILES.google` / `.tiktok`), mas sem execução real no piloto.
+
+---
+
+## 9. Pausa — assuntos em andamento (2026-06-08)
+
+> Esta seção registra o estado dos trabalhos do Gestor de Tráfego IA no momento em que o usuário pediu pausa, para retomada futura sem perda de contexto. Não é especificação — é um marcador de continuidade.
+
+### 9.1 O que ficou entregue e estável
+- Política Operacional v1 do Ads Autopilot publicada (seção 8 deste doc): cadência diária x semanal x mensal, janela BRT 00:01–03:00 para ajuste de orçamento, cooldown do Strategist (6h manual, 6d semanal, 28d mensal), gate de fila (≥5 pendentes pausa nova geração estrutural), perfis por plataforma (Meta/Google/TikTok), exclusão automática de clientes em públicos frios.
+- Quality Gate v1.2.0: CTA obrigatório em campanhas de venda; campanhas sem CTA não permanecem aprováveis.
+- Crons reorganizados: Analyze 2x/dia (06:00 e 18:00 BRT), Strategist Weekly (sábado 01:00), Strategist Monthly (1º sábado 02:00).
+- Bateria de 33 testes da política de cadência verde. Suíte completa do projeto verde.
+- Nenhum ciclo real rodou, nenhuma chamada Meta foi feita, nenhuma autoexecução foi ativada.
+
+### 9.2 O que ficou em aberto para a próxima rodada
+1. **Validação operacional ponta-a-ponta**: rodar um `implement_campaigns` manual no tenant Respeite o Homem com a política v1 ativa e observar logs para confirmar cooldown e gate de fila no comportamento real (e não só nos testes).
+2. **Autorizar (ou não) execução autônoma de pequenos ajustes de orçamento** (≤20%) dentro da janela 00:01–03:00 BRT. Infraestrutura pronta; decisão de negócio pendente.
+3. **Aplicação do gate `isDailyActionAllowed` como verificação adicional no Analyze**, mesmo com o prompt já restringindo na origem (defesa em profundidade).
+4. **Ativação real dos perfis Google e TikTok no piloto** — hoje os perfis existem no módulo mas não estão em execução real, só Meta.
+5. **Decisão sobre as 3 sugestões `pending_approval` e os 5 adsets pendentes** que motivaram a auditoria — ficaram aguardando o usuário decidir Aprovar/Recusar item a item.
+
+### 9.3 Como retomar
+- Reler esta seção 9 + seção 8 (Política Operacional v1).
+- Conferir fila atual de `pending_approval` no tenant antes de qualquer ação.
+- Não recriar política, não rodar Strategist em lote sem cooldown, não ativar autoexecução sem decisão registrada do usuário.
