@@ -822,8 +822,13 @@ em andamento (`postado`, `em trânsito`, `saindo para entrega`), `entregue` ou
 
 **Regra geral (resumo das 3 perguntas do operador):**
 1. **Objeto logístico só é excluído** como consequência da exclusão do PV,
-   e mesmo assim a exclusão do PV é **bloqueada** se o objeto estiver em
-   andamento ou entregue.
+   e mesmo assim a exclusão do PV é **bloqueada pelo banco** (não só pela
+   tela) se o objeto estiver em andamento (`postado`, `em trânsito`,
+   `saindo para entrega`) ou já entregue/devolvido. A trava é a regra
+   `PV_SHIPMENT_IN_PROGRESS` aplicada por gatilho de banco; a tela
+   mostra a mensagem: *"Este Pedido de Venda tem um objeto de postagem
+   em andamento ou já entregue ao cliente. Cancele o envio no módulo de
+   Logística antes de excluir."*
 2. **NF só pode ser cancelada** se o objeto vinculado estiver em "etiqueta
    gerada", "cancelado" ou inexistente — nunca com objeto em andamento ou
    entregue.
@@ -831,13 +836,22 @@ em andamento (`postado`, `em trânsito`, `saindo para entrega`), `entregue` ou
    inexistente, o PV volta para "Pedido em aberto" limpo, pronto para
    gerar nova NF.
 
+> ⚠️ **Grafia oficial do status do objeto (rev 2026-06-08b):** o valor
+> canônico de cancelamento em `shipments.delivery_status` é **`canceled`**
+> (um L, padrão americano). Triggers, edge functions e validações na UI
+> devem usar exatamente essa grafia — `cancelled` (dois L) não existe no
+> enum e gera erro de cast em produção. Mensagem na tela ao tentar
+> excluir PV/NF diferencia explicitamente "Pedido de Venda" de "Nota
+> Fiscal" (sem texto genérico "Erro ao excluir nota").
+
 **Caso de origem:** pedido #583 da Maria (Respeite o Homem, 2026-06-05) e
-PV 403 / NF 404 (2026-06-08) — testes E2E que motivaram as três proteções
-acima.
+PV 403 / NF 404 (2026-06-08) — testes E2E que motivaram as proteções
+acima e a padronização da grafia do enum.
 
 Anti-regressão: ver `mem://constraints/shipping-remessa-self-heal-and-cancel-cascade`,
-`mem://constraints/nf-cancel-blocked-by-shipment-state` e
-`mem://constraints/nf-cancel-reopens-pv-clean`.
+`mem://constraints/nf-cancel-blocked-by-shipment-state`,
+`mem://constraints/nf-cancel-reopens-pv-clean` e
+`mem://constraints/shipping-delivery-status-enum-spelling-canonical`.
 
 
 ---
