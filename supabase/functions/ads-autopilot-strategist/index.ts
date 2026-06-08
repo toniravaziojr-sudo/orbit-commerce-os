@@ -4,7 +4,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
-import { runCreateCampaignQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
+import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
@@ -1490,6 +1490,9 @@ NESTA FASE VOCÊ DEVE:
 3. Ajustar budgets (adjust_budget) de campanhas existentes SOMENTE se o plano pedir
 
 REGRAS ESTRUTURAIS (INVIOLÁVEIS):
+- **PRODUTO REAL OBRIGATÓRIO**: product_name DEVE ser o nome EXATO de um produto existente no catálogo do tenant (lista fornecida em "PRODUTOS"). É PROIBIDO inventar codinomes comerciais ("Fast Upgrade", "Boost", "Pro Edition" etc.) que não existam no catálogo. Sugestão com produto fantasma será bloqueada pelo Quality Gate e marcada como inválida.
+- **COERÊNCIA PRODUTO × COPY × CRIATIVO**: campaign_name, headlines, primary_texts e creative DEVEM falar do MESMO produto. NUNCA misture Kit com produto isolado (ex.: vincular "Kit Banho" e escrever copy só sobre "Shampoo"). NUNCA use copy de um produto diferente do vinculado.
+- **CRIATIVO EXISTENTE OBRIGATÓRIO**: você só pode propor create_campaign se houver um creative_asset_id (ou creative_url) DO TENANT, vinculado ao MESMO produto da campanha, em status ready no inventário "CRIATIVOS PRONTOS". Se não houver criativo válido, NÃO proponha create_campaign — registre como pendência para a Fase 1 (implement_creatives) regenerar.
 - **REMARKETING vs TOF**: Copys e criativos de remarketing DEVEM ser DIFERENTES dos de venda direta. O público já viu os anúncios TOF. Use ângulos: objeção, urgência, prova social, benefícios complementares.
 - **CAMPANHAS DE TESTE**: Cada anúncio em seu PRÓPRIO adset (1:1). Use ABO (budget no adset, NÃO no nível de campanha). Budget dividido igualmente entre variações.
 - **VENDA DIRETA (TOF)**: Os adsets DEVEM corresponder EXATAMENTE aos listados em adsets[] do plano. NÃO adicione adsets extras.
@@ -1497,13 +1500,14 @@ REGRAS ESTRUTURAIS (INVIOLÁVEIS):
 - Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT
 - Aumentos de budget limitados a +20% por campanha existente
 - NUNCA use copy genérica como "Conheça nosso produto" — seja específico
-- destination_url: Use URL com SLUG do produto (não UUID)
+- destination_url: Use URL com SLUG do produto (não UUID) — obrigatório quando objective for conversions/traffic/sales/leads
 
 NESTA FASE VOCÊ NÃO DEVE:
 - NÃO use generate_creative — criativos já foram gerados
 - NÃO use strategic_plan — o plano já foi aprovado
 - NÃO peça aprovação ou confirmação — EXECUTE diretamente
-- NÃO crie campanhas ou adsets que NÃO estejam explicitamente no plano aprovado`;
+- NÃO crie campanhas ou adsets que NÃO estejam explicitamente no plano aprovado
+- NÃO proponha create_campaign sem creative_asset_id do tenant vinculado ao mesmo produto`;
       break;
   }
 
@@ -2161,6 +2165,39 @@ async function executeToolCall(
           if (toolName === "generate_creative") {
     // v1.20.0: STRICT matching — NO fallback to products[0] to prevent wrong product images
     const topProduct = context.products.find((p: any) => p.name.trim() === (args.product_name || "").trim());
+
+    // ============ PREFLIGHT generate_creative — evita gasto de crédito ============
+    try {
+      const gcGate = runGenerateCreativeQualityGate({
+        args,
+        matchedProduct: topProduct
+          ? { id: topProduct.id, name: topProduct.name, price: topProduct.price }
+          : null,
+        catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+      });
+      if (!gcGate.ok) {
+        console.warn(
+          `[ads-autopilot-strategist][${VERSION}] generate_creative BLOCKED by Quality Gate v${gcGate.version}: ${gcGate.reason_codes.join(",")}`,
+        );
+        return {
+          status: "skipped",
+          data: {
+            ...args,
+            quality_gate: {
+              ok: false,
+              version: gcGate.version,
+              reason_codes: gcGate.reason_codes,
+              details: gcGate.details,
+              blocked_at: new Date().toISOString(),
+            },
+            reason: `Preflight de criativo bloqueou: ${gcGate.reason_codes.join(", ")}`,
+          },
+        };
+      }
+    } catch (gcErr: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] generate_creative gate threw (fail-open):`, gcErr?.message);
+    }
+
     if (!topProduct) {
       console.error(`[ads-autopilot-strategist][${VERSION}] generate_creative: produto "${args.product_name}" NÃO encontrado no catálogo. Rejeitando para evitar imagem genérica.`);
       return { status: "failed", data: { error: `Produto "${args.product_name}" não encontrado no catálogo. Use o nome EXATO do catálogo.` } };
@@ -2336,6 +2373,28 @@ async function executeToolCall(
     // Format price correctly — price is already in BRL, NOT cents (ads-data-scaling-standards)
     const productPriceDisplay = matchedProduct?.price ? `R$ ${Number(matchedProduct.price).toFixed(2)}` : null;
 
+    // ============ PREFLIGHT — Resolução determinística de criativo ============
+    // Antes do Quality Gate, tentamos casar o criativo válido do tenant
+    // (ads_creative_assets ready, mesmo product_id). Isto evita falso-positivo
+    // de `invalid_missing_creative` quando o Strategist não inlinou o asset.
+    let tenantCreatives: any[] = [];
+    if (matchedProduct) {
+      const { data: assets } = await supabase
+        .from("ads_creative_assets")
+        .select("id, asset_url, product_id, tenant_id, funnel_stage, format, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("product_id", matchedProduct.id)
+        .eq("status", "ready")
+        .not("asset_url", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      tenantCreatives = assets || [];
+      if (!args.creative_asset_id && !args.creative_url && tenantCreatives.length > 0) {
+        args.creative_asset_id = tenantCreatives[0].id;
+        args.creative_url = tenantCreatives[0].asset_url;
+      }
+    }
+
     // ============ QUALITY GATE — Subfase saneamento create_campaign ============
     // Validação determinística pura: produto×copy×criativo×destino×orçamento.
     // Sem LLM, sem Meta. Falha = `skipped` (não-aprovável) com reason_codes.
@@ -2350,6 +2409,9 @@ async function executeToolCall(
           ? { id: matchedProduct.id, name: matchedProduct.name, price: matchedProduct.price }
           : null,
         catalog: (context.products || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price })),
+        tenantCreatives: tenantCreatives.map((c: any) => ({
+          id: c.id, product_id: c.product_id, tenant_id: c.tenant_id,
+        })),
       };
       const gate = runCreateCampaignQualityGate(gateInput);
       if (!gate.ok) {

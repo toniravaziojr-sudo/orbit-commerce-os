@@ -2405,3 +2405,60 @@ Após observar 2–3 ciclos com o gate ativo no Strategist, avaliar:
 - Nenhuma chamada de modificação à Meta.
 - Nenhuma autoexecução ativada.
 - Subfase F.2 (Tenant Preference Guard silencioso no gatilho de orçamento) segue intacta — este gate é independente e atua em outro gerador.
+
+## Quality Gate v1.1 + Preflight de produto/oferta/criativo (Etapa 7.qg.b)
+
+### Evidência prática — 08/06/2026
+
+Ciclo controlado `implement_campaigns` no tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`, conta `act_251893833881780`):
+
+- **21 propostas `create_campaign` geradas** em 3 sub-rodadas internas.
+- **21/21 bloqueadas pelo Quality Gate v1.0** (0 aprováveis).
+- Motivos principais:
+  - `invalid_missing_creative`: 100% das propostas — Strategist não anexava `creative_asset_id` real do tenant.
+  - Produto fantasma "Fast Upgrade" (não existe no catálogo): 6 propostas → `invalid_unknown_product_name`.
+  - Divergência Kit Banho × copy de Shampoo isolado: 3 propostas → `invalid_offer_mismatch`.
+- Nenhuma chamada de modificação à Meta. Nenhuma autoexecução. Nenhum dado alterado.
+
+### Lacuna identificada
+
+O Quality Gate v1.0 funcionou como rede de proteção, mas o problema real estava antes dele:
+
+1. O Strategist em `implement_campaigns` **não referenciava o inventário de criativos do tenant** — propunha campanhas sem `creative_asset_id`/`creative_url`, o que sempre cai em `invalid_missing_creative`.
+2. O prompt do Strategist permitia inventar codinomes comerciais ("Fast Upgrade") que não existem no catálogo.
+3. O handler `generate_creative` rejeitava produto inexistente mas não tinha gate estruturado — gastava ciclos de LLM e podia consumir crédito de geração de imagem.
+
+### Mudanças v1.1
+
+1. **Preflight de criativo dentro do `create_campaign`**: antes do gate, o Strategist consulta `ads_creative_assets` (status=ready, mesmo `product_id`, mesmo `tenant_id`) e, se houver criativo válido, injeta `creative_asset_id`/`creative_url` automaticamente nos args. Sem criativo → o gate bloqueia em `invalid_missing_creative` (como deveria).
+2. **Quality Gate v1.1**: novos reason codes:
+   - `invalid_creative_not_in_tenant` — `creative_asset_id` referenciado não existe no inventário do tenant.
+   - `invalid_creative_product_link_mismatch` — criativo do tenant é de outro produto.
+3. **Preflight `generate_creative`** (`runGenerateCreativeQualityGate`): bloqueia geração antes de chamar `ads-autopilot-creative` quando:
+   - Produto não existe no catálogo (`invalid_generate_creative_unknown_product`).
+   - Copy/headline cita produto/Kit diferente do declarado (`invalid_generate_creative_offer_mismatch`).
+
+   Status retornado: `skipped` com `quality_gate.reason_codes` — **não consome crédito de imagem**.
+4. **Prompt do `implement_campaigns` reforçado**: regras invioláveis adicionadas para "PRODUTO REAL OBRIGATÓRIO", "COERÊNCIA PRODUTO × COPY × CRIATIVO" e "CRIATIVO EXISTENTE OBRIGATÓRIO" — e a regra "NÃO proponha create_campaign sem creative_asset_id do tenant vinculado ao mesmo produto" entra explicitamente na lista de proibições.
+
+### O que NÃO mudou
+
+- O Quality Gate continua **rígido** — nenhuma regra foi relaxada.
+- Policy Engine, Tenant Memory, Tenant Preference Guard (F.1/F.2), autonomia e autoexecução: intocados.
+- UI/UX: nenhuma alteração. Modal de aprovação/recusa e listas de pendentes preservados.
+
+### Validação técnica executada
+
+- **13 testes verdes** em `src/test/ads-autopilot-quality-gate.test.ts` (7 da v1.0 + 6 novos): produto fantasma, divergência Kit×isolado, criativo inexistente no tenant, criativo de outro produto, generate_creative com produto fantasma, generate_creative com copy divergente, e casos válidos que continuam passando.
+- Nenhum ciclo real de IA executado nesta entrega (Analyze/Strategist/Guardian/Experiments todos parados).
+- Nenhuma chamada de modificação à Meta.
+- Nenhuma campanha real criada.
+- Nenhum crédito de criativo consumido.
+
+### Próxima recomendação
+
+Após esta entrega, rodar **um ciclo controlado `implement_campaigns`** para validar em produção que:
+
+1. Sugestões com criativo existente vinculado ao produto certo passam normalmente.
+2. "Fast Upgrade" e Kit×Shampoo continuam bloqueados antes de chegarem à fila aprovável.
+3. `generate_creative` para produto fantasma retorna `skipped` sem custo.

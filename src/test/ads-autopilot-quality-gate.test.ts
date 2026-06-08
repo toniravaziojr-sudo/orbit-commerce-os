@@ -158,3 +158,123 @@ describe("Quality Gate — create_campaign", () => {
     expect(r.reason_codes).toEqual([]);
   });
 });
+
+// =====================================================================
+// v1.1.0 — Preflight de criativo do tenant + generate_creative gate.
+// =====================================================================
+
+import {
+  runGenerateCreativeQualityGate,
+} from "../../supabase/functions/_shared/ads-autopilot/qualityGate.ts";
+
+const TENANT_CREATIVES = [
+  { id: "c-shampoo-1", product_id: "p-shampoo", tenant_id: "t1" },
+  { id: "c-kit-1", product_id: "p-kit", tenant_id: "t1" },
+];
+
+describe("Quality Gate v1.1 — create_campaign × inventário de criativos do tenant", () => {
+  it("bloqueia create_campaign com creative_asset_id inexistente no tenant", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Calvície Zero",
+        primary_text: "Compre Shampoo Calvície Zero.",
+        creative_asset_id: "c-fantasma",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "mof",
+        objective: "conversions",
+        daily_budget_cents: 5000,
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+      tenantCreatives: TENANT_CREATIVES,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_creative_not_in_tenant");
+  });
+
+  it("bloqueia create_campaign quando criativo do tenant é de outro produto", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Calvície Zero",
+        primary_text: "Compre Shampoo Calvície Zero.",
+        creative_asset_id: "c-kit-1",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "mof",
+        objective: "conversions",
+        daily_budget_cents: 5000,
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+      tenantCreatives: TENANT_CREATIVES,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_creative_product_link_mismatch");
+  });
+
+  it("permite create_campaign com criativo válido do tenant vinculado ao mesmo produto", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Calvície Zero — pare a queda",
+        primary_text: "Experimente o Shampoo Calvície Zero hoje.",
+        creative_asset_id: "c-shampoo-1",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "mof",
+        objective: "conversions",
+        daily_budget_cents: 5000,
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+      tenantCreatives: TENANT_CREATIVES,
+    });
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe("Quality Gate v1.1 — generate_creative preflight", () => {
+  it("bloqueia generate_creative com produto inexistente (Fast Upgrade)", () => {
+    const r = runGenerateCreativeQualityGate({
+      args: { product_name: "Fast Upgrade", style_preference: "promotional" },
+      matchedProduct: null,
+      catalog: CATALOG,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_generate_creative_unknown_product");
+  });
+
+  it("bloqueia generate_creative com copy de Kit vinculado a Shampoo isolado", () => {
+    const r = runGenerateCreativeQualityGate({
+      args: {
+        product_name: "Shampoo Calvície Zero",
+        headline: "Acabe com a queda com o Kit Banho Calvície Zero",
+        primary_text: "Experimente o Kit Banho completo hoje.",
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_generate_creative_offer_mismatch");
+  });
+
+  it("permite generate_creative coerente para produto existente", () => {
+    const r = runGenerateCreativeQualityGate({
+      args: {
+        product_name: "Shampoo Calvície Zero",
+        headline: "Shampoo Calvície Zero pare a queda",
+        primary_text: "Experimente o Shampoo Calvície Zero hoje.",
+      },
+      matchedProduct: productById("p-shampoo"),
+      catalog: CATALOG,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.reason_codes).toEqual([]);
+  });
+});
