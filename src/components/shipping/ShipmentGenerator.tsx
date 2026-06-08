@@ -201,7 +201,7 @@ export function ShipmentGenerator() {
           }
         });
       }
-      return shipments;
+      return sortByNumberDesc(shipments, shipmentOrderKey, (s: any) => s?.created_at);
     },
     enabled: !!currentTenant?.id,
   });
