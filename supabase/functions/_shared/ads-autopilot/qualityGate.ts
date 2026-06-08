@@ -300,6 +300,17 @@ export function runCreateCampaignQualityGate(
     reason_codes.push("invalid_missing_destination");
   }
 
+  // 6b) CTA obrigatório para campanhas de vendas/conversão/tráfego/lead.
+  // Em v1.1.2 — campanha SALES sem CTA não pode ficar aprovável.
+  // Aceita CTA em args.cta, args.cta_type ou args.creative.cta.
+  if (requiresCta(args)) {
+    const cta = extractCta(args as unknown as Record<string, unknown>);
+    if (!cta) {
+      reason_codes.push("invalid_missing_cta");
+      details.objective = args.objective;
+    }
+  }
+
   // 7) Campanha fria TOF com orçamento agressivo + falhas estruturais.
   const budget = Number(args.daily_budget_cents || 0);
   if (
