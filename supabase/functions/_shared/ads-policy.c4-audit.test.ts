@@ -345,7 +345,7 @@ Deno.test("C.4 audit — strategic_pause expirada é distinguível e fora da fil
 });
 
 Deno.test("C.4 audit — strategic_pause é classificada e nunca auto-executa", () => {
-  assert(isStrategicPauseAction("pause_campaign_strategic"));
+  assert(isStrategicPauseAction("strategic_pause"));
   // Tipo estratégico não passa pelo gate de auto-execução
   const gate = canAutoExecuteC4({
     effective_mode: "technical_only",
@@ -353,8 +353,8 @@ Deno.test("C.4 audit — strategic_pause é classificada e nunca auto-executa", 
     is_ai_enabled: true,
     account_kill_switch: false,
     global_kill_switch: false,
-    action_type: "pause_campaign_strategic",
-    action_class: classifyAction({ action_type: "pause_campaign_strategic", channel: "meta" }),
+    action_type: "strategic_pause",
+    action_class: classifyAction({ action_type: "strategic_pause", channel: "meta" }),
     policy_decision_kind: "execute_now",
     campaign_age_days: 30,
     in_learning_phase: false,
