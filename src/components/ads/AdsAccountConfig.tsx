@@ -64,6 +64,7 @@ function AccountConfigCard({
   isSaving,
   onToggleAI,
   onToggleKillSwitch,
+  onToggleAutonomy,
   tenantId,
 }: {
   accountId: string;
@@ -75,6 +76,7 @@ function AccountConfigCard({
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
   onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
+  onToggleAutonomy: (accountId: string, enabled: boolean) => void;
   tenantId: string | undefined;
 }) {
   const [budgetMode, setBudgetMode] = useState(config?.budget_mode || "monthly");
