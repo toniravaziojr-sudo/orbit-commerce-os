@@ -160,6 +160,87 @@ describe("Quality Gate — create_campaign", () => {
 });
 
 // =====================================================================
+// v1.1.1 — Anti-falso-positivo: token genérico não dispara offer_mismatch.
+// Caso real: copy do Shampoo Calvície Zero usando a palavra "banho"
+// disparava match com "Kit Banho Calvície Zero" (uniq=["banho"], hits=1).
+// =====================================================================
+
+describe("Quality Gate v1.1.1 — anti falso positivo offer_mismatch", () => {
+  const FULL_CATALOG = [
+    { id: "p-shampoo", name: "Shampoo Calvície Zero", price: 93.01 },
+    { id: "p-kit", name: "Kit Banho Calvície Zero", price: 189.47 },
+    { id: "p-kit2x", name: "Kit Banho Calvície Zero (2x)", price: 349 },
+    { id: "p-balm", name: "Balm Pós-Banho Calvície Zero (Dia)", price: 79 },
+  ];
+
+  it("NÃO bloqueia Shampoo quando copy menciona apenas a palavra 'banho'", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] TEST | Shampoo Calvície Zero | Ângulo Rotina",
+        product_name: "Shampoo Calvície Zero",
+        headlines: ["Seu Shampoo Anti-Queda Diário", "Rotina Simples, Cabelo Forte"],
+        primary_texts: [
+          "Transforme seu banho no ritual para fortalecer seu cabelo! O Shampoo Calvície Zero oferece um cuidado diário focado em reduzir a queda.",
+          "Cabelos mais fortes e menos queda, começando no chuveiro.",
+        ],
+        creative_asset_id: "abc",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "tof",
+        objective: "OUTCOME_SALES",
+        daily_budget_cents: 2500,
+      },
+      matchedProduct: FULL_CATALOG[0],
+      catalog: FULL_CATALOG,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.reason_codes).not.toContain("invalid_offer_mismatch");
+  });
+
+  it("AINDA bloqueia quando copy menciona literalmente o nome completo do outro produto", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headlines: ["Acabe com a queda"],
+        primary_texts: ["Experimente o Kit Banho Calvície Zero completo para a melhor rotina."],
+        creative_asset_id: "abc",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "mof",
+        objective: "OUTCOME_SALES",
+        daily_budget_cents: 3000,
+      },
+      matchedProduct: FULL_CATALOG[0],
+      catalog: FULL_CATALOG,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_offer_mismatch");
+  });
+
+  it("AINDA bloqueia quando copy menciona 2 tokens exclusivos do outro produto (balm + banho)", () => {
+    const r = runCreateCampaignQualityGate({
+      args: {
+        campaign_name: "[AI] Shampoo",
+        product_name: "Shampoo Calvície Zero",
+        headlines: ["Combine com seu balm favorito"],
+        primary_texts: ["Use o balm pós-banho diariamente para máximo resultado."],
+        creative_asset_id: "abc",
+        creative_url: "https://x/y.png",
+        destination_url: "https://loja/p/shampoo",
+        funnel_stage: "mof",
+        objective: "OUTCOME_SALES",
+        daily_budget_cents: 3000,
+      },
+      matchedProduct: FULL_CATALOG[0],
+      catalog: FULL_CATALOG,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason_codes).toContain("invalid_offer_mismatch");
+  });
+});
+
+// =====================================================================
 // v1.1.0 — Preflight de criativo do tenant + generate_creative gate.
 // =====================================================================
 
