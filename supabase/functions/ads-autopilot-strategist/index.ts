@@ -3561,6 +3561,109 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             }
           }
 
+          // ============ CONTROLE DE VOLUME — create_campaign ============
+          // Aplica cap por ciclo, cap por produto e cooldown 24h ANTES do INSERT.
+          // Quando o limite é atingido a proposta entra como `superseded` (preserva
+          // auditoria, fora da fila operacional). Quando a nova proposta é
+          // claramente superior, substitui a mais fraca existente.
+          // Não aplica para `skipped` (Quality Gate já decidiu), `failed`,
+          // `executed` nem para outros tool names — apenas create_campaign
+          // candidatos a `pending_approval`.
+          if (
+            tc.function.name === "create_campaign" &&
+            actionRecord.status === "pending_approval"
+          ) {
+            try {
+              const ad = actionRecord.action_data || {};
+              const pid = ad.product_id || null;
+              const creativeMatchesProduct = !!(
+                ad.creative_asset_id && pid &&
+                Array.isArray(tenantCreatives) &&
+                tenantCreatives.find((c: any) => c.id === ad.creative_asset_id && c.product_id === pid)
+              );
+
+              // Carrega pending atuais da MESMA conta do mesmo trigger (ciclo + janela 24h).
+              const cooldownStart = new Date(Date.now() - DEFAULT_COOLDOWN_MS).toISOString();
+              const { data: existingRows } = await supabase
+                .from("ads_autopilot_actions")
+                .select("id, action_data, created_at")
+                .eq("tenant_id", tenantId)
+                .eq("channel", config.channel)
+                .eq("action_type", "create_campaign")
+                .eq("status", "pending_approval")
+                .gte("created_at", cooldownStart);
+
+              const existing: ExistingPendingProposal[] = (existingRows || []).map((r: any) => ({
+                id: r.id,
+                product_id: r.action_data?.product_id || null,
+                funnel_stage: r.action_data?.funnel_stage || null,
+                ad_format: r.action_data?.ad_format || null,
+                campaign_name: r.action_data?.campaign_name || null,
+                score: Number(r.action_data?.proposal_score ?? 0),
+                created_at: r.created_at,
+              }));
+              const productsInCycle = new Set(
+                existing.map((e) => e.product_id).filter(Boolean) as string[],
+              );
+              const newScore = scoreProposal(ad, {
+                qualityGateOk: true,
+                creativeMatchesProduct,
+                productsAlreadyInCycle: productsInCycle,
+              });
+              const decision = applyLimits({
+                args: ad,
+                newScore,
+                existingPending: existing,
+              });
+
+              // Anexa metadados de auditoria.
+              actionRecord.action_data = {
+                ...ad,
+                proposal_score: newScore,
+                proposal_template_key: decision.templateKey,
+                proposal_limiter: {
+                  version: PROPOSAL_LIMITER_VERSION,
+                  decision: decision.decision,
+                  reason: decision.reason || null,
+                  max_per_cycle: DEFAULT_MAX_PROPOSALS_PER_CYCLE,
+                  max_per_product_per_cycle: DEFAULT_MAX_PROPOSALS_PER_PRODUCT_PER_CYCLE,
+                  cooldown_ms: DEFAULT_COOLDOWN_MS,
+                  decided_at: new Date().toISOString(),
+                },
+              };
+
+              if (decision.decision === "supersede_self") {
+                actionRecord.status = "superseded";
+                actionRecord.rejection_reason = `Volume limitado pelo controle de propostas: ${decision.reason}`;
+                console.log(
+                  `[ads-autopilot-strategist][${VERSION}] proposal-limiter SUPERSEDE_SELF product=${pid} reason=${decision.reason} score=${newScore}`,
+                );
+              } else if (decision.decision === "replace" && decision.supersedeIds.length > 0) {
+                const { error: supErr } = await supabase
+                  .from("ads_autopilot_actions")
+                  .update({
+                    status: "superseded",
+                    rejection_reason: "Substituída por proposta de score superior",
+                  })
+                  .in("id", decision.supersedeIds);
+                if (supErr) {
+                  console.error(`[ads-autopilot-strategist][${VERSION}] proposal-limiter replace update error:`, supErr);
+                } else {
+                  console.log(
+                    `[ads-autopilot-strategist][${VERSION}] proposal-limiter REPLACE superseded=${decision.supersedeIds.length} product=${pid} score=${newScore}`,
+                  );
+                }
+              } else {
+                console.log(
+                  `[ads-autopilot-strategist][${VERSION}] proposal-limiter ACCEPT product=${pid} score=${newScore}`,
+                );
+              }
+            } catch (limErr: any) {
+              // Fail-open: limiter nunca derruba o fluxo principal.
+              console.error(`[ads-autopilot-strategist][${VERSION}] proposal-limiter threw (fail-open):`, limErr?.message);
+            }
+          }
+
           await attachObservationIfEligible(actionRecord, config, supabase);
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
