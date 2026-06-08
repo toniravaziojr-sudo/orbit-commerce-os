@@ -6,6 +6,16 @@ import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts";
 import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
+import {
+  scoreProposal,
+  applyLimits,
+  templateKey,
+  PROPOSAL_LIMITER_VERSION,
+  DEFAULT_MAX_PROPOSALS_PER_CYCLE,
+  DEFAULT_MAX_PROPOSALS_PER_PRODUCT_PER_CYCLE,
+  DEFAULT_COOLDOWN_MS,
+  type ExistingPendingProposal,
+} from "../_shared/ads-autopilot/proposalLimiter.ts";
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
