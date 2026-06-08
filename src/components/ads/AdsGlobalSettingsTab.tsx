@@ -101,6 +101,30 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
     setFunnelSplits(prev => ({ ...prev, [key]: parseInt(val) || 0 }));
   };
 
+  const handleAutonomyToggle = (checked: boolean) => {
+    const next: "off" | "technical_only" = checked ? "technical_only" : "off";
+    setAutonomyMode(next);
+    // Persiste imediatamente — toggle de segurança não espera "Salvar"
+    onSave({
+      channel: "global",
+      budget_mode: budgetMode,
+      budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
+      objective: "sales",
+      user_instructions: instructions || null,
+      strategy_mode: strategyMode,
+      funnel_split_mode: funnelSplitMode,
+      funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+      autonomy_mode: next,
+      safety_rules: {
+        ...(globalConfig?.safety_rules as any || {}),
+        target_roi: parseFloat(targetRoi || "0") || null,
+        min_roi_cold: parseFloat(minRoiCold || "0") || null,
+        min_roi_warm: parseFloat(minRoiWarm || "0") || null,
+        roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Global AI Toggle */}
