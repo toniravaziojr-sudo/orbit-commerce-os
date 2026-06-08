@@ -546,7 +546,7 @@ function AccountConfigCard({
   );
 }
 
-export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch }: AdsAccountConfigProps) {
+export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch, onToggleAutonomy }: AdsAccountConfigProps) {
   const { currentTenant } = useAuth();
   if (adAccounts.length === 0) return null;
 
@@ -568,6 +568,7 @@ export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnab
           isSaving={isSaving}
           onToggleAI={onToggleAI}
           onToggleKillSwitch={onToggleKillSwitch}
+          onToggleAutonomy={onToggleAutonomy}
           tenantId={currentTenant?.id}
         />
       ))}
