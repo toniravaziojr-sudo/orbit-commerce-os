@@ -16,6 +16,14 @@ import {
   DEFAULT_COOLDOWN_MS,
   type ExistingPendingProposal,
 } from "../_shared/ads-autopilot/proposalLimiter.ts";
+import {
+  evaluateStrategistCooldown,
+  evaluatePendingQueueGate,
+  shouldWeeklyYieldToMonthly,
+  MAX_PENDING_APPROVAL_QUEUE,
+  CADENCE_POLICY_VERSION,
+  type StrategistTriggerKind,
+} from "../_shared/ads-autopilot/cadencePolicy.ts";
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
