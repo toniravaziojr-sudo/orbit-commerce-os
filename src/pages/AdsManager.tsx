@@ -416,6 +416,7 @@ export default function AdsManager() {
                       isSaving={accountConfigs.saveAccountConfig.isPending}
                       onToggleAI={handleToggleAI}
                       onToggleKillSwitch={handleToggleKillSwitch}
+                      onToggleAutonomy={handleToggleAutonomy}
                     />
                   )}
 
