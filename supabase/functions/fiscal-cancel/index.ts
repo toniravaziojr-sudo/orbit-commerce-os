@@ -181,43 +181,49 @@ Deno.serve(async (req) => {
         event_data: { justificativa, response: result.data },
       });
 
+    // ===================================================================
+    // PÓS-CANCELAMENTO (plano 2026-06-08)
+    // 1) Shipments vinculados (já validados como 'draft'/'label_created'/'cancelled')
+    //    → marca como 'cancelled' + action_reason='invoice_cancelled' + desvincula
+    //    invoice_id para liberar exclusão futura da NF.
+    // 2) PV pai (source_order_invoice_id) → limpa pendencia_motivos e recalcula
+    //    pedido_status (volta para "em aberto" sem observação extra).
+    // ===================================================================
+    const shipmentFilters = [
+      `invoice_id.eq.${invoice_id}`,
+      invoice.source_order_invoice_id ? `source_pedido_venda_id.eq.${invoice.source_order_invoice_id}` : '',
+    ].filter(Boolean).join(',');
+
+    await supabaseClient
+      .from('shipments')
+      .update({
+        delivery_status: 'cancelled',
+        action_reason: 'invoice_cancelled',
+        requires_action: false,
+        invoice_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .or(shipmentFilters)
+      .eq('tenant_id', tenantId)
+      .neq('delivery_status', 'cancelled');
+
+    if (invoice.source_order_invoice_id) {
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update({ pendencia_motivos: null, updated_at: new Date().toISOString() })
+        .eq('id', invoice.source_order_invoice_id)
+        .eq('tenant_id', tenantId);
+      await supabaseClient.rpc('recompute_pv_pedido_status', { p_pv_id: invoice.source_order_invoice_id });
+    }
+
     if (invoice.order_id) {
       await supabaseClient.from('order_history').insert({
         order_id: invoice.order_id,
         action: 'fiscal_invoice_cancelled',
-        description: `[NF-e CANCELADA] Justificativa: ${justificativa}. ` +
-          `Reveja o status do pedido e a etiqueta de envio (se houver).`,
+        description: `[NF-e CANCELADA] Justificativa: ${justificativa}.`,
       });
-
-      // (a) Apaga etiquetas em rascunho (ainda não emitidas) vinculadas a esta NF.
-      // O gatilho de proteção do agrupador permite isso porque drafts não têm tracking.
-      const { error: delDraftErr, count: delDraftCount } = await supabaseClient
-        .from('shipments')
-        .delete({ count: 'exact' })
-        .eq('order_id', invoice.order_id)
-        .eq('invoice_id', invoice_id)
-        .or('tracking_code.is.null,tracking_code.eq.')
-        .eq('manually_adjusted', false);
-      if (delDraftErr) {
-        console.warn('[fiscal-cancel] falha ao apagar rascunhos de etiqueta:', delDraftErr.message);
-      } else if ((delDraftCount ?? 0) > 0) {
-        console.log(`[fiscal-cancel] ${delDraftCount} rascunho(s) de etiqueta apagado(s)`);
-      }
-
-      // (b) Marca etiquetas já emitidas (com rastreio) como exigindo ação.
-      // Operação física continua, mas a UI bloqueia novos despachos até decisão do lojista.
-      await supabaseClient
-        .from('shipments')
-        .update({
-          requires_action: true,
-          action_reason: 'invoice_cancelled',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('order_id', invoice.order_id)
-        .not('tracking_code', 'is', null)
-        .eq('requires_action', false)
-        .is('delivered_at', null);
     }
+
 
 
     chargeAfter({
