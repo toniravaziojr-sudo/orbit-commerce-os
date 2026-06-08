@@ -777,8 +777,14 @@ Deno.serve(async (req) => {
               }
 
 
-              // Dedup: evita criar rascunho duplicado para o mesmo PV ou pedido
-              let dupQuery = supabaseShipping.from('shipments').select('id').limit(1);
+              // Dedup: só considera objeto ATIVO (não cancelado).
+              // Se o único shipment vinculado for 'canceled', tratamos como inexistente
+              // e criamos um novo rascunho (evita PV órfão após cancelamento de NF/limpeza).
+              let dupQuery = supabaseShipping
+                .from('shipments')
+                .select('id, delivery_status')
+                .neq('delivery_status', 'canceled')
+                .limit(1);
               if (item.source_pedido_venda_id) {
                 dupQuery = dupQuery.eq('source_pedido_venda_id', item.source_pedido_venda_id);
               } else if (item.order_id) {
@@ -787,7 +793,7 @@ Deno.serve(async (req) => {
               const { data: existingShipment } = await dupQuery;
 
               if (existingShipment && existingShipment.length > 0) {
-                console.log(`[scheduler-tick] shipping queue: shipment already exists, skipping`);
+                console.log(`[scheduler-tick] shipping queue: active shipment already exists (id=${existingShipment[0].id}, pv=${item.source_pedido_venda_id}, order=${item.order_id}), marking queue done`);
                 await supabaseShipping
                   .from('shipping_draft_queue')
                   .update({ status: 'done', processed_at: new Date().toISOString() })

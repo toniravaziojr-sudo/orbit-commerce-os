@@ -751,30 +751,42 @@ Anti-regressão: ver `mem://constraints/shipping-pv-delete-cascade-by-shipment-s
 
 ---
 
-## Reconciliação de objeto logístico órfão (2026-06-03)
+## Reconciliação de objeto logístico órfão (2026-06-08, atualizado)
 
-A criação do objeto de postagem acontece apenas uma vez, no momento em que
-o Pedido de Venda é inserido (gatilho `trg_enqueue_shipping_draft_from_pv`).
-Se o objeto sumir depois (limpeza manual, teste, falha pontual), o PV
-ficaria órfão para sempre — foi o gap de 2 objetos detectado no tenant
-Respeite o Homem em 2026-06-03 (pedidos #563 e #565).
+A criação do objeto de postagem acontece automaticamente quando o Pedido de
+Venda é inserido (gatilho `trg_enqueue_shipping_draft_from_pv`). Se o objeto
+sumir depois (cancelamento de NF, limpeza, falha pontual), o PV ficaria
+órfão e nenhuma nova tentativa seria criada. Foi a causa do gap do PV 395
+(Maria da Glória, Respeite o Homem, 2026-06-08) e dos PVs 563/565
+(2026-06-03).
 
-**Rede de segurança permanente:**
+**Rede de segurança permanente — 3 camadas:**
 
-- Função `public.reconcile_orphan_pv_shipments(p_tenant_id uuid DEFAULT NULL)`
-  varre todos os Pedidos de Venda ativos cujo pedido é pago e que não têm
-  objeto nem item pendente na fila. Para cada um, enfileira um novo rascunho
-  em `shipping_draft_queue` (que o scheduler-tick consome normalmente).
-- Cron `reconcile-orphan-pv-shipments-15m` executa a cada 15 minutos para
-  todos os tenants.
-- A função pula pedidos `cancelled`/`refunded`/`expired`/`chargeback_lost`/
-  `chargeback_detected`/`returning`/`returned`, marketplace
-  (`marketplace_source` fora de storefront/checkout/manual/link/admin) e
-  pedidos via gateway (Frenet etc., `provider_kind='gateway'`).
+1. **Índice único parcial na fila de rascunhos.** A regra de "1 entrada
+   aberta por Pedido de Venda" passa a valer apenas enquanto a entrada está
+   `pending` ou `processing`. Entradas `done`, `cancelled` e `failed`
+   ficam preservadas para histórico mas não bloqueiam a reconciliação de
+   abrir uma nova tentativa.
 
-**Resultado:** qualquer objeto que sumir por qualquer motivo volta a aparecer
-na fila de Logística na próxima rodada (no máximo 15 minutos). O gap "PVs
-ativos > objetos logísticos" nunca persiste.
+2. **Dedup do processador considera só objeto ativo.** O `scheduler-tick`
+   (PHASE 1.6) só pula a criação se já existir um shipment com
+   `delivery_status <> 'canceled'`. Objeto cancelado é tratado como
+   inexistente — evita marcar a fila como concluída por engano.
+
+3. **Função `public.reconcile_orphan_pv_shipments(p_tenant_id uuid DEFAULT NULL)`** +
+   **cron `reconcile-orphan-pv-shipments-15m`**. Varre todos os Pedidos de
+   Venda ativos sem objeto e sem item aberto na fila, e enfileira uma nova
+   tentativa (que o scheduler-tick consome normalmente).
+   - Pula pedidos `cancelled`/`refunded`/`expired`/`chargeback_lost`/
+     `chargeback_detected`/`returning`/`returned`.
+   - Pula marketplace (`marketplace_source` fora de
+     storefront/checkout/manual/link/admin) e pedidos via gateway
+     (`provider_kind='gateway'`, ex.: Frenet).
+   - Para PV manual/duplicado sem pedido real, cria o objeto direto.
+
+**Resultado:** qualquer objeto que sumir por qualquer motivo volta a
+aparecer na fila de Logística na próxima rodada (no máximo 15 minutos).
+O gap "PVs ativos > objetos logísticos" nunca persiste.
 
 Anti-regressão: ver `mem://constraints/orphan-pv-shipment-reconciliation`.
 
