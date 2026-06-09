@@ -1814,36 +1814,40 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         </DialogContent>
       </Dialog>
 
-      {/* Adjust Dialog */}
-      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Sugerir Ajuste</DialogTitle>
-            <DialogDescription>
-              Descreva o que deve ser alterado. A IA fará o ajuste e gerará uma nova proposta para aprovação.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={adjustSuggestion}
-            onChange={(e) => setAdjustSuggestion(e.target.value)}
-            placeholder="Ex: Alterar a copy para focar mais no benefício X, mudar o orçamento para R$50/dia..."
-            className="min-h-[80px]"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjusting}>Cancelar</Button>
-            <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim() || isAdjusting}>
-              {isAdjusting ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                  Reprocessando...
-                </>
-              ) : (
-                "Enviar Ajuste"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Adjust — Frente 4.3: drawer estruturado para two_step_v1 strategy; fallback texto livre para legacy */}
+      {isTwoStep && twoStepStage === "strategy" ? (
+        <ProposalStructuredEditor action={action} open={adjustOpen} onOpenChange={setAdjustOpen} />
+      ) : (
+        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sugerir Ajuste</DialogTitle>
+              <DialogDescription>
+                Descreva o que deve ser alterado. A IA fará o ajuste e gerará uma nova proposta para aprovação.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              value={adjustSuggestion}
+              onChange={(e) => setAdjustSuggestion(e.target.value)}
+              placeholder="Ex: Alterar a copy para focar mais no benefício X, mudar o orçamento para R$50/dia..."
+              className="min-h-[80px]"
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjusting}>Cancelar</Button>
+              <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim() || isAdjusting}>
+                {isAdjusting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Reprocessando...
+                  </>
+                ) : (
+                  "Enviar Ajuste"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Zoom Dialog */}
       {primaryCreativeUrl && (
