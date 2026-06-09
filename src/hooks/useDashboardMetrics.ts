@@ -147,19 +147,34 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date, channel: C
       } = computePeriods(startDate, endDate, firstOrderDate);
 
       // Fire-and-forget: garante que o range de Ads pedido tem cobertura no banco.
-      // Se faltar dia, dispara backfill cirúrgico em background (não bloqueia o dashboard).
-      supabase.functions.invoke('ads-ensure-coverage', {
-        body: {
-          tenant_id: tid,
-          date_start: periodStartDate,
-          date_end: periodEndDate,
-        },
-      }).catch((e) => console.warn('[dashboard] ads-ensure-coverage failed', e));
+      // Só dispara cobertura quando a aba considera anúncios.
+      if (includeAds) {
+        supabase.functions.invoke('ads-ensure-coverage', {
+          body: {
+            tenant_id: tid,
+            date_start: periodStartDate,
+            date_end: periodEndDate,
+          },
+        }).catch((e) => console.warn('[dashboard] ads-ensure-coverage failed', e));
+      }
 
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
+
+      // Builders de orders com filtro de canal aplicado
+      const ordersCurrentBuilder = applyChannelFilter(
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).not('payment_gateway_id', 'is', null) as any,
+        channel,
+      ).gte('created_at', periodStart).lte('created_at', periodEnd);
+      const ordersPrevBuilder = applyChannelFilter(
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).not('payment_gateway_id', 'is', null) as any,
+        channel,
+      ).gte('created_at', prevStart).lte('created_at', prevEnd);
+
+      // Ads: zerado em abas de marketplace (visíveis como "Em breve" na UI)
+      const emptyAdsPromise = Promise.resolve({ data: [] as Array<{ spend_cents?: number; cost_micros?: number }> });
 
       const [
         currentOrdersRes, prevOrdersRes,
@@ -171,9 +186,8 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date, channel: C
         googleSpendCurrentRes, googleSpendPrevRes,
         tiktokSpendCurrentRes, tiktokSpendPrevRes,
       ] = await Promise.all([
-        // Ghost Order Rule: only count orders confirmed by gateway
-        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).not('payment_gateway_id', 'is', null).gte('created_at', periodStart).lte('created_at', periodEnd),
-        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).not('payment_gateway_id', 'is', null).gte('created_at', prevStart).lte('created_at', prevEnd),
+        ordersCurrentBuilder,
+        ordersPrevBuilder,
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', prevStart).lte('created_at', prevEnd),
         // Unique visitors via DB-level COUNT(DISTINCT) — no 1000-row limit
@@ -184,14 +198,14 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date, channel: C
         supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone, order_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('checkout_sessions').select('id, status, order_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
         // Ad spend - Meta
-        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate),
-        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate),
+        includeAds ? supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate) : emptyAdsPromise,
+        includeAds ? supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate) : emptyAdsPromise,
         // Ad spend - Google (cost_micros = micros, /1_000_000 to get currency)
-        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', periodStartDate).lte('date', periodEndDate),
-        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', prevStartDate).lte('date', prevEndDate),
+        includeAds ? supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', periodStartDate).lte('date', periodEndDate) : emptyAdsPromise,
+        includeAds ? supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', prevStartDate).lte('date', prevEndDate) : emptyAdsPromise,
         // Ad spend - TikTok
-        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate),
-        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate),
+        includeAds ? supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate) : emptyAdsPromise,
+        includeAds ? supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate) : emptyAdsPromise,
       ]);
 
       // Fetch funnel step counts via REST API (new columns not in types yet)
