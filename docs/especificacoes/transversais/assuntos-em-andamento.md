@@ -114,35 +114,7 @@
 
 ---
 
-### 5. Fiscal — Integração WMS Pratika + Catálogo de Naturezas de Operação
-
-**Docs oficiais:**
-- `docs/especificacoes/erp/erp-fiscal.md` (catálogo de naturezas e filtros do editor de NF-e)
-- Memória: `mem://features/external-apps/wms-pratika-integration`
-
-**Onde estamos (tenant piloto: Respeite o Homem):**
-
-1. **Integração WMS Pratika (apps externos):** conexão SOAP ativa e validada. Fluxo é **reativo, não na emissão**: o XML da NF-e é enviado ao WMS quando a Sefaz autoriza a nota (síncrono ou assíncrono via webhook/polling), e a etiqueta dos Correios é enviada quando o código de rastreio é registrado. Idempotência por log do tenant + travas `auto_send_nfe`/`auto_send_label` + reconciliação automática a cada 30 min cobrindo últimas 24h. Validação E2E: NF 349 de saída autorizada e despachada ao WMS com sucesso (27/05/2026). Pendente: validação E2E da etiqueta dos Correios em produção. Detalhes: `mem://features/external-apps/wms-pratika-integration`.
-
-2. **Catálogo de Naturezas de Operação — expansão concluída:**
-   - Filtro de "Remessa" no editor de NF-e estava restrito a 4 tipos (escondia Demonstração, Consignação, Bonificação, Amostra Grátis).
-   - Filtro foi corrigido para considerar a faixa oficial da Receita Federal (CFOPs 5900–5999), independente de "faturada".
-   - Catálogo do tenant ampliado de **18 → 33 naturezas**, cobrindo todos os 25 CFOPs oficiais da faixa de remessa (Armazém Geral, Industrialização por Encomenda, Comodato, Exposição/Feira, Vasilhame/Sacaria, Conta e Ordem de Terceiros, etc.).
-   - Todas as novas naturezas entram com CSOSN 400 (Simples Nacional, não tributado por remessa), CST PIS/COFINS 49, marcadas como não faturadas e não consumidor final.
-   - Doc oficial atualizado com a faixa oficial e a lista completa.
-
-**Pendente:**
-- Validação real ponta a ponta da etiqueta: emitir uma remessa Correios no tenant piloto, registrar o rastreio e confirmar envio automático ao WMS Pratika. (NF-e de saída já validada com a NF 349 em 27/05/2026.)
-- Avaliar, em outra rodada, se a expansão do catálogo deve virar default para novos tenants ou ficar opt-in via Fiscal → Configurações → Naturezas de Operação.
-
-**Restrições firmes:**
-- Não mexer em natureza de operação por iniciativa própria — usuário edita pela tela de Configurações.
-- Não criar UI nova para "forçar reenvio ao WMS" sem autorização — fluxo é automático no momento da emissão.
-- Mudanças no filtro do editor de NF-e ou na lista oficial de CFOPs precisam atualizar o doc fiscal na mesma entrega.
-
----
-
-### 6. Frenet como Gateway de Despacho Automático — Bloqueio por Credencial de Parceiro
+### 5. Frenet como Gateway de Despacho Automático — Bloqueio por Credencial de Parceiro
 
 **Docs oficiais:**
 - `docs/especificacoes/logistica/` (gateway de envio)
@@ -175,7 +147,7 @@
 
 ---
 
-### 7. Tráfego Pago com IA — Política de Execução Segura do Autopilot (Execution Policy Engine)
+### 6. Tráfego Pago com IA — Política de Execução Segura do Autopilot (Execution Policy Engine)
 
 **Docs oficiais:**
 - `docs/especificacoes/marketing/gestor-trafego.md` (seções da Fase B e Fase B.1)
@@ -235,50 +207,6 @@ Tornar o Autopilot de tráfego pago seguro o suficiente para evoluir gradualment
 - Ações legadas (sem `policy_engine_version='v1'`) **não** são processadas pelo runner novo.
 - Toda evolução para Fase C.4 exige PLANNER antes de EXECUÇÃO, e GO explícito do operador.
 - Mudança de limite de plataforma, janela segura, TTL de aprovação, allowlist ou modo de autonomia exige aprovação explícita — não alterar por iniciativa própria.
-
----
-
-### 8. Logística — Separação Objeto de Postagem vs Remessa Agrupadora (modelo Bling)
-
-**Docs oficiais:**
-- `docs/especificacoes/erp/logistica.md`
-- `docs/especificacoes/transversais/mapa-ui.md` (abas do módulo de Remessas)
-- Memória: `mem://constraints/shipping-objeto-vs-remessa-agrupadora`
-
-**Objetivo da frente:**
-Separar conceitualmente **Objeto de Postagem** (unidade vinculada ao pedido) de **Remessa Agrupadora** (lote que embrulha vários objetos para impressão de PLP, etiquetas, NFs e DCs em lote), no padrão Bling. Manter intacto: regra "emissão = despachado", integrações Correios/Pratika/Frenet e fluxo gateway (Frenet sai da fila de Remessas).
-
-**Onde paramos (estado atual):**
-
-- **Fase 1 — Fundação de dados:** ✅ aplicada e validada tecnicamente.
-  - Tabela `shipping_remessas` criada com RLS por tenant.
-  - Coluna `remessa_id` (nullable) em `shipments`.
-  - Função `allocate_remessa_numero` gerando `Remessa_DDMMAAAA.HHMMSS`.
-  - Triggers de contadores (`total_objetos`, `total_emitidos`, `total_falhas`) mantendo integridade automática.
-  - Constraint anti-regressão registrada.
-- **Fase 2 — UI de Objetos + nova aba Remessas:** ✅ aplicada, **pendente de validação real pelo operador**.
-  - Abas reorganizadas: **Dashboard | Objetos de postagem | Remessas | Rastreios**.
-  - Sub-abas internas renomeadas para "Objetos emitidos"; botões para "Gerar remessa".
-  - Coluna **Remessa** exibindo `Remessa_DDMMAAAA.HHMMSS` nos objetos emitidos.
-  - Componente `RemessasManager` com lista de lotes, status e painel lateral de drill-down por objeto.
-  - Emissão agrupa por transportadora, aloca número de remessa e vincula `shipments.remessa_id` antes do despacho. Objetos sem remessa continuam funcionando (compatibilidade).
-- **Fase 2.1 — Hardenings de UI e vínculo da remessa (03/06/2026):** ✅ aplicada, **pendente de validação real pelo operador**.
-  - **Loading em todos os botões de impressão por linha** (Etiqueta, DANFE, Declaração de Conteúdo) na aba "Objetos emitidos": spinner + `disabled` enquanto o PDF é gerado/aberto, impedindo cliques múltiplos. Antes só o botão de "Reenviar" tinha esse estado.
-  - **Garantia de remessa agrupadora em qualquer caminho de despacho.** O fluxo de "Reenviar" (após uma falha) passou a chamar uma rotina única (`ensureRemessaForShipment`) que: (1) se o objeto já tem remessa, reusa; (2) se não tem, aloca número via `allocate_remessa_numero`, cria um lote de 1 objeto e vincula `shipments.remessa_id` antes de chamar os Correios. Em caso de falha do vínculo, a remessa órfã é removida imediatamente. Resultado: todo objeto emitido localmente pelos Correios passa a aparecer dentro de uma remessa na aba **Remessas**, mesmo quando o despacho veio de retry individual e não do bulk.
-  - **Limpeza de incidente:** removida 1 remessa órfã (`Remessa_03062026.093633`, 0 objetos) e 1 objeto de postagem do PV 375 (etiqueta `AP031021990BR`) que ficou sem vínculo de remessa por ter sido emitido pelo caminho de retry antigo. Permite o operador rerrodar o fluxo do zero.
-
-**Próximos passos previstos (não iniciar sem GO explícito):**
-
-- **Validação real ponta a ponta pelo operador** no tenant piloto: duplicar um PV, emitir a remessa (caminho bulk e caminho retry individual), conferir o vínculo na aba Remessas, contadores e estado dos botões de impressão.
-- **Fase 3 — Impressão em lote pela aba Remessas:** Protocolo PLP (PDF local), etiquetas, NFs e DCs consolidados por remessa.
-- **Fase 4 — Refinamento:** tratamento de falhas parciais (reemitir 1 etiqueta dentro de um lote de N sem reabrir o lote inteiro), regras de cancelamento/reabertura de remessa.
-
-**Restrições firmes:**
-- Não alterar a regra "emissão = despachado".
-- Não tocar no fluxo de gateway Frenet — pedidos gateway saem da fila de Remessas e seguem por `dce-emit` + `gateway-attach-fiscal-doc`.
-- Pratika e Correios continuam recebendo objetos individuais; a remessa só "embrulha" para impressão e gestão visual.
-- Não introduzir filtro padrão escondendo remessas de 1 objeto — a aba Remessas mostra todos os lotes.
-- **Todo caminho de despacho local Correios DEVE passar por `ensureRemessaForShipment` antes do `dispatch-shipment`.** Reabrir um caminho de emissão sem esse guard é regressão da Fase 2.1.
 
 ---
 
