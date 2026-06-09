@@ -634,6 +634,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       .eq('id', editingInvoice.id);
 
     if (error) {
+      const msg = String(error.message || '');
+      if (msg.includes('NF_ALREADY_SUBMITTED_TO_SEFAZ')) {
+        toast.error('Esta Nota Fiscal já foi enviada à SEFAZ e não pode ser excluída. Use o cancelamento ou a inutilização.');
+        return;
+      }
       toast.error(`Não foi possível excluir: ${error.message}`);
       throw error;
     }
