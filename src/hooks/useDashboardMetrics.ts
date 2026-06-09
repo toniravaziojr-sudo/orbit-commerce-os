@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { subDays } from 'date-fns';
+import { applyChannelFilter, channelIncludesAds, type ChannelFilter } from '@/lib/dashboard/channelFilter';
 
 export interface DashboardMetrics {
   salesToday: number;
