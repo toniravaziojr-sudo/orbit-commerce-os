@@ -105,25 +105,27 @@ function computePeriods(startDate?: Date, endDate?: Date, firstOrderDate?: Date)
   };
 }
 
-export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
+export function useDashboardMetrics(startDate?: Date, endDate?: Date, channel: ChannelFilter = 'all') {
   const { currentTenant } = useAuth();
 
   return useQuery({
-    queryKey: ['dashboard-metrics', currentTenant?.id, startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ['dashboard-metrics', currentTenant?.id, startDate?.toISOString(), endDate?.toISOString(), channel],
     queryFn: async (): Promise<DashboardMetrics> => {
       if (!currentTenant?.id) return EMPTY_METRICS;
 
       const tid = currentTenant.id;
       const isAllTime = !startDate && !endDate;
+      const includeAds = channelIncludesAds(channel);
 
       // For "Todo o período": fetch first confirmed order date as baseline
       let firstOrderDate: Date | undefined;
       if (isAllTime) {
-        const { data: firstOrder } = await supabase
+        const baseQuery = supabase
           .from('orders')
           .select('created_at')
           .eq('tenant_id', tid)
-          .not('payment_gateway_id', 'is', null)
+          .not('payment_gateway_id', 'is', null);
+        const { data: firstOrder } = await applyChannelFilter(baseQuery as any, channel)
           .order('created_at', { ascending: true })
           .limit(1)
           .single();
