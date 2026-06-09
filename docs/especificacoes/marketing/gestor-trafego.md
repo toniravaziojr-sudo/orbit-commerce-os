@@ -3140,3 +3140,95 @@ oficiais e compatibilidade com propostas legacy. **17/17 passando**.
 - "Nova Estratégia" (Frente 3) — não implementado.
 - Mudanças em C.4, autoexecução, Tenant Memory, F.1/F.2, cadência semanal/mensal.
 - Estimativa monetária pré-débito (exibido aviso textual genérico).
+
+---
+
+## 13 — Frente 4.1 — Inteligência produto×funil e UI/UX do modal de propostas (v1.0.0)
+
+### 13.1 Objetivo
+Eliminar dois problemas estruturais observados na Etapa 1 do `two_step_v1`:
+
+1. A IA propunha ofertas avançadas (ex.: kit com 3 unidades de cada produto base) para Público Frio, onde o usuário ainda não conhece a marca.
+2. O modal de proposta tinha aparência técnica, dificultando a decisão de negócio.
+
+A solução é **híbrida**: o Estrategista passa a entender a composição comercial do produto antes de propor, e um novo gate funciona como defesa final caso uma proposta inadequada chegue até o usuário.
+
+### 13.2 Classificação comercial por composição
+Módulo puro: `supabase/functions/_shared/ads-autopilot/productCommercialClassifier.ts`.
+
+Classes oficiais:
+
+| Classe | Definição |
+|---|---|
+| `produto_base` | Produto único, vendido sozinho |
+| `produto_principal_simples` | Base com sinal de "principal" (tag/flag ou preço ≤ 1,15× do menor preço base ativo) |
+| `kit_unitario_apresentacao` | Composição com 2+ bases distintas, 1 unidade de cada |
+| `kit_quantidade` | Composição com `quantity > 1` em qualquer linha, ou multipack do mesmo SKU detectado no nome ("(2x)", "Kit 3", "3 unidades") |
+| `recompra_retencao` | Tag/categoria explícita de recompra/recorrência/manutenção/assinatura |
+| `upsell_manutencao` | Tag de upsell + preço > 2,5× do menor preço base |
+| `desconhecido` | Sem dados suficientes (confiança baixa) |
+
+Ordem de leitura (fonte de verdade):
+1. Tabela de composição real do produto (única fonte para composição).
+2. Tabela de payload comercial da IA (`is_base_candidate`, `base_product_id`).
+3. Tags/categorias/tipo.
+4. Nome + preço como fallback conservador (marca confiança baixa).
+
+**Regra-chave:** se qualquer componente tem quantidade maior que 1, a oferta é `kit_quantidade`.
+
+### 13.3 Product/Funnel Fit Gate
+Módulo puro: `supabase/functions/_shared/ads-autopilot/productFunnelFitGate.ts`.
+
+Roda **depois** do Quality Gate (não substitui). Matriz de adequação:
+
+| Funil | Aceita (alta) | Aceita c/ ressalva | Bloqueado |
+|---|---|---|---|
+| Frio (cold / tof) | `produto_base`, `produto_principal_simples`, `kit_unitario_apresentacao` | — | `kit_quantidade`, `upsell_manutencao`, `recompra_retencao` |
+| Remarketing/Morno | tudo | `recompra_retencao` (sugere mover para Clientes) | — |
+| Quente (hot / bof) | tudo | — | — |
+| Retenção/Clientes | `recompra_retencao`, `upsell_manutencao`, `kit_quantidade` | `produto_base`, `produto_principal_simples` (média) | — |
+
+Quando a composição é desconhecida e a confiança baixa, o gate marca **"composição incerta"** e bloqueia somente em Frio.
+
+**Reason codes** (registrados no payload em "Detalhes técnicos"): `cold_audience_bundle_not_recommended`, `cold_audience_high_friction_offer`, `cold_audience_retention_offer_mismatch`, `product_funnel_mismatch`, `offer_stage_mismatch`, `product_composition_unknown_low_confidence`, `fit_ok`.
+
+### 13.4 Decisão híbrida (soft-block)
+Quando o gate bloqueia, a UI:
+- Mostra **badge de adequação** ("Bloqueada" / "Composição incerta") no cabeçalho do card e no modal.
+- Exibe um **alerta em vermelho** com a mensagem amigável e ações sugeridas (trocar produto, mover para Remarketing/Clientes, revisar cadastro).
+- **Desabilita** o botão "Aprovar e gerar criativos" e troca o rótulo para "Ajuste necessário antes de aprovar".
+- Os botões "Ajustar" e "Rejeitar" continuam disponíveis.
+
+### 13.5 Reorganização do modal (Etapa 1 do two_step_v1)
+A visão de abas foi substituída por **blocos verticais** apenas para o estágio "strategy". Legacy (Etapa 2 e fluxo antigo) mantém as abas.
+
+Blocos:
+1. **Adequação produto×público** (badge tonal no topo).
+2. **Resumo da recomendação** — frase única em linguagem de negócio.
+3. **Produto e oferta** — nome, tipo comercial, composição, preço, orçamento, CTA.
+4. **Público e exclusões** — descrição + exclusão de Clientes.
+5. **Prompt & Copy** — aviso amarelo "nenhum criativo final foi gerado ainda" + prompt limpo + "Formato sugerido: 1:1" + headlines + textos principais + miniatura "Referência visual do produto".
+6. **Riscos e validações** — Quality Gate, Fit Gate e ajustes sugeridos.
+7. **Detalhes técnicos** — `<details>` recolhido por padrão, contém `flow_version`, `product_id`, `creative_brief` cru, `reason_codes`, `classification_signals`.
+
+Payload técnico bruto não aparece na visualização principal.
+
+### 13.6 Cenário de validação
+Proposta sintética ativa: **`c6fef3ed-42e8-4637-98ac-9dfdeadf62f4`** — Kit Banho Calvície Zero Dia (Shampoo 1× + Balm 1× → `kit_unitario_apresentacao`) em Público Frio → **adequação alta**, botão liberado.
+
+Proposta antiga "Kit 3x em Frio" foi arquivada como `rejected` com `cleanup_audit = archived_for_fit_gate_validation_2026_06_09`. O cenário ruim (`kit_quantidade` em Frio → blocked) é coberto por testes automatizados, sem poluir a fila visual.
+
+### 13.7 Testes
+`src/test/ads-autopilot-product-funnel-fit.test.ts` — 16 testes (7 do classificador + 9 do gate). **Suite completa do autopilot: 217/217 passando**.
+
+### 13.8 Restrições preservadas
+Nada de Nova Estratégia. C.4, toggles de autoexecução, Tenant Memory, F.1/F.2 e cadência semanal/mensal seguem intactos. Nenhuma chamada Meta/Google/TikTok. Nenhum criativo real, nenhum crédito consumido, nenhuma campanha publicada.
+
+### 13.9 Anti-regressão (mantida apenas em docs do repositório)
+- O usuário decidiu **não** criar memória `mem://constraints/...` para esta regra. Toda a anti-regressão vive aqui (`gestor-trafego.md`) e em `mapa-ui.md`.
+- Regra: para qualquer alteração no Estrategista, no Gate ou na UI de propostas, validar:
+  1. Composição com `quantity > 1` continua classificada como `kit_quantidade`.
+  2. Frio + `kit_quantidade` continua bloqueando o botão de aprovar.
+  3. Modal da Etapa 1 continua em blocos verticais, sem payload técnico bruto fora de "Detalhes técnicos".
+  4. Imagem de produto continua aparecendo apenas como "Referência visual" pequena, jamais contada como criativo final.
+
