@@ -13989,6 +13989,63 @@ export type Database = {
           },
         ]
       }
+      nf_deletion_audit: {
+        Row: {
+          customer_doc: string | null
+          customer_name: string | null
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          items_snapshot: Json | null
+          nf_fiscal_stage: string | null
+          nf_id: string
+          nf_numero: number | null
+          nf_serie: number | null
+          nf_status: string | null
+          order_id: string | null
+          order_number: string | null
+          reason: string | null
+          tenant_id: string
+          valor_total: number | null
+        }
+        Insert: {
+          customer_doc?: string | null
+          customer_name?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          nf_fiscal_stage?: string | null
+          nf_id: string
+          nf_numero?: number | null
+          nf_serie?: number | null
+          nf_status?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          reason?: string | null
+          tenant_id: string
+          valor_total?: number | null
+        }
+        Update: {
+          customer_doc?: string | null
+          customer_name?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          nf_fiscal_stage?: string | null
+          nf_id?: string
+          nf_numero?: number | null
+          nf_serie?: number | null
+          nf_status?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          reason?: string | null
+          tenant_id?: string
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
       notification_attempts: {
         Row: {
           attempt_no: number
