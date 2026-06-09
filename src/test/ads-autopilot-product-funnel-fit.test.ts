@@ -28,7 +28,7 @@ describe("Frente 4 — Classificador comercial", () => {
   });
 
   it("produto simples com preço próximo do floor → produto_principal_simples", () => {
-    const r = classifyProduct({ product: base({ price: 93 }), basePriceFloor: 80 });
+    const r = classifyProduct({ product: base({ price: 88 }), basePriceFloor: 80 });
     expect(r.commercial_class).toBe("produto_principal_simples");
   });
 
