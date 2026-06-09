@@ -8,7 +8,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // kit-unbundler removido daqui: desmembramento acontece em fiscal-prepare-invoice (PV → NF).
-import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
+import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
@@ -556,16 +556,9 @@ async function processTenanDrafts(
     }
   }
 
-  if (isFiscalConfigured) {
-    await syncFiscalNumberCursor({
-      supabase,
-      tenantId,
-      serie: serieNfe,
-      currentCursor: nextNumeroCursor,
-      logPrefix: 'fiscal-auto-create-drafts',
-      docClass: 'pedido_venda',
-    });
-  }
+  // Cursor numero_pedido_atual não é mais avançado por criação de PV.
+  // PV puro pode ser excluído e o número volta a estar disponível.
+  // A próxima alocação é sempre derivada do maior PV vivo + 1.
 
   console.log(`[fiscal-auto-create-drafts] Completed for tenant ${tenantId}. Created ${created.count} drafts.`);
   return { created: created.count, errors };

@@ -634,6 +634,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       .eq('id', editingInvoice.id);
 
     if (error) {
+      const msg = String(error.message || '');
+      if (msg.includes('NF_ALREADY_SUBMITTED_TO_SEFAZ')) {
+        toast.error('Esta Nota Fiscal já foi enviada à SEFAZ e não pode ser excluída. Use o cancelamento ou a inutilização.');
+        return;
+      }
       toast.error(`Não foi possível excluir: ${error.message}`);
       throw error;
     }
@@ -1288,6 +1293,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         // Bloqueio: objeto logístico em andamento ou entregue
         if (msg.includes('PV_SHIPMENT_IN_PROGRESS')) {
           toast.error('Este Pedido de Venda tem um objeto de postagem em andamento ou já entregue ao cliente. Cancele o envio no módulo de Logística antes de excluir.');
+          setConfirmDeleteInvoice(null);
+          setLinkedShipmentImpact(null);
+          setPaidOrderBlock(null);
+          return;
+        }
+        // Bloqueio: NF já enviada à SEFAZ
+        if (msg.includes('NF_ALREADY_SUBMITTED_TO_SEFAZ')) {
+          toast.error('Esta Nota Fiscal já foi enviada à SEFAZ e não pode ser excluída. Use o cancelamento ou a inutilização.');
           setConfirmDeleteInvoice(null);
           setLinkedShipmentImpact(null);
           setPaidOrderBlock(null);
@@ -2366,6 +2379,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                         {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
                       </p>
                     )}
+                    {confirmDeleteInvoice && (
+                      <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-900">
+                        O número <strong>#{confirmDeleteInvoice.numero}</strong> ficará disponível para a próxima criação.
+                      </p>
+                    )}
                     {linkedShipmentImpact && (
                       <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
                         Este Pedido de Venda tem um objeto de postagem associado{linkedShipmentImpact.tracking_code ? ` (nº ${linkedShipmentImpact.tracking_code})` : ''}. <strong>Ele será excluído junto.</strong> Se a remessa ficar vazia, também será removida.
@@ -2375,6 +2393,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                       Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
                     </p>
                   </>
+
                 )}
               </div>
             </AlertDialogDescription>

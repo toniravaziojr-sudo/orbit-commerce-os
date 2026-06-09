@@ -6,7 +6,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // kit-unbundler removido daqui: desmembramento acontece em fiscal-prepare-invoice (PV → NF).
-import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
+import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
@@ -444,14 +444,9 @@ Deno.serve(async (req) => {
 
       invoice = result.invoice;
 
-      await syncFiscalNumberCursor({
-        supabase,
-        tenantId,
-        serie: serieNfe,
-        currentCursor: result.numero + 1,
-        logPrefix: 'fiscal-create-draft',
-        docClass: 'pedido_venda',
-      });
+      // PV puro pode ser excluído e ter o número reaproveitado. Não avançamos
+      // o cursor numero_pedido_atual aqui — o próximo número é sempre derivado
+      // do maior PV vivo + 1.
     }
 
     // Insert items

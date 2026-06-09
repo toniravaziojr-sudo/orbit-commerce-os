@@ -562,6 +562,14 @@ Deno.serve(async (req) => {
       .update(updateData)
       .eq('id', invoice_id);
 
+    // Marca alta da SEFAZ: o cursor numero_nfe_atual nunca recua.
+    // Garante que nenhum número já queimado lá fora seja reusado por rascunho.
+    await supabaseClient
+      .from('fiscal_settings')
+      .update({ numero_nfe_atual: numeroAtual + 1 })
+      .eq('tenant_id', tenantId)
+      .lt('numero_nfe_atual', numeroAtual + 1);
+
     // Registrar log
     await supabaseClient
       .from('fiscal_invoice_events')
