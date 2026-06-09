@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
       const serieNf = settingsNum?.serie_nfe || inv.serie || 1;
 
-      const { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } =
+      const { getNextFiscalNumber, insertFiscalInvoiceWithRetry } =
         await import('../_shared/fiscal-numbering.ts');
 
       const nextNfNumero = await getNextFiscalNumber({
