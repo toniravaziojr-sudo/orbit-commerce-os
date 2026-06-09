@@ -1508,6 +1508,22 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           </div>
         )}
 
+        {/* Frente 4 — Alerta de adequação produto×funil (soft-block) */}
+        {approveBlockedByFit && fitData && (
+          <div className="mx-3 mb-2 p-2.5 rounded-md border border-rose-500/30 bg-rose-500/5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-semibold text-rose-900 dark:text-rose-200">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Adequação produto × público
+            </div>
+            <p className="text-rose-900/90 dark:text-rose-200/90 leading-relaxed">{fitData.fit.user_message}</p>
+            {fitData.fit.suggested_actions.length > 0 && (
+              <ul className="list-disc list-inside text-rose-900/80 dark:text-rose-200/80">
+                {fitData.fit.suggested_actions.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* Frente 4 — Etapa 2 em andamento / aguardando aprovação final */}
         {isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") && (
           <div className="mx-3 mb-2 p-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 text-xs flex items-center gap-2">
@@ -1535,11 +1551,12 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   onSuccess: () => setCreativeDialogOpen(true),
                 });
               }}
-              disabled={approveStrategy.isPending || !!rejectingId}
+              disabled={approveStrategy.isPending || !!rejectingId || approveBlockedByFit}
               className="flex-1 h-8 text-xs gap-1.5"
+              title={approveBlockedByFit ? (fitData?.fit.user_message || "") : "Aprova a estratégia e autoriza a geração dos criativos. Ainda não publica a campanha."}
             >
               {approveStrategy.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {approveStrategy.isPending ? "Aprovando estratégia…" : "Aprovar e gerar criativos"}
+              {approveStrategy.isPending ? "Aprovando estratégia…" : approveBlockedByFit ? "Ajuste necessário antes de aprovar" : "Aprovar e gerar criativos"}
             </Button>
           ) : isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") ? (
             <Button
