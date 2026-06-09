@@ -1374,26 +1374,86 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           </div>
         </div>
 
+        {/* Frente 4 — Bloco do Brief (Etapa 1) */}
+        {isTwoStep && twoStepStage === "strategy" && creativeBrief && (
+          <div className="mx-3 mb-2 p-2.5 rounded-md border border-primary/20 bg-primary/5 text-xs space-y-1">
+            <div className="flex items-center gap-1.5 font-semibold text-primary">
+              <Sparkles className="h-3 w-3" />
+              Prompt do criativo
+              {creativeBrief.format && <Badge variant="outline" className="text-[10px] ml-1">Formato {creativeBrief.format}</Badge>}
+            </div>
+            {creativeBrief.prompt && (
+              <p className="text-muted-foreground whitespace-pre-wrap line-clamp-3">{creativeBrief.prompt}</p>
+            )}
+            <p className="text-[10px] text-muted-foreground italic">
+              Nenhum crédito será consumido até você aprovar a geração dos criativos.
+            </p>
+          </div>
+        )}
+
+        {/* Frente 4 — Etapa 2 em andamento / aguardando aprovação final */}
+        {isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") && (
+          <div className="mx-3 mb-2 p-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 text-xs flex items-center gap-2">
+            {twoStepStage === "generating" ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-700" />
+                <span className="text-amber-800">Gerando criativos…</span>
+              </>
+            ) : (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-700" />
+                <span className="text-emerald-800">Criativos prontos — aguardando aprovação final</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Action buttons */}
         <CardFooter className="px-3 pb-3 pt-0 gap-2 border-t border-border/30">
-          <Button
-            size="sm"
-            onClick={() => onApprove(action.id)}
-            disabled={!!approvingId || !!rejectingId}
-            className="flex-1 h-8 text-xs gap-1.5"
-          >
-            {approvingId === action.id ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Check className="h-3.5 w-3.5" />
-            )}
-            {approvingId === action.id ? "Aprovando..." : "Aprovar"}
-          </Button>
+          {isTwoStep && twoStepStage === "strategy" ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                approveStrategy.mutate(action.id, {
+                  onSuccess: () => setCreativeDialogOpen(true),
+                });
+              }}
+              disabled={approveStrategy.isPending || !!rejectingId}
+              className="flex-1 h-8 text-xs gap-1.5"
+            >
+              {approveStrategy.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {approveStrategy.isPending ? "Aprovando estratégia…" : "Aprovar e gerar criativos"}
+            </Button>
+          ) : isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") ? (
+            <Button
+              size="sm"
+              onClick={() => setCreativeDialogOpen(true)}
+              className="flex-1 h-8 text-xs gap-1.5"
+              variant={twoStepStage === "final" ? "default" : "outline"}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              {twoStepStage === "final" ? "Revisar e aprovar campanha" : "Acompanhar geração"}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => onApprove(action.id)}
+              disabled={!!approvingId || !!rejectingId}
+              className="flex-1 h-8 text-xs gap-1.5"
+            >
+              {approvingId === action.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              {approvingId === action.id ? "Aprovando..." : "Aprovar"}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setAdjustOpen(true)}
-            disabled={!!approvingId || !!rejectingId || !!adjustingId}
+            disabled={!!approvingId || !!rejectingId || !!adjustingId || twoStepStage === "generating"}
             className="flex-1 h-8 text-xs gap-1.5"
           >
             {isAdjusting ? (
@@ -1415,6 +1475,15 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           </Button>
         </CardFooter>
       </Card>
+
+      {/* Frente 4 — Dialog da Etapa 2 */}
+      {isTwoStep && (
+        <CreativeGenerationStepDialog
+          action={action}
+          open={creativeDialogOpen}
+          onOpenChange={setCreativeDialogOpen}
+        />
+      )}
 
       {/* Full Content Dialog */}
       <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} />
