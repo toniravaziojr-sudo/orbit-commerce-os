@@ -310,3 +310,61 @@ Separar conceitualmente **Objeto de Postagem** (unidade vinculada ao pedido) de 
 
 
 
+
+---
+
+### Gestor de Tráfego IA — Modal de proposta, editor estruturado e versionamento (Frentes 4.2 / 4.3 / 4.4)
+
+**Aberto em:** 08/06/2026
+**Status:** ⏸️ Pausado por decisão do usuário em 09/06/2026 — ajuste técnico aplicado, pendente de validação visual no painel `/ads`.
+
+**Resumo executivo do que já foi feito:**
+
+- **Frente 4.1 — Inteligência comercial + Fit Gate (concluída e ativa):**
+  - Classificação automática de oferta: produto base, kit unitário de apresentação, kit de quantidade ou recompra/retenção.
+  - Regra: qualquer kit cujo componente base apareça com quantidade > 1 é tratado como kit de quantidade e é considerado inadequado para público frio (Product/Funnel Fit Gate em modo *soft-block*).
+  - Badge de "Adequação" (alta / baixa / bloqueada) no card da proposta e bloqueio do botão "Aprovar e gerar criativos" quando há desencaixe.
+  - Proposta legada "Kit 3x" para público frio foi arquivada como rejeitada (auditoria). Foi inserida uma proposta sintética nova de validação: **Prospecção Frio — Kit Banho Calvície Zero Dia** (1× Shampoo + 1× Balm), que dispara "Adequação alta".
+
+- **Frente 4.2 — Modal "Ver conteúdo completo" reorganizado (concluída, pendente de validação):**
+  - Layout vertical em blocos: Resumo, **Campanha** (nome, objetivo, canal, orçamento diário, link de destino clicável, CTA), Produto e oferta, Público, Criativo e copy, Riscos e Detalhes técnicos (recolhido por padrão).
+  - Payload técnico bruto deixou de aparecer no corpo principal — fica só dentro de "Detalhes técnicos".
+  - Imagem de referência do produto continua aparecendo, mas como referência visual (não como criativo gerado).
+
+- **Frente 4.3 — Editor estruturado de ajuste (concluída, pendente de validação):**
+  - Botão "Ajustar" das propostas da Etapa 1 (`two_step_v1`) deixou de abrir caixa de texto livre e passou a abrir um **drawer lateral à direita** com a proposta inteira em campos editáveis, dividida em 5 blocos: Campanha, Produto e oferta, Público, Criativo e copy, Feedback para a IA.
+  - Canal/plataforma permanece como somente leitura nesta versão.
+  - "Salvar rascunho" persiste o ajuste em banco e recarrega ao reabrir, **sem chamar a IA**.
+  - "Gerar proposta revisada" é a **única** ação que chama a IA (1 vez), criando uma nova versão filha (v2, v3, …) e marcando a anterior como `superseded`. A antiga some automaticamente da fila "Aguardando Ação". Histórico cumulativo de ajustes é mantido.
+  - Validações de UI: campos obrigatórios, link com `http(s)`, exigência de observação quando o motivo é "Outro", e bloqueio quando o Fit Gate retorna desencaixe.
+  - Propostas legadas (fora de `two_step_v1`) continuam usando o ajuste em texto livre antigo.
+  - Etapa 2 do fluxo `two_step_v1` permanece intocada.
+
+- **Frente 4.4 parcial — Feedback em Aprovar/Rejeitar (já existia, mantido):**
+  - Diálogo de feedback no Aprovar (opcional) e Rejeitar (obrigatório: chips + observação) continua funcionando como antes via `useAdsAutopilotFeedbackGate`.
+  - No editor estruturado, o feedback de ajuste vai junto com o patch da revisão.
+  - **Não entregue ainda:** o Strategist ainda não consome o feedback acumulado para reaprender; o contrato e o histórico estão prontos, mas a injeção no prompt da IA fica para uma frente futura.
+
+**Validação pendente do usuário no painel `/ads` → aba "Aguardando Ação" → proposta "Prospecção Frio — Kit Banho Dia":**
+1. Abrir "Ver conteúdo completo" e conferir o bloco "Campanha" novo (link clicável, CTA traduzido) e o bloco "Detalhes técnicos" recolhido.
+2. Clicar em "Ajustar" e conferir que abre o drawer lateral (não o textarea antigo), com canal em cinza.
+3. Editar o nome da campanha → deve aparecer o contador "1 campo alterado".
+4. "Salvar rascunho" → toast confirma; fechar e reabrir mantém o ajuste; nenhum criativo/crédito é consumido.
+5. "Gerar proposta revisada" → confirmar → a v1 some e aparece uma v2 nova na fila.
+6. Confirmar que o badge de "Adequação" e o bloqueio do botão Aprovar continuam respeitando o Fit Gate dentro do editor.
+
+**Restrições que precisam ser mantidas quando o assunto for retomado:**
+- Sem Nova Estratégia, sem alterar C.4, toggles de autoexecução, Tenant Memory, F.1/F.2 ou cadência semanal/mensal.
+- Sem gerar criativo real, sem consumir crédito, sem publicar campanha, sem chamar Meta/Google/TikTok.
+- Sem expor payload técnico bruto fora do bloco "Detalhes técnicos".
+- A imagem de referência do produto não pode ser removida — só apresentada como referência.
+- Editar/abrir/salvar rascunho = 0 chamadas IA. Só "Gerar proposta revisada" chama (1 vez).
+- Regra anti-regressão do Product/Funnel Fit Gate vive **apenas** em `docs/especificacoes/marketing/gestor-trafego.md` §13/§14 e `docs/especificacoes/transversais/mapa-ui.md` — proibido criar `mem://constraints/...` para isso.
+
+**Onde paramos exatamente (ponto de retomada):**
+- Ajuste técnico das Frentes 4.2, 4.3 e 4.4 parcial está **aplicado e buildado**, **aguardando o usuário validar visualmente** os 6 itens acima.
+- Próximos blocos previstos quando o assunto for retomado:
+  - Concluir a Frente 4.4 fazendo o Strategist consumir o feedback acumulado nos prompts.
+  - Avaliar se canal/plataforma deve virar editável.
+  - Eventual Frente 4.5 (Nova Estratégia) — ainda **não aprovada**.
+
