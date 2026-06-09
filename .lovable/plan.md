@@ -1,88 +1,83 @@
+# Frente 4.1 — Inteligência produto×funil e UI/UX do modal (Gestor de Tráfego IA)
 
-# Ajuste do fluxo Fiscal × Logístico (NF cancelada / PV excluído)
+**Status:** Ajuste aplicado — pendente de validação visual no painel `/ads`.
 
-## Regras de negócio aprovadas
+## O que mudou no sistema
 
-### Regra 1 — Quando posso cancelar uma NF
-A NF de venda só pode ser cancelada se **não houver objeto logístico associado** OU se o objeto estiver em um destes estados:
-- "Etiqueta gerada" (objeto criado/pronto, ainda não despachado fisicamente)
-- "Cancelado"
+### A. Inteligência de composição comercial
+A IA agora classifica cada produto/oferta em uma das categorias antes de propor a campanha:
 
-Em qualquer outro estado do objeto (postado, em trânsito, saindo para entrega, entregue ou devolvido), o cancelamento é **bloqueado** tanto no botão (desabilitado com tooltip) quanto na confirmação (mensagem em destaque dentro do diálogo) e também no servidor.
+- **Produto base** — único, vendido sozinho.
+- **Produto principal** — base com sinal de "principal" (tag ou preço de entrada).
+- **Kit unitário de apresentação** — composição com 2+ bases diferentes, 1 unidade de cada.
+- **Kit de quantidade** — composição com mais de 1 unidade de qualquer base (ex.: Kit 3x).
+- **Oferta de recompra/retenção** — tag explícita de recorrência/manutenção.
+- **Oferta de upsell/manutenção** — ticket alto + tag de upsell.
+- **Composição não identificada** — sem dados suficientes (confiança baixa).
 
-#### Mensagens exibidas ao usuário (PT-BR, em destaque no diálogo)
-- Objeto **postado / em trânsito / saindo para entrega**:
-  > "Não é possível cancelar esta NF: o pedido já foi despachado e está em rota de entrega (rastreio: AP000000000BR). Para cancelar a NF, primeiro cancele o objeto de postagem no módulo de Logística."
-- Objeto **entregue**:
-  > "Não é possível cancelar esta NF: o pedido já foi entregue ao cliente (rastreio: AP000000000BR, entregue em 08/06/2026). Notas de pedidos entregues não podem ser canceladas — utilize uma NF de devolução se for o caso."
-- Objeto **devolvido**:
-  > "Não é possível cancelar esta NF: o pedido foi devolvido. Registre uma NF de devolução em vez de cancelar a original."
+A fonte de verdade é a composição real do produto (Produto → Componentes). Tags, categoria e preço só entram como sinal complementar.
 
-Em todos os casos, o número do rastreio e a data relevante aparecem dentro da mensagem para o usuário entender o porquê do bloqueio.
+### B. Gate de adequação produto × público
+Roda depois do Quality Gate atual (não substitui).
 
-### Regra 2 — O que acontece com o PV quando a NF é cancelada
-- O PV volta para **"Pedido em aberto"** (status visual).
-- **Nenhuma observação extra** é exibida (sem "NF cancelada", sem "Pedido sem itens", sem nada).
-- Qualquer pendência fiscal antiga grudada no PV é **limpa**, porque o PV volta ao começo do ciclo e pode ser reaproveitado para emitir uma nova NF.
+- **Frio (prospecção):** aceita produto base, produto principal e kit unitário de apresentação. Bloqueia kit de quantidade, recompra e upsell.
+- **Remarketing/Morno:** tudo aceito (recompra fica como ressalva).
+- **Quente:** tudo aceito.
+- **Retenção/Clientes:** prefere recompra, upsell e kits maiores.
 
-### Regra 3 — O que acontece quando excluo um PV
-O objeto logístico vinculado segue o PV:
+Quando bloqueia, a UI mostra o motivo em linguagem clara e desabilita o botão "Aprovar e gerar criativos", oferecendo ações sugeridas (trocar produto, mover para Remarketing/Clientes, revisar cadastro).
 
-| Situação do objeto | O que acontece |
-|---|---|
-| Objeto sem remessa | Excluído junto com o PV |
-| Objeto sozinho dentro de uma remessa | Objeto **e** remessa excluídos |
-| Objeto em uma remessa com outros objetos | Objeto **marcado como "cancelado" dentro da remessa** (não exclui o objeto nem a remessa) |
+### C. Modal de proposta reorganizado (Etapa 1)
+Na Etapa 1 do fluxo de duas etapas, o modal deixou de usar abas e passou a usar **blocos verticais empilhados**:
 
-A remessa deixa de contar este objeto nos totais quando ele está cancelado.
+1. Badge de adequação produto×público no topo (alta/média/baixa/bloqueada/incerta).
+2. Resumo da recomendação em linguagem de negócio.
+3. Produto e oferta (tipo comercial, composição, preço, orçamento, botão).
+4. Público e exclusões (com linha de Clientes excluídos).
+5. Prompt & Copy (aviso amarelo "nenhum criativo final foi gerado ainda" + prompt limpo + formato sugerido + headlines + textos principais + miniatura "Referência visual do produto").
+6. Riscos e validações (Quality Gate + Fit Gate + ajustes sugeridos).
+7. Detalhes técnicos — recolhido por padrão.
 
----
+Payload técnico bruto não aparece mais na visualização principal.
 
-## O que muda no sistema
+### D. Fila de validação
+- A proposta antiga **Kit Banho Calvície Zero (3x) em Público Frio** foi **arquivada** como rejeitada, com auditoria preservada (`cleanup_audit = archived_for_fit_gate_validation_2026_06_09`). Caso ruim coberto por testes automatizados, sem poluir a fila visual.
+- Nova proposta sintética ativa: **Kit Banho Calvície Zero Dia** (Shampoo 1× + Balm 1× = kit unitário de apresentação) para Público Frio → **adequação alta**, botão liberado.
 
-### A. Trava no cancelamento de NF (com mensagens claras)
-- Antes de chamar o cancelamento, o sistema consulta o estado do objeto logístico vinculado.
-- Se o estado não permitir, o botão de "Cancelar NF" fica desabilitado com tooltip resumido e, ao tentar abrir o diálogo, a mensagem completa (com rastreio e data) aparece em destaque dentro do próprio diálogo, substituindo o formulário de justificativa.
-- A API recusa a operação com a mesma mensagem em PT-BR (defesa em profundidade).
+## Validação técnica executada
+- **Composição do Kit Dia** confirmada: 1× Shampoo + 1× Balm → classifica como `kit_unitario_apresentacao`.
+- **Composição do Kit 3x arquivado** confirmada: 3× cada componente → classifica como `kit_quantidade` → soft-block em Frio.
+- **Fila ativa** verificada: apenas 1 proposta (`c6fef3ed-42e8-4637-98ac-9dfdeadf62f4`).
+- **Testes automatizados:** 217/217 passando — incluindo 16 cenários novos cobrindo classificador + gate.
 
-### B. Cancelamento da NF → PV em aberto, sem observação
-- Ao cancelar a NF, o sistema limpa as pendências antigas do PV e força o recálculo do status.
-- A regra de derivação passa a tratar "NF derivada cancelada" como sinal explícito de **voltar para "em aberto"**, sem deixar resíduo de pendência herdada.
+## Validação visual pendente (precisa do usuário)
+No painel `/ads` → aba **Propostas pendentes**:
 
-### C. Nova cascata de exclusão do PV
-- A cascata atual (que apaga objeto + remessa vazia) passa a respeitar o agrupamento:
-  - Remessa com **1 único objeto** → cascata TOTAL (apaga objeto e remessa).
-  - Remessa com **vários objetos** → o objeto do PV excluído fica **marcado como cancelado** dentro da remessa.
-- O diálogo de exclusão do PV mostra o que vai acontecer em linguagem clara antes de confirmar.
+1. Confirmar que aparece **uma** proposta apenas: "Prospecção Frio — Kit Banho Dia (apresentação)".
+2. Confirmar **badge verde "Adequação alta"** no cabeçalho do card e no topo do modal.
+3. Confirmar **botão "Aprovar e gerar criativos" habilitado** (sem alerta vermelho).
+4. Abrir "Ver conteúdo completo" e confirmar:
+   - 6 blocos verticais empilhados (não há abas).
+   - Bloco "Produto e oferta" mostra **"Tipo comercial: Kit unitário de apresentação"** e **"Composição: 1x Shampoo Calvície Zero + 1x Balm Pós-Banho Calvície Zero (Dia)"**.
+   - "Prompt & Copy" mostra aviso amarelo + prompt limpo + miniatura "Referência visual do produto".
+   - "Detalhes técnicos" aparece **recolhido** ao final.
 
-### D. Estado pós-correção do caso atual (PV 403 / NF 404 / AP053729025BR)
-- Limpa a pendência fantasma "Pedido sem itens" do PV 403.
-- Trata o objeto AP053729025BR conforme a nova regra (objeto isolado, sem remessa → liberado para exclusão junto com o PV).
-- Libera a exclusão da NF 404 e do PV 403 para você refazer o teste do zero.
+## Restrições preservadas
+- Nenhuma Nova Estratégia.
+- C.4, toggles de autoexecução, Tenant Memory, F.1/F.2 e cadência semanal/mensal intactos.
+- Nenhum criativo real gerado, nenhum crédito consumido, nenhuma campanha publicada.
+- Nenhuma chamada Meta/Google/TikTok.
+- Imagem de produto continua apenas como referência visual.
+- Sem memória `mem://constraints/...` — regra anti-regressão vive apenas em `docs/especificacoes/marketing/gestor-trafego.md` §13 e em `docs/especificacoes/transversais/mapa-ui.md`.
 
----
+## Documentação atualizada
+- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção §13 (classificador, gate, modal, anti-regressão).
+- `docs/especificacoes/transversais/mapa-ui.md` — nova seção "Frente 4.1" descrevendo badge, soft-block, blocos verticais e detalhes técnicos recolhidos.
 
-## Validação técnica (executada ao final)
-1. Consulta direta no banco confirmando: PV 403 em "em aberto" sem pendências, objeto AP053729025BR no estado correto, NF 404 excluível.
-2. Simulação dos três cenários da Regra 3 (objeto sem remessa, sozinho na remessa, acompanhado).
-3. Tentativa de cancelar uma NF com objeto "postado" → deve recusar com a mensagem completa em PT-BR.
-4. Cancelar uma NF com objeto "etiqueta gerada" → PV volta para "em aberto" limpo.
-
----
-
-## Documentação a atualizar (mesma entrega)
-1. `docs/especificacoes/erp/logistica.md` — seções "Exclusão em cascata" e "Cancelamento de NF × Objeto" (incluindo as mensagens exibidas).
-2. `docs/especificacoes/erp/fiscal.md` (ou equivalente) — regra de retorno do PV para "em aberto" e bloqueios de cancelamento.
-3. `docs/especificacoes/transversais/mapa-ui.md` — diálogos de cancelar NF (com novas mensagens) e excluir PV.
-4. Memórias anti-regressão:
-   - Atualizar `mem://constraints/shipping-pv-delete-cascade-by-shipment-state` (objeto acompanhado vira cancelado, não some).
-   - Criar `mem://constraints/nf-cancel-blocked-by-shipment-state` (trava + mensagens PT-BR obrigatórias com rastreio e data).
-   - Criar `mem://constraints/nf-cancel-reopens-pv-clean` (PV volta para em aberto, sem observação).
-
----
-
-## Bloco técnico (opcional, para registro)
-- Edge `fiscal-cancel`: pré-validação consultando `shipments` por `invoice_id`/`source_pedido_venda_id`/`nfe_key`; permitir só `delivery_status IN ('draft','label_created','cancelled')` ou ausência de shipment; payload de erro `code: 'shipment_blocks_cancel'` + `message` PT-BR com `tracking_code` e `delivered_at` quando aplicável. Após cancelar com sucesso, limpar `pendencia_motivos` do PV pai e chamar `recompute_pv_pedido_status`.
-- Função `derive_pv_pedido_status`: tratar "NF derivada cancelada" como sinal de "em_aberto" (não terminal).
-- Trigger `cascade_delete_shipments_on_pv_delete`: se a remessa tem outros shipments, `UPDATE shipments SET delivery_status='cancelled', cancelled_reason='pv_deleted'`; senão, `DELETE` (e a remessa vazia cai pelo gatilho existente).
-- Frontend `FiscalInvoiceList`: hook lê o shipment vinculado, desabilita o botão "Cancelar NF" com tooltip resumido e renderiza a mensagem completa dentro do diálogo (Alert em destaque) com `tracking_code` e `delivered_at` formatados em BRT.
+## Bloco técnico (registro)
+- `supabase/functions/_shared/ads-autopilot/productCommercialClassifier.ts` — classificador puro.
+- `supabase/functions/_shared/ads-autopilot/productFunnelFitGate.ts` — gate puro, com `evaluateProductFunnelFit`, `normalizeFunnelStage`, `fitLevelLabel`, `commercialClassLabel`.
+- `src/hooks/useProductCommercialFit.ts` — hook React lê produto + composição + payload IA + preço floor do catálogo e devolve `{ classification, fit, components_summary }`.
+- `src/components/ads/ActionApprovalCard.tsx` — badge no cabeçalho, alerta de soft-block, bloqueio do botão na Etapa 1 e novo `FullContentDialog` com blocos verticais (apenas no estágio `strategy` do `two_step_v1`).
+- `src/test/ads-autopilot-product-funnel-fit.test.ts` — 16 testes.
+- Migração Supabase: arquivamento da proposta `f24d6ceb-…` + inserção da nova `c6fef3ed-…`.
