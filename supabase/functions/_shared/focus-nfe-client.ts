@@ -102,19 +102,24 @@ export interface FocusNFePayload {
   // Frete
   modalidade_frete: number; // 0=Emitente, 1=Destinatário, 2=Terceiros, 9=Sem Frete
 
-  // Transportador (bloco transporte da NF-e)
-  transportador_nome_razao_social?: string;
-  transportador_cpf_cnpj?: string;
-  transportador_inscricao_estadual?: string;
-  transportador_endereco?: string;
-  transportador_municipio?: string;
-  transportador_uf?: string;
+  // Transportador (bloco transporte da NF-e) — nomes oficiais Focus NFe (sufixo "_transportador")
+  nome_transportador?: string;
+  cnpj_transportador?: string;
+  cpf_transportador?: string;
+  inscricao_estadual_transportador?: string;
+  endereco_transportador?: string;
+  municipio_transportador?: string;
+  uf_transportador?: string;
 
-  // Volumes
-  quantidade_volumes_transportados?: number;
-  especie_volumes_transportados?: string;
-  peso_liquido_total_dos_volumes_transportados?: number; // kg
-  peso_bruto_total_dos_volumes_transportados?: number;   // kg
+  // Volumes — Focus NFe espera array (X26 do schema NF-e)
+  volumes?: Array<{
+    quantidade?: number;
+    especie?: string;
+    marca?: string;
+    numeracao?: string;
+    peso_liquido?: number; // kg
+    peso_bruto?: number;   // kg
+  }>;
 
   // Itens
   items: FocusNFeItem[];

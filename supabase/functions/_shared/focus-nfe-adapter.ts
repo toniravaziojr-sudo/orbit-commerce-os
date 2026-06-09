@@ -389,40 +389,48 @@ export function buildNFePayload(
     payload.serie = Number(invoice.serie);
   }
 
-  // ----- Bloco transportador -----
+  // ----- Bloco transportador (nomes oficiais Focus NFe: sufixo _transportador) -----
   if (carrierName) {
-    payload.transportador_nome_razao_social = carrierName.toUpperCase().substring(0, 60);
+    payload.nome_transportador = carrierName.toUpperCase().substring(0, 60);
     if (transporte?.cnpj) {
-      const cnpjDigits = onlyNumbers(transporte.cnpj);
-      if (cnpjDigits.length === 14 || cnpjDigits.length === 11) {
-        payload.transportador_cpf_cnpj = cnpjDigits;
+      const docDigits = onlyNumbers(transporte.cnpj);
+      if (docDigits.length === 14) {
+        payload.cnpj_transportador = docDigits;
+      } else if (docDigits.length === 11) {
+        payload.cpf_transportador = docDigits;
       }
     }
     if (transporte?.inscricao_estadual) {
       const ie = transporte.inscricao_estadual.toString().trim().toUpperCase();
-      payload.transportador_inscricao_estadual = ie === 'ISENTO' ? 'ISENTO' : onlyNumbers(ie);
+      payload.inscricao_estadual_transportador = ie === 'ISENTO' ? 'ISENTO' : onlyNumbers(ie);
     }
     if (transporte?.endereco) {
-      payload.transportador_endereco = transporte.endereco.toUpperCase().substring(0, 60);
+      payload.endereco_transportador = transporte.endereco.toUpperCase().substring(0, 60);
     }
     if (transporte?.municipio) {
-      payload.transportador_municipio = transporte.municipio.toUpperCase().substring(0, 60);
+      payload.municipio_transportador = transporte.municipio.toUpperCase().substring(0, 60);
     }
     if (transporte?.uf) {
-      payload.transportador_uf = transporte.uf.toUpperCase().substring(0, 2);
+      payload.uf_transportador = transporte.uf.toUpperCase().substring(0, 2);
     }
   }
 
-  // ----- Volumes -----
-  if (transporte?.quantidade_volumes && transporte.quantidade_volumes > 0) {
-    payload.quantidade_volumes_transportados = transporte.quantidade_volumes;
-    payload.especie_volumes_transportados = (transporte.especie_volumes || 'VOLUME').toUpperCase().substring(0, 20);
-  }
-  if (transporte?.peso_bruto_kg && transporte.peso_bruto_kg > 0) {
-    payload.peso_bruto_total_dos_volumes_transportados = roundDecimal(transporte.peso_bruto_kg, 3);
-  }
-  if (transporte?.peso_liquido_kg && transporte.peso_liquido_kg > 0) {
-    payload.peso_liquido_total_dos_volumes_transportados = roundDecimal(transporte.peso_liquido_kg, 3);
+  // ----- Volumes (array, conforme schema NF-e) -----
+  const qtdVol = transporte?.quantidade_volumes && transporte.quantidade_volumes > 0
+    ? Math.floor(transporte.quantidade_volumes) : 0;
+  const especieVol = (transporte?.especie_volumes || 'VOLUME').toUpperCase().substring(0, 20);
+  const pesoBrutoVol = transporte?.peso_bruto_kg && transporte.peso_bruto_kg > 0
+    ? roundDecimal(transporte.peso_bruto_kg, 3) : 0;
+  const pesoLiquidoVol = transporte?.peso_liquido_kg && transporte.peso_liquido_kg > 0
+    ? roundDecimal(transporte.peso_liquido_kg, 3)
+    : (pesoBrutoVol > 0 ? pesoBrutoVol : 0);
+  if (qtdVol > 0 || pesoBrutoVol > 0) {
+    payload.volumes = [{
+      quantidade: qtdVol > 0 ? qtdVol : 1,
+      especie: especieVol,
+      ...(pesoBrutoVol > 0 ? { peso_bruto: pesoBrutoVol } : {}),
+      ...(pesoLiquidoVol > 0 ? { peso_liquido: pesoLiquidoVol } : {}),
+    }];
   }
 
   
