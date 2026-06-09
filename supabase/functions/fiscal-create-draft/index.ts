@@ -444,14 +444,9 @@ Deno.serve(async (req) => {
 
       invoice = result.invoice;
 
-      await syncFiscalNumberCursor({
-        supabase,
-        tenantId,
-        serie: serieNfe,
-        currentCursor: result.numero + 1,
-        logPrefix: 'fiscal-create-draft',
-        docClass: 'pedido_venda',
-      });
+      // PV puro pode ser excluído e ter o número reaproveitado. Não avançamos
+      // o cursor numero_pedido_atual aqui — o próximo número é sempre derivado
+      // do maior PV vivo + 1.
     }
 
     // Insert items
