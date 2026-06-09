@@ -29,6 +29,10 @@ interface DashboardMetricsGridProps {
   metrics: DashboardMetrics | undefined;
   isLoading: boolean;
   trendLabel: string;
+  /** Quando true, exibe "Em breve" no card de Investimento (abas de marketplace). */
+  hideAds?: boolean;
+  /** Selo discreto exibido junto ao título de cada bloco (ex.: "Caixa real", "Meta/Google/TikTok Ads"). */
+  showSourceBadges?: boolean;
 }
 
 interface MetricCardProps {
@@ -39,9 +43,10 @@ interface MetricCardProps {
   trendLabel?: string;
   variant?: "default" | "primary" | "success" | "warning" | "destructive" | "info";
   compact?: boolean;
+  source?: string;
 }
 
-function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "default", compact = false }: MetricCardProps) {
+function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "default", compact = false, source }: MetricCardProps) {
   const iconBgColors = {
     default: "bg-muted",
     primary: "bg-primary/10",
@@ -66,6 +71,11 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
         <div className="space-y-1">
           <p className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-sm")}>{label}</p>
           <p className={cn("font-bold text-card-foreground", compact ? "text-lg" : "text-2xl")}>{value}</p>
+          {source && (
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+              Fonte: {source}
+            </p>
+          )}
         </div>
         <div className={cn("rounded-lg", compact ? "p-1.5" : "p-2.5", iconBgColors[variant])}>
           <Icon className={cn(compact ? "h-4 w-4" : "h-5 w-5", iconColors[variant])} />
