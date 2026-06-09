@@ -114,3 +114,18 @@ aprovação explícita do operador do produto**:
 
 Enquanto a UI não muda, o motor já protege todos os fluxos de gravação e
 emissão a partir do backend.
+
+## Aviso opcional de transportadora (não bloqueante)
+
+A partir de 2026-06-09, o motor fiscal popula o bloco transportador
+da NF com base no catálogo embutido (`_shared/carrier-registry.ts`).
+Quando o nome da transportadora vinda do pedido não cruza com nenhum
+registro, ou quando o CNPJ não está disponível no catálogo, **a NF é
+emitida mesmo assim** com os dados disponíveis (nome + serviço + volumes).
+
+Isso é **proposital** — nem todo tenant usa logística integrada (Pratika,
+WMS) que exige CNPJ da transportadora. O preflight não bloqueia, apenas
+registra a observação. Tenants que precisem dos dados completos editam a
+NF antes de despachar.
+
+Detalhes técnicos: `mem://constraints/nfe-numero-soberano-e-bloco-transportador`.

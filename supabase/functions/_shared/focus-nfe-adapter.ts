@@ -104,6 +104,11 @@ export function buildNFePayload(
     valor_desconto?: number | null;
     valor_total: number;
     informacoes_complementares?: string | null;
+    /** Numeração soberana — quando informada, vai explícita ao Focus */
+    numero?: number | null;
+    serie?: number | null;
+    /** Marcador: pedido tem frete grátis (overrides modalidade) */
+    free_shipping?: boolean | null;
   },
   destinatario: {
     nome: string;
@@ -147,7 +152,25 @@ export function buildNFePayload(
   pagamento?: {
     forma: string;
     valor: number;
-  }
+  },
+  transporte?: {
+    /** Razão social oficial da transportadora */
+    razao_social?: string | null;
+    /** CNPJ apenas dígitos (quando conhecido) */
+    cnpj?: string | null;
+    inscricao_estadual?: string | null;
+    endereco?: string | null;
+    municipio?: string | null;
+    uf?: string | null;
+    /** Nome do serviço (PAC, SEDEX, JADLOG, etc.) — vai em obs */
+    servico?: string | null;
+    /** Override explícito de modalidade (0/1/2/9). Quando ausente, é deduzido. */
+    modalidade?: number | null;
+    quantidade_volumes?: number | null;
+    especie_volumes?: string | null;
+    peso_bruto_kg?: number | null;
+    peso_liquido_kg?: number | null;
+  },
 ): FocusNFePayload {
   // Frase legal obrigatória para MEI (CRT=4) e Simples Nacional (CRT=1/2),
   // conforme Art. 26 da LC 123/2006 — exigida no campo infCpl (informações
@@ -285,6 +308,24 @@ export function buildNFePayload(
   const cidadeSegura = (destinatario.cidade || '').toUpperCase().substring(0, 60);
   const ufSeguro = (destinatario.uf || '').toUpperCase();
 
+  // ----- Modalidade de frete -----
+  // Regras:
+  //  - Override explícito do chamador (transporte.modalidade) prevalece
+  //  - Sem despacho (sem transportadora E sem valor de frete) → 9
+  //  - Frete grátis com transportadora definida → 0 (emitente absorve)
+  //  - Frete cobrado → 1 (destinatário)
+  const carrierName = (transporte?.razao_social || '').trim();
+  let modalidadeFrete: number;
+  if (transporte?.modalidade === 0 || transporte?.modalidade === 1 || transporte?.modalidade === 2 || transporte?.modalidade === 9) {
+    modalidadeFrete = transporte.modalidade;
+  } else if (!carrierName && valorFreteTotal === 0) {
+    modalidadeFrete = 9;
+  } else if (invoice.free_shipping || valorFreteTotal === 0) {
+    modalidadeFrete = carrierName ? 0 : 9;
+  } else {
+    modalidadeFrete = 1;
+  }
+
   const payload: FocusNFePayload = {
     natureza_operacao: (invoice.natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
     data_emissao: new Date().toISOString(), // Data de emissão no formato ISO
@@ -293,7 +334,7 @@ export function buildNFePayload(
     consumidor_final: destinatario.cnpj ? 0 : 1,
     presenca_comprador: 2, // Internet
     cnpj_emitente: onlyNumbers(emitente.cnpj),
-    
+
     // Destinatário (com coerção segura)
     nome_destinatario: nomeSeguro,
     cpf_destinatario: destinatario.cpf ? onlyNumbers(destinatario.cpf) : undefined,
@@ -309,29 +350,81 @@ export function buildNFePayload(
     telefone_destinatario: destinatario.telefone ? onlyNumbers(destinatario.telefone) : undefined,
     email_destinatario: destinatario.email || undefined,
     indicador_inscricao_estadual_destinatario: indicadorIE,
-    
+
     // Valores
     valor_produtos: roundDecimal(invoice.valor_produtos, 2),
     valor_total: roundDecimal(invoice.valor_total, 2),
     valor_frete: valorFreteTotal > 0 ? roundDecimal(valorFreteTotal, 2) : undefined,
     valor_desconto: invoice.valor_desconto ? roundDecimal(invoice.valor_desconto, 2) : undefined,
-    
-    // Frete (0 = Remetente/Emitente, 1 = Destinatário, 9 = Sem frete)
-    modalidade_frete: valorFreteTotal > 0 ? 1 : 9,
-    
+
+    // Frete
+    modalidade_frete: modalidadeFrete,
+
     // Itens
     items: focusItems,
-    
-    // Informações adicionais — prefixa a frase legal de regime quando aplicável
+
+    // Informações adicionais — prefixa a frase legal de regime + nota de frete grátis quando aplicável
     informacoes_adicionais_contribuinte: (() => {
       const userInfo = (invoice.informacoes_complementares || '').trim();
       const parts: string[] = [];
       if (fraseRegime) parts.push(fraseRegime);
+      const freteGratis = (invoice.free_shipping || (valorFreteTotal === 0 && !!carrierName && modalidadeFrete === 0));
+      if (freteGratis) {
+        parts.push('Frete grátis — custo absorvido pelo emitente.');
+      }
+      if (transporte?.servico && carrierName) {
+        parts.push(`Serviço de envio: ${transporte.servico}.`);
+      }
       if (userInfo) parts.push(userInfo);
       const combined = parts.join(' ').trim();
       return combined ? combined.substring(0, 2000) : undefined;
     })(),
   };
+
+  // ----- Numeração soberana -----
+  if (invoice.numero && Number.isFinite(invoice.numero) && Number(invoice.numero) > 0) {
+    payload.numero = Number(invoice.numero);
+  }
+  if (invoice.serie && Number.isFinite(invoice.serie) && Number(invoice.serie) > 0) {
+    payload.serie = Number(invoice.serie);
+  }
+
+  // ----- Bloco transportador -----
+  if (carrierName) {
+    payload.transportador_nome_razao_social = carrierName.toUpperCase().substring(0, 60);
+    if (transporte?.cnpj) {
+      const cnpjDigits = onlyNumbers(transporte.cnpj);
+      if (cnpjDigits.length === 14 || cnpjDigits.length === 11) {
+        payload.transportador_cpf_cnpj = cnpjDigits;
+      }
+    }
+    if (transporte?.inscricao_estadual) {
+      const ie = transporte.inscricao_estadual.toString().trim().toUpperCase();
+      payload.transportador_inscricao_estadual = ie === 'ISENTO' ? 'ISENTO' : onlyNumbers(ie);
+    }
+    if (transporte?.endereco) {
+      payload.transportador_endereco = transporte.endereco.toUpperCase().substring(0, 60);
+    }
+    if (transporte?.municipio) {
+      payload.transportador_municipio = transporte.municipio.toUpperCase().substring(0, 60);
+    }
+    if (transporte?.uf) {
+      payload.transportador_uf = transporte.uf.toUpperCase().substring(0, 2);
+    }
+  }
+
+  // ----- Volumes -----
+  if (transporte?.quantidade_volumes && transporte.quantidade_volumes > 0) {
+    payload.quantidade_volumes_transportados = transporte.quantidade_volumes;
+    payload.especie_volumes_transportados = (transporte.especie_volumes || 'VOLUME').toUpperCase().substring(0, 20);
+  }
+  if (transporte?.peso_bruto_kg && transporte.peso_bruto_kg > 0) {
+    payload.peso_bruto_total_dos_volumes_transportados = roundDecimal(transporte.peso_bruto_kg, 3);
+  }
+  if (transporte?.peso_liquido_kg && transporte.peso_liquido_kg > 0) {
+    payload.peso_liquido_total_dos_volumes_transportados = roundDecimal(transporte.peso_liquido_kg, 3);
+  }
+
   
   // Adicionar forma de pagamento
   if (pagamento) {
@@ -401,3 +494,40 @@ export function mapFocusStatusToInternal(focusStatus: string): string {
 
   return statusMap[focusStatus] || 'processing';
 }
+
+/**
+ * Detecta se o erro devolvido pela Focus/SEFAZ é de "número já utilizado".
+ * Cobre rejeições comuns:
+ *  - cStat 539 (duplicidade de NF-e)
+ *  - cStat 204 (duplicidade de NF-e na base)
+ *  - mensagens textuais com "número" + "já" (utilizado/inutilizado/cadastrado)
+ *  - validação pré-envio da Focus quando número está abaixo do último emitido
+ */
+export function isDuplicateNumberError(
+  errorText?: string | null,
+  responseData?: { erros?: Array<{ codigo?: string; mensagem?: string }>; status_sefaz?: string; mensagem_sefaz?: string } | null,
+): boolean {
+  const haystack: string[] = [];
+  if (errorText) haystack.push(errorText);
+  if (responseData?.status_sefaz) haystack.push(responseData.status_sefaz);
+  if (responseData?.mensagem_sefaz) haystack.push(responseData.mensagem_sefaz);
+  if (Array.isArray(responseData?.erros)) {
+    for (const e of responseData!.erros!) {
+      if (e?.codigo) haystack.push(String(e.codigo));
+      if (e?.mensagem) haystack.push(e.mensagem);
+    }
+  }
+  const blob = haystack.join(' | ').toLowerCase();
+  if (!blob) return false;
+
+  // Códigos SEFAZ conhecidos
+  if (/\b(539|204)\b/.test(blob)) return true;
+
+  // Padrões textuais
+  if (/(duplicidade.*nf-?e|nf-?e.*duplicidade)/.test(blob)) return true;
+  if (/n[uú]mero.*(j[aá]).*(utilizad|inutilizad|cadastrad|emitid)/.test(blob)) return true;
+  if (/n[uú]mero.*(em uso|ocupado|conflit)/.test(blob)) return true;
+
+  return false;
+}
+

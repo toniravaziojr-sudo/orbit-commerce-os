@@ -3,7 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
-import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
+import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal, isDuplicateNumberError } from "../_shared/focus-nfe-adapter.ts";
+import { resolveCarrier } from "../_shared/carrier-registry.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
@@ -258,8 +259,9 @@ Deno.serve(async (req) => {
       ambiente,
     };
 
-    // Buscar destinatário
+    // Buscar destinatário + dados do pedido (para shipping/carrier)
     let destinatario: any;
+    let orderRow: any = null;
     if (invoice.order_id) {
       const { data: order } = await supabaseClient
         .from('orders')
@@ -268,6 +270,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (order) {
+        orderRow = order;
         const cpfCnpj = (order.customer?.cpf || invoice.dest_cpf_cnpj)?.replace(/\D/g, '') || '';
         const isCnpj = cpfCnpj.length === 14;
 
@@ -356,39 +359,130 @@ Deno.serve(async (req) => {
       valor: invoice.valor_total || 0
     } : undefined;
 
+    // ----- Resolução da transportadora (catálogo embutido + dados do pedido) -----
+    const carrierNameRaw = invoice.transportadora_nome
+      || orderRow?.shipping_carrier
+      || null;
+    const serviceNameRaw = invoice.transportadora_servico
+      || orderRow?.shipping_service_name
+      || orderRow?.shipping_method_name
+      || null;
+    const resolvedCarrier = resolveCarrier({
+      carrierName: carrierNameRaw,
+      serviceName: serviceNameRaw,
+    });
+
+    const freteValor = Number(invoice.valor_frete || orderRow?.shipping_total || 0);
+    const freteGratis = !!(orderRow?.free_shipping) || (freteValor === 0 && !!carrierNameRaw);
+    const modalidadeInvoice = (() => {
+      const m = String(invoice.modalidade_frete || '').trim();
+      if (m === '0' || m === '1' || m === '2' || m === '9') return Number(m);
+      return undefined;
+    })();
+
+    const pesoBrutoKg = Number(invoice.peso_bruto || 0);
+    const pesoLiquidoKg = Number(invoice.peso_liquido || 0);
+    const qtdVolumes = Number(invoice.quantidade_volumes || 1);
+
+    const transporteInput = carrierNameRaw ? {
+      razao_social: resolvedCarrier.razao_social,
+      cnpj: resolvedCarrier.cnpj,
+      inscricao_estadual: resolvedCarrier.inscricao_estadual,
+      endereco: resolvedCarrier.endereco,
+      municipio: resolvedCarrier.municipio,
+      uf: resolvedCarrier.uf,
+      servico: resolvedCarrier.servico || serviceNameRaw,
+      modalidade: modalidadeInvoice,
+      quantidade_volumes: qtdVolumes > 0 ? qtdVolumes : 1,
+      especie_volumes: invoice.especie_volumes || 'VOLUME',
+      peso_bruto_kg: pesoBrutoKg > 0 ? pesoBrutoKg : undefined,
+      peso_liquido_kg: pesoLiquidoKg > 0 ? pesoLiquidoKg : undefined,
+    } : undefined;
+
     // Reaproveita ref existente, EXCETO quando a nota está rejeitada — nesse caso,
     // Focus NFe devolveria resposta em cache. Geramos novo ref para forçar reenvio à SEFAZ.
     const isRetryRejected = invoice.status === 'rejected' && !!invoice.focus_ref;
-    const ref = isRetryRejected
+    let ref = isRetryRejected
       ? generateNFeRef(invoice_id, 'retry')
       : (invoice.focus_ref || generateNFeRef(invoice_id, 'initial'));
     if (isRetryRejected) {
       console.log(`[fiscal-emit] Retry de rejeitada. Ref anterior=${invoice.focus_ref} -> novo ref=${ref}`);
     }
 
-    const nfePayload = buildNFePayload(
-      {
-        id: invoice_id,
-        natureza_operacao: invoice.natureza_operacao || 'VENDA DE MERCADORIA',
-        tipo_operacao: invoice.tipo_operacao || 'saida',
-        finalidade: invoice.finalidade || 'normal',
-        valor_produtos: invoice.valor_produtos || 0,
-        valor_frete: invoice.valor_frete || 0,
-        valor_desconto: invoice.valor_desconto || 0,
-        valor_total: invoice.valor_total || 0,
-        informacoes_complementares: invoice.informacoes_complementares,
-      },
-      destinatario,
-      nfeItems,
-      { cnpj: settings.cnpj?.replace(/\D/g, '') || '', crt: settings.crt },
-      payment
-    );
+    // ----- Numeração soberana com retry de duplicidade -----
+    // Sempre passamos numero/serie ao Focus para que o número que o sistema
+    // mostra ao lojista seja exatamente o número autorizado pela SEFAZ.
+    // Se vier rejeição por "número já utilizado", incrementamos e tentamos
+    // de novo, mantendo o cursor monotônico. Cap = 20 tentativas.
+    const serieNfe = Number(settings.serie_nfe || 1);
+    let numeroAtual = Number(invoice.numero || 0);
+    if (!numeroAtual || numeroAtual <= 0) {
+      // Fallback de segurança (não deveria acontecer — PV/NF já trazem número)
+      numeroAtual = Math.max(1, Number(settings.numero_nfe_atual || 1));
+    }
 
-    console.log(`[fiscal-emit] Enviando NF-e para Focus NFe (ref=${ref})...`);
+    const MAX_NUMBER_RETRIES = 20;
+    let result: any = null;
+    let usedRef = ref;
+    let attempts = 0;
 
-    const result = await sendNFe(focusConfig, ref, nfePayload);
+    while (attempts < MAX_NUMBER_RETRIES) {
+      attempts += 1;
 
-    if (!result.success) {
+      const nfePayload = buildNFePayload(
+        {
+          id: invoice_id,
+          natureza_operacao: invoice.natureza_operacao || 'VENDA DE MERCADORIA',
+          tipo_operacao: invoice.tipo_operacao || 'saida',
+          finalidade: invoice.finalidade || 'normal',
+          valor_produtos: invoice.valor_produtos || 0,
+          valor_frete: freteValor || 0,
+          valor_desconto: invoice.valor_desconto || 0,
+          valor_total: invoice.valor_total || 0,
+          informacoes_complementares: invoice.informacoes_complementares,
+          numero: numeroAtual,
+          serie: serieNfe,
+          free_shipping: freteGratis,
+        },
+        destinatario,
+        nfeItems,
+        { cnpj: settings.cnpj?.replace(/\D/g, '') || '', crt: settings.crt },
+        payment,
+        transporteInput,
+      );
+
+      console.log(`[fiscal-emit] Enviando NF-e numero=${numeroAtual} serie=${serieNfe} ref=${usedRef} (tentativa ${attempts}/${MAX_NUMBER_RETRIES})`);
+      result = await sendNFe(focusConfig, usedRef, nfePayload);
+
+      if (result.success) break;
+
+      const dup = isDuplicateNumberError(result.error, result.data);
+      if (!dup) break;
+
+      console.warn(`[fiscal-emit] Número ${numeroAtual} duplicado na SEFAZ — avançando cursor e tentando novamente.`);
+      numeroAtual += 1;
+      // Novo ref a cada tentativa para evitar cache da Focus
+      usedRef = generateNFeRef(invoice_id, 'retry');
+
+      // Atualiza cursor do tenant em tempo real (monotônico)
+      await supabaseClient
+        .from('fiscal_settings')
+        .update({ numero_nfe_atual: numeroAtual })
+        .eq('tenant_id', tenantId)
+        .lt('numero_nfe_atual', numeroAtual);
+    }
+
+    // Persiste número final usado (mesmo em falha, para auditoria)
+    if (numeroAtual !== Number(invoice.numero || 0)) {
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update({ numero: numeroAtual, serie: serieNfe })
+        .eq('id', invoice_id);
+    }
+
+    const ref_final = usedRef;
+
+    if (!result || !result.success) {
       await supabaseClient
         .from('fiscal_invoices')
         .update({
@@ -396,7 +490,7 @@ Deno.serve(async (req) => {
           fiscal_stage: 'pendencia',
           pendencia_motivos: [result.error],
           mensagem_sefaz: result.error,
-          focus_ref: ref,
+          focus_ref: ref_final,
           updated_at: new Date().toISOString(),
         })
         .eq('id', invoice_id);
@@ -412,7 +506,7 @@ Deno.serve(async (req) => {
     if (statusData?.status === 'processando_autorizacao') {
       // Aguardar 2s e consultar
       await new Promise(r => setTimeout(r, 2000));
-      const statusResult = await getNFeStatus(focusConfig, ref);
+      const statusResult = await getNFeStatus(focusConfig, ref_final);
       if (statusResult.success && statusResult.data) {
         statusData = statusResult.data;
       }
@@ -427,7 +521,7 @@ Deno.serve(async (req) => {
       status: internalStatus,
       // Rejeição volta para pendência; só documento aceito/protocolado segue como emitida.
       fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
-      focus_ref: ref,
+      focus_ref: ref_final,
       pendencia_motivos: internalStatus === 'rejected'
         ? [statusData?.mensagem_sefaz || statusData?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
         : null,
@@ -493,7 +587,7 @@ Deno.serve(async (req) => {
         invoice_id,
         tenant_id: tenantId,
         event_type: focusStatus === 'autorizado' ? 'authorized' : 'submitted',
-        event_data: { focus_response: statusData, ref },
+        event_data: { focus_response: statusData, ref: ref_final, numero: numeroAtual, serie: serieNfe },
       });
 
     console.log(`[fiscal-emit] NF-e ${invoice_id} processada — status=${focusStatus}`);
@@ -506,7 +600,7 @@ Deno.serve(async (req) => {
         units: { count: 1 },
         jobId: invoice_id,
         feature: "fiscal-emit",
-        metadata: { ref, chave: statusData?.chave_nfe },
+        metadata: { ref: ref_final, chave: statusData?.chave_nfe },
       }).catch(() => {});
     }
 
