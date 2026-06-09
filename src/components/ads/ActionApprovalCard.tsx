@@ -22,6 +22,8 @@ import { CreativeGenerationStepDialog } from "./CreativeGenerationStepDialog";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
+import { useProductCommercialFit, type ProductFitData } from "@/hooks/useProductCommercialFit";
+import { fitLevelLabel, commercialClassLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
@@ -919,7 +921,7 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
 /* ========================================
    FULL CONTENT DIALOG — Tabbed
    ======================================== */
-function FullContentDialog({ action, childActions, open, onOpenChange }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void }) {
+function FullContentDialog({ action, childActions, open, onOpenChange, fitData }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void; fitData?: ProductFitData | null }) {
   const data = action.action_data || {};
   const preview = data.preview || {};
   const isStrategicPlan = action.action_type === "strategic_plan";
@@ -1009,8 +1011,155 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                 {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
               </div>
             </div>
+          ) : isTwoStepStrategyStage ? (
+            /* Frente 4 — Etapa 1: blocos verticais (sem abas) */
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
+              {/* Cabeçalho de adequação */}
+              {fitData && (() => {
+                const lvl = fitLevelLabel(fitData.fit.fit_level);
+                const toneCls = lvl.tone === "success" ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200"
+                  : lvl.tone === "destructive" ? "border-rose-500/30 bg-rose-500/5 text-rose-900 dark:text-rose-200"
+                  : lvl.tone === "warning" ? "border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-200"
+                  : "border-sky-500/30 bg-sky-500/5 text-sky-900 dark:text-sky-200";
+                return (
+                  <div className={cn("rounded-md border px-3 py-2 text-xs", toneCls)}>
+                    <div className="flex items-center gap-1.5 font-semibold mb-0.5">
+                      <Target className="h-3.5 w-3.5" />
+                      Adequação produto × público: {lvl.label}
+                    </div>
+                    <p className="leading-relaxed opacity-90">{fitData.fit.user_message}</p>
+                  </div>
+                );
+              })()}
+
+              {/* Bloco 1 — Resumo */}
+              {(action.reasoning || preview.copy_text || data.copy_text) && (
+                <div>
+                  <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-primary" />} label="Resumo da recomendação" />
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-1.5">{sanitizeDisplayText(action.reasoning || preview.copy_text || data.copy_text || "")}</p>
+                </div>
+              )}
+
+              {/* Bloco 2 — Produto e oferta */}
+              {(productName || fitData) && (
+                <div>
+                  <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />} label="Produto e oferta" />
+                  <div className="mt-1.5 space-y-1 text-sm">
+                    {productName && <p className="font-semibold">{productName}</p>}
+                    {fitData?.classification && (
+                      <p className="text-xs text-muted-foreground">
+                        Tipo comercial: <span className="font-medium text-foreground">{commercialClassLabel(fitData.classification.commercial_class)}</span>
+                      </p>
+                    )}
+                    {fitData?.components_summary && fitData.components_summary.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Composição: {fitData.components_summary.map(c => `${c.quantity}x ${c.name}`).join(" + ")}
+                      </p>
+                    )}
+                    {productPrice && <p className="text-xs text-muted-foreground">Preço: <span className="font-medium text-foreground">{productPrice}</span></p>}
+                    {budgetDisplay && <p className="text-xs text-muted-foreground">Orçamento sugerido: <span className="font-medium text-foreground">{budgetDisplay}</span></p>}
+                    {ctaType && <p className="text-xs text-muted-foreground">Botão: <span className="font-medium text-foreground">{CTA_LABELS[ctaType] || ctaType}</span></p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Bloco 3 — Público e exclusões */}
+              {(targeting || (() => { const ex = getCustomerExclusionLine(data, preview); return ex; })()) && (
+                <div>
+                  <SectionLabel icon={<Users className="h-3.5 w-3.5 text-primary" />} label="Público e exclusões" />
+                  <div className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+                    {targeting && <p>{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>}
+                    {(() => { const ex = getCustomerExclusionLine(data, preview); return ex ? (
+                      <p className={cn(ex.applied ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>
+                        {ex.label}{ex.hint ? ` — ${ex.hint}` : ""}
+                      </p>
+                    ) : null; })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Bloco 4 — Prompt & Copy (reaproveita TabsContent existente como bloco) */}
+              <div>
+                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Prompt & Copy" />
+                <div className="mt-1.5 space-y-4">
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                    Nenhum criativo final foi gerado ainda. A geração acontece apenas após aprovar a estratégia.
+                  </div>
+                  {(creativePromptText || creativeFormatText) && (
+                    <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Prompt do criativo
+                        {creativeFormatText && <Badge variant="outline" className="text-[10px] ml-1">Formato sugerido: {creativeFormatText}</Badge>}
+                      </div>
+                      {creativePromptText && <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{creativePromptText}</p>}
+                    </div>
+                  )}
+                  {headlinesList.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold">Headlines sugeridas</p>
+                      {headlinesList.map((h, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
+                          <span>{h}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {primaryTexts.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold">Textos principais</p>
+                      {primaryTexts.map((t, i) => (
+                        <div key={i} className="bg-muted/20 rounded-md p-2.5 border border-border/30 text-sm text-muted-foreground whitespace-pre-wrap">{t}</div>
+                      ))}
+                    </div>
+                  )}
+                  {productReferenceUrl && (
+                    <div>
+                      <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />} label="Referência visual do produto" />
+                      <div className="mt-1.5 flex items-start gap-2">
+                        <button type="button" onClick={() => setZoomUrl(productReferenceUrl)} className="relative h-20 w-20 rounded-md border border-border/40 overflow-hidden bg-muted/30 shrink-0">
+                          <img src={productReferenceUrl} alt="Referência do produto" className="h-full w-full object-cover" />
+                        </button>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">Imagem usada apenas como referência. Não é o criativo final.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bloco 5 — Riscos e validações */}
+              {fitData && (
+                <div>
+                  <SectionLabel icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />} label="Riscos e validações" />
+                  <ul className="mt-1.5 text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>Quality Gate: aprovado (a proposta só chega aqui depois de passar).</li>
+                    <li>Adequação produto×público: <span className="font-medium text-foreground">{fitLevelLabel(fitData.fit.fit_level).label}</span></li>
+                    {fitData.fit.suggested_actions.map((s, i) => <li key={i}>Ajuste sugerido: {s}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {/* Bloco 6 — Detalhes técnicos (recolhido) */}
+              <details className="rounded-md border border-border/30">
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
+                  Detalhes técnicos
+                </summary>
+                <div className="px-3 pb-3 pt-1 text-[11px] text-muted-foreground space-y-1 font-mono break-all">
+                  {(data as any).flow_version && <div>flow_version: {(data as any).flow_version}</div>}
+                  {(data as any).product_id && <div>product_id: {(data as any).product_id}</div>}
+                  {fitData?.fit.reason_codes && <div>fit_reason_codes: {fitData.fit.reason_codes.join(", ")}</div>}
+                  {fitData?.classification.signals && <div>classification_signals: {fitData.classification.signals.join(", ")}</div>}
+                  {creativeBriefData && (
+                    <div>
+                      creative_brief: <pre className="whitespace-pre-wrap">{JSON.stringify(creativeBriefData, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              </details>
+            </div>
           ) : (
-            /* Campaign / AdSet — tabbed view */
+            /* Campaign / AdSet — tabbed view (legacy + two_step generating/final) */
             <Tabs defaultValue="criativos" className="flex-1 min-h-0 flex flex-col">
               <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-5 h-auto py-0 shrink-0">
                 {hasCreativesContent && (
@@ -1314,6 +1463,17 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const campaignName = preview.campaign_name || data.campaign_name || null;
   const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
 
+  // Frente 4 — Inteligência produto×funil (apenas para Etapa 1 do two_step_v1)
+  const productIdForFit = (data as any).product_id || preview.product_id || null;
+  const enableFit = isTwoStep && twoStepStage === "strategy";
+  const { data: fitData } = useProductCommercialFit(
+    enableFit ? productIdForFit : null,
+    enableFit ? (funnel as any) : null,
+    enableFit ? action.tenant_id : null,
+  );
+  const fitBadge = enableFit && fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
+  const approveBlockedByFit = enableFit && fitData?.fit.soft_block === true;
+
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
 
   const diagnosis = data.diagnosis || null;
@@ -1386,6 +1546,21 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               {funnelInfo && (
                 <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>
                   {funnelInfo.label}
+                </Badge>
+              )}
+              {fitBadge && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] px-1.5 py-0",
+                    fitBadge.tone === "success" && "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+                    fitBadge.tone === "info" && "bg-sky-500/10 text-sky-700 border-sky-500/20",
+                    fitBadge.tone === "warning" && "bg-amber-500/10 text-amber-700 border-amber-500/20",
+                    fitBadge.tone === "destructive" && "bg-rose-500/10 text-rose-700 border-rose-500/20",
+                  )}
+                  title={fitData?.fit.user_message || ""}
+                >
+                  {fitBadge.label}
                 </Badge>
               )}
             </div>
@@ -1480,6 +1655,22 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           </div>
         )}
 
+        {/* Frente 4 — Alerta de adequação produto×funil (soft-block) */}
+        {approveBlockedByFit && fitData && (
+          <div className="mx-3 mb-2 p-2.5 rounded-md border border-rose-500/30 bg-rose-500/5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-semibold text-rose-900 dark:text-rose-200">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Adequação produto × público
+            </div>
+            <p className="text-rose-900/90 dark:text-rose-200/90 leading-relaxed">{fitData.fit.user_message}</p>
+            {fitData.fit.suggested_actions.length > 0 && (
+              <ul className="list-disc list-inside text-rose-900/80 dark:text-rose-200/80">
+                {fitData.fit.suggested_actions.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* Frente 4 — Etapa 2 em andamento / aguardando aprovação final */}
         {isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") && (
           <div className="mx-3 mb-2 p-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 text-xs flex items-center gap-2">
@@ -1507,11 +1698,12 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   onSuccess: () => setCreativeDialogOpen(true),
                 });
               }}
-              disabled={approveStrategy.isPending || !!rejectingId}
+              disabled={approveStrategy.isPending || !!rejectingId || approveBlockedByFit}
               className="flex-1 h-8 text-xs gap-1.5"
+              title={approveBlockedByFit ? (fitData?.fit.user_message || "") : "Aprova a estratégia e autoriza a geração dos criativos. Ainda não publica a campanha."}
             >
               {approveStrategy.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {approveStrategy.isPending ? "Aprovando estratégia…" : "Aprovar e gerar criativos"}
+              {approveStrategy.isPending ? "Aprovando estratégia…" : approveBlockedByFit ? "Ajuste necessário antes de aprovar" : "Aprovar e gerar criativos"}
             </Button>
           ) : isTwoStep && (twoStepStage === "generating" || twoStepStage === "final") ? (
             <Button
@@ -1575,7 +1767,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
       )}
 
       {/* Full Content Dialog */}
-      <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} />
+      <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} fitData={fitData} />
 
       {/* Reject Dialog — Two Options */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
