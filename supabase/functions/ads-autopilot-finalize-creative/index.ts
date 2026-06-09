@@ -67,7 +67,8 @@ Deno.serve(async (req) => {
     .eq("id", jobId)
     .maybeSingle();
   if (!job) return fail("creative_job_not_found");
-  if (job.status !== "completed" && job.status !== "ready") {
+  const hasOutputs = Array.isArray(job.output_urls) && (job.output_urls as any[]).length > 0;
+  if (job.status !== "succeeded" && job.status !== "completed" && job.status !== "ready" && !hasOutputs) {
     return fail("creative_job_not_ready", { job_status: job.status });
   }
 
