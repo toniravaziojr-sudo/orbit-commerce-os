@@ -2387,7 +2387,8 @@ entre o número interno e o número oficial.
   "número já utilizado", o sistema avança o cursor 1, registra a
   monotonicidade em `fiscal_settings.numero_nfe_atual` e tenta novamente
   com novo `ref` Focus, até 20 tentativas. O cursor nunca retrocede.
-- Cancelamentos/rejeições **não** liberam números — `monotonic only`.
+- **Cancelamentos/inutilizações na SEFAZ não liberam números** — uma vez queimado na SEFAZ (autorizado, rejeitado ou duplicado), o número fica para sempre marcado pelo cursor `numero_nfe_atual`.
+- **Rascunho puro pode reusar número** (v2026-06-09 — Onda 3 rev2): NF rascunho que nunca tocou a SEFAZ (sem `chave_acesso` e sem eventos `submitted/authorized/rejected/submission_error/numero_duplicado_sefaz`) pode ser excluída e o número volta ao pool. PV em rascunho puro (sem NF emitida, sem objeto despachado e sem pedido pago ativo) também reaproveita o número.
 
 ### Onde mexer
 
