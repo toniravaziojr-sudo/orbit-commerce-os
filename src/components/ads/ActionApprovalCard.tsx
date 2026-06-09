@@ -1326,7 +1326,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   {budgetDisplay}
                 </Badge>
               )}
-              {creativeUrls.length > 1 && (
+              {creativeUrls.length > 1 && !(isTwoStep && twoStepStage === "strategy") && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
                   <ImageIcon className="h-2.5 w-2.5" />
                   {creativeUrls.length} criativos
