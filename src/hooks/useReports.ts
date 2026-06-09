@@ -89,6 +89,14 @@ export interface ReportFilters {
   startDate: Date;
   endDate: Date;
   groupBy?: 'day' | 'week' | 'month';
+  /** Filtro de canal de venda — usado pelo Dashboard com sub-abas. */
+  channel?: 'all' | 'storefront' | 'mercadolivre' | 'shopee' | 'tiktok_shop';
+}
+
+function applyChannel<T extends { eq: (col: string, val: any) => T }>(query: T, channel?: ReportFilters['channel']): T {
+  if (!channel || channel === 'all') return query;
+  if (channel === 'storefront') return query.eq('sales_channel', 'storefront');
+  return query.eq('marketplace_source', channel);
 }
 
 // Sales Over Time Report
