@@ -104,6 +104,11 @@ export function buildNFePayload(
     valor_desconto?: number | null;
     valor_total: number;
     informacoes_complementares?: string | null;
+    /** Numeração soberana — quando informada, vai explícita ao Focus */
+    numero?: number | null;
+    serie?: number | null;
+    /** Marcador: pedido tem frete grátis (overrides modalidade) */
+    free_shipping?: boolean | null;
   },
   destinatario: {
     nome: string;
@@ -147,7 +152,25 @@ export function buildNFePayload(
   pagamento?: {
     forma: string;
     valor: number;
-  }
+  },
+  transporte?: {
+    /** Razão social oficial da transportadora */
+    razao_social?: string | null;
+    /** CNPJ apenas dígitos (quando conhecido) */
+    cnpj?: string | null;
+    inscricao_estadual?: string | null;
+    endereco?: string | null;
+    municipio?: string | null;
+    uf?: string | null;
+    /** Nome do serviço (PAC, SEDEX, JADLOG, etc.) — vai em obs */
+    servico?: string | null;
+    /** Override explícito de modalidade (0/1/2/9). Quando ausente, é deduzido. */
+    modalidade?: number | null;
+    quantidade_volumes?: number | null;
+    especie_volumes?: string | null;
+    peso_bruto_kg?: number | null;
+    peso_liquido_kg?: number | null;
+  },
 ): FocusNFePayload {
   // Frase legal obrigatória para MEI (CRT=4) e Simples Nacional (CRT=1/2),
   // conforme Art. 26 da LC 123/2006 — exigida no campo infCpl (informações
