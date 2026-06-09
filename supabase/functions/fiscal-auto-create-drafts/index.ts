@@ -556,16 +556,9 @@ async function processTenanDrafts(
     }
   }
 
-  if (isFiscalConfigured) {
-    await syncFiscalNumberCursor({
-      supabase,
-      tenantId,
-      serie: serieNfe,
-      currentCursor: nextNumeroCursor,
-      logPrefix: 'fiscal-auto-create-drafts',
-      docClass: 'pedido_venda',
-    });
-  }
+  // Cursor numero_pedido_atual não é mais avançado por criação de PV.
+  // PV puro pode ser excluído e o número volta a estar disponível.
+  // A próxima alocação é sempre derivada do maior PV vivo + 1.
 
   console.log(`[fiscal-auto-create-drafts] Completed for tenant ${tenantId}. Created ${created.count} drafts.`);
   return { created: created.count, errors };
