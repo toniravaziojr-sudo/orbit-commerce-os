@@ -1,38 +1,28 @@
-# Numeração soberana da NF + Bloco transportador
+# Numeração soberana da NF + Bloco transportador + Auditoria de salto
 
-**Status:** Ajuste aplicado — pendente de validação técnica em produção (próxima emissão de NF para Respeite o Homem).
+**Status:** Implementado — pendente de validação na próxima emissão.
 
-## O que foi entregue
+## Diagnóstico do salto 410 → 412 (encerrado)
 
-### Frente A — Numeração soberana
-- `fiscal-emit` e `fiscal-submit` agora sempre enviam `numero` e `serie` explícitos no payload da Focus NFe.
-- Tipo `FocusNFePayload` recebeu `numero?` e `serie?`.
-- Helper `isDuplicateNumberError` adicionado ao adapter (cobre cStat 539/204 e padrões textuais).
-- Retry loop com cap=20: em rejeição por número duplicado, avança cursor e gera novo ref Focus (evita cache de resposta).
-- `fiscal_settings.numero_nfe_atual` atualizado de forma monotônica via `lt` (nunca retrocede).
-- PV e NF mantêm sequências independentes — vínculo continua via `source_order_invoice_id`.
+- Cursores de Pedido de Venda e de Nota Fiscal **já são independentes**. Duplicar PV não consome número de NF.
+- O salto aconteceu porque a SEFAZ rejeitou o 411 como duplicado (resíduo de emissão antiga apagada localmente). O motor de retry agiu corretamente: avançou para 412 e a SEFAZ autorizou.
+- Sistema funcionou como projetado. O 411 fica como lacuna no histórico — pode ser inutilizado formalmente pela tela existente (Configurações Fiscais → Outros → Inutilizar Numeração) se você quiser regularizar.
 
-### Frente B — Bloco transportador
-- Novo arquivo `_shared/carrier-registry.ts` com catálogo embutido (Correios com CNPJ canônico; demais carriers reconhecidos por nome/serviço).
-- `buildNFePayload` aceita parâmetro `transporte` (razão social, CNPJ, IE, endereço, município, UF, serviço, modalidade, volumes, pesos).
-- Modalidade de frete agora é dinâmica: 0 (CIF) para frete grátis com transportadora, 1 (FOB) para frete cobrado, 9 para sem despacho.
-- Observação automática "Frete grátis — custo absorvido pelo emitente." e "Serviço de envio: X." quando aplicáveis.
+## O que foi entregue nesta rodada
 
-## Como validar (pelo usuário)
+1. **Numeração soberana** (já em produção): toda NF vai para a Focus com `numero`/`serie` explícitos, e o retry de duplicidade incrementa monotonicamente o cursor.
+2. **Bloco transportador** (já em produção): nome, CNPJ (quando catalogado), serviço e volumes vão na NF e no XML. Correios reconhecido por padrão.
+3. **Auditoria de salto (novo)**: toda vez que a SEFAZ rejeita um número por duplicidade e o sistema avança o cursor, é registrado um evento estruturado na linha do tempo da nota com: número rejeitado, próximo número, série, motivo. Assim, qualquer "lacuna" futura é explicável em segundos, sem investigação manual.
 
-1. Emitir 1 NF na Respeite o Homem.
-2. Conferir que o número da NF no painel **bate** com o número que chega na Pratika.
-3. Conferir que a NF mostra os dados da transportadora (nome + serviço).
-4. Caso a transportadora seja Correios, conferir que CNPJ vai preenchido automaticamente.
+## O que NÃO foi alterado (precisaria sua aprovação)
 
-## Arquivos alterados
+- Bloqueio de exclusão silenciosa de NF com número alocado.
+- Banner no módulo Fiscal sugerindo inutilização de faixas puladas.
+- Realinhamento automático do cursor com a SEFAZ (custo de API recorrente).
 
-- `supabase/functions/_shared/focus-nfe-client.ts` (tipos)
-- `supabase/functions/_shared/focus-nfe-adapter.ts` (buildNFePayload + isDuplicateNumberError)
-- `supabase/functions/_shared/carrier-registry.ts` (novo)
-- `supabase/functions/fiscal-emit/index.ts` (caminho principal)
-- `supabase/functions/fiscal-submit/index.ts` (caminho secundário)
-- `docs/especificacoes/erp/erp-fiscal.md` (seções novas)
-- `docs/especificacoes/fiscal/preflight-fiscal-logistico.md` (aviso opcional)
-- `.lovable/memory/constraints/nfe-numero-soberano-e-bloco-transportador.md` (novo)
-- `.lovable/memory/index.md` (índice)
+Se quiser qualquer um desses, me chama que eu monto uma proposta dedicada.
+
+## Como validar
+
+1. Emitir uma NF normal — comportamento idêntico ao atual, só com registro extra de auditoria se a SEFAZ rejeitar algum número.
+2. Se houver um salto futuro, abrir a linha do tempo da nota emitida — o evento "numero_duplicado_sefaz" aparece com os detalhes.

@@ -460,7 +460,29 @@ Deno.serve(async (req) => {
       if (!dup) break;
 
       console.warn(`[fiscal-emit] Número ${numeroAtual} duplicado na SEFAZ — avançando cursor e tentando novamente.`);
+
+      // Auditoria estruturada: registra o salto de numeração para rastreabilidade
+      // (explica futuras "lacunas" na sequência sem precisar investigar manualmente).
+      const numeroSkipped = numeroAtual;
       numeroAtual += 1;
+      try {
+        await supabaseClient.from('fiscal_invoice_events').insert({
+          invoice_id,
+          tenant_id: tenantId,
+          event_type: 'numero_duplicado_sefaz',
+          event_data: {
+            numero_rejeitado: numeroSkipped,
+            numero_proximo: numeroAtual,
+            serie: serieNfe,
+            attempt: attempts,
+            reason: String(result.error || '').slice(0, 500),
+            origem: 'fiscal-emit',
+          },
+        });
+      } catch (auditErr) {
+        console.warn('[fiscal-emit] Falha ao registrar evento de duplicidade (não bloqueante):', auditErr);
+      }
+
       // Novo ref a cada tentativa para evitar cache da Focus
       usedRef = generateNFeRef(invoice_id, 'retry');
 
