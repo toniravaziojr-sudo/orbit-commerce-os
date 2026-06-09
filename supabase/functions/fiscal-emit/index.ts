@@ -490,7 +490,7 @@ Deno.serve(async (req) => {
           fiscal_stage: 'pendencia',
           pendencia_motivos: [result.error],
           mensagem_sefaz: result.error,
-          focus_ref: ref,
+          focus_ref: ref_final,
           updated_at: new Date().toISOString(),
         })
         .eq('id', invoice_id);
@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
     if (statusData?.status === 'processando_autorizacao') {
       // Aguardar 2s e consultar
       await new Promise(r => setTimeout(r, 2000));
-      const statusResult = await getNFeStatus(focusConfig, ref);
+      const statusResult = await getNFeStatus(focusConfig, ref_final);
       if (statusResult.success && statusResult.data) {
         statusData = statusResult.data;
       }
@@ -521,7 +521,7 @@ Deno.serve(async (req) => {
       status: internalStatus,
       // Rejeição volta para pendência; só documento aceito/protocolado segue como emitida.
       fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
-      focus_ref: ref,
+      focus_ref: ref_final,
       pendencia_motivos: internalStatus === 'rejected'
         ? [statusData?.mensagem_sefaz || statusData?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
         : null,
