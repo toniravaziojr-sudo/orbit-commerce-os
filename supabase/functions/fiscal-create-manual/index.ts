@@ -420,13 +420,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    await syncFiscalNumberCursor({
-      supabase,
-      tenantId,
-      serie: serieNfe,
-      currentCursor: numero + 1,
-      logPrefix: 'fiscal-create-manual',
-    });
+    // Cursor numero_nfe_atual representa a marca alta da SEFAZ. Não avançamos
+    // aqui — rascunho puro pode ser excluído e ter o número reaproveitado.
+    // O cursor só sobe quando o número é queimado de fato na SEFAZ.
 
     // Log event
     await supabase
