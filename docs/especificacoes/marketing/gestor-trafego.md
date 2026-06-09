@@ -3232,3 +3232,64 @@ Nada de Nova Estratégia. C.4, toggles de autoexecução, Tenant Memory, F.1/F.2
   3. Modal da Etapa 1 continua em blocos verticais, sem payload técnico bruto fora de "Detalhes técnicos".
   4. Imagem de produto continua aparecendo apenas como "Referência visual" pequena, jamais contada como criativo final.
 
+
+---
+
+## §14 — Editor estruturado, versionamento e feedback (Frentes 4.2/4.3/4.4)
+
+Entregue em 2026-06-09. Substitui o "Sugerir Ajuste" textual livre para propostas no fluxo `two_step_v1` Etapa 1 (estratégia ainda não aprovada).
+
+### 14.1 Modal de decisão completo (Frente 4.2)
+O modal "Ver conteúdo completo" do estágio `strategy` agora exibe, antes do bloco Produto, um bloco **Campanha** com: nome, objetivo, canal/plataforma, orçamento diário, link de destino e botão (CTA). O link é renderizado como hyperlink seguro. Demais blocos verticais e a regra de Detalhes técnicos recolhidos (§13.5) seguem inalterados.
+
+### 14.2 Editor estruturado de ajuste (Frente 4.3)
+Botão "Ajustar" em propostas `two_step_v1 strategy` abre um **drawer lateral à direita** (largura `sm:max-w-xl`, fullscreen em mobile) com a proposta pré-preenchida e os seguintes blocos editáveis:
+
+- **Campanha**: nome, objetivo, orçamento diário, link de destino, CTA. Canal/plataforma **somente leitura**.
+- **Produto e oferta**: produto, nome de referência, observação da oferta.
+- **Público**: funil, descrição do público, exclusões, região, faixa etária, gênero.
+- **Criativo e copy**: prompt criativo, formato sugerido, tom, headline, texto principal, descrição. Referência visual do produto continua somente leitura.
+- **Feedback para a IA**: motivo do ajuste (1 frase), chips de categoria (Produto/Público/Orçamento/Copy/Criativo/Oferta/Estratégia/Outro), observação opcional. Quando o chip "Outro" é marcado, a observação vira obrigatória.
+
+Regras invioláveis:
+- Abrir o drawer, editar campos, marcar chips e salvar rascunho **não chamam IA**.
+- O rascunho persiste em `ads_autopilot_actions.action_data.draft_patch` (banco) — recarrega ao reabrir o drawer.
+- "Gerar proposta revisada" exige confirmação e dispara **uma única chamada** à edge function `ads-autopilot-revise-proposal`, que por sua vez chama o Strategist 1x. Nenhum criativo é gerado, nenhum crédito é consumido, nenhuma campanha é publicada.
+- Validações locais bloqueiam "Gerar proposta revisada" se: nome vazio, produto vazio, funil vazio, orçamento ≤ 0, link mal formado, ou Fit Gate retornar `soft_block`.
+
+Para propostas legacy (sem `flow_version='two_step_v1'`), o "Sugerir Ajuste" textual antigo continua disponível como fallback.
+
+### 14.3 Versionamento da proposta
+Cada revisão cria uma nova proposta filha encadeada à anterior:
+- A proposta original é marcada com `status = 'superseded'` e `superseded_by_action_id` apontando para a nova.
+- A nova proposta recebe `parent_action_id` apontando para a antiga, `action_data.version = N+1` e `action_data.revision_source` com snapshot de `changed_fields`, `previous_values`, `new_values` e `user_feedback`.
+- O histórico cumulativo fica em `action_data.adjustment_history` da proposta antiga (preservando todas as revisões anteriores).
+- Propostas `superseded` somem da fila "Aguardando Ação" automaticamente (não estão em `ACTIVE_PENDING_STATUSES`).
+
+### 14.4 Patch estruturado enviado à IA
+A edge function `ads-autopilot-revise-proposal` constrói o seguinte contrato e o envia ao Strategist no formato esperado por `trigger=revision`:
+
+```
+{
+  proposal_id, tenant_id,
+  changed_fields, previous_values, new_values,
+  user_feedback: { adjustment_reason, note, chips }
+}
+```
+
+Internamente o edge function constrói um `revision_feedback` em linguagem natural (com a lista de mudanças e o feedback) e passa também `revision_structured_patch` para o Strategist usar como referência. Tudo isto está sujeito ao Quality Gate, Fit Gate e exclusão de Clientes em Frio.
+
+### 14.5 Feedback em Aprovar / Rejeitar / Ajustar (Frente 4.4 parcial)
+O gate de feedback existente (`useAdsAutopilotFeedbackGate`) já cobre Aprovar e Rejeitar com chips de motivo e textarea opcional, gravando em `ads_autopilot_feedback` via edge function `ads-autopilot-feedback-record`. No editor estruturado (Frente 4.3), o feedback de ajuste vai junto no payload da revisão.
+
+**Importante (Etapa 4 — não entregue ainda):** O Strategist ainda **não consome** o feedback acumulado para alterar decisões. O contrato e o histórico estão prontos, mas a injeção no prompt fica para uma frente futura, para evitar mudança estratégica prematura com volume baixo de feedback.
+
+### 14.6 Anti-regressão (mantida apenas neste doc + `mapa-ui.md`)
+- Abrir/editar/salvar rascunho **nunca** chama IA. Apenas "Gerar proposta revisada" chama.
+- Salvar rascunho **sempre** persiste em banco (`action_data.draft_patch`), nunca apenas em estado local.
+- Propostas revisadas **devem** ter `parent_action_id` setado e a proposta antiga **deve** ter `superseded_by_action_id` setado.
+- Canal/plataforma e Referência visual continuam **somente leitura** no editor.
+- Detalhes técnicos brutos não aparecem na visualização principal do modal.
+
+### 14.7 Testes
+`src/test/ads-autopilot-structured-editor.test.ts` — 7 testes (diff, validações, contrato do payload). Combinados com a suíte de Fit Gate (§13.7) somam a cobertura mínima do editor.
