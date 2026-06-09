@@ -3588,6 +3588,26 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             }
           }
 
+          // Frente 4 — Anexar brief e flow_version quando for create_campaign two-step
+          let twoStepFields: Record<string, any> = {};
+          if (TWO_STEP_ENABLED && tc.function.name === "create_campaign") {
+            let attachedBrief: CreativeBrief | null = null;
+            for (const [prodName, brief] of Object.entries(creativeBriefsByProduct)) {
+              if (
+                args.campaign_name?.includes(prodName) ||
+                args.targeting_description?.includes(prodName) ||
+                args.product_name === prodName
+              ) {
+                attachedBrief = brief;
+                break;
+              }
+            }
+            twoStepFields = {
+              flow_version: TWO_STEP_FLOW_VERSION,
+              ...(attachedBrief ? { creative_brief: attachedBrief } : {}),
+            };
+          }
+
           // Record action in DB
           const actionRecord: any = {
             tenant_id: tenantId,
@@ -3600,6 +3620,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               ad_account_id: config.ad_account_id, 
               campaign_name: campaignName,
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),
+              ...twoStepFields,
             },
             reasoning: args.reasoning || args.reason || args.diagnosis || "",
             confidence: String(args.confidence || "0.8"),
