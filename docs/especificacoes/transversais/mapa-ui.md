@@ -560,3 +560,19 @@ Antes, o menu obrigava o usuário a abrir o editor (`Editar e Reemitir`) mesmo q
   - **Imagem do produto** continua aparecendo apenas como miniatura rotulada "Referência visual do produto" e nunca é contada como criativo final.
   - Etapa 2 (`creative_pending` / `final_pending_approval`) e propostas legacy seguem usando o layout de abas atual — não há retrofit.
   - Detalhe operacional e regras anti-regressão em `docs/especificacoes/marketing/gestor-trafego.md` §13.
+
+### Gestor de Tráfego IA — Editor estruturado, versionamento e feedback (Frentes 4.2/4.3/4.4, rev 2026-06-09)
+
+**Frente 4.2 — Modal completo.** O modal "Ver conteúdo completo" da Etapa 1 do `two_step_v1` agora abre com um bloco **"Campanha"** dedicado (nome, objetivo, canal, orçamento diário, link de destino como hyperlink, CTA). Os demais blocos verticais e o "Detalhes técnicos" recolhido seguem inalterados. Payload técnico bruto continua proibido fora de "Detalhes técnicos".
+
+**Frente 4.3 — Editor estruturado.** O botão **"Ajustar"** em propostas `two_step_v1 strategy` abre um **drawer lateral à direita** (`sm:max-w-xl`, fullscreen em mobile) com formulário em blocos (Campanha / Produto / Público / Criativo / Feedback). Canal e referência visual são **somente leitura**. Botões do rodapé:
+
+- **Descartar** — apaga o rascunho salvo.
+- **Salvar rascunho** — persiste em banco (`action_data.draft_patch`), **sem chamar IA**.
+- **Gerar proposta revisada** — abre confirmação e dispara **uma única** chamada à IA. Bloqueado quando há erro de validação local, Fit Gate `soft_block`, ou nenhum campo alterado.
+
+A proposta antiga vira `superseded` e a nova vira filha (`parent_action_id` + `superseded_by_action_id`). A versão antiga **some** automaticamente da fila "Aguardando Ação". O histórico fica preservado em `action_data.adjustment_history` da versão arquivada e em `action_data.revision_source` da nova.
+
+Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir Ajuste" textual antigo como fallback.
+
+**Frente 4.4 parcial — Feedback.** O gate de feedback (`useAdsAutopilotFeedbackGate`) já interceptava Aprovar e Rejeitar com chips de motivo + textarea — sem mudança nesta entrega. No editor estruturado o feedback de ajuste (motivo, chips, observação) vai junto com o patch para a IA, mas ainda **não altera** o Strategist (entrega futura).
