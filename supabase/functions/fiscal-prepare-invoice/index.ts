@@ -162,14 +162,9 @@ Deno.serve(async (req) => {
       workingInvoiceId = insertResult.invoice.id;
       snapshotCreated = true;
 
-      await syncFiscalNumberCursor({
-        supabase: admin,
-        tenantId,
-        serie: serieNf,
-        currentCursor: insertResult.numero + 1,
-        logPrefix: 'fiscal-prepare-invoice',
-        docClass: 'nf',
-      });
+      // Não avançamos o cursor numero_nfe_atual aqui: rascunho puro de NF
+      // pode ser excluído e ter o número reaproveitado. O cursor só sobe quando
+      // o número é efetivamente queimado na SEFAZ (fiscal-submit/fiscal-emit).
 
       if (workingItems.length > 0) {
         // ------------------------------------------------------------------
