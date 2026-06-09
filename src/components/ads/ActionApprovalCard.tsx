@@ -954,7 +954,18 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
   const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
-  const hasCreativesContent = !isStrategicPlan && !isAdSet && (creativeUrls.length > 0 || headlinesList.length > 0 || primaryTexts.length > 0);
+  // Frente 4 — detectar Etapa 1 do fluxo two_step_v1 (estratégia ainda não aprovada)
+  const isTwoStepStrategyStage = isTwoStepAction(action) && getTwoStepStage(action) === "strategy";
+  const creativeBriefData = (action.action_data as any)?.creative_brief || null;
+  const creativePromptText = creativeBriefData?.prompt || (action.action_data as any)?.creative_prompt || null;
+  const creativeFormatText = creativeBriefData?.format || (action.action_data as any)?.creative_format_suggested || null;
+  const productReferenceUrl = isTwoStepStrategyStage ? (creativeUrls[0] || null) : null;
+
+  const hasCreativesContent = !isStrategicPlan && !isAdSet && (
+    isTwoStepStrategyStage
+      ? !!(creativePromptText || headlinesList.length > 0 || primaryTexts.length > 0 || productReferenceUrl)
+      : (creativeUrls.length > 0 || headlinesList.length > 0 || primaryTexts.length > 0)
+  );
   const hasAdSets = adsets.length > 0 || isAdSet;
 
   return (
