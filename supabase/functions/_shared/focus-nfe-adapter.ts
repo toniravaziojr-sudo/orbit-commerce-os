@@ -308,6 +308,24 @@ export function buildNFePayload(
   const cidadeSegura = (destinatario.cidade || '').toUpperCase().substring(0, 60);
   const ufSeguro = (destinatario.uf || '').toUpperCase();
 
+  // ----- Modalidade de frete -----
+  // Regras:
+  //  - Override explícito do chamador (transporte.modalidade) prevalece
+  //  - Sem despacho (sem transportadora E sem valor de frete) → 9
+  //  - Frete grátis com transportadora definida → 0 (emitente absorve)
+  //  - Frete cobrado → 1 (destinatário)
+  const carrierName = (transporte?.razao_social || '').trim();
+  let modalidadeFrete: number;
+  if (transporte?.modalidade === 0 || transporte?.modalidade === 1 || transporte?.modalidade === 2 || transporte?.modalidade === 9) {
+    modalidadeFrete = transporte.modalidade;
+  } else if (!carrierName && valorFreteTotal === 0) {
+    modalidadeFrete = 9;
+  } else if (invoice.free_shipping || valorFreteTotal === 0) {
+    modalidadeFrete = carrierName ? 0 : 9;
+  } else {
+    modalidadeFrete = 1;
+  }
+
   const payload: FocusNFePayload = {
     natureza_operacao: (invoice.natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
     data_emissao: new Date().toISOString(), // Data de emissão no formato ISO
@@ -316,7 +334,7 @@ export function buildNFePayload(
     consumidor_final: destinatario.cnpj ? 0 : 1,
     presenca_comprador: 2, // Internet
     cnpj_emitente: onlyNumbers(emitente.cnpj),
-    
+
     // Destinatário (com coerção segura)
     nome_destinatario: nomeSeguro,
     cpf_destinatario: destinatario.cpf ? onlyNumbers(destinatario.cpf) : undefined,
@@ -332,29 +350,81 @@ export function buildNFePayload(
     telefone_destinatario: destinatario.telefone ? onlyNumbers(destinatario.telefone) : undefined,
     email_destinatario: destinatario.email || undefined,
     indicador_inscricao_estadual_destinatario: indicadorIE,
-    
+
     // Valores
     valor_produtos: roundDecimal(invoice.valor_produtos, 2),
     valor_total: roundDecimal(invoice.valor_total, 2),
     valor_frete: valorFreteTotal > 0 ? roundDecimal(valorFreteTotal, 2) : undefined,
     valor_desconto: invoice.valor_desconto ? roundDecimal(invoice.valor_desconto, 2) : undefined,
-    
-    // Frete (0 = Remetente/Emitente, 1 = Destinatário, 9 = Sem frete)
-    modalidade_frete: valorFreteTotal > 0 ? 1 : 9,
-    
+
+    // Frete
+    modalidade_frete: modalidadeFrete,
+
     // Itens
     items: focusItems,
-    
-    // Informações adicionais — prefixa a frase legal de regime quando aplicável
+
+    // Informações adicionais — prefixa a frase legal de regime + nota de frete grátis quando aplicável
     informacoes_adicionais_contribuinte: (() => {
       const userInfo = (invoice.informacoes_complementares || '').trim();
       const parts: string[] = [];
       if (fraseRegime) parts.push(fraseRegime);
+      const freteGratis = (invoice.free_shipping || (valorFreteTotal === 0 && !!carrierName && modalidadeFrete === 0));
+      if (freteGratis) {
+        parts.push('Frete grátis — custo absorvido pelo emitente.');
+      }
+      if (transporte?.servico && carrierName) {
+        parts.push(`Serviço de envio: ${transporte.servico}.`);
+      }
       if (userInfo) parts.push(userInfo);
       const combined = parts.join(' ').trim();
       return combined ? combined.substring(0, 2000) : undefined;
     })(),
   };
+
+  // ----- Numeração soberana -----
+  if (invoice.numero && Number.isFinite(invoice.numero) && Number(invoice.numero) > 0) {
+    payload.numero = Number(invoice.numero);
+  }
+  if (invoice.serie && Number.isFinite(invoice.serie) && Number(invoice.serie) > 0) {
+    payload.serie = Number(invoice.serie);
+  }
+
+  // ----- Bloco transportador -----
+  if (carrierName) {
+    payload.transportador_nome_razao_social = carrierName.toUpperCase().substring(0, 60);
+    if (transporte?.cnpj) {
+      const cnpjDigits = onlyNumbers(transporte.cnpj);
+      if (cnpjDigits.length === 14 || cnpjDigits.length === 11) {
+        payload.transportador_cpf_cnpj = cnpjDigits;
+      }
+    }
+    if (transporte?.inscricao_estadual) {
+      const ie = transporte.inscricao_estadual.toString().trim().toUpperCase();
+      payload.transportador_inscricao_estadual = ie === 'ISENTO' ? 'ISENTO' : onlyNumbers(ie);
+    }
+    if (transporte?.endereco) {
+      payload.transportador_endereco = transporte.endereco.toUpperCase().substring(0, 60);
+    }
+    if (transporte?.municipio) {
+      payload.transportador_municipio = transporte.municipio.toUpperCase().substring(0, 60);
+    }
+    if (transporte?.uf) {
+      payload.transportador_uf = transporte.uf.toUpperCase().substring(0, 2);
+    }
+  }
+
+  // ----- Volumes -----
+  if (transporte?.quantidade_volumes && transporte.quantidade_volumes > 0) {
+    payload.quantidade_volumes_transportados = transporte.quantidade_volumes;
+    payload.especie_volumes_transportados = (transporte.especie_volumes || 'VOLUME').toUpperCase().substring(0, 20);
+  }
+  if (transporte?.peso_bruto_kg && transporte.peso_bruto_kg > 0) {
+    payload.peso_bruto_total_dos_volumes_transportados = roundDecimal(transporte.peso_bruto_kg, 3);
+  }
+  if (transporte?.peso_liquido_kg && transporte.peso_liquido_kg > 0) {
+    payload.peso_liquido_total_dos_volumes_transportados = roundDecimal(transporte.peso_liquido_kg, 3);
+  }
+
   
   // Adicionar forma de pagamento
   if (pagamento) {
