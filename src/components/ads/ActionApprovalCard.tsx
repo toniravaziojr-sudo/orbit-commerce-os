@@ -17,6 +17,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users, Loader2, Link2, MousePointerClick, Globe, BarChart3, Settings2 } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
+import { useAdsPendingActions, isTwoStepAction, getTwoStepStage } from "@/hooks/useAdsPendingActions";
+import { CreativeGenerationStepDialog } from "./CreativeGenerationStepDialog";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
@@ -1203,7 +1205,14 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
+  const [creativeDialogOpen, setCreativeDialogOpen] = useState(false);
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
+  const { approveStrategy } = useAdsPendingActions();
+
+  // Frente 4 — Fluxo de duas etapas
+  const isTwoStep = isTwoStepAction(action);
+  const twoStepStage = getTwoStepStage(action);
+  const creativeBrief = (action.action_data as any)?.creative_brief || null;
 
   const data = action.action_data || {};
   const preview = data.preview || {};
