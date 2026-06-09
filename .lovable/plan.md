@@ -1,83 +1,70 @@
-# Frente 4.1 — Inteligência produto×funil e UI/UX do modal (Gestor de Tráfego IA)
+# Frentes 4.2 / 4.3 / 4.4 parcial — Editor estruturado, versionamento e feedback
 
 **Status:** Ajuste aplicado — pendente de validação visual no painel `/ads`.
 
-## O que mudou no sistema
+## O que ficou pronto
 
-### A. Inteligência de composição comercial
-A IA agora classifica cada produto/oferta em uma das categorias antes de propor a campanha:
+### Frente 4.2 — Modal completo da Etapa 1
+O modal "Ver conteúdo completo" das propostas em `two_step_v1` Etapa 1 agora abre com um bloco **"Campanha"** dedicado mostrando nome, objetivo, canal, orçamento diário, link de destino (hyperlink) e botão (CTA). Demais blocos verticais e "Detalhes técnicos" recolhido seguem como antes — payload técnico bruto continua proibido fora desse bloco.
 
-- **Produto base** — único, vendido sozinho.
-- **Produto principal** — base com sinal de "principal" (tag ou preço de entrada).
-- **Kit unitário de apresentação** — composição com 2+ bases diferentes, 1 unidade de cada.
-- **Kit de quantidade** — composição com mais de 1 unidade de qualquer base (ex.: Kit 3x).
-- **Oferta de recompra/retenção** — tag explícita de recorrência/manutenção.
-- **Oferta de upsell/manutenção** — ticket alto + tag de upsell.
-- **Composição não identificada** — sem dados suficientes (confiança baixa).
+### Frente 4.3 — Editor estruturado da proposta
+Botão **"Ajustar"** em propostas Etapa 1 deixou de abrir caixa de texto livre e passou a abrir um **drawer lateral à direita** com a proposta inteira em campos editáveis, dividida em 5 blocos:
 
-A fonte de verdade é a composição real do produto (Produto → Componentes). Tags, categoria e preço só entram como sinal complementar.
+1. **Campanha** — nome, objetivo, orçamento diário, link, CTA (canal é somente leitura).
+2. **Produto e oferta** — produto, nome de referência, observação.
+3. **Público** — funil, descrição, exclusões, região, faixa etária, gênero.
+4. **Criativo e copy** — prompt, formato, tom, headline, texto principal, descrição (referência visual continua somente leitura).
+5. **Feedback para a IA** — motivo do ajuste, chips de categoria, observação opcional.
 
-### B. Gate de adequação produto × público
-Roda depois do Quality Gate atual (não substitui).
+Regras invioláveis (anti-IA-desnecessária):
+- Abrir / editar / marcar chips / salvar rascunho → **0 chamadas IA**.
+- Salvar rascunho persiste em banco (`action_data.draft_patch`), recarrega ao reabrir.
+- Apenas **"Gerar proposta revisada"** chama a IA (1 vez).
+- Bloqueado quando: faltam campos obrigatórios, link inválido, Fit Gate `soft_block`, ou nenhum campo alterado.
 
-- **Frio (prospecção):** aceita produto base, produto principal e kit unitário de apresentação. Bloqueia kit de quantidade, recompra e upsell.
-- **Remarketing/Morno:** tudo aceito (recompra fica como ressalva).
-- **Quente:** tudo aceito.
-- **Retenção/Clientes:** prefere recompra, upsell e kits maiores.
+### Versionamento (cadeia de propostas)
+Cada revisão cria proposta filha:
+- Antiga vira `status='superseded'` + `superseded_by_action_id` apontando para a nova.
+- Nova tem `parent_action_id` + `action_data.version = N+1` + `action_data.revision_source` (snapshot do patch).
+- Antiga **some** automaticamente da fila "Aguardando Ação" (não está em `ACTIVE_PENDING_STATUSES`).
+- Histórico cumulativo em `action_data.adjustment_history`.
 
-Quando bloqueia, a UI mostra o motivo em linguagem clara e desabilita o botão "Aprovar e gerar criativos", oferecendo ações sugeridas (trocar produto, mover para Remarketing/Clientes, revisar cadastro).
+### Frente 4.4 parcial — Feedback em Aprovar/Rejeitar
+**Já existia** no projeto: o `useAdsAutopilotFeedbackGate` intercepta os cliques de Aprovar e Rejeitar com diálogo de motivos (chips) e textarea opcional, gravando em `ads_autopilot_feedback`. Mantido como está.
 
-### C. Modal de proposta reorganizado (Etapa 1)
-Na Etapa 1 do fluxo de duas etapas, o modal deixou de usar abas e passou a usar **blocos verticais empilhados**:
+No editor estruturado, o feedback de ajuste (motivo + chips + observação) vai junto com o patch da revisão.
 
-1. Badge de adequação produto×público no topo (alta/média/baixa/bloqueada/incerta).
-2. Resumo da recomendação em linguagem de negócio.
-3. Produto e oferta (tipo comercial, composição, preço, orçamento, botão).
-4. Público e exclusões (com linha de Clientes excluídos).
-5. Prompt & Copy (aviso amarelo "nenhum criativo final foi gerado ainda" + prompt limpo + formato sugerido + headlines + textos principais + miniatura "Referência visual do produto").
-6. Riscos e validações (Quality Gate + Fit Gate + ajustes sugeridos).
-7. Detalhes técnicos — recolhido por padrão.
+**Etapa 4 (não entregue):** Strategist ainda não consome o feedback acumulado. O contrato e o histórico estão prontos, mas a injeção no prompt fica para uma frente futura.
 
-Payload técnico bruto não aparece mais na visualização principal.
+## Validação pendente (precisa do usuário)
 
-### D. Fila de validação
-- A proposta antiga **Kit Banho Calvície Zero (3x) em Público Frio** foi **arquivada** como rejeitada, com auditoria preservada (`cleanup_audit = archived_for_fit_gate_validation_2026_06_09`). Caso ruim coberto por testes automatizados, sem poluir a fila visual.
-- Nova proposta sintética ativa: **Kit Banho Calvície Zero Dia** (Shampoo 1× + Balm 1× = kit unitário de apresentação) para Público Frio → **adequação alta**, botão liberado.
+No painel `/ads` → aba **Aguardando Ação** → proposta `Prospecção Frio — Kit Banho Dia`:
 
-## Validação técnica executada
-- **Composição do Kit Dia** confirmada: 1× Shampoo + 1× Balm → classifica como `kit_unitario_apresentacao`.
-- **Composição do Kit 3x arquivado** confirmada: 3× cada componente → classifica como `kit_quantidade` → soft-block em Frio.
-- **Fila ativa** verificada: apenas 1 proposta (`c6fef3ed-42e8-4637-98ac-9dfdeadf62f4`).
-- **Testes automatizados:** 217/217 passando — incluindo 16 cenários novos cobrindo classificador + gate.
-
-## Validação visual pendente (precisa do usuário)
-No painel `/ads` → aba **Propostas pendentes**:
-
-1. Confirmar que aparece **uma** proposta apenas: "Prospecção Frio — Kit Banho Dia (apresentação)".
-2. Confirmar **badge verde "Adequação alta"** no cabeçalho do card e no topo do modal.
-3. Confirmar **botão "Aprovar e gerar criativos" habilitado** (sem alerta vermelho).
-4. Abrir "Ver conteúdo completo" e confirmar:
-   - 6 blocos verticais empilhados (não há abas).
-   - Bloco "Produto e oferta" mostra **"Tipo comercial: Kit unitário de apresentação"** e **"Composição: 1x Shampoo Calvície Zero + 1x Balm Pós-Banho Calvície Zero (Dia)"**.
-   - "Prompt & Copy" mostra aviso amarelo + prompt limpo + miniatura "Referência visual do produto".
-   - "Detalhes técnicos" aparece **recolhido** ao final.
+1. Abrir "Ver conteúdo completo" e confirmar o novo bloco **"Campanha"** com link clicável e CTA traduzido.
+2. Clicar em **"Ajustar"** e confirmar que abre o drawer lateral (não o textarea antigo).
+3. Confirmar que canal/plataforma aparece bloqueado em cinza.
+4. Editar nome da campanha → contador "1 campo alterado" aparece.
+5. Clicar em **"Salvar rascunho"** → toast "Rascunho salvo", e nenhum criativo/crédito é mexido.
+6. Fechar e reabrir o drawer → as alterações continuam.
+7. Clicar em **"Gerar proposta revisada"** → modal de confirmação aparece.
+8. Confirmar → nova proposta v2 surge na fila e a antiga some.
 
 ## Restrições preservadas
 - Nenhuma Nova Estratégia.
 - C.4, toggles de autoexecução, Tenant Memory, F.1/F.2 e cadência semanal/mensal intactos.
 - Nenhum criativo real gerado, nenhum crédito consumido, nenhuma campanha publicada.
 - Nenhuma chamada Meta/Google/TikTok.
+- Quality Gate e Fit Gate preservados.
 - Imagem de produto continua apenas como referência visual.
-- Sem memória `mem://constraints/...` — regra anti-regressão vive apenas em `docs/especificacoes/marketing/gestor-trafego.md` §13 e em `docs/especificacoes/transversais/mapa-ui.md`.
+- Sem `mem://constraints/...` — regra anti-regressão vive em `docs/especificacoes/marketing/gestor-trafego.md` §14 e `docs/especificacoes/transversais/mapa-ui.md`.
 
 ## Documentação atualizada
-- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção §13 (classificador, gate, modal, anti-regressão).
-- `docs/especificacoes/transversais/mapa-ui.md` — nova seção "Frente 4.1" descrevendo badge, soft-block, blocos verticais e detalhes técnicos recolhidos.
+- `docs/especificacoes/marketing/gestor-trafego.md` — §14 (Editor estruturado, versionamento, feedback, anti-regressão).
+- `docs/especificacoes/transversais/mapa-ui.md` — nova entrada das Frentes 4.2/4.3/4.4.
 
 ## Bloco técnico (registro)
-- `supabase/functions/_shared/ads-autopilot/productCommercialClassifier.ts` — classificador puro.
-- `supabase/functions/_shared/ads-autopilot/productFunnelFitGate.ts` — gate puro, com `evaluateProductFunnelFit`, `normalizeFunnelStage`, `fitLevelLabel`, `commercialClassLabel`.
-- `src/hooks/useProductCommercialFit.ts` — hook React lê produto + composição + payload IA + preço floor do catálogo e devolve `{ classification, fit, components_summary }`.
-- `src/components/ads/ActionApprovalCard.tsx` — badge no cabeçalho, alerta de soft-block, bloqueio do botão na Etapa 1 e novo `FullContentDialog` com blocos verticais (apenas no estágio `strategy` do `two_step_v1`).
-- `src/test/ads-autopilot-product-funnel-fit.test.ts` — 16 testes.
-- Migração Supabase: arquivamento da proposta `f24d6ceb-…` + inserção da nova `c6fef3ed-…`.
+- Migração: `superseded_by_action_id` (uuid, FK self-reference) + índices `idx_aaa_parent_action` e `idx_aaa_superseded_by`.
+- `supabase/functions/ads-autopilot-revise-proposal/index.ts` — orquestrador: marca superseded → invoca Strategist com patch estruturado → linka cadeia. 1 chamada IA por execução.
+- `src/components/ads/ProposalStructuredEditor.tsx` — drawer Sheet com formulário, save-draft (DB direct), generate-revised (edge function).
+- `src/components/ads/ActionApprovalCard.tsx` — botão "Ajustar" passa a abrir o drawer estruturado para `two_step_v1 strategy`; fallback texto livre para legacy. Modal ganhou bloco "Campanha".
+- `src/test/ads-autopilot-structured-editor.test.ts` — 7 testes (diff, validações, contrato).
