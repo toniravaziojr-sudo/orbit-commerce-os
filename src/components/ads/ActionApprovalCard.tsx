@@ -1316,6 +1316,17 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const campaignName = preview.campaign_name || data.campaign_name || null;
   const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
 
+  // Frente 4 — Inteligência produto×funil (apenas para Etapa 1 do two_step_v1)
+  const productIdForFit = (data as any).product_id || preview.product_id || null;
+  const enableFit = isTwoStep && twoStepStage === "strategy";
+  const { data: fitData } = useProductCommercialFit(
+    enableFit ? productIdForFit : null,
+    enableFit ? (funnel as any) : null,
+    enableFit ? action.tenant_id : null,
+  );
+  const fitBadge = enableFit && fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
+  const approveBlockedByFit = enableFit && fitData?.fit.soft_block === true;
+
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
 
   const diagnosis = data.diagnosis || null;
