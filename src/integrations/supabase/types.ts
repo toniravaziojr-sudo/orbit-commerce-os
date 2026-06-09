@@ -187,6 +187,7 @@ export type Database = {
           scheduled_for: string | null
           session_id: string
           status: string
+          superseded_by_action_id: string | null
           tenant_id: string
         }
         Insert: {
@@ -219,6 +220,7 @@ export type Database = {
           scheduled_for?: string | null
           session_id: string
           status?: string
+          superseded_by_action_id?: string | null
           tenant_id: string
         }
         Update: {
@@ -251,6 +253,7 @@ export type Database = {
           scheduled_for?: string | null
           session_id?: string
           status?: string
+          superseded_by_action_id?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -266,6 +269,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "ads_autopilot_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_autopilot_actions_superseded_by_action_id_fkey"
+            columns: ["superseded_by_action_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_actions"
             referencedColumns: ["id"]
           },
           {

@@ -24,6 +24,7 @@ import { StrategicPlanContent } from "./StrategicPlanContent";
 import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
 import { useProductCommercialFit, type ProductFitData } from "@/hooks/useProductCommercialFit";
 import { fitLevelLabel, commercialClassLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
+import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
@@ -1040,6 +1041,35 @@ function FullContentDialog({ action, childActions, open, onOpenChange, fitData }
                 </div>
               )}
 
+              {/* Bloco 1.5 — Campanha (Frente 4.2) */}
+              {(() => {
+                const campaignName = preview.campaign_name || data.campaign_name || null;
+                const objective = preview.objective || data.objective || data.campaign_type || null;
+                const destinationUrl = preview.destination_url || data.destination_url || data.website_url || null;
+                const ctaCode = preview.cta || preview.cta_type || data.cta_type || null;
+                const channelLabel = action.channel ? (action.channel.charAt(0).toUpperCase() + action.channel.slice(1)) : null;
+                const anyCampaign = campaignName || objective || destinationUrl || ctaCode || channelLabel || budgetDisplay;
+                if (!anyCampaign) return null;
+                return (
+                  <div>
+                    <SectionLabel icon={<Megaphone className="h-3.5 w-3.5 text-primary" />} label="Campanha" />
+                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {campaignName && <p><span className="text-foreground font-medium">Nome:</span> {campaignName}</p>}
+                      {objective && <p><span className="text-foreground font-medium">Objetivo:</span> {translateTechnical(objective)}</p>}
+                      {channelLabel && <p><span className="text-foreground font-medium">Canal:</span> {channelLabel}</p>}
+                      {budgetDisplay && <p><span className="text-foreground font-medium">Orçamento diário:</span> {budgetDisplay}</p>}
+                      {ctaCode && <p><span className="text-foreground font-medium">Botão (CTA):</span> {CTA_LABELS[ctaCode] || ctaCode}</p>}
+                      {destinationUrl && (
+                        <p className="sm:col-span-2 break-all">
+                          <span className="text-foreground font-medium">Link de destino:</span>{" "}
+                          <a href={destinationUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{destinationUrl}</a>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Bloco 2 — Produto e oferta */}
               {(productName || fitData) && (
                 <div>
@@ -1057,8 +1087,6 @@ function FullContentDialog({ action, childActions, open, onOpenChange, fitData }
                       </p>
                     )}
                     {productPrice && <p className="text-xs text-muted-foreground">Preço: <span className="font-medium text-foreground">{productPrice}</span></p>}
-                    {budgetDisplay && <p className="text-xs text-muted-foreground">Orçamento sugerido: <span className="font-medium text-foreground">{budgetDisplay}</span></p>}
-                    {ctaType && <p className="text-xs text-muted-foreground">Botão: <span className="font-medium text-foreground">{CTA_LABELS[ctaType] || ctaType}</span></p>}
                   </div>
                 </div>
               )}
@@ -1736,6 +1764,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             onClick={() => setAdjustOpen(true)}
             disabled={!!approvingId || !!rejectingId || !!adjustingId || twoStepStage === "generating"}
             className="flex-1 h-8 text-xs gap-1.5"
+            title={
+              isTwoStep && twoStepStage === "strategy"
+                ? "Abre o editor estruturado da proposta. Editar campos e salvar rascunho não chama a IA."
+                : "Sugerir ajuste por texto (modo clássico)."
+            }
           >
             {isAdjusting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1808,36 +1841,40 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         </DialogContent>
       </Dialog>
 
-      {/* Adjust Dialog */}
-      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Sugerir Ajuste</DialogTitle>
-            <DialogDescription>
-              Descreva o que deve ser alterado. A IA fará o ajuste e gerará uma nova proposta para aprovação.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={adjustSuggestion}
-            onChange={(e) => setAdjustSuggestion(e.target.value)}
-            placeholder="Ex: Alterar a copy para focar mais no benefício X, mudar o orçamento para R$50/dia..."
-            className="min-h-[80px]"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjusting}>Cancelar</Button>
-            <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim() || isAdjusting}>
-              {isAdjusting ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                  Reprocessando...
-                </>
-              ) : (
-                "Enviar Ajuste"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Adjust — Frente 4.3: drawer estruturado para two_step_v1 strategy; fallback texto livre para legacy */}
+      {isTwoStep && twoStepStage === "strategy" ? (
+        <ProposalStructuredEditor action={action} open={adjustOpen} onOpenChange={setAdjustOpen} />
+      ) : (
+        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sugerir Ajuste</DialogTitle>
+              <DialogDescription>
+                Descreva o que deve ser alterado. A IA fará o ajuste e gerará uma nova proposta para aprovação.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              value={adjustSuggestion}
+              onChange={(e) => setAdjustSuggestion(e.target.value)}
+              placeholder="Ex: Alterar a copy para focar mais no benefício X, mudar o orçamento para R$50/dia..."
+              className="min-h-[80px]"
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjusting}>Cancelar</Button>
+              <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim() || isAdjusting}>
+                {isAdjusting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Reprocessando...
+                  </>
+                ) : (
+                  "Enviar Ajuste"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Zoom Dialog */}
       {primaryCreativeUrl && (
