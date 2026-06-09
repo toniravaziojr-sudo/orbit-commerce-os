@@ -494,3 +494,40 @@ export function mapFocusStatusToInternal(focusStatus: string): string {
 
   return statusMap[focusStatus] || 'processing';
 }
+
+/**
+ * Detecta se o erro devolvido pela Focus/SEFAZ é de "número já utilizado".
+ * Cobre rejeições comuns:
+ *  - cStat 539 (duplicidade de NF-e)
+ *  - cStat 204 (duplicidade de NF-e na base)
+ *  - mensagens textuais com "número" + "já" (utilizado/inutilizado/cadastrado)
+ *  - validação pré-envio da Focus quando número está abaixo do último emitido
+ */
+export function isDuplicateNumberError(
+  errorText?: string | null,
+  responseData?: { erros?: Array<{ codigo?: string; mensagem?: string }>; status_sefaz?: string; mensagem_sefaz?: string } | null,
+): boolean {
+  const haystack: string[] = [];
+  if (errorText) haystack.push(errorText);
+  if (responseData?.status_sefaz) haystack.push(responseData.status_sefaz);
+  if (responseData?.mensagem_sefaz) haystack.push(responseData.mensagem_sefaz);
+  if (Array.isArray(responseData?.erros)) {
+    for (const e of responseData!.erros!) {
+      if (e?.codigo) haystack.push(String(e.codigo));
+      if (e?.mensagem) haystack.push(e.mensagem);
+    }
+  }
+  const blob = haystack.join(' | ').toLowerCase();
+  if (!blob) return false;
+
+  // Códigos SEFAZ conhecidos
+  if (/\b(539|204)\b/.test(blob)) return true;
+
+  // Padrões textuais
+  if (/(duplicidade.*nf-?e|nf-?e.*duplicidade)/.test(blob)) return true;
+  if (/n[uú]mero.*(j[aá]).*(utilizad|inutilizad|cadastrad|emitid)/.test(blob)) return true;
+  if (/n[uú]mero.*(em uso|ocupado|conflit)/.test(blob)) return true;
+
+  return false;
+}
+
