@@ -921,7 +921,7 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
 /* ========================================
    FULL CONTENT DIALOG — Tabbed
    ======================================== */
-function FullContentDialog({ action, childActions, open, onOpenChange }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void }) {
+function FullContentDialog({ action, childActions, open, onOpenChange, fitData }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void; fitData?: ProductFitData | null }) {
   const data = action.action_data || {};
   const preview = data.preview || {};
   const isStrategicPlan = action.action_type === "strategic_plan";
