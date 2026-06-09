@@ -27,6 +27,7 @@ import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
 import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
+import { ACTIVE_PENDING_STATUSES } from "@/hooks/useAdsPendingActions";
 
 export default function AdsManager() {
   const { currentTenant } = useAuth();
@@ -435,9 +436,9 @@ export default function AdsManager() {
                       <TabsTrigger value="pending-approval" className="gap-2">
                         <Hourglass className="h-3.5 w-3.5" />
                         Aguardando Ação
-                        {autopilot.actions.filter(a => a.channel === channel && a.status === "pending_approval").length > 0 && (
+                        {autopilot.actions.filter(a => a.channel === channel && ACTIVE_PENDING_STATUSES.includes(a.status as any)).length > 0 && (
                           <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs bg-amber-500/20 text-amber-600">
-                            {autopilot.actions.filter(a => a.channel === channel && a.status === "pending_approval").length}
+                            {autopilot.actions.filter(a => a.channel === channel && ACTIVE_PENDING_STATUSES.includes(a.status as any)).length}
                           </Badge>
                         )}
                       </TabsTrigger>
