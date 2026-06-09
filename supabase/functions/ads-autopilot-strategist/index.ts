@@ -3476,6 +3476,8 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
 
       // Track generated creative URLs per product for linking to campaign actions
       const creativeUrlsByProduct: Record<string, string> = {};
+      // Frente 4 — Briefs salvos durante a Etapa 1 (geração diferida)
+      const creativeBriefsByProduct: Record<string, CreativeBrief> = {};
 
       while (round < MAX_ROUNDS) {
         round++;
@@ -3535,23 +3537,28 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           // Execute the tool
           const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
 
-          // Track creative URLs from generate_creative results
+          // Track creative URLs/briefs from generate_creative results
           if (tc.function.name === "generate_creative" && result.status === "executed") {
             const productName = args.product_name;
-            // v1.20.0: STRICT matching — NO fallback to prevent wrong product URL tracking
-            const matchedProduct = context.products.find((p: any) => p.name.trim() === (productName || "").trim());
-            if (matchedProduct) {
-              const { data: latestAsset } = await supabase
-                .from("ads_creative_assets")
-                .select("asset_url")
-                .eq("tenant_id", tenantId)
-                .eq("session_id", sessionId)
-                .eq("product_id", matchedProduct.id)
-                .not("asset_url", "is", null)
-                .order("created_at", { ascending: false })
-                .limit(1);
-              if (latestAsset?.[0]?.asset_url) {
-                creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+            // Frente 4 — Etapa 1: brief diferido (sem URL ainda)
+            if ((result.data as any)?.deferred && (result.data as any)?.creative_brief && productName) {
+              creativeBriefsByProduct[productName] = (result.data as any).creative_brief as CreativeBrief;
+            } else {
+              // v1.20.0: STRICT matching — NO fallback to prevent wrong product URL tracking
+              const matchedProduct = context.products.find((p: any) => p.name.trim() === (productName || "").trim());
+              if (matchedProduct) {
+                const { data: latestAsset } = await supabase
+                  .from("ads_creative_assets")
+                  .select("asset_url")
+                  .eq("tenant_id", tenantId)
+                  .eq("session_id", sessionId)
+                  .eq("product_id", matchedProduct.id)
+                  .not("asset_url", "is", null)
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+                if (latestAsset?.[0]?.asset_url) {
+                  creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+                }
               }
             }
           }
