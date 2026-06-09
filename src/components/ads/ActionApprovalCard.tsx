@@ -1401,6 +1401,21 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   {funnelInfo.label}
                 </Badge>
               )}
+              {fitBadge && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] px-1.5 py-0",
+                    fitBadge.tone === "success" && "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+                    fitBadge.tone === "info" && "bg-sky-500/10 text-sky-700 border-sky-500/20",
+                    fitBadge.tone === "warning" && "bg-amber-500/10 text-amber-700 border-amber-500/20",
+                    fitBadge.tone === "destructive" && "bg-rose-500/10 text-rose-700 border-rose-500/20",
+                  )}
+                  title={fitData?.fit.user_message || ""}
+                >
+                  {fitBadge.label}
+                </Badge>
+              )}
             </div>
 
             {/* Headline */}
