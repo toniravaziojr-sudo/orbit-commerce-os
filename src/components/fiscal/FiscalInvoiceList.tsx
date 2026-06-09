@@ -1293,6 +1293,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           setPaidOrderBlock(null);
           return;
         }
+        // Bloqueio: NF já enviada à SEFAZ
+        if (msg.includes('NF_ALREADY_SUBMITTED_TO_SEFAZ')) {
+          toast.error('Esta Nota Fiscal já foi enviada à SEFAZ e não pode ser excluída. Use o cancelamento ou a inutilização.');
+          setConfirmDeleteInvoice(null);
+          setLinkedShipmentImpact(null);
+          setPaidOrderBlock(null);
+          return;
+        }
         throw error;
       }
       toast.success(((invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida')) === 'pedido_venda' ? 'Pedido de Venda excluído' : 'Nota Fiscal excluída');
