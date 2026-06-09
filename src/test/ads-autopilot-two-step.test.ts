@@ -13,26 +13,29 @@ import {
   runTwoStepCreativeGate,
 } from "../../supabase/functions/_shared/ads-autopilot/twoStep";
 
-const baseAction = (overrides: any = {}) => ({
-  id: "act-1",
-  status: TWO_STEP_STATUSES.PENDING_STRATEGY,
-  action_type: "create_campaign",
-  action_data: {
-    flow_version: TWO_STEP_FLOW_VERSION,
-    campaign_name: "Campanha Teste",
-    destination_url: "https://loja.com/p/x",
-    funnel_stage: "tof",
-    creative_brief: {
-      prompt: "Foto do produto X em estúdio",
-      format: "1:1",
+const baseAction = (overrides: any = {}) => {
+  const { action_data: ad = {}, ...rest } = overrides;
+  return {
+    id: "act-1",
+    status: TWO_STEP_STATUSES.PENDING_STRATEGY,
+    action_type: "create_campaign",
+    ...rest,
+    action_data: {
+      flow_version: TWO_STEP_FLOW_VERSION,
+      campaign_name: "Campanha Teste",
+      destination_url: "https://loja.com/p/x",
       funnel_stage: "tof",
-      product_name: "Produto X",
+      creative_brief: {
+        prompt: "Foto do produto X em estúdio",
+        format: "1:1",
+        funnel_stage: "tof",
+        product_name: "Produto X",
+      },
+      customer_audience_exclusion: { enabled: true, audience_id: "cust-1" },
+      ...ad,
     },
-    customer_audience_exclusion: { enabled: true, audience_id: "cust-1" },
-    ...overrides.action_data,
-  },
-  ...overrides,
-});
+  };
+};
 
 describe("Frente 4 — marcador de fluxo two-step", () => {
   it("identifica proposta two-step nova", () => {
