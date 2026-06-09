@@ -587,7 +587,7 @@ Deno.serve(async (req) => {
         invoice_id,
         tenant_id: tenantId,
         event_type: focusStatus === 'autorizado' ? 'authorized' : 'submitted',
-        event_data: { focus_response: statusData, ref },
+        event_data: { focus_response: statusData, ref: ref_final, numero: numeroAtual, serie: serieNfe },
       });
 
     console.log(`[fiscal-emit] NF-e ${invoice_id} processada — status=${focusStatus}`);
@@ -600,7 +600,7 @@ Deno.serve(async (req) => {
         units: { count: 1 },
         jobId: invoice_id,
         feature: "fiscal-emit",
-        metadata: { ref, chave: statusData?.chave_nfe },
+        metadata: { ref: ref_final, chave: statusData?.chave_nfe },
       }).catch(() => {});
     }
 
