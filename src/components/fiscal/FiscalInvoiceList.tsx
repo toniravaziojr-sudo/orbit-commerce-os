@@ -2366,6 +2366,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                         {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
                       </p>
                     )}
+                    {confirmDeleteInvoice && (
+                      <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-900">
+                        O número <strong>#{confirmDeleteInvoice.numero}</strong> ficará disponível para a próxima criação.
+                      </p>
+                    )}
                     {linkedShipmentImpact && (
                       <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
                         Este Pedido de Venda tem um objeto de postagem associado{linkedShipmentImpact.tracking_code ? ` (nº ${linkedShipmentImpact.tracking_code})` : ''}. <strong>Ele será excluído junto.</strong> Se a remessa ficar vazia, também será removida.
@@ -2375,6 +2380,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                       Só é permitido excluir registros sem efeito fiscal (Pedido de Venda, Pronta para Emitir, Rejeitada ou Cancelada).
                     </p>
                   </>
+
                 )}
               </div>
             </AlertDialogDescription>
