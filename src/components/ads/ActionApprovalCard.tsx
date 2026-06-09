@@ -1035,8 +1035,52 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                 {/* Tab: Criativos & Copys */}
                 {hasCreativesContent && (
                   <TabsContent value="criativos" className="mt-0 space-y-4">
-                    {creativeUrls.length > 0 && (
-                      <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+                    {isTwoStepStrategyStage ? (
+                      <>
+                        {/* Aviso explícito: nenhum criativo final ainda */}
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                          Nenhum criativo final foi gerado ainda. A geração acontece apenas após aprovar a estratégia.
+                        </div>
+
+                        {/* Prompt do criativo em destaque */}
+                        {(creativePromptText || creativeFormatText) && (
+                          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Prompt do criativo
+                              {creativeFormatText && (
+                                <Badge variant="outline" className="text-[10px] ml-1">Formato {creativeFormatText}</Badge>
+                              )}
+                            </div>
+                            {creativePromptText && (
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{creativePromptText}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Referência visual do produto — pequena, claramente rotulada */}
+                        {productReferenceUrl && (
+                          <div>
+                            <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />} label="Referência visual do produto" />
+                            <div className="mt-1.5 flex items-start gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setZoomUrl(productReferenceUrl)}
+                                className="relative h-20 w-20 rounded-md border border-border/40 overflow-hidden bg-muted/30 shrink-0"
+                              >
+                                <img src={productReferenceUrl} alt="Referência do produto" className="h-full w-full object-cover" />
+                              </button>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Imagem usada apenas como referência do produto. Não é o criativo final.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      creativeUrls.length > 0 && (
+                        <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+                      )
                     )}
 
                     {headlinesList.length > 0 && (
