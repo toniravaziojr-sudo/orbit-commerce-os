@@ -1016,7 +1016,7 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                 {hasCreativesContent && (
                   <TabsTrigger value="criativos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
                     <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
-                    Criativos & Copys
+                    {isTwoStepStrategyStage ? "Prompt & Copy" : "Criativos & Copys"}
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="detalhes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
