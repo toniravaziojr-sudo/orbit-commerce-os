@@ -1033,10 +1033,10 @@ function FullContentDialog({ action, childActions, open, onOpenChange, fitData }
               })()}
 
               {/* Bloco 1 — Resumo */}
-              {(action.reasoning || summaryText) && (
+              {(action.reasoning || preview.copy_text || data.copy_text) && (
                 <div>
                   <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-primary" />} label="Resumo da recomendação" />
-                  <p className="text-sm text-muted-foreground leading-relaxed mt-1.5">{sanitizeDisplayText(action.reasoning || summaryText)}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-1.5">{sanitizeDisplayText(action.reasoning || preview.copy_text || data.copy_text || "")}</p>
                 </div>
               )}
 
