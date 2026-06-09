@@ -29,13 +29,17 @@ type: constraint
   `focus-nfe-adapter.ts` é a fonte única de detecção de duplicidade.
 
 ### 2. Bloco transportador
-- `buildNFePayload` aceita parâmetro `transporte` que popula
-  `transportador_nome_razao_social`, `transportador_cpf_cnpj`,
-  `transportador_inscricao_estadual`, `transportador_endereco`,
-  `transportador_municipio`, `transportador_uf`,
-  `quantidade_volumes_transportados`, `especie_volumes_transportados`,
-  `peso_bruto_total_dos_volumes_transportados`,
-  `peso_liquido_total_dos_volumes_transportados`.
+- `buildNFePayload` aceita parâmetro `transporte` que popula os campos
+  oficiais da Focus NFe (sufixo `_transportador`, conforme
+  campos.focusnfe.com.br/nfe/NotaFiscalXML.html):
+  `nome_transportador`, `cnpj_transportador` (14 dígitos) **ou**
+  `cpf_transportador` (11 dígitos),
+  `inscricao_estadual_transportador`, `endereco_transportador`,
+  `municipio_transportador`, `uf_transportador`.
+- Volumes vão em **array** `volumes: [{ quantidade, especie,
+  peso_bruto, peso_liquido }]` — NUNCA usar os antigos campos achatados
+  `quantidade_volumes_transportados` / `peso_bruto_total_*` (Focus
+  ignora silenciosamente e a SEFAZ recebe NF sem transportadora).
 - Resolução obrigatória via `_shared/carrier-registry.ts` →
   `resolveCarrier({ carrierName, serviceName })`. Catálogo embutido tem
   Correios com CNPJ canônico. Demais transportadoras (Jadlog, Loggi,
