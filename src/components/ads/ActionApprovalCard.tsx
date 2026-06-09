@@ -1041,6 +1041,35 @@ function FullContentDialog({ action, childActions, open, onOpenChange, fitData }
                 </div>
               )}
 
+              {/* Bloco 1.5 — Campanha (Frente 4.2) */}
+              {(() => {
+                const campaignName = preview.campaign_name || data.campaign_name || null;
+                const objective = preview.objective || data.objective || data.campaign_type || null;
+                const destinationUrl = preview.destination_url || data.destination_url || data.website_url || null;
+                const ctaCode = preview.cta || preview.cta_type || data.cta_type || null;
+                const channelLabel = action.channel ? (action.channel.charAt(0).toUpperCase() + action.channel.slice(1)) : null;
+                const anyCampaign = campaignName || objective || destinationUrl || ctaCode || channelLabel || budgetDisplay;
+                if (!anyCampaign) return null;
+                return (
+                  <div>
+                    <SectionLabel icon={<Megaphone className="h-3.5 w-3.5 text-primary" />} label="Campanha" />
+                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {campaignName && <p><span className="text-foreground font-medium">Nome:</span> {campaignName}</p>}
+                      {objective && <p><span className="text-foreground font-medium">Objetivo:</span> {translateTechnical(objective)}</p>}
+                      {channelLabel && <p><span className="text-foreground font-medium">Canal:</span> {channelLabel}</p>}
+                      {budgetDisplay && <p><span className="text-foreground font-medium">Orçamento diário:</span> {budgetDisplay}</p>}
+                      {ctaCode && <p><span className="text-foreground font-medium">Botão (CTA):</span> {CTA_LABELS[ctaCode] || ctaCode}</p>}
+                      {destinationUrl && (
+                        <p className="sm:col-span-2 break-all">
+                          <span className="text-foreground font-medium">Link de destino:</span>{" "}
+                          <a href={destinationUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{destinationUrl}</a>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Bloco 2 — Produto e oferta */}
               {(productName || fitData) && (
                 <div>
@@ -1058,8 +1087,6 @@ function FullContentDialog({ action, childActions, open, onOpenChange, fitData }
                       </p>
                     )}
                     {productPrice && <p className="text-xs text-muted-foreground">Preço: <span className="font-medium text-foreground">{productPrice}</span></p>}
-                    {budgetDisplay && <p className="text-xs text-muted-foreground">Orçamento sugerido: <span className="font-medium text-foreground">{budgetDisplay}</span></p>}
-                    {ctaType && <p className="text-xs text-muted-foreground">Botão: <span className="font-medium text-foreground">{CTA_LABELS[ctaType] || ctaType}</span></p>}
                   </div>
                 </div>
               )}
