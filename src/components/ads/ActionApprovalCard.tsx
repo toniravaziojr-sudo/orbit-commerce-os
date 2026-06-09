@@ -954,7 +954,18 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
   const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
-  const hasCreativesContent = !isStrategicPlan && !isAdSet && (creativeUrls.length > 0 || headlinesList.length > 0 || primaryTexts.length > 0);
+  // Frente 4 — detectar Etapa 1 do fluxo two_step_v1 (estratégia ainda não aprovada)
+  const isTwoStepStrategyStage = isTwoStepAction(action) && getTwoStepStage(action) === "strategy";
+  const creativeBriefData = (action.action_data as any)?.creative_brief || null;
+  const creativePromptText = creativeBriefData?.prompt || (action.action_data as any)?.creative_prompt || null;
+  const creativeFormatText = creativeBriefData?.format || (action.action_data as any)?.creative_format_suggested || null;
+  const productReferenceUrl = isTwoStepStrategyStage ? (creativeUrls[0] || null) : null;
+
+  const hasCreativesContent = !isStrategicPlan && !isAdSet && (
+    isTwoStepStrategyStage
+      ? !!(creativePromptText || headlinesList.length > 0 || primaryTexts.length > 0 || productReferenceUrl)
+      : (creativeUrls.length > 0 || headlinesList.length > 0 || primaryTexts.length > 0)
+  );
   const hasAdSets = adsets.length > 0 || isAdSet;
 
   return (
@@ -1005,7 +1016,7 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                 {hasCreativesContent && (
                   <TabsTrigger value="criativos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
                     <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
-                    Criativos & Copys
+                    {isTwoStepStrategyStage ? "Prompt & Copy" : "Criativos & Copys"}
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="detalhes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
@@ -1024,8 +1035,52 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                 {/* Tab: Criativos & Copys */}
                 {hasCreativesContent && (
                   <TabsContent value="criativos" className="mt-0 space-y-4">
-                    {creativeUrls.length > 0 && (
-                      <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+                    {isTwoStepStrategyStage ? (
+                      <>
+                        {/* Aviso explícito: nenhum criativo final ainda */}
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                          Nenhum criativo final foi gerado ainda. A geração acontece apenas após aprovar a estratégia.
+                        </div>
+
+                        {/* Prompt do criativo em destaque */}
+                        {(creativePromptText || creativeFormatText) && (
+                          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Prompt do criativo
+                              {creativeFormatText && (
+                                <Badge variant="outline" className="text-[10px] ml-1">Formato {creativeFormatText}</Badge>
+                              )}
+                            </div>
+                            {creativePromptText && (
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{creativePromptText}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Referência visual do produto — pequena, claramente rotulada */}
+                        {productReferenceUrl && (
+                          <div>
+                            <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />} label="Referência visual do produto" />
+                            <div className="mt-1.5 flex items-start gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setZoomUrl(productReferenceUrl)}
+                                className="relative h-20 w-20 rounded-md border border-border/40 overflow-hidden bg-muted/30 shrink-0"
+                              >
+                                <img src={productReferenceUrl} alt="Referência do produto" className="h-full w-full object-cover" />
+                              </button>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Imagem usada apenas como referência do produto. Não é o criativo final.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      creativeUrls.length > 0 && (
+                        <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+                      )
                     )}
 
                     {headlinesList.length > 0 && (
