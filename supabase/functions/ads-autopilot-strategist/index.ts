@@ -2283,6 +2283,29 @@ async function executeToolCall(
       console.log(`[ads-autopilot-strategist][${VERSION}] PARTIAL REUSE: ${existingCount} existing, generating ${neededVariations} more for "${topProduct.name}" (${requestedFunnel}/${requestedFormat})`);
     }
 
+    // ============ FRENTE 4 — Etapa 1: NÃO gerar criativo aqui ============
+    // Estrategista salva o brief e devolve `deferred=true`. A geração real
+    // só acontece quando o usuário clicar "Aprovar e gerar criativos"
+    // (edge function ads-autopilot-approve-strategy).
+    if (TWO_STEP_ENABLED) {
+      const brief = buildCreativeBrief(args, {
+        product_id: topProduct.id,
+        product_image_url: productImageUrl,
+      });
+      console.log(`[ads-autopilot-strategist][${VERSION}] two-step: generate_creative DEFERRED for "${topProduct.name}"`);
+      return {
+        status: "executed",
+        data: {
+          deferred: true,
+          flow_version: TWO_STEP_FLOW_VERSION,
+          creative_brief: brief,
+          product_name: topProduct.name,
+          product_id: topProduct.id,
+          message: `Brief salvo. Geração de criativo aguarda aprovação da estratégia.`,
+        },
+      };
+    }
+
     try {
       const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
         body: {
