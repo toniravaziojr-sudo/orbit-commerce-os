@@ -550,3 +550,13 @@ Antes, o menu obrigava o usuário a abrir o editor (`Editar e Reemitir`) mesmo q
   - **Diálogo da Etapa 2:** botões **"Aprovar campanha final"**, **"Reprovar"** e **"Fechar"**. A aprovação final segue para o fluxo de publicação atual; a reprovação registra `rejection_reason`.
   - **Propostas legadas** (sem marcador `two_step_v1`) **mantêm o card e o botão "Aprovar" originais** — nenhum retrofit obrigatório.
   - Fila reconhece os 3 estados ativos (`pending_approval`, `creative_pending`, `final_pending_approval`) — contadores e badges não escondem mais propostas em geração ou aguardando aprovação final.
+
+### Gestor de Tráfego IA — Inteligência produto×funil e modal por blocos (Frente 4.1, rev 2026-06-09)
+
+- `/ads` — aba **Propostas pendentes**:
+  - **Badge de adequação produto×público** no cabeçalho do card e no topo do modal da Etapa 1, com 5 estados: **Adequação alta** (verde), **média** (azul), **baixa** (âmbar), **Bloqueada** (vermelho), **Composição incerta** (âmbar).
+  - **Soft-block:** quando o gate bloqueia (ex.: kit de quantidade em Público Frio), aparece um **alerta vermelho** dentro do card com a mensagem amigável e a lista de ações sugeridas (trocar produto / mover para Remarketing / revisar cadastro). O botão "Aprovar e gerar criativos" fica **desabilitado** e troca o rótulo para **"Ajuste necessário antes de aprovar"**. Os botões "Ajustar" e "Rejeitar" continuam disponíveis.
+  - **Modal "Ver conteúdo completo" — Etapa 1 do `two_step_v1`** abandona as abas e passa a usar **blocos verticais empilhados**: (1) Adequação produto×público, (2) Resumo da recomendação, (3) Produto e oferta (com tipo comercial, composição e preço), (4) Público e exclusões, (5) Prompt & Copy (aviso amarelo + prompt limpo + "Formato sugerido: 1:1" + headlines + textos principais + miniatura "Referência visual do produto"), (6) Riscos e validações, (7) **Detalhes técnicos** num `<details>` recolhido por padrão (contém `flow_version`, `product_id`, `creative_brief` cru, `reason_codes`, `classification_signals`).
+  - **Imagem do produto** continua aparecendo apenas como miniatura rotulada "Referência visual do produto" e nunca é contada como criativo final.
+  - Etapa 2 (`creative_pending` / `final_pending_approval`) e propostas legacy seguem usando o layout de abas atual — não há retrofit.
+  - Detalhe operacional e regras anti-regressão em `docs/especificacoes/marketing/gestor-trafego.md` §13.
