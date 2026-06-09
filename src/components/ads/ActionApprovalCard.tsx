@@ -128,6 +128,7 @@ const HIDDEN_ACTION_TYPES = new Set(["activate_campaign"]);
 function useAllCreativeUrls(action: PendingAction): string[] {
   const data = action.action_data || {};
   const preview = (data as any).preview || {};
+  const isTwoStepStrategy = isTwoStepAction(action) && getTwoStepStage(action) === "strategy";
   const directUrl = preview.creative_url || (data as any).asset_url || (data as any).creative_url || null;
   const productId = (data as any).product_id || preview.product_id || null;
   const rawFunnelStage = preview.funnel_stage || (data as any).funnel_stage || null;
@@ -140,6 +141,29 @@ function useAllCreativeUrls(action: PendingAction): string[] {
   const { data: allUrls } = useQuery({
     queryKey: ["all-creatives", action.id, productId, funnelStage, sessionId, tenantId],
     queryFn: async () => {
+      if (isTwoStepStrategy) {
+        const referenceUrls: string[] = [];
+        if (productId) {
+          const { data: imgs } = await supabase
+            .from("product_images")
+            .select("url")
+            .eq("product_id", productId)
+            .order("sort_order", { ascending: true })
+            .limit(5);
+          if (imgs) {
+            for (const img of imgs) {
+              if (img.url && !referenceUrls.includes(img.url)) referenceUrls.push(img.url);
+            }
+          }
+        }
+
+        if (referenceUrls.length === 0 && directUrl) {
+          referenceUrls.push(directUrl);
+        }
+
+        return referenceUrls;
+      }
+
       const urls: string[] = [];
 
       // 1. Get all creative assets for this product
@@ -251,6 +275,11 @@ function sanitizeDisplayText(text: string): string {
 function truncate(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text;
   return text.slice(0, maxLength).trimEnd() + "…";
+}
+
+export function shouldShowCreativeCountBadge(action: PendingAction, creativeUrlsLength: number): boolean {
+  if (creativeUrlsLength <= 1) return false;
+  return !(isTwoStepAction(action) && getTwoStepStage(action) === "strategy");
 }
 
 function BudgetBar({ snapshot }: { snapshot: any }) {
@@ -1269,7 +1298,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <ZoomIn className="h-5 w-5 text-white" />
                   </div>
-                  {creativeUrls.length > 1 && !(isTwoStep && twoStepStage === "strategy") && (
+                  {shouldShowCreativeCountBadge(action, creativeUrls.length) && (
                     <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">
                       +{creativeUrls.length - 1}
                     </Badge>
@@ -1326,7 +1355,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   {budgetDisplay}
                 </Badge>
               )}
-              {creativeUrls.length > 1 && !(isTwoStep && twoStepStage === "strategy") && (
+              {shouldShowCreativeCountBadge(action, creativeUrls.length) && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
                   <ImageIcon className="h-2.5 w-2.5" />
                   {creativeUrls.length} criativos

@@ -11,6 +11,7 @@ import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./Act
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { showErrorToast } from '@/lib/error-toast';
 import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
+import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 
 interface AdsPendingApprovalTabProps {
   channelFilter?: string;
@@ -97,27 +98,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
     feedbackGate.requestRejection(action, () => runReject(id, reason, mode));
   };
 
-  const { data: pendingActions = [], isLoading } = useQuery({
-    queryKey: ["ads-pending-approval", tenantId, channelFilter],
-    queryFn: async () => {
-      let query = supabase
-        .from("ads_autopilot_actions" as any)
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .eq("status", "pending_approval")
-        .order("created_at", { ascending: false });
-
-      if (channelFilter) {
-        query = query.eq("channel", channelFilter);
-      }
-
-      const { data } = await query;
-      const actions = (data || []) as unknown as PendingAction[];
-      return actions.filter(a => a.action_type !== "activate_campaign");
-    },
-    enabled: !!tenantId,
-    refetchInterval: pollInterval,
-  });
+  const { pendingActions = [], isLoading } = useAdsPendingActions(channelFilter);
 
   const approveAction = useMutation({
     mutationFn: async (actionId: string) => {
