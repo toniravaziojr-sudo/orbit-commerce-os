@@ -1737,6 +1737,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             onClick={() => setAdjustOpen(true)}
             disabled={!!approvingId || !!rejectingId || !!adjustingId || twoStepStage === "generating"}
             className="flex-1 h-8 text-xs gap-1.5"
+            title={
+              isTwoStep && twoStepStage === "strategy"
+                ? "Abre o editor estruturado da proposta. Editar campos e salvar rascunho não chama a IA."
+                : "Sugerir ajuste por texto (modo clássico)."
+            }
           >
             {isAdjusting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
