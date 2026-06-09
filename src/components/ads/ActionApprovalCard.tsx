@@ -1269,9 +1269,14 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <ZoomIn className="h-5 w-5 text-white" />
                   </div>
-                  {creativeUrls.length > 1 && (
+                  {creativeUrls.length > 1 && !(isTwoStep && twoStepStage === "strategy") && (
                     <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">
                       +{creativeUrls.length - 1}
+                    </Badge>
+                  )}
+                  {isTwoStep && twoStepStage === "strategy" && (
+                    <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">
+                      Referência
                     </Badge>
                   )}
                 </>
