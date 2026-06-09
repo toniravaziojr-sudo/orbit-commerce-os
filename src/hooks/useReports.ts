@@ -265,15 +265,18 @@ export function useSalesByProduct(filters: ReportFilters, limit = 20) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'product', tenantId, filters.startDate, filters.endDate, limit],
+    queryKey: ['reports', 'product', tenantId, filters.startDate, filters.endDate, filters.channel, limit],
     queryFn: async (): Promise<SalesByProductData[]> => {
       if (!tenantId) return [];
 
       // Get orders in date range
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error: ordersError } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('id')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
