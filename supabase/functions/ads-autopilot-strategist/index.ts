@@ -25,6 +25,16 @@ import {
   CADENCE_POLICY_VERSION,
   type StrategistTriggerKind,
 } from "../_shared/ads-autopilot/cadencePolicy.ts";
+import {
+  TWO_STEP_FLOW_VERSION,
+  buildCreativeBrief,
+  type CreativeBrief,
+} from "../_shared/ads-autopilot/twoStep.ts";
+
+// ===== Frente 4 — Fluxo de duas etapas =====
+// Sempre ativo para novas propostas. O Estrategista deixa de gerar criativo
+// final no preflight: salva o brief e o usuário decide gerar na Etapa 2.
+const TWO_STEP_ENABLED = true;
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
