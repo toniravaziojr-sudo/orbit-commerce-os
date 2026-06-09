@@ -425,7 +425,25 @@ Deno.serve(async (req) => {
       if (result.success) break;
       if (!isDuplicateNumberError(result.error, result.data)) break;
       console.warn(`[fiscal-submit] Número ${numeroAtual} duplicado na SEFAZ — avançando cursor.`);
+      const numeroSkipped = numeroAtual;
       numeroAtual += 1;
+      try {
+        await supabaseClient.from('fiscal_invoice_events').insert({
+          invoice_id,
+          tenant_id: tenantId,
+          event_type: 'numero_duplicado_sefaz',
+          event_data: {
+            numero_rejeitado: numeroSkipped,
+            numero_proximo: numeroAtual,
+            serie: serieNfe,
+            attempt: attempts,
+            reason: String(result.error || '').slice(0, 500),
+            origem: 'fiscal-submit',
+          },
+        });
+      } catch (auditErr) {
+        console.warn('[fiscal-submit] Falha ao registrar evento de duplicidade (não bloqueante):', auditErr);
+      }
       ref = generateNFeRef(invoice_id, 'retry');
       await supabaseClient
         .from('fiscal_settings')
