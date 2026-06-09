@@ -96,7 +96,7 @@ export function useAdsPendingActions(channelFilter?: string) {
         .maybeSingle();
 
       // Guard duplo: não permitir aprovar Etapa 1 two-step pelo botão final
-      if (isTwoStepAction(current) && (current as any)?.status === "pending_approval") {
+      if (isTwoStepAction(current as any) && (current as any)?.status === "pending_approval") {
         throw new Error("Esta proposta precisa passar pela Etapa 1 (Aprovar e gerar criativos).");
       }
 
