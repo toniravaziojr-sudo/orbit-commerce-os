@@ -57,7 +57,7 @@ export function CreativeGenerationStepDialog({ action, open, onOpenChange }: Cre
     const job = jobQuery.data;
     if (!job || !action) return;
     if (action.status !== "creative_pending") return;
-    const done = job.status === "completed" || job.status === "ready";
+    const done = job.status === "succeeded" || (job.output_urls && (job.output_urls as any[]).length > 0);
     if (done && !finalizeCreative.isPending) {
       finalizeCreative.mutate(action.id);
     }
@@ -71,7 +71,7 @@ export function CreativeGenerationStepDialog({ action, open, onOpenChange }: Cre
   const isGenerating = action.status === "creative_pending";
   const isAwaitingFinal = action.status === "final_pending_approval";
   const creativeUrls: string[] = Array.isArray(data.creative_urls) ? data.creative_urls : [];
-  const exclusionInfo = getCustomerExclusionLine(data);
+  const exclusionInfo = getCustomerExclusionLine(data, data.preview || {});
 
   const handleApproveFinal = () => {
     approveAction.mutate(action.id);
@@ -142,7 +142,7 @@ export function CreativeGenerationStepDialog({ action, open, onOpenChange }: Cre
           {/* Resumo da campanha */}
           <div className="rounded-md border border-border/40 bg-muted/30 p-3 space-y-2 text-sm">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{getFunnelLabel(brief.funnel_stage || data.funnel_stage)}</Badge>
+              <Badge variant="outline">{getFunnelLabel(brief.funnel_stage || data.funnel_stage).label}</Badge>
               {data.campaign_name && <Badge variant="outline">{data.campaign_name}</Badge>}
               {brief.format && <Badge variant="outline">Formato: {brief.format}</Badge>}
             </div>
