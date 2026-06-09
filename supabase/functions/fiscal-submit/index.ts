@@ -248,7 +248,8 @@ Deno.serve(async (req) => {
 
     // Buscar dados do pedido para destinatário
     let destinatario: any;
-    
+    let orderRow: any = null;
+
     if (invoice.order_id) {
       const { data: order } = await supabaseClient
         .from('orders')
@@ -260,6 +261,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (order) {
+        orderRow = order;
         // Extrair CPF ou CNPJ do campo unificado dest_cpf_cnpj
         const cpfCnpj = (order.customer?.cpf || invoice.dest_cpf_cnpj)?.replace(/\D/g, '') || '';
         const isCnpj = cpfCnpj.length === 14;
@@ -346,37 +348,99 @@ Deno.serve(async (req) => {
       cst_cofins: item.cst_cofins || '07',
     }));
 
+    // Resolução de transportadora
+    const carrierNameRaw = invoice.transportadora_nome || orderRow?.shipping_carrier || null;
+    const serviceNameRaw = invoice.transportadora_servico
+      || orderRow?.shipping_service_name
+      || orderRow?.shipping_method_name
+      || null;
+    const resolvedCarrier = resolveCarrier({ carrierName: carrierNameRaw, serviceName: serviceNameRaw });
+    const freteValor = Number(invoice.valor_frete || orderRow?.shipping_total || 0);
+    const freteGratis = !!(orderRow?.free_shipping) || (freteValor === 0 && !!carrierNameRaw);
+    const modalidadeInvoice = (() => {
+      const m = String(invoice.modalidade_frete || '').trim();
+      if (m === '0' || m === '1' || m === '2' || m === '9') return Number(m);
+      return undefined;
+    })();
+    const transporteInput = carrierNameRaw ? {
+      razao_social: resolvedCarrier.razao_social,
+      cnpj: resolvedCarrier.cnpj,
+      inscricao_estadual: resolvedCarrier.inscricao_estadual,
+      endereco: resolvedCarrier.endereco,
+      municipio: resolvedCarrier.municipio,
+      uf: resolvedCarrier.uf,
+      servico: resolvedCarrier.servico || serviceNameRaw,
+      modalidade: modalidadeInvoice,
+      quantidade_volumes: Number(invoice.quantidade_volumes || 1),
+      especie_volumes: invoice.especie_volumes || 'VOLUME',
+      peso_bruto_kg: Number(invoice.peso_bruto || 0) > 0 ? Number(invoice.peso_bruto) : undefined,
+      peso_liquido_kg: Number(invoice.peso_liquido || 0) > 0 ? Number(invoice.peso_liquido) : undefined,
+    } : undefined;
+
     // Gerar referência única
     // Em retentativa de nota rejeitada, geramos novo ref para evitar resposta em cache do Focus NFe.
     const isRetry = invoice.status === 'rejected' && !!invoice.focus_ref;
-    const ref = generateNFeRef(invoice_id, isRetry ? 'retry' : 'initial');
+    let ref = generateNFeRef(invoice_id, isRetry ? 'retry' : 'initial');
     if (isRetry) {
       console.log(`[fiscal-submit] Retry detectado. Ref anterior=${invoice.focus_ref} -> novo ref=${ref}`);
     }
 
-    // Montar payload
-    const nfePayload = buildNFePayload(
-      {
-        id: invoice_id,
-        natureza_operacao: invoice.natureza_operacao,
-        tipo_operacao: invoice.tipo_operacao || 'saida',
-        finalidade: invoice.finalidade,
-        valor_produtos: invoice.valor_produtos || 0,
-        valor_frete: invoice.valor_frete,
-        valor_desconto: invoice.valor_desconto,
-        valor_total: invoice.valor_total || 0,
-        informacoes_complementares: invoice.informacoes_complementares,
-      },
-      destinatario,
-      focusItems,
-      { cnpj: settings.cnpj, crt: settings.crt },
-      invoice.order_id ? { forma: 'other', valor: invoice.valor_total || 0 } : undefined
-    );
+    // Numeração soberana
+    const serieNfe = Number(settings.serie_nfe || 1);
+    let numeroAtual = Number(invoice.numero || 0);
+    if (!numeroAtual || numeroAtual <= 0) {
+      numeroAtual = Math.max(1, Number(settings.numero_nfe_atual || 1));
+    }
 
-    console.log(`[fiscal-submit] Enviando NF-e ref=${ref} para Focus NFe`);
+    // Retry de número duplicado (mesmo motor do fiscal-emit)
+    const MAX_NUMBER_RETRIES = 20;
+    let result: any = null;
+    let attempts = 0;
+    while (attempts < MAX_NUMBER_RETRIES) {
+      attempts += 1;
+      const nfePayload = buildNFePayload(
+        {
+          id: invoice_id,
+          natureza_operacao: invoice.natureza_operacao,
+          tipo_operacao: invoice.tipo_operacao || 'saida',
+          finalidade: invoice.finalidade,
+          valor_produtos: invoice.valor_produtos || 0,
+          valor_frete: freteValor || 0,
+          valor_desconto: invoice.valor_desconto,
+          valor_total: invoice.valor_total || 0,
+          informacoes_complementares: invoice.informacoes_complementares,
+          numero: numeroAtual,
+          serie: serieNfe,
+          free_shipping: freteGratis,
+        },
+        destinatario,
+        focusItems,
+        { cnpj: settings.cnpj, crt: settings.crt },
+        invoice.order_id ? { forma: 'other', valor: invoice.valor_total || 0 } : undefined,
+        transporteInput,
+      );
 
-    // Enviar para Focus NFe
-    const result = await sendNFe(focusConfig, ref, nfePayload);
+      console.log(`[fiscal-submit] Enviando NF-e numero=${numeroAtual} serie=${serieNfe} ref=${ref} (tentativa ${attempts}/${MAX_NUMBER_RETRIES})`);
+      result = await sendNFe(focusConfig, ref, nfePayload);
+      if (result.success) break;
+      if (!isDuplicateNumberError(result.error, result.data)) break;
+      console.warn(`[fiscal-submit] Número ${numeroAtual} duplicado na SEFAZ — avançando cursor.`);
+      numeroAtual += 1;
+      ref = generateNFeRef(invoice_id, 'retry');
+      await supabaseClient
+        .from('fiscal_settings')
+        .update({ numero_nfe_atual: numeroAtual })
+        .eq('tenant_id', tenantId)
+        .lt('numero_nfe_atual', numeroAtual);
+    }
+
+    if (numeroAtual !== Number(invoice.numero || 0)) {
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update({ numero: numeroAtual, serie: serieNfe })
+        .eq('id', invoice_id);
+    }
+
 
     if (!result.success) {
       // Falha antes de protocolo/autorização não pode manter a nota como emitida.
