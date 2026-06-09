@@ -591,14 +591,17 @@ export function useSalesByState(filters: ReportFilters) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'state', tenantId, filters.startDate, filters.endDate],
+    queryKey: ['reports', 'state', tenantId, filters.startDate, filters.endDate, filters.channel],
     queryFn: async (): Promise<SalesByStateData[]> => {
       if (!tenantId) return [];
 
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('shipping_state, total')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('shipping_state, total')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
