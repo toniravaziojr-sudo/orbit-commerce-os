@@ -22,6 +22,8 @@ import { CreativeGenerationStepDialog } from "./CreativeGenerationStepDialog";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
+import { useProductCommercialFit, type ProductFitData } from "@/hooks/useProductCommercialFit";
+import { fitLevelLabel, commercialClassLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
