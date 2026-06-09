@@ -96,6 +96,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ====== FRENTE 4 — Guard de fluxo two-step =========================
+    // Propostas two-step em pending_approval NÃO podem publicar — precisam
+    // passar pela aprovação da estratégia (ads-autopilot-approve-strategy)
+    // e depois pela aprovação final do criativo (status=approved).
+    const isTwoStep = (action.action_data || {})?.flow_version === "two_step_v1";
+    if (isTwoStep && action.status === "pending_approval") {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "two_step_requires_strategy_approval",
+          hint: "Use o botão 'Aprovar e gerar criativos' (Etapa 1) antes de publicar.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
 
     // ====== POLICY GATE (Fase B / B.1) ================================

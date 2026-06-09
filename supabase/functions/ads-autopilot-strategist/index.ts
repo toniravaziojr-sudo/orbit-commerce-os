@@ -25,6 +25,16 @@ import {
   CADENCE_POLICY_VERSION,
   type StrategistTriggerKind,
 } from "../_shared/ads-autopilot/cadencePolicy.ts";
+import {
+  TWO_STEP_FLOW_VERSION,
+  buildCreativeBrief,
+  type CreativeBrief,
+} from "../_shared/ads-autopilot/twoStep.ts";
+
+// ===== Frente 4 — Fluxo de duas etapas =====
+// Sempre ativo para novas propostas. O Estrategista deixa de gerar criativo
+// final no preflight: salva o brief e o usuário decide gerar na Etapa 2.
+const TWO_STEP_ENABLED = true;
 
 /**
  * Fase C.3.2 — Etapa 5 — Helper local NÃO-bloqueante.
@@ -2273,6 +2283,29 @@ async function executeToolCall(
       console.log(`[ads-autopilot-strategist][${VERSION}] PARTIAL REUSE: ${existingCount} existing, generating ${neededVariations} more for "${topProduct.name}" (${requestedFunnel}/${requestedFormat})`);
     }
 
+    // ============ FRENTE 4 — Etapa 1: NÃO gerar criativo aqui ============
+    // Estrategista salva o brief e devolve `deferred=true`. A geração real
+    // só acontece quando o usuário clicar "Aprovar e gerar criativos"
+    // (edge function ads-autopilot-approve-strategy).
+    if (TWO_STEP_ENABLED) {
+      const brief = buildCreativeBrief(args, {
+        product_id: topProduct.id,
+        product_image_url: productImageUrl,
+      });
+      console.log(`[ads-autopilot-strategist][${VERSION}] two-step: generate_creative DEFERRED for "${topProduct.name}"`);
+      return {
+        status: "executed",
+        data: {
+          deferred: true,
+          flow_version: TWO_STEP_FLOW_VERSION,
+          creative_brief: brief,
+          product_name: topProduct.name,
+          product_id: topProduct.id,
+          message: `Brief salvo. Geração de criativo aguarda aprovação da estratégia.`,
+        },
+      };
+    }
+
     try {
       const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
         body: {
@@ -3443,6 +3476,8 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
 
       // Track generated creative URLs per product for linking to campaign actions
       const creativeUrlsByProduct: Record<string, string> = {};
+      // Frente 4 — Briefs salvos durante a Etapa 1 (geração diferida)
+      const creativeBriefsByProduct: Record<string, CreativeBrief> = {};
 
       while (round < MAX_ROUNDS) {
         round++;
@@ -3502,23 +3537,28 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           // Execute the tool
           const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
 
-          // Track creative URLs from generate_creative results
+          // Track creative URLs/briefs from generate_creative results
           if (tc.function.name === "generate_creative" && result.status === "executed") {
             const productName = args.product_name;
-            // v1.20.0: STRICT matching — NO fallback to prevent wrong product URL tracking
-            const matchedProduct = context.products.find((p: any) => p.name.trim() === (productName || "").trim());
-            if (matchedProduct) {
-              const { data: latestAsset } = await supabase
-                .from("ads_creative_assets")
-                .select("asset_url")
-                .eq("tenant_id", tenantId)
-                .eq("session_id", sessionId)
-                .eq("product_id", matchedProduct.id)
-                .not("asset_url", "is", null)
-                .order("created_at", { ascending: false })
-                .limit(1);
-              if (latestAsset?.[0]?.asset_url) {
-                creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+            // Frente 4 — Etapa 1: brief diferido (sem URL ainda)
+            if ((result.data as any)?.deferred && (result.data as any)?.creative_brief && productName) {
+              creativeBriefsByProduct[productName] = (result.data as any).creative_brief as CreativeBrief;
+            } else {
+              // v1.20.0: STRICT matching — NO fallback to prevent wrong product URL tracking
+              const matchedProduct = context.products.find((p: any) => p.name.trim() === (productName || "").trim());
+              if (matchedProduct) {
+                const { data: latestAsset } = await supabase
+                  .from("ads_creative_assets")
+                  .select("asset_url")
+                  .eq("tenant_id", tenantId)
+                  .eq("session_id", sessionId)
+                  .eq("product_id", matchedProduct.id)
+                  .not("asset_url", "is", null)
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+                if (latestAsset?.[0]?.asset_url) {
+                  creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+                }
               }
             }
           }
@@ -3548,6 +3588,26 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             }
           }
 
+          // Frente 4 — Anexar brief e flow_version quando for create_campaign two-step
+          let twoStepFields: Record<string, any> = {};
+          if (TWO_STEP_ENABLED && tc.function.name === "create_campaign") {
+            let attachedBrief: CreativeBrief | null = null;
+            for (const [prodName, brief] of Object.entries(creativeBriefsByProduct)) {
+              if (
+                args.campaign_name?.includes(prodName) ||
+                args.targeting_description?.includes(prodName) ||
+                args.product_name === prodName
+              ) {
+                attachedBrief = brief;
+                break;
+              }
+            }
+            twoStepFields = {
+              flow_version: TWO_STEP_FLOW_VERSION,
+              ...(attachedBrief ? { creative_brief: attachedBrief } : {}),
+            };
+          }
+
           // Record action in DB
           const actionRecord: any = {
             tenant_id: tenantId,
@@ -3560,6 +3620,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               ad_account_id: config.ad_account_id, 
               campaign_name: campaignName,
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),
+              ...twoStepFields,
             },
             reasoning: args.reasoning || args.reason || args.diagnosis || "",
             confidence: String(args.confidence || "0.8"),

@@ -3059,3 +3059,84 @@ Esta fase entrega apenas as duas primeiras frentes da evolução estratégica ap
 Regressão na suíte C.4 e ads-policy completa: **72/72 passando**.
 
 
+
+---
+
+## 12 — Frente 4 — Fluxo de duas etapas para campanhas com criativos (v1.0.0)
+
+### 12.1 Objetivo
+Separar a aprovação estratégica da geração dos criativos para evitar consumo
+de créditos e processamento antes da validação humana.
+
+### 12.2 Comportamento
+1. **Etapa 1 — Aprovação da estratégia e do prompt.** O Estrategista monta a
+   proposta completa da campanha (objetivo, nome, produto, orçamento, público,
+   exclusões, copy, headline, CTA, link, justificativa, Quality Gate, prompt do
+   criativo e formato sugerido), mas **NÃO gera imagem nem vídeo, NÃO consome
+   crédito, NÃO chama Meta/Google/TikTok, NÃO publica campanha**. A proposta é
+   salva com `flow_version='two_step_v1'` e o brief em
+   `action_data.creative_brief`.
+2. **Etapa 2 — Geração e aprovação final.** Ao clicar "Aprovar e gerar
+   criativos", o sistema:
+   - Revalida o Quality Gate (incl. exclusão de Clientes em campanhas frias).
+   - Move o status para `creative_pending`.
+   - Invoca a geração real do criativo (DEBITA crédito agora).
+   - Quando o asset fica pronto, status vira `final_pending_approval`.
+   - O usuário revisa criativo + resumo final e pode Aprovar, Ajustar ou
+     Reprovar. A publicação real só ocorre na aprovação final.
+
+### 12.3 Estados visíveis
+| Estado | Significado |
+| --- | --- |
+| `pending_approval` | Etapa 1 — aguardando aprovação da estratégia |
+| `creative_pending` | Etapa 2 — gerando criativos |
+| `final_pending_approval` | Etapa 2 — aguardando aprovação final |
+| `approved` / `rejected` | Estados terminais existentes |
+
+> Nenhum enum novo no banco. O campo `status` em `ads_autopilot_actions` é TEXT.
+
+### 12.4 Quando créditos são consumidos
+- Etapa 1: **nunca**.
+- Etapa 2: **somente** após o clique humano em "Aprovar e gerar criativos",
+  via Motor Universal de Créditos (padrão atual de `ads-autopilot-creative`).
+
+### 12.5 Compatibilidade com propostas antigas
+- Propostas sem `flow_version` (legacy) **permanecem no fluxo anterior** sem
+  migração e sem retrofit de prompt. O card mostra o botão "Aprovar" clássico.
+- Propostas novas (geradas após esta entrega) sempre usam o fluxo de duas etapas.
+
+### 12.6 Restrições de segurança
+- Executor (`ads-autopilot-execute-approved`) bloqueia publicação de
+  propostas two-step em `pending_approval` (precisa passar pela Etapa 1).
+- Hook do front bloqueia o botão "Aprovar campanha final" em Etapa 1.
+- Quality Gate da Etapa 2 rejeita: campanha fria sem exclusão de Clientes,
+  brief ausente, formato ausente, link ausente, proposta rejeitada/superseded.
+
+### 12.7 Componentes
+- **Backend**:
+  - `supabase/functions/_shared/ads-autopilot/twoStep.ts` — helpers puros
+    (constantes, `isTwoStepAction`, `buildCreativeBrief`, `runTwoStepCreativeGate`).
+  - `supabase/functions/ads-autopilot-strategist/index.ts` — intercepta
+    `generate_creative` em modo two-step e salva o brief sem gerar.
+  - `supabase/functions/ads-autopilot-approve-strategy/index.ts` — Etapa 1 → 2.
+  - `supabase/functions/ads-autopilot-finalize-creative/index.ts` — marca
+    `final_pending_approval` quando o creative_job termina.
+  - `supabase/functions/ads-autopilot-execute-approved/index.ts` — guard
+    two-step.
+- **Front**:
+  - `src/hooks/useAdsPendingActions.ts` — query agora inclui os 3 estados
+    ativos + mutações `approveStrategy` e `finalizeCreative`.
+  - `src/components/ads/ActionApprovalCard.tsx` — bloco "Prompt do criativo",
+    botão "Aprovar e gerar criativos" e abertura do dialog Etapa 2.
+  - `src/components/ads/CreativeGenerationStepDialog.tsx` — dialog modal da
+    Etapa 2 (polla creative_job, exibe galeria + resumo final).
+
+### 12.8 Testes
+`src/test/ads-autopilot-two-step.test.ts` — 17 testes cobrindo marcador de
+fluxo, brief diferido, Quality Gate da Etapa 2 (todos os bloqueios), estados
+oficiais e compatibilidade com propostas legacy. **17/17 passando**.
+
+### 12.9 Fora de escopo desta entrega
+- "Nova Estratégia" (Frente 3) — não implementado.
+- Mudanças em C.4, autoexecução, Tenant Memory, F.1/F.2, cadência semanal/mensal.
+- Estimativa monetária pré-débito (exibido aviso textual genérico).

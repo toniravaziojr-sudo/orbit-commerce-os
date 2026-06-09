@@ -540,3 +540,13 @@ Reordenado para separar reenvio puro de edição. Notas em status **Rejeitada** 
 Antes, o menu obrigava o usuário a abrir o editor (`Editar e Reemitir`) mesmo quando a nota estava correta, gerando atrito e risco de alteração indevida. Detalhe em `docs/especificacoes/erp/erp-fiscal.md` §"Ações para NF rejeitada".
 
 
+
+### Gestor de Tráfego IA — Fluxo de duas etapas (Frente 4, rev 2026-06-09)
+
+- `/ads` — aba **Propostas pendentes**:
+  - **Etapa 1 (status `pending_approval` de propostas novas com marcador `two_step_v1`):** o card mostra um bloco **"Prompt do criativo"** com o prompt aprovado e o formato sugerido, mais o aviso *"Nenhum crédito será consumido até você aprovar a geração dos criativos."*. O botão principal é **"Aprovar e gerar criativos"** (substitui o "Aprovar" tradicional somente para propostas novas).
+  - **Etapa 2 (status `creative_pending`):** o card exibe a faixa "Gerando criativos…" e o botão "Acompanhar geração" abre o **diálogo da Etapa 2** (`CreativeGenerationStepDialog`).
+  - **Aguardando aprovação final (status `final_pending_approval`):** o card exibe "Criativos prontos — aguardando aprovação final" e o botão "Revisar e aprovar campanha" abre o mesmo diálogo, agora com galeria dos criativos, prompt usado e resumo final (objetivo, público, exclusões, copy, headline, CTA, orçamento, link).
+  - **Diálogo da Etapa 2:** botões **"Aprovar campanha final"**, **"Reprovar"** e **"Fechar"**. A aprovação final segue para o fluxo de publicação atual; a reprovação registra `rejection_reason`.
+  - **Propostas legadas** (sem marcador `two_step_v1`) **mantêm o card e o botão "Aprovar" originais** — nenhum retrofit obrigatório.
+  - Fila reconhece os 3 estados ativos (`pending_approval`, `creative_pending`, `final_pending_approval`) — contadores e badges não escondem mais propostas em geração ou aguardando aprovação final.
