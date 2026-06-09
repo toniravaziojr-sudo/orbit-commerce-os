@@ -1620,7 +1620,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
       )}
 
       {/* Full Content Dialog */}
-      <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} />
+      <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} fitData={fitData} />
 
       {/* Reject Dialog — Two Options */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
