@@ -2360,3 +2360,74 @@ Se o termo digitado não tiver dígitos, a busca por CPF/CNPJ e telefone é igno
 
 ### Ordenação
 Ambas as abas seguem o **Padrão de Ordenação de Listagens Operacionais** (ver `transversais/padroes-operacionais.md`): número decrescente, com data como desempate. PVs/NFs recriados por reconciliação aparecem no lugar numérico correto, não no topo.
+
+## Numeração soberana da NF-e
+
+Desde 2026-06-09, toda emissão de NF-e via Focus NFe envia **número e
+série explícitos** no payload. O número que o lojista vê no painel é
+exatamente o mesmo número que a SEFAZ autoriza e que é repassado para
+o WMS Pratika e outros integradores logísticos. Não há mais divergência
+entre o número interno e o número oficial.
+
+### Regras
+
+- **Tenants novos** começam em **1** tanto para Pedido de Venda quanto
+  para Nota Fiscal, em cada série.
+- **PV e NF têm sequências independentes** — duplicar PV ou NF avança
+  apenas o cursor da própria classe. Números diferentes entre PV e NF
+  do mesmo pedido são esperados; o vínculo é feito pelo campo
+  `source_order_invoice_id`, nunca por igualdade de número.
+- **Caminho B (auto-realinhamento)**: se a SEFAZ rejeitar com
+  "número já utilizado", o sistema avança o cursor 1, registra a
+  monotonicidade em `fiscal_settings.numero_nfe_atual` e tenta novamente
+  com novo `ref` Focus, até 20 tentativas. O cursor nunca retrocede.
+- Cancelamentos/rejeições **não** liberam números — `monotonic only`.
+
+### Onde mexer
+
+- Detecção de duplicidade: `isDuplicateNumberError` em
+  `supabase/functions/_shared/focus-nfe-adapter.ts` (cobre cStat 539/204
+  e padrões textuais).
+- Motor de envio: `fiscal-emit` (caminho principal) e `fiscal-submit`
+  (caminho legado), ambos com retry loop e cap=20.
+
+## Bloco transportador na NF-e
+
+Toda NF-e de venda que tenha transportadora definida no pedido emite
+com **bloco transporte completo**: razão social, CNPJ (quando conhecido),
+inscrição estadual, endereço, município, UF, volumes (quantidade,
+espécie, peso bruto/líquido) e modalidade de frete.
+
+### Resolução da transportadora
+
+O sistema cruza nome + serviço informados no pedido com o **catálogo
+embutido** (`_shared/carrier-registry.ts`):
+
+| Transportadora | CNPJ conhecido | Serviços reconhecidos |
+|---|---|---|
+| Correios | ✅ 34.028.316/0001-03 | PAC, SEDEX, SEDEX 10/12/HOJE, Mini Envios |
+| Jadlog | — | Package, .Package, Econômico, Com, Rodoviário |
+| Loggi | — | Express, Corp |
+| Mercado Envios | — | Flex, Full, Collect |
+| Shopee Xpress | — | SPX |
+| Total Express | — | Prime, Econômico |
+| Azul Cargo | — | Expresso, Amanhã, E-commerce |
+| Braspress | — | Rodoviário, Aéreo |
+| Rodonaves | — | RTE |
+| Latam Cargo | — | Express |
+
+Quando o nome não bate com nenhum registro, o sistema usa o nome bruto
+do pedido e emite mesmo assim — o operador pode editar a NF antes de
+mandar para a logística se for o caso (aviso opcional, não bloqueante).
+
+### Modalidade de frete
+
+| Situação | Modalidade SEFAZ |
+|---|---|
+| Frete cobrado do cliente | 1 (destinatário) |
+| Frete grátis + transportadora definida | 0 (emitente absorve) + observação automática "Frete grátis — custo absorvido pelo emitente." |
+| Sem transportadora e sem frete | 9 (sem frete) |
+
+### Anti-regressão
+
+Memória: `mem://constraints/nfe-numero-soberano-e-bloco-transportador`.
