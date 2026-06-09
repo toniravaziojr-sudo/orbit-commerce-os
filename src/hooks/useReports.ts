@@ -639,14 +639,17 @@ export function useSalesByCity(filters: ReportFilters) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'city', tenantId, filters.startDate, filters.endDate],
+    queryKey: ['reports', 'city', tenantId, filters.startDate, filters.endDate, filters.channel],
     queryFn: async (): Promise<SalesByCityData[]> => {
       if (!tenantId) return [];
 
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('shipping_state, shipping_city, total')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('shipping_state, shipping_city, total')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
