@@ -6,7 +6,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // kit-unbundler removido daqui: desmembramento acontece em fiscal-prepare-invoice (PV → NF).
-import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
+import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
