@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       console.log(`[fiscal-emit] Chamada interna auto-emit. tenant=${tenantId} invoice=${invoice_id}`);
     } else {
       const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
-        global: { headers: { Authorization: authHeader } }
+        global: { headers: { Authorization: authHeader! } }
       });
 
       const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
