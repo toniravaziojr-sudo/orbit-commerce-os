@@ -397,7 +397,15 @@ export function StructuredProposalModal({
                 Recusar proposta
               </Button>
               <div className="flex-1" />
-              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
+                  setEditorOpen(true);
+                }}
+                disabled={isApproving || !!rejectingId}
+              >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Ajustar proposta
               </Button>
