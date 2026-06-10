@@ -208,13 +208,18 @@ export function StructuredProposalModal({
   onOpenChange,
   onApprove,
   onReject,
+  onAdjust,
   approvingId,
   rejectingId,
+  overviewOnly = false,
+  titleOverride,
+  approveLabelOverride,
 }: Props) {
   const data = action.action_data || {};
   const isTwoStep = isTwoStepAction(action);
   const twoStepStage = getTwoStepStage(action);
   const isStrategyStage = isTwoStep && twoStepStage === "strategy";
+  const isStrategicPlan = action.action_type === "strategic_plan";
 
   const { approveStrategy } = useAdsPendingActions();
   const [editorOpen, setEditorOpen] = useState(false);
