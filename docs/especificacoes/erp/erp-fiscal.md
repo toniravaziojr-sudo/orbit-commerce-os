@@ -2254,6 +2254,8 @@ A coluna `emitir_apos_status` continua na tabela por compatibilidade, mas o back
 - Toggle desligado → nenhuma chamada externa ocorre. Não há cron parado consumindo recursos: o fluxo inteiro é event-driven a partir do gatilho de pedidos.
 - Sem retroatividade: pedidos antigos já pagos antes da ativação do toggle não são reprocessados automaticamente.
 - Fluxo manual (PV criado direto no módulo Fiscal sem vínculo a pedido) **não é afetado** — auto-emit e auto-remessa só atuam sobre PV com `order_id`.
+- **Auto-remessa não tem transportadora padrão.** A transportadora vem sempre do próprio pedido (`orders.shipping_carrier`), definida pelo checkout ou pela integração do canal de venda. O motor `shipping-create-shipment` não lê mais `fiscal_settings.default_shipping_provider`. Override só é aceito como parâmetro explícito da chamada (uso humano).
+- **Save blindado contra campos legados.** `fiscal-settings` mantém uma blacklist (`cfop_intrastadual`, `cfop_interestadual`, `default_shipping_provider`) que descarta silenciosamente esses campos do payload antes do `UPDATE`/`INSERT`. Toda coluna removida no futuro deve entrar nessa lista no mesmo PR — ver `mem://constraints/fiscal-settings-save-legacy-fields-blacklist`.
 
 ### Limite de massa
 Operações em lote de DANFE/XML mantêm limite de 100 notas por execução. A emissão automática não tem teto (uma por pedido aprovado).

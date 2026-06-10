@@ -29,7 +29,6 @@ export function OutrosSettings() {
     emitir_apos_status: 'ready_to_invoice',
     auto_create_shipment: false,
     auto_update_order_status: true,
-    default_shipping_provider: null,
     enviar_email_nfe: true,
     email_nfe_subject: '',
     email_nfe_body: '',
