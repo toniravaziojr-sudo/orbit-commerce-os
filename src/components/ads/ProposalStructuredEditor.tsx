@@ -35,6 +35,9 @@ interface ProposalStructuredEditorProps {
   action: PendingAction | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Foco inicial vindo do "Ajustar proposta" no modal de proposta.
+   *  Quando informado, o editor rola até a seção correspondente. */
+  initialFocus?: "campaign" | "ad_set" | "ad" | "creative" | "platform" | null;
 }
 
 const FUNNEL_OPTIONS = [
@@ -146,7 +149,7 @@ function diffFields(initial: EditableFields, current: EditableFields) {
   return { changed, previous_values, new_values };
 }
 
-export function ProposalStructuredEditor({ action, open, onOpenChange }: ProposalStructuredEditorProps) {
+export function ProposalStructuredEditor({ action, open, onOpenChange, initialFocus }: ProposalStructuredEditorProps) {
   const queryClient = useQueryClient();
   const [initial, setInitial] = useState<EditableFields>(buildInitial(null));
   const [current, setCurrent] = useState<EditableFields>(buildInitial(null));
@@ -167,6 +170,24 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
     setFeedbackNote(draft?.note || "");
     setFeedbackChips(Array.isArray(draft?.chips) ? draft.chips : []);
   }, [action?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Foco inicial vindo do gate: rola até a seção correta após abrir
+  useEffect(() => {
+    if (!open || !initialFocus) return;
+    const map: Record<string, string> = {
+      campaign: "campaign",
+      ad_set: "ad_set",
+      ad: "ad",
+      creative: "ad", // criativo está dentro da seção "Anúncio"
+      platform: "campaign",
+    };
+    const key = map[initialFocus];
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-editor-section="${key}"]`) as HTMLElement | null;
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [open, initialFocus]);
 
   const { changed, previous_values, new_values } = useMemo(
     () => diffFields(initial, current),
@@ -333,7 +354,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
           </div>
 
           {/* Nível 1 — Campanha */}
-          <Section title="Campanha">
+          <Section title="Campanha" sectionKey="campaign">
             <Field label="Nome da campanha">
               <Input value={current.campaign_name} onChange={(e) => upd("campaign_name", e.target.value)} />
             </Field>
@@ -373,7 +394,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
           </Section>
 
           {/* Nível 2 — Conjunto de anúncios (público, segmentação, exclusões) */}
-          <Section title="Conjunto de anúncios">
+          <Section title="Conjunto de anúncios" sectionKey="ad_set">
             <Field label="Funil">
               <Select value={current.funnel_stage} onValueChange={(v) => upd("funnel_stage", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -412,7 +433,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
           </Section>
 
           {/* Nível 3 — Anúncio (produto, copy, criativo) */}
-          <Section title="Anúncio">
+          <Section title="Anúncio" sectionKey="ad">
             <Field label="Produto (ID)">
               <Input
                 value={current.product_id}
@@ -618,9 +639,9 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, sectionKey }: { title: string; children: React.ReactNode; sectionKey?: string }) {
   return (
-    <div>
+    <div data-editor-section={sectionKey}>
       <p className="text-[11px] font-bold text-primary uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <span className="h-px flex-1 bg-border/40" />
         {title}

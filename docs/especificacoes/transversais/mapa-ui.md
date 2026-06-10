@@ -596,3 +596,13 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
   - **Rodapé fixo** mostra uma faixa amarela com a razão do bloqueio quando o botão de aprovação está desabilitado. O botão **"Aprovar estratégia e gerar criativos"** fica **bloqueado** sempre que houver qualquer bloqueio do Structure Completeness Gate, do Platform Compatibility Gate (inicial) ou do Product/Funnel Fit Gate. "Ajustar proposta" e "Recusar proposta" continuam disponíveis.
   - Plataformas marcadas como **não verificadas** (Google Ads e TikTok Ads nesta entrega) sempre bloqueiam aprovação e geração de criativo até verificação humana. Meta Ads opera normalmente enquanto a baseline estiver dentro de 60 dias.
 - Detalhe e fontes oficiais em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Motor de Propostas — Onda 0 + A + B mínima") e `docs/especificacoes/marketing/plataformas-baseline.md`.
+
+### Gestor de Tráfego IA — Ownership de campos por nível (Onda C, rev 2026-06-10)
+
+- `/ads` — modal estruturado de proposta:
+  - **Aba Campanha** deixa de exibir "Link de destino" e "Botão de ação" como configurações principais. Esses campos pertencem ao Anúncio/Criativo. Quando o payload legado guardou os dois no topo, surge um bloco secundário **"Resumo herdado dos anúncios"** apenas em leitura.
+  - **Aba Conjunto** mostra **selo "Pendente · Obrigatório"** (vermelho) no lugar de `—` para campos obrigatórios pendentes (região, idade, gênero, posicionamentos, meta de otimização, evento de conversão).
+  - **Aba Anúncio** passa a separar visualmente dois blocos: **Anúncio** (nome, conjunto vinculado, status) e **Criativo do anúncio** (CTA, link, tracking, copy, formato). A árvore lateral mantém um único item "Anúncio N".
+  - Botão **"Ajustar proposta"** rola o editor estruturado direto para a seção correta (campanha / conjunto / anúncio) com base no `node_type` do primeiro blocker.
+  - Erros de objetivo (ex.: `SALES`) deixam de aparecer como texto técnico. Mensagem é em PT-BR amigável e o gate passa a usar o mapper canônico ↔ Meta antes de comparar.
+- Detalhe da Platform Field Ownership Matrix, Objective Mapper e GateIssue v2 em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Motor de Propostas — Onda C").

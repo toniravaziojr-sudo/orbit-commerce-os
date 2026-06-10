@@ -208,6 +208,7 @@ export function StructuredProposalModal({
 
   const { approveStrategy } = useAdsPendingActions();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
   const [selected, setSelected] = useState<NodeId>("overview");
 
   const structure = useMemo(
@@ -357,12 +358,20 @@ export function StructuredProposalModal({
                 )}
                 {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
                 {selected.startsWith("adset:") && (
-                  <AdSetSection adSet={adSets[Number(selected.split(":")[1])] || null} />
+                  <AdSetSection
+                    adSet={adSets[Number(selected.split(":")[1])] || null}
+                    blockers={allBlockers.filter(
+                      (b) => b.node_type === "ad_set" && b.node_id === selected.split(":")[1],
+                    )}
+                  />
                 )}
                 {selected.startsWith("ad:") && (
                   <AdSection
                     ad={ads[Number(selected.split(":")[1])] || null}
                     isStrategyStage={isStrategyStage}
+                    blockers={allBlockers.filter(
+                      (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === selected.split(":")[1],
+                    )}
                   />
                 )}
               </div>
@@ -388,7 +397,15 @@ export function StructuredProposalModal({
                 Recusar proposta
               </Button>
               <div className="flex-1" />
-              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
+                  setEditorOpen(true);
+                }}
+                disabled={isApproving || !!rejectingId}
+              >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Ajustar proposta
               </Button>
@@ -408,7 +425,7 @@ export function StructuredProposalModal({
 
 
       {isStrategyStage && (
-        <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} />
+        <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} initialFocus={editorFocus} />
       )}
     </>
   );
@@ -513,6 +530,7 @@ function OverviewSection({
 }
 
 function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channel: string }) {
+  const hasInherited = !!(campaign.inherited_destination_url || campaign.inherited_cta);
   return (
     <div className="space-y-4">
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
@@ -520,14 +538,26 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
           <Detail label="Nome" value={campaign.name} />
           <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
           <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
+          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
           <Detail label="Tipo de orçamento" value={tr("budget_type", campaign.budget_type)} />
           <Detail label="Orçamento diário" value={formatBudgetBRL(campaign.daily_budget_cents)} />
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
-          <Detail label="Botão de ação" value={tr("cta", campaign.cta)} />
-          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
-          <Detail label="Link de destino" value={campaign.destination_url} fullWidth />
         </DetailGrid>
       </Block>
+      {hasInherited && (
+        <Block
+          title="Resumo herdado dos anúncios"
+          icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+        >
+          <p className="text-[11px] text-muted-foreground italic mb-2">
+            Estes valores pertencem ao Anúncio/Criativo. São mostrados aqui apenas como leitura.
+          </p>
+          <DetailGrid>
+            <Detail label="Botão de ação (do anúncio)" value={tr("cta", campaign.inherited_cta)} />
+            <Detail label="Link de destino (do anúncio)" value={campaign.inherited_destination_url} fullWidth />
+          </DetailGrid>
+        </Block>
+      )}
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
@@ -537,21 +567,23 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
   );
 }
 
-function AdSetSection({ adSet }: { adSet: AdSetNode | null }) {
+function AdSetSection({ adSet, blockers }: { adSet: AdSetNode | null; blockers: GateIssue[] }) {
   if (!adSet) return <p className="text-sm text-muted-foreground">Conjunto não encontrado.</p>;
   const placements = adSet.placements.map((p) => tr("placement", p) || p);
+  const pendingFields = new Set(blockers.map((b) => b.field));
+  const isPending = (field: string) => pendingFields.has(field);
   return (
     <div className="space-y-4">
       <Block title={adSet.name || "Conjunto"} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
           <Detail label="Etapa do funil" value={tr("funnel", adSet.funnel_stage)} />
-          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} />
-          <Detail label="Idade" value={adSet.age_range} />
-          <Detail label="Gênero" value={adSet.gender} />
-          <Detail label="Região" value={adSet.location} />
-          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} />
-          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} />
-          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} />
+          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} pendingField={isPending("adset.0.audience_type")} />
+          <Detail label="Idade" value={adSet.age_range} pendingField={isPending(`adset.${blockers[0]?.node_id ?? 0}.age_range`) || (!adSet.age_range && blockers.some(b => b.field.endsWith(".age_range")))} />
+          <Detail label="Gênero" value={adSet.gender} pendingField={!adSet.gender && blockers.some(b => b.field.endsWith(".gender"))} />
+          <Detail label="Região" value={adSet.location} pendingField={!adSet.location && blockers.some(b => b.field.endsWith(".location"))} />
+          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} pendingField={!adSet.optimization_goal && blockers.some(b => b.field.endsWith(".optimization_goal"))} />
+          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} pendingField={(!adSet.conversion_event || adSet.conversion_event === "requires_user_input") && blockers.some(b => b.field.endsWith(".conversion_event"))} />
+          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} pendingField={placements.length === 0 && blockers.some(b => b.field.endsWith(".placements"))} />
           <Detail label="Orçamento" value={formatBudgetBRL(adSet.daily_budget_cents)} />
           {adSet.targeting_summary && <Detail label="Resumo de segmentação" value={adSet.targeting_summary} fullWidth />}
           {adSet.schedule && (adSet.schedule.start || adSet.schedule.end) && (
@@ -601,23 +633,35 @@ function AdSetSection({ adSet }: { adSet: AdSetNode | null }) {
   );
 }
 
-function AdSection({ ad, isStrategyStage }: { ad: AdNode | null; isStrategyStage: boolean }) {
+function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStrategyStage: boolean; blockers: GateIssue[] }) {
   if (!ad) return <p className="text-sm text-muted-foreground">Anúncio não encontrado.</p>;
+  const pending = new Set(blockers.map((b) => b.field));
+  const isP = (suffix: string) => Array.from(pending).some((f) => f.endsWith(suffix));
   return (
     <div className="space-y-4">
+      {/* Bloco 1: ANÚNCIO (entrega) */}
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
-          <Detail label="Produto/oferta" value={ad.product_name} />
+          <Detail label="Nome do anúncio" value={ad.name} />
+          <Detail label="Conjunto vinculado" value={ad.ad_set_ref} />
           <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, isStrategyStage)} />
-          <Detail label="Título" value={ad.headline} fullWidth />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth />
+        </DetailGrid>
+      </Block>
+
+      {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
+      <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
+        <DetailGrid>
+          <Detail label="Produto/oferta" value={ad.product_name} />
+          <Detail label="Formato" value={ad.creative_format} pendingField={!ad.creative_format && isP(".creative_format")} />
+          <Detail label="Título" value={ad.headline} fullWidth pendingField={!ad.headline && isP(".headline")} />
+          <Detail label="Texto principal" value={ad.primary_text} fullWidth pendingField={!ad.primary_text && isP(".primary_text")} />
           <Detail label="Descrição" value={ad.description} fullWidth />
-          <Detail label="Botão de ação" value={tr("cta", ad.cta)} />
-          <Detail label="Formato" value={ad.creative_format} />
+          <Detail label="Botão de ação" value={tr("cta", ad.cta)} pendingField={!ad.cta && isP(".cta")} />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
           )}
-          <Detail label="Link de destino" value={ad.destination_url} fullWidth />
+          <Detail label="Link de destino" value={ad.destination_url} fullWidth pendingField={!ad.destination_url && isP(".destination_url")} />
+          {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
           {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
         </DetailGrid>
       </Block>
@@ -718,13 +762,21 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth,
-}: { label: string; value: string | number | null | undefined; fullWidth?: boolean }) {
-  const display = value === null || value === undefined || value === "" ? "—" : String(value);
+  label, value, fullWidth, pendingField,
+}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean }) {
+  const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-      <p className="text-sm break-words">{display}</p>
+      {empty && pendingField ? (
+        <p className="text-sm">
+          <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 px-1.5 py-0.5 text-[11px] font-medium">
+            Pendente · Obrigatório
+          </span>
+        </p>
+      ) : (
+        <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+      )}
     </div>
   );
 }

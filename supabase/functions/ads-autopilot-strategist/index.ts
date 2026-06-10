@@ -341,7 +341,7 @@ const STRATEGIST_TOOLS = [
                 daily_budget_brl: { type: "number", description: "Orçamento diário TOTAL da campanha em R$" },
                 target_audience: { type: "string", description: "Resumo do público-alvo principal (ex: Homens 30-65, Brasil)" },
                 funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
-                objective: { type: "string", description: "Objetivo da campanha (ex: OUTCOME_SALES, OUTCOME_LEADS)" },
+                objective: { type: "string", enum: ["sales", "leads", "traffic", "awareness", "engagement", "app_promotion"], description: "Objetivo CANÔNICO interno da campanha. Use sempre um destes 6 valores: sales, leads, traffic, awareness, engagement, app_promotion. NUNCA grave o enum oficial da plataforma (ex.: OUTCOME_SALES). O Platform Adapter traduz para o enum da plataforma na hora de publicar." },
                 performance_goal: { type: "string", enum: ["Maximizar Conversões", "Maximizar Valor das Conversões"], description: "Meta de desempenho do conjunto (como aparece no Meta Ads). Padrão: Maximizar Conversões" },
                 conversion_location: { type: "string", enum: ["Site", "Site e App", "App", "Site e Loja Física"], description: "Local da conversão do conjunto. Padrão: Site" },
                 attribution_model: { type: "string", enum: ["Padrão", "Incremental"], description: "Modelo de atribuição. Padrão: Padrão" },

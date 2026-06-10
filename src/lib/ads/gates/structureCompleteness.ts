@@ -1,19 +1,16 @@
 // =============================================================================
-// Structure Completeness Gate (Gestor de Tráfego IA)
+// Structure Completeness Gate (Gestor de Tráfego IA) — v2 com ownership
 //
-// Valida se uma proposta estruturada tem dados suficientes para aprovação da
-// estratégia. Pura, sem chamadas externas. Não consome IA, não persiste nada.
+// Cada blocker/warning agora carrega `node_type` correto:
+//   - CTA/Link/Copy/headline ausentes → creative
+//   - Evento/otimização/posicionamentos/região/idade/gênero → ad_set
+//   - Modo de compra/tipo de orçamento/objetivo/nome → campaign
 //
-// Regras:
-//  - Roda APENAS quando is_structured_campaign === true (proposta de campanha).
-//  - Campo obrigatório ausente → blocker (impede "Aprovar estratégia e gerar criativos").
-//  - Campo "requires_user_input" → blocker amigável.
-//  - Campo recomendado ausente → warning.
-//  - Campo opcional ausente → ignorado.
+// Continua puro, sem IA, sem rede.
 // =============================================================================
 
 import type { CampaignStructure } from "../normalizeCampaignStructure";
-import { EMPTY_GATE, type GateIssue, type GateResult } from "./types";
+import { EMPTY_GATE, type GateIssue, type GateNodeType, type GateResult } from "./types";
 
 const REQUIRES_INPUT = "requires_user_input";
 
@@ -31,11 +28,26 @@ function needsUserInput(v: unknown): boolean {
   return typeof v === "string" && v.trim().toLowerCase() === REQUIRES_INPUT;
 }
 
-function blocker(field: string, node: string, message: string, kind: GateIssue["kind"] = "required"): GateIssue {
-  return { field, node, severity: "blocker", message, kind };
-}
-function warn(field: string, node: string, message: string, kind: GateIssue["kind"] = "recommended"): GateIssue {
-  return { field, node, severity: "warning", message, kind };
+function make(
+  node_type: GateNodeType,
+  node_id: string | null,
+  node: string,
+  field: string,
+  severity: "blocker" | "warning",
+  message: string,
+  opts: { kind?: GateIssue["kind"]; technical_reason?: string; suggested_action?: string } = {},
+): GateIssue {
+  return {
+    node_type,
+    node_id,
+    node,
+    field,
+    severity,
+    message,
+    technical_reason: opts.technical_reason ?? null,
+    suggested_action: opts.suggested_action ?? null,
+    kind: opts.kind ?? (severity === "blocker" ? "required" : "recommended"),
+  };
 }
 
 export function runStructureCompletenessGate(structure: CampaignStructure): GateResult {
@@ -46,52 +58,56 @@ export function runStructureCompletenessGate(structure: CampaignStructure): Gate
 
   // -------- Campanha --------
   const c = structure.campaign;
-  if (isMissing(c.name)) blockers.push(blocker("campaign.name", "Campanha", "A campanha precisa de um nome."));
-  if (isMissing(c.objective)) blockers.push(blocker("campaign.objective", "Campanha", "Defina o objetivo da campanha."));
-  if (isMissing(c.daily_budget_cents)) blockers.push(blocker("campaign.budget", "Campanha", "Informe o orçamento da campanha."));
-  if (isMissing(c.destination_url)) warnings.push(warn("campaign.destination_url", "Campanha", "Recomendado: definir a URL de destino padrão da campanha."));
-  if (isMissing(c.planned_status)) warnings.push(warn("campaign.planned_status", "Campanha", "Status inicial não definido — será criada como PAUSADA por padrão."));
+  if (isMissing(c.name)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.name", "blocker", "A campanha precisa de um nome."));
+  if (isMissing(c.objective)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.objective", "blocker", "Defina o objetivo da campanha."));
+  if (isMissing(c.buying_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.buying_type", "warning", "Modo de compra não definido — será usado Leilão por padrão."));
+  if (isMissing(c.budget_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.budget_type", "warning", "Tipo de orçamento não definido — será usado Diário por padrão."));
+  if (isMissing(c.daily_budget_cents)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.daily_budget_cents", "blocker", "Informe o orçamento da campanha."));
+  if (isMissing(c.planned_status)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.planned_status", "warning", "Status inicial não definido — será criada como PAUSADA por padrão."));
 
   // -------- Conjuntos de anúncios --------
   if (structure.ad_sets.length === 0) {
-    blockers.push(blocker("ad_sets", "Conjuntos de anúncios", "A proposta não tem nenhum conjunto de anúncios."));
+    blockers.push(make("ad_set", null, "Conjuntos de anúncios", "ad_sets", "blocker", "A proposta não tem nenhum conjunto de anúncios."));
   }
   structure.ad_sets.forEach((a, idx) => {
+    const nodeId = String(idx);
     const node = a.name || `Conjunto ${idx + 1}`;
     const prefix = `adset.${idx}`;
 
-    if (isMissing(a.name)) warnings.push(warn(`${prefix}.name`, node, "Recomendado: dar um nome ao conjunto."));
-    if (isMissing(a.location)) blockers.push(blocker(`${prefix}.location`, node, "Defina a região/país do conjunto."));
-    if (isMissing(a.age_range)) blockers.push(blocker(`${prefix}.age_range`, node, "Defina a faixa etária do conjunto."));
-    if (isMissing(a.gender)) blockers.push(blocker(`${prefix}.gender`, node, "Defina o gênero do conjunto."));
-    if (isMissing(a.placements)) blockers.push(blocker(`${prefix}.placements`, node, "Defina os posicionamentos do conjunto (use Automático/Advantage+ se não souber)."));
-    if (isMissing(a.optimization_goal)) blockers.push(blocker(`${prefix}.optimization_goal`, node, "Defina a meta de otimização do conjunto."));
+    if (isMissing(a.name)) warnings.push(make("ad_set", nodeId, node, `${prefix}.name`, "warning", "Recomendado: dar um nome ao conjunto."));
+    if (isMissing(a.location)) blockers.push(make("ad_set", nodeId, node, `${prefix}.location`, "blocker", "Defina a região/país do conjunto."));
+    if (isMissing(a.age_range)) blockers.push(make("ad_set", nodeId, node, `${prefix}.age_range`, "blocker", "Defina a faixa etária do conjunto."));
+    if (isMissing(a.gender)) blockers.push(make("ad_set", nodeId, node, `${prefix}.gender`, "blocker", "Defina o gênero do conjunto."));
+    if (isMissing(a.placements)) blockers.push(make("ad_set", nodeId, node, `${prefix}.placements`, "blocker", "Defina os posicionamentos do conjunto (use Automático/Advantage+ se não souber)."));
+    if (isMissing(a.optimization_goal)) blockers.push(make("ad_set", nodeId, node, `${prefix}.optimization_goal`, "blocker", "Defina a meta de otimização do conjunto."));
     if (needsUserInput(a.conversion_event)) {
-      blockers.push(blocker(`${prefix}.conversion_event`, node, "Confirme o evento de conversão (Pixel) antes de aprovar.", "requires_user_input"));
+      blockers.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "blocker", "Confirme o evento de conversão (Pixel) antes de aprovar.", { kind: "requires_user_input" }));
     } else if (isMissing(a.conversion_event)) {
-      blockers.push(blocker(`${prefix}.conversion_event`, node, "Defina o evento de conversão (ex.: Compra, Adicionar ao carrinho)."));
+      blockers.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "blocker", "Defina o evento de conversão (ex.: Compra, Adicionar ao carrinho)."));
     }
     if (isMissing(a.targeting_summary) && a.inclusions.length === 0) {
-      warnings.push(warn(`${prefix}.targeting_summary`, node, "Recomendado: descrever o público do conjunto."));
+      warnings.push(make("ad_set", nodeId, node, `${prefix}.targeting_summary`, "warning", "Recomendado: descrever o público do conjunto."));
     }
     if (isMissing(a.daily_budget_cents) && isMissing(c.daily_budget_cents)) {
-      warnings.push(warn(`${prefix}.daily_budget_cents`, node, "Recomendado: definir orçamento por conjunto se a campanha não tiver orçamento central."));
+      warnings.push(make("ad_set", nodeId, node, `${prefix}.daily_budget_cents`, "warning", "Recomendado: definir orçamento por conjunto se a campanha não tiver orçamento central."));
     }
   });
 
-  // -------- Anúncios --------
+  // -------- Anúncios / Criativos --------
   if (structure.ads.length === 0) {
-    blockers.push(blocker("ads", "Anúncios", "A proposta não tem nenhum anúncio."));
+    blockers.push(make("ad", null, "Anúncios", "ads", "blocker", "A proposta não tem nenhum anúncio."));
   }
   structure.ads.forEach((ad, idx) => {
+    const nodeId = String(idx);
     const node = ad.name || `Anúncio ${idx + 1}`;
     const prefix = `ad.${idx}`;
 
-    if (isMissing(ad.headline)) blockers.push(blocker(`${prefix}.headline`, node, "Defina o título do anúncio."));
-    if (isMissing(ad.primary_text)) blockers.push(blocker(`${prefix}.primary_text`, node, "Defina o texto principal do anúncio."));
-    if (isMissing(ad.cta)) blockers.push(blocker(`${prefix}.cta`, node, "Defina o botão de ação (ex.: Comprar agora, Saiba mais)."));
-    if (isMissing(ad.destination_url)) blockers.push(blocker(`${prefix}.destination_url`, node, "Defina a URL de destino do anúncio."));
-    if (isMissing(ad.creative_format)) warnings.push(warn(`${prefix}.creative_format`, node, "Recomendado: definir o formato do criativo (imagem, vídeo, carrossel)."));
+    // Copy / headline / CTA / link / formato pertencem ao CRIATIVO
+    if (isMissing(ad.headline)) blockers.push(make("creative", nodeId, node, `${prefix}.headline`, "blocker", "Defina o título do anúncio."));
+    if (isMissing(ad.primary_text)) blockers.push(make("creative", nodeId, node, `${prefix}.primary_text`, "blocker", "Defina o texto principal do anúncio."));
+    if (isMissing(ad.cta)) blockers.push(make("creative", nodeId, node, `${prefix}.cta`, "blocker", "Defina o botão de ação (ex.: Comprar agora, Saiba mais)."));
+    if (isMissing(ad.destination_url)) blockers.push(make("creative", nodeId, node, `${prefix}.destination_url`, "blocker", "Defina a URL de destino do anúncio."));
+    if (isMissing(ad.creative_format)) warnings.push(make("creative", nodeId, node, `${prefix}.creative_format`, "warning", "Recomendado: definir o formato do criativo (imagem, vídeo, carrossel)."));
   });
 
   const passed = blockers.length === 0;

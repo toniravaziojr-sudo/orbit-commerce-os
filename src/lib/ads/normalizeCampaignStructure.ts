@@ -20,10 +20,12 @@ export interface CampaignNode {
   buying_type: string | null;
   budget_type: string | null;          // daily | lifetime | adset_level
   daily_budget_cents: number | null;
-  destination_url: string | null;
-  cta: string | null;
   planned_status: string | null;       // PAUSED | ACTIVE
   rationale: string | null;
+  /** Resumo herdado dos anúncios (NUNCA configuração principal da Campanha).
+   *  Preenchido pelo adapter quando o payload legado guardou link/CTA no topo. */
+  inherited_destination_url: string | null;
+  inherited_cta: string | null;
 }
 
 export interface AdSetNode {
@@ -55,8 +57,10 @@ export interface AdNode {
   primary_text: string | null;
   headline: string | null;
   description: string | null;
+  // ---- Pertencem ao CRIATIVO (Onda C.2) ----
   cta: string | null;
   destination_url: string | null;
+  tracking_params: string | null;
   creative_prompt: string | null;
   creative_format: string | null;
   alternative_formats: string[];
@@ -67,17 +71,12 @@ export interface AdNode {
 }
 
 export interface CampaignStructure {
-  /** Versão do contrato canônico desta proposta (1 = legacy, 2 = canonical v2). */
+  /** Versão do contrato canônico desta proposta (1=legacy, 2=canonical v2, 2.1=ownership-by-level). */
   schema_version: 1 | 2;
   campaign: CampaignNode;
   ad_sets: AdSetNode[];
   ads: AdNode[];
-  // Sinaliza se essa estrutura representa uma proposta de campanha
-  // (Campanha → Conjuntos → Anúncios) ou se é uma ação operacional
-  // (pause_campaign, adjust_budget, strategic_plan, generate_creative…).
   is_structured_campaign: boolean;
-  // Origem do dado: "canonical" (gravado pela IA já no formato novo)
-  // ou "legacy_adapter" (montado on-the-fly a partir do payload antigo).
   source: "canonical" | "legacy_adapter";
 }
 
@@ -153,6 +152,9 @@ function buildLocation(t: any): string | null {
 // -----------------------------------------------------------------------------
 
 function fromCanonical(cs: any): CampaignStructure {
+  const legacyTopCta = pickStr(cs?.campaign?.cta);
+  const legacyTopUrl = pickStr(cs?.campaign?.destination_url, cs?.campaign?.destination);
+
   const campaign: CampaignNode = {
     name: pickStr(cs?.campaign?.name),
     objective: pickStr(cs?.campaign?.objective),
@@ -160,10 +162,10 @@ function fromCanonical(cs: any): CampaignStructure {
     buying_type: pickStr(cs?.campaign?.buying_type),
     budget_type: pickStr(cs?.campaign?.budget_type),
     daily_budget_cents: pickNum(cs?.campaign?.daily_budget_cents, cs?.campaign?.daily_budget),
-    destination_url: pickStr(cs?.campaign?.destination_url, cs?.campaign?.destination),
-    cta: pickStr(cs?.campaign?.cta),
     planned_status: pickStr(cs?.campaign?.planned_status),
     rationale: pickStr(cs?.campaign?.rationale),
+    inherited_destination_url: legacyTopUrl,
+    inherited_cta: legacyTopCta,
   };
 
   const ad_sets: AdSetNode[] = Array.isArray(cs?.ad_sets)
@@ -205,8 +207,11 @@ function fromCanonical(cs: any): CampaignStructure {
         primary_text: pickStr(ad?.primary_text),
         headline: pickStr(ad?.headline),
         description: pickStr(ad?.description),
-        cta: pickStr(ad?.cta),
-        destination_url: pickStr(ad?.destination_url),
+        // Criativo: link/CTA/tracking são lidos do ad e, se ausentes,
+        // herdam o que veio no topo do payload (legado), nunca o contrário.
+        cta: pickStr(ad?.cta) || legacyTopCta,
+        destination_url: pickStr(ad?.destination_url) || legacyTopUrl,
+        tracking_params: pickStr(ad?.tracking_params, ad?.utm_params, ad?.url_tags),
         creative_prompt: pickStr(ad?.creative_prompt),
         creative_format: pickStr(ad?.creative_format),
         alternative_formats: asStringArray(ad?.alternative_formats),
@@ -236,6 +241,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
     Array.isArray(data?.adsets) ||
     Array.isArray(data?.ads);
 
+  const legacyTopUrl = pickStr(data?.destination_url, preview?.destination_url, data?.website_url);
+  const legacyTopCta = pickStr(data?.cta_type, preview?.cta_type, preview?.cta);
+  const legacyTopTracking = pickStr(data?.tracking_params, data?.utm_params, preview?.tracking_params);
+
   const campaign: CampaignNode = {
     name: pickStr(data?.campaign_name, preview?.campaign_name),
     objective: pickStr(data?.objective, preview?.objective, data?.campaign_type),
@@ -243,10 +252,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
     buying_type: pickStr(data?.buying_type),
     budget_type: pickStr(data?.budget_type) || (data?.daily_budget_cents ? "daily" : data?.lifetime_budget_cents ? "lifetime" : null),
     daily_budget_cents: pickNum(data?.daily_budget_cents, preview?.daily_budget_cents),
-    destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url),
-    cta: pickStr(data?.cta_type, preview?.cta_type, preview?.cta),
     planned_status: pickStr(data?.initial_status, data?.status) || "PAUSED",
     rationale: pickStr(data?.reasoning, preview?.copy_text),
+    inherited_destination_url: legacyTopUrl,
+    inherited_cta: legacyTopCta,
   };
 
   // ad_sets: pode vir como data.adsets[] (com targeting próprio) ou inferir 1 conjunto
@@ -335,8 +344,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
       primary_text: pickStr(preview?.copy_text, data?.copy_text, preview?.primary_text, data?.primary_text),
       headline: pickStr(preview?.headline, data?.headline),
       description: pickStr(preview?.description, data?.description),
-      cta: pickStr(preview?.cta, preview?.cta_type, data?.cta_type),
-      destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url),
+      // Criativo herda link/CTA legados que vinham no topo do payload
+      cta: pickStr(preview?.cta, preview?.cta_type, data?.cta_type) || legacyTopCta,
+      destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url) || legacyTopUrl,
+      tracking_params: legacyTopTracking,
       creative_prompt: pickStr(brief?.prompt, data?.creative_prompt),
       creative_format: pickStr(brief?.format, data?.creative_format_suggested, data?.creative_format),
       alternative_formats: asStringArray(brief?.alternative_formats),

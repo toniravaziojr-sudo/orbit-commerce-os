@@ -3471,3 +3471,108 @@ Os dois gates são **pure functions**, sem chamadas de IA ou rede. O modal lê o
 - Tela de admin "Compatibilidade das Plataformas".
 - Snapshot real de Google Ads e TikTok Ads após verificação humana.
 - Adapters compiladores (Meta/Google/TikTok) — esta entrega só valida; ainda não compila payload de publicação.
+
+---
+
+## Motor de Propostas — Onda C (ownership de campos por nível, rev 2026-06-10)
+
+Esta onda corrige a semântica do contrato de propostas para que cada campo
+pertença ao nível correto da estrutura de mídia paga: **Campanha → Conjunto
+de anúncios → Anúncio → Criativo**. Sem isso, os blockers apontavam para o
+nó errado e a UI exibia link/CTA como se fossem propriedade da Campanha.
+
+### Platform Field Ownership Matrix (Meta Ads)
+
+| Nível | Campos que pertencem a este nível |
+|---|---|
+| **Campanha** | name · objective (canônico) · buying_type · budget_type · daily_budget (se CBO) · planned_status · rationale · special_ad_categories |
+| **Conjunto de anúncios** | name · campaign_ref · funnel_stage · audience_type · targeting/inclusions/exclusions · customer_exclusion · location · age_range · gender · placements · optimization_goal · billing_event · conversion_location · conversion_event · promoted_object/pixel · attribution_window · schedule · budget (se ABO) · status · rationale |
+| **Anúncio** | name · ad_set_ref · status · relacionamento com o criativo |
+| **Criativo do anúncio** | product/offer · primary_text · headline · description · **CTA** · **destination_url** · **tracking_params** · display_url · creative_format · reference_image · alternative_formats · final_creative_assets · rationale |
+
+> Link de destino, CTA e parâmetros de rastreamento NUNCA são propriedade
+> principal da Campanha. Se aparecerem no topo do payload (legado), o
+> adapter os trata como **herança** e a UI só os mostra como leitura no
+> bloco "Resumo herdado dos anúncios".
+
+### Objective Mapper (canônico ↔ plataforma)
+
+| Label PT-BR (UI) | Enum canônico interno | Meta Ads |
+|---|---|---|
+| Vendas | `sales` | `OUTCOME_SALES` |
+| Geração de leads | `leads` | `OUTCOME_LEADS` |
+| Tráfego | `traffic` | `OUTCOME_TRAFFIC` |
+| Reconhecimento de marca | `awareness` | `OUTCOME_AWARENESS` |
+| Engajamento | `engagement` | `OUTCOME_ENGAGEMENT` |
+| Promoção de aplicativo | `app_promotion` | `OUTCOME_APP_PROMOTION` |
+
+Regras:
+
+- A IA grava o **enum canônico** em `campaign.objective`.
+- O Platform Compatibility Gate **só compara** depois de traduzir o canônico
+  para o enum oficial via `translateObjectiveToMeta()`.
+- Strings legadas (`SALES`, `OUTCOME_SALES`, `Vendas`, `Conversions`) são
+  reconhecidas por `inferCanonicalObjective()`. Strings desconhecidas
+  produzem blocker amigável em PT-BR, **nunca** o erro técnico
+  "SALES não suportado".
+- A mesma camada existe para CTA, evento de conversão, posicionamento e
+  formato criativo, garantindo que Google Ads e TikTok ganhem seus próprios
+  mappers no futuro sem mexer na UI.
+
+### GateIssue v2
+
+Todo bloqueio/aviso passa a carregar:
+
+- `node_type`: `campaign` | `ad_set` | `ad` | `creative` | `platform`
+- `node_id`: identificador estável do nó (index do conjunto/anúncio)
+- `field`: caminho canônico do campo (`adset.0.conversion_event`)
+- `severity`: `blocker` | `warning` | `info`
+- `message`: PT-BR amigável (exibido ao usuário)
+- `technical_reason`: detalhe interno (não exibido)
+- `suggested_action`: orientação curta (opcional)
+- `kind`: `required` | `recommended` | `optional` | `requires_user_input`
+
+Ownership dos blockers (regra fixa):
+
+- CTA / link / copy / headline / formato ausentes → `creative`
+- evento / otimização / posicionamentos / região / idade / gênero ausentes → `ad_set`
+- modo de compra / tipo de orçamento / orçamento / objetivo / nome ausentes → `campaign`
+- objetivo sem mapeamento ou plataforma não verificada → `platform`
+
+### Comportamento da UI
+
+- **Aba Campanha** mostra apenas campos do nível Campanha. Se houver link/CTA
+  legados, aparecem em bloco secundário "Resumo herdado dos anúncios" com
+  rótulo explícito ("do anúncio") e nota explicativa.
+- **Aba Conjunto** exibe selo **"Pendente · Obrigatório"** (vermelho) no
+  lugar de `—` para qualquer campo obrigatório que tenha gerado blocker.
+- **Aba Anúncio** é dividida em dois blocos visuais: **Anúncio** (nome,
+  conjunto vinculado, status) e **Criativo do anúncio** (CTA, link,
+  tracking, copy, formato, etc.). A árvore lateral continua mostrando
+  apenas "Anúncio N".
+- **Ajustar proposta** lê o `node_type` do primeiro blocker e rola o
+  editor estruturado até a seção correspondente (campanha / conjunto /
+  anúncio). Nunca abre em formulário genérico.
+
+### Strategist
+
+Atualizado para gravar `objective` no enum canônico interno (`sales`, `leads`,
+`traffic`, `awareness`, `engagement`, `app_promotion`). Quando não conseguir
+confirmar um dado obrigatório, escreve a string literal
+`requires_user_input` em vez de inventar — o gate transforma isso em
+blocker amigável.
+
+### Compatibilidade com proposta atual
+
+Propostas geradas antes desta onda continuam funcionando: o adapter aceita
+o enum oficial da Meta como entrada legada, link/CTA do topo são exibidos
+apenas como "Resumo herdado", e o Conjunto vazio gera blockers amigáveis
+em vez de `—` silencioso. Nenhuma proposta é regerada por IA nesta etapa.
+
+### Restrições mantidas
+
+- Zero chamada de IA ao abrir, navegar, editar ou salvar rascunho.
+- Zero criativo gerado.
+- Zero publicação em Meta / Google / TikTok.
+- Zero consumo de crédito.
+- Sem cron mensal, sem admin completo, sem Google/TikTok operacionais.
