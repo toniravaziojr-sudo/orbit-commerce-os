@@ -1779,6 +1779,8 @@ IMPORTANTE: No planned_actions do plano estratégico, inclua OBRIGATORIAMENTE: p
 - Se não houver URL da loja configurada, use o caminho relativo (/produto/slug)
 - Inclua UTM params para rastreamento correto
 
+${buildMetaProductionConfigBlock(context?.metaProductionConfigsByAccount?.[config.ad_account_id])}
+
 ${triggerInstruction}
 
 ## NEGÓCIO
