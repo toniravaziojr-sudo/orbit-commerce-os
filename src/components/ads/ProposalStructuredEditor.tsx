@@ -394,7 +394,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange, initialFo
           </Section>
 
           {/* Nível 2 — Conjunto de anúncios (público, segmentação, exclusões) */}
-          <Section title="Conjunto de anúncios">
+          <Section title="Conjunto de anúncios" sectionKey="ad_set">
             <Field label="Funil">
               <Select value={current.funnel_stage} onValueChange={(v) => upd("funnel_stage", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
