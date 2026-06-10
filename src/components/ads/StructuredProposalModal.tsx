@@ -460,6 +460,8 @@ function OverviewSection({
   adSets,
   adsCount,
   isStrategyStage,
+  isStrategicPlan,
+  overviewOnly,
   fitMessage,
   fitLabel,
   approveBlockedByFit,
@@ -471,6 +473,8 @@ function OverviewSection({
   adSets: AdSetNode[];
   adsCount: number;
   isStrategyStage: boolean;
+  isStrategicPlan: boolean;
+  overviewOnly: boolean;
   fitMessage: string | null;
   fitLabel: string | null;
   approveBlockedByFit: boolean;
@@ -478,16 +482,28 @@ function OverviewSection({
   warnings: GateIssue[];
 }) {
   const reasoning = action.reasoning || campaign.rationale || null;
+  const data = (action.action_data || {}) as Record<string, any>;
+  const diagnosis = data.diagnosis || null;
+  const expectedImpact = action.expected_impact || data.expected_impact || null;
+  const limitations: string[] = Array.isArray(data.limitations) ? data.limitations : [];
+  const nextActions: any[] = Array.isArray(data.next_actions) ? data.next_actions : (Array.isArray(data.actions) ? data.actions : []);
+
   return (
     <div className="space-y-4">
-      {isStrategyStage && (
+      {isStrategyStage && !isStrategicPlan && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Nenhum criativo final foi gerado ainda. A geração acontece apenas após aprovar a estratégia.
           Aprovar gera os criativos — <strong>ainda não publica a campanha</strong>.
         </div>
       )}
 
-      <Block title="Por que a IA recomendou esta proposta" icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
+      {isStrategicPlan && diagnosis && (
+        <Block title="Diagnóstico" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{diagnosis}</p>
+        </Block>
+      )}
+
+      <Block title={isStrategicPlan ? "Estratégia recomendada" : "Por que a IA recomendou esta proposta"} icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
         {reasoning ? (
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{reasoning}</p>
         ) : (
@@ -495,13 +511,42 @@ function OverviewSection({
         )}
       </Block>
 
-      <Block title="Resumo da estrutura" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <Metric label="Campanha" value={campaign.name || "—"} />
-          <Metric label="Conjuntos de anúncios" value={String(adSets.length)} />
-          <Metric label="Anúncios" value={String(adsCount)} />
-        </div>
-      </Block>
+      {isStrategicPlan && nextActions.length > 0 && (
+        <Block title={`Próximas ações sugeridas (${nextActions.length})`} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
+          <ol className="space-y-1.5 text-sm text-muted-foreground list-decimal list-inside">
+            {nextActions.map((a, i) => {
+              const label = typeof a === "string"
+                ? a
+                : (a?.title || a?.name || a?.description || a?.summary || JSON.stringify(a));
+              return <li key={i} className="leading-relaxed">{label}</li>;
+            })}
+          </ol>
+        </Block>
+      )}
+
+      {isStrategicPlan && limitations.length > 0 && (
+        <Block title="Limitações observadas" icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}>
+          <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
+            {limitations.map((l, i) => <li key={i}>{l}</li>)}
+          </ul>
+        </Block>
+      )}
+
+      {expectedImpact && (
+        <Block title="Impacto esperado" icon={<Target className="h-3.5 w-3.5 text-emerald-600" />}>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{expectedImpact}</p>
+        </Block>
+      )}
+
+      {!overviewOnly && (
+        <Block title="Resumo da estrutura" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <Metric label="Campanha" value={campaign.name || "—"} />
+            <Metric label="Conjuntos de anúncios" value={String(adSets.length)} />
+            <Metric label="Anúncios" value={String(adsCount)} />
+          </div>
+        </Block>
+      )}
 
       {(blockers.length > 0 || warnings.length > 0) && (
         <Block
