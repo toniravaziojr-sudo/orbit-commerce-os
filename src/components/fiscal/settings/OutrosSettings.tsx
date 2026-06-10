@@ -18,14 +18,13 @@ import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
-const EMIT_STATUS_OPTIONS = [
-  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
-  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
-];
 const SHIPPING_PROVIDER_OPTIONS = [
   { value: 'correios', label: 'Correios' },
   { value: 'loggi', label: 'Loggi' },
 ];
+// Sentinela usada apenas na UI para representar "sem transportadora padrão".
+// Convertido para null ao salvar — o componente Select não aceita value="".
+const SHIPPING_PROVIDER_DEFAULT_SENTINEL = '__order_carrier__';
 
 export function OutrosSettings() {
   const { settings, isLoading, saveSettings } = useFiscalSettings();
