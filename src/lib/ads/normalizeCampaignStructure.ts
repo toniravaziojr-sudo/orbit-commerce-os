@@ -368,6 +368,7 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
   }
 
   return {
+    schema_version: 1,
     campaign,
     ad_sets,
     ads,
