@@ -506,28 +506,35 @@ function AdSection({ ad, isStrategyStage }: { ad: AdNode | null; isStrategyStage
         </DetailGrid>
       </Block>
 
-      {ad.creative_prompt && (
-        <Block title="Prompt criativo" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
-        </Block>
-      )}
-
-      {(ad.reference_image_url || ad.creative_final_url) && (
+      {(ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
         <Block
-          title={ad.creative_final_url ? "Criativo final" : "Referência visual do produto"}
+          title={ad.creative_final_url ? "Conferência do criativo" : "Conferência do criativo (referência + prompt)"}
           icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
         >
-          <div className="flex items-start gap-3">
-            <img
-              src={ad.creative_final_url || ad.reference_image_url || ""}
-              alt={ad.creative_final_url ? "Criativo" : "Referência do produto"}
-              className="h-32 w-32 object-cover rounded-md border border-border/40"
-            />
-            {!ad.creative_final_url && (
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Imagem usada apenas como referência do produto. Não é o criativo final.
-                {isStrategyStage && " A geração do criativo só acontece após aprovar a estratégia."}
-              </p>
+          <div className="space-y-3">
+            {(ad.reference_image_url || ad.creative_final_url) && (
+              <div className="flex items-start gap-3">
+                <img
+                  src={ad.creative_final_url || ad.reference_image_url || ""}
+                  alt={ad.creative_final_url ? "Criativo" : "Referência do produto"}
+                  className="h-32 w-32 object-cover rounded-md border border-border/40"
+                />
+                {!ad.creative_final_url && (
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Imagem usada apenas como referência do produto. Não é o criativo final.
+                    {isStrategyStage && " A geração do criativo só acontece após aprovar a estratégia."}
+                  </p>
+                )}
+              </div>
+            )}
+            {ad.creative_prompt && (
+              <div className="rounded-md border border-border/40 bg-muted/30 p-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-[11px] font-medium text-foreground uppercase tracking-wide">Prompt do criativo</p>
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
+              </div>
             )}
           </div>
         </Block>
