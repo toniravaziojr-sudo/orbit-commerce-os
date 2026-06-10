@@ -3332,3 +3332,81 @@ O gate de feedback existente (`useAdsAutopilotFeedbackGate`) já cobre Aprovar e
 
 ### 14.7 Testes
 `src/test/ads-autopilot-structured-editor.test.ts` — 7 testes (diff, validações, contrato do payload). Combinados com a suíte de Fit Gate (§13.7) somam a cobertura mínima do editor.
+
+---
+
+## Visualização Estruturada de Propostas (v6.13.0 — 2026-06-10)
+
+> Onda paralela à coleta de ROAS Real. Tema: como o lojista enxerga e decide cada proposta da IA na fila **Aguardando Ação**.
+
+### Por que mudou
+
+Antes, o card da fila tinha 3 ações (Aprovar e gerar criativos / Ajustar / Rejeitar) e um modal de detalhe que não respeitava a hierarquia real de mídia paga (Campanha → Conjunto(s) de anúncios → Anúncio(s)). Isso permitia decisão sem visualizar a estrutura completa, especialmente em propostas Etapa 1 do fluxo two_step_v1.
+
+### Novo padrão
+
+1. **Card resumo (fila Aguardando Ação)** — propostas de campanha estruturadas (Nova Campanha / two_step_v1 Etapa 1 / payload legacy que o adapter reconhece como campanha) passam a ter **um único CTA: "Visualizar proposta"**. Os botões Aprovar / Ajustar / Recusar não aparecem mais no card.
+2. **Modal de Visualização Estruturada** — abre ao clicar em "Visualizar proposta". Modal grande com **árvore lateral** no desktop e lista empilhada no mobile, com os nós:
+   - Visão Geral (resumo, racional da IA, etapa do fluxo, adequação, alertas)
+   - Campanha (nome, objetivo, canal, orçamento, destino, CTA, status planejado)
+   - Conjuntos de anúncios (1..N) — público, segmentação, inclusões, exclusões, idade, gênero, região, posicionamentos, otimização, evento de conversão, agendamento, orçamento
+   - Anúncios (1..N) — produto/oferta, copy, headline, descrição, CTA, link, prompt criativo, formato, referência visual, status do criativo
+   - Validações — Quality Gate, Product/Funnel Fit Gate, ações sugeridas
+   - Histórico — versão atual/anterior, rascunho, feedbacks
+   - Detalhes técnicos (recolhido por padrão) — ids, flow_version, reason_codes
+3. **Rodapé fixo do modal** — único lugar onde Aprovar / Ajustar / Recusar aparecem:
+   - **Aprovar estratégia e gerar criativos** (Etapa 1) ou **Aprovar** (legacy). Bloqueado se Quality Gate ou Product/Funnel Fit Gate negarem.
+   - **Ajustar proposta** — abre o Editor Estruturado (Frente 4.3) reorganizado em Campanha / Conjunto / Anúncio / Feedback.
+   - **Recusar proposta** — reaproveita o fluxo "Não quero" / "Quero outra proposta" existente.
+
+### Compatibilidade legacy
+
+Ações operacionais (pause_campaign, adjust_budget, generate_creative, strategic_plan, grupos órfãos de conjuntos) **mantêm** o card antigo com 3 botões. Critério: o **adapter** classifica a proposta. Só ganha o novo modal quando `is_structured_campaign === true`.
+
+### Contrato de dados canônico (aditivo)
+
+Novo formato em `action_data.campaign_structure`:
+
+```text
+campaign_structure
+├── campaign { name, objective, platform, buying_type, budget_type,
+│              daily_budget_cents, destination_url, cta, planned_status, rationale }
+├── ad_sets[] { name, funnel_stage, audience_type, targeting_summary,
+│               inclusions[], exclusions[], customer_exclusion,
+│               location, age_range, gender, placements[],
+│               optimization_goal, conversion_event, schedule,
+│               daily_budget_cents, rationale }
+└── ads[] { name, ad_set_ref, product_name, offer_note,
+            primary_text, headline, description, cta, destination_url,
+            creative_prompt, creative_format, alternative_formats[],
+            reference_image_url, creative_final_url, creative_status, rationale }
+```
+
+Regras:
+- **Aditivo:** não substitui campos atuais; pode coexistir com `adsets[]`, `ads[]`, `preview.*`.
+- **Sem migração:** propostas antigas continuam funcionando sem nenhum UPDATE em massa.
+- **Adapter de leitura tolerante:** `normalizeCampaignStructure(action_data, { actionType, flowVersion })` aceita ambos os formatos, nunca muta o payload original, devolve `null` em campos ausentes (UI exibe "—" / "Não informado").
+- **Gerador (edge function strategist):** **pendência declarada** — não é alterado nesta entrega. A UI funciona via adapter para 100% dos cenários atuais. Em entrega futura o gerador pode passar a gravar `campaign_structure` em paralelo, sem quebrar nada.
+
+### Regras anti-processamento (mantidas)
+
+- Abrir modal: 0 chamadas IA. Navegar entre nós: 0. Abrir editor: 0. Editar campo: 0. Salvar rascunho: 0. Recusar: 0. Feedback: 0.
+- Apenas **"Gerar proposta revisada"** dispara IA (1 vez) e **"Aprovar estratégia e gerar criativos"** pode iniciar a geração de criativos da Etapa 2.
+- Nenhuma chamada Meta/Google/TikTok ao visualizar. Nenhuma publicação automática. Nenhum consumo de crédito ao visualizar/editar/salvar rascunho.
+
+### Editor Estruturado (Frente 4.3) — reorganização visual
+
+Seções renomeadas para refletir a hierarquia:
+- **Campanha** — nome, objetivo, orçamento, canal (somente leitura), link/destino, CTA.
+- **Conjunto de anúncios** — funil, público, segmentação, exclusões, região, idade, gênero. (antes: "Público" + "Produto e oferta" misturados)
+- **Anúncio** — produto, oferta, prompt criativo, formato, tom, headline, texto principal, descrição. (antes: "Criativo e copy")
+- **Feedback para a IA** — motivo, categorias, observação.
+
+Sem alteração de mutations, rascunho, versionamento ou feedback persistidos.
+
+### Anti-regressão
+
+- Card de propostas estruturadas **não pode** voltar a exibir Aprovar/Ajustar/Rejeitar diretamente.
+- Modal **não pode** voltar a exibir payload bruto no corpo principal (somente em "Detalhes técnicos" recolhido).
+- Adapter **não pode** mutar `action_data`.
+- Compatibilidade com payload legacy (`adsets[]`, `ads[]`, `preview.*`) é obrigatória.
