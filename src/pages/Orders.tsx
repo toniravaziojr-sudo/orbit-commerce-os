@@ -30,6 +30,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [shippingFilter, setShippingFilter] = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
   const [firstSaleOnly, setFirstSaleOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>();
