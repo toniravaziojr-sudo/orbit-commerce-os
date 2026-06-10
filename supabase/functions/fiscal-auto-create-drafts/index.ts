@@ -527,8 +527,7 @@ async function processTenanDrafts(
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
           const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-          // fire-and-forget: não bloqueia a criação de outros rascunhos
-          fetch(emitUrl, {
+          const emitPromise = fetch(emitUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -539,9 +538,16 @@ async function processTenanDrafts(
               tenant_id: tenantId,
               auto: true,
             }),
-          }).catch(err => {
-            console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
-          });
+          })
+            .then(async (r) => {
+              const txt = await r.text().catch(() => '');
+              console.log(`[fiscal-auto-create-drafts] Auto-emit response invoice=${invoice.id} status=${r.status} body=${txt.slice(0, 300)}`);
+            })
+            .catch(err => {
+              console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
+            });
+          try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
+          await emitPromise;
           console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, order_status=${orderStatus})`);
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
