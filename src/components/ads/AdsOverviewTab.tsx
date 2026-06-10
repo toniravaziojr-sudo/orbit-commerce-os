@@ -269,13 +269,26 @@ export function AdsOverviewTab({
         </Card>
       )}
 
+      {/* Nota de escopo: marketplaces ficam no Dashboard */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="py-3">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Este módulo considera apenas plataformas de anúncio e a loja virtual.
+              Vendas de Mercado Livre, Shopee e TikTok Shop são analisadas no Dashboard da Central de Comando.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {summaryCards.map(card => (
-          <Card key={card.title}>
+          <Card key={card.title} title={card.hint}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">{card.title}</CardTitle>
-              <card.icon className="h-3.5 w-3.5 text-muted-foreground" />
+              <CardTitle className="text-xs font-medium leading-tight">{card.title}</CardTitle>
+              <card.icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             </CardHeader>
             <CardContent className="pt-0">
               <div className="text-lg font-bold">{card.value}</div>
