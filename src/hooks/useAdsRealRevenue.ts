@@ -25,6 +25,8 @@ export interface AdsRealRevenueBreakdown {
   google_cents: number;
   tiktok_cents: number;
   paid_orders: number;
+  total_paid_orders: number;
+  coverage_pct: number;
 }
 
 export function useAdsRealRevenue(startDate?: Date, endDate?: Date) {
