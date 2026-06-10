@@ -158,8 +158,6 @@ Deno.serve(async (req) => {
         endereco_uf,
         endereco_cep,
         crt,
-        cfop_intrastadual,
-        cfop_interestadual,
         csosn_padrao,
         cst_padrao,
         serie_nfe,
@@ -255,15 +253,14 @@ Deno.serve(async (req) => {
         endereco_cep,
         crt: normalizedCrt,
         regime_tributario: normalizedRegimeTributario,
-        cfop_intrastadual: cfop_intrastadual || '5102',
-        cfop_interestadual: cfop_interestadual || '6102',
         csosn_padrao,
         cst_padrao,
         serie_nfe: serie_nfe || 1,
         numero_nfe_atual: numero_nfe_atual || 1,
         provider: provider || 'focusnfe',
         provider_token: tokenToSave,
-        ambiente: ambiente || 'homologacao',
+        // Fiscal Produção Universal — nunca persistir 'homologacao' (constraint mem://constraints/fiscal-producao-universal)
+        ambiente: 'producao',
         emissao_automatica: emissao_automatica || false,
         // Gatilho único de auto-emissão: 'ready_to_invoice'. Valor legado 'paid' foi
         // removido da UI e é normalizado aqui para evitar regressão silenciosa.
