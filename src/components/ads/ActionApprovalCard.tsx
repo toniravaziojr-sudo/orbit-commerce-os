@@ -25,6 +25,8 @@ import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabe
 import { useProductCommercialFit, type ProductFitData } from "@/hooks/useProductCommercialFit";
 import { fitLevelLabel, commercialClassLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
+import { StructuredProposalModal } from "./StructuredProposalModal";
+import { normalizeCampaignStructure } from "@/lib/ads/normalizeCampaignStructure";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
