@@ -521,29 +521,14 @@ async function processTenanDrafts(
 
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
-          const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-          const emitPromise = fetch(emitUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            },
-            body: JSON.stringify({
-              invoice_id: invoice.id,
-              tenant_id: tenantId,
-              auto: true,
-            }),
-          })
-            .then(async (r) => {
-              const txt = await r.text().catch(() => '');
-              console.log(`[fiscal-auto-create-drafts] Auto-emit response invoice=${invoice.id} status=${r.status} body=${txt.slice(0, 300)}`);
-            })
-            .catch(err => {
-              console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
-            });
-          try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
-          await emitPromise;
-          console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, order_status=${orderStatus})`);
+          const { data: emitData, error: emitErr } = await supabase.functions.invoke('fiscal-emit', {
+            body: { invoice_id: invoice.id, tenant_id: tenantId, auto: true },
+          });
+          if (emitErr) {
+            console.error(`[fiscal-auto-create-drafts] Auto-emit erro invoice=${invoice.id}:`, emitErr);
+          } else {
+            console.log(`[fiscal-auto-create-drafts] Auto-emit ok invoice=${invoice.id} pedido=${order.order_number} resp=${JSON.stringify(emitData).slice(0,300)}`);
+          }
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
         }
