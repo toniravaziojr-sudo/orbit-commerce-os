@@ -324,55 +324,59 @@ export function StructuredProposalModal({
           </DialogHeader>
 
           <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-            <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
-              <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
-                <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
-                  active={selected === "overview"} onClick={() => setSelected("overview")} />
-                <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
-                  active={selected === "campaign"} onClick={() => setSelected("campaign")} />
-                <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
-                {adSets.length === 0 ? (
-                  <TreeEmpty label="Nenhum conjunto" />
-                ) : (
-                  adSets.map((a, i) => (
-                    <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
-                      label={a.name || `Conjunto ${i + 1}`}
-                      active={selected === `adset:${i}`}
-                      onClick={() => setSelected(`adset:${i}`)} />
-                  ))
-                )}
-                <TreeGroupLabel label={`Anúncios (${ads.length})`} />
-                {ads.length === 0 ? (
-                  <TreeEmpty label="Nenhum anúncio" />
-                ) : (
-                  ads.map((ad, i) => (
-                    <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
-                      label={ad.name || `Anúncio ${i + 1}`}
-                      active={selected === `ad:${i}`}
-                      onClick={() => setSelected(`ad:${i}`)} />
-                  ))
-                )}
-              </nav>
-            </aside>
+            {!overviewOnly && (
+              <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
+                <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
+                  <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
+                    active={selected === "overview"} onClick={() => setSelected("overview")} />
+                  <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
+                    active={selected === "campaign"} onClick={() => setSelected("campaign")} />
+                  <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
+                  {adSets.length === 0 ? (
+                    <TreeEmpty label="Nenhum conjunto" />
+                  ) : (
+                    adSets.map((a, i) => (
+                      <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
+                        label={a.name || `Conjunto ${i + 1}`}
+                        active={selected === `adset:${i}`}
+                        onClick={() => setSelected(`adset:${i}`)} />
+                    ))
+                  )}
+                  <TreeGroupLabel label={`Anúncios (${ads.length})`} />
+                  {ads.length === 0 ? (
+                    <TreeEmpty label="Nenhum anúncio" />
+                  ) : (
+                    ads.map((ad, i) => (
+                      <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
+                        label={ad.name || `Anúncio ${i + 1}`}
+                        active={selected === `ad:${i}`}
+                        onClick={() => setSelected(`ad:${i}`)} />
+                    ))
+                  )}
+                </nav>
+              </aside>
+            )}
 
             <ScrollArea className="flex-1 min-h-0">
               <div className="px-5 py-4">
-                {selected === "overview" && (
+                {(overviewOnly || selected === "overview") && (
                   <OverviewSection
                     action={action}
                     campaign={structure.campaign}
                     adSets={adSets}
                     adsCount={ads.length}
                     isStrategyStage={isStrategyStage}
-                    fitMessage={fitData?.fit.user_message || null}
-                    fitLabel={fitBadge?.label || null}
-                    approveBlockedByFit={approveBlockedByFit}
-                    blockers={allBlockers}
-                    warnings={allWarnings}
+                    isStrategicPlan={isStrategicPlan}
+                    overviewOnly={overviewOnly}
+                    fitMessage={overviewOnly ? null : (fitData?.fit.user_message || null)}
+                    fitLabel={overviewOnly ? null : (fitBadge?.label || null)}
+                    approveBlockedByFit={overviewOnly ? false : approveBlockedByFit}
+                    blockers={overviewOnly ? [] : allBlockers}
+                    warnings={overviewOnly ? [] : allWarnings}
                   />
                 )}
-                {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
-                {selected.startsWith("adset:") && (
+                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
+                {!overviewOnly && selected.startsWith("adset:") && (
                   <AdSetSection
                     adSet={adSets[Number(selected.split(":")[1])] || null}
                     blockers={allBlockers.filter(
@@ -380,7 +384,7 @@ export function StructuredProposalModal({
                     )}
                   />
                 )}
-                {selected.startsWith("ad:") && (
+                {!overviewOnly && selected.startsWith("ad:") && (
                   <AdSection
                     ad={ads[Number(selected.split(":")[1])] || null}
                     isStrategyStage={isStrategyStage}
