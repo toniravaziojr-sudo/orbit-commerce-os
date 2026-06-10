@@ -97,6 +97,7 @@ function AccountConfigCard({
   const [showTemplate, setShowTemplate] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
+  const [showActivationDialog, setShowActivationDialog] = useState(false);
 
   useEffect(() => {
     if (config) {
