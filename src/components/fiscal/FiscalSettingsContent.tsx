@@ -31,11 +31,7 @@ const CRT_OPTIONS = [
 
 // Ambiente fixo em produção — sistema operando em ambiente fiscal real.
 
-// Order status options for auto-emit
-const EMIT_STATUS_OPTIONS = [
-  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
-  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
-];
+// (Seletor "Emitir NF-e quando" foi removido — gatilho único: ready_to_invoice)
 
 // Shipping provider options
 const SHIPPING_PROVIDER_OPTIONS = [
