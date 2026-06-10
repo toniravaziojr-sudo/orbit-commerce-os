@@ -639,9 +639,9 @@ export function ProposalStructuredEditor({ action, open, onOpenChange, initialFo
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, sectionKey }: { title: string; children: React.ReactNode; sectionKey?: string }) {
   return (
-    <div>
+    <div data-editor-section={sectionKey}>
       <p className="text-[11px] font-bold text-primary uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <span className="h-px flex-1 bg-border/40" />
         {title}
