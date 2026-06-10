@@ -1,38 +1,60 @@
-# Plano — Visualização Estruturada de Propostas (Gestor de Tráfego IA) — v2026-06-10
+# Plano — Motor de Propostas Completo do Gestor de Tráfego IA
 
-## Diagnóstico
-Hoje o card da fila "Aguardando Ação" já oferece Aprovar / Ajustar / Rejeitar diretamente, o que permite decisão sem visualizar a estrutura completa. O modal atual mostra blocos achatados que não refletem a hierarquia de mídia paga (Campanha → Conjunto(s) → Anúncio(s)).
+**Status:** Onda 0 + Onda A + Onda B mínima entregues em 2026-06-10.
 
-## UI/UX aprovada
-- Card de propostas de campanha estruturadas vira **resumo + 1 botão "Visualizar proposta"**.
-- Decisões (Aprovar / Ajustar / Recusar) migram para o rodapé fixo do modal estruturado.
-- Modal grande com **árvore lateral**: Visão Geral · Campanha · Conjuntos · Anúncios · Validações · Histórico · Detalhes técnicos (recolhido).
-- Fallback mobile mais simples (stepper/empilhado).
-- Card de ações operacionais legacy (orçamento, pausa, insight, plano estratégico, conjuntos órfãos) mantém comportamento atual.
+## Entregue nesta rodada
 
-## Contrato de dados (aditivo)
-- Novo formato canônico `action_data.campaign_structure` { campaign, ad_sets[], ads[] }.
-- **Adapter de leitura** `normalizeCampaignStructure(action_data)` aceita payload novo e legacy (`adsets[]`, `ads[]`, `preview.*`, campos planos). Campos ausentes → "Não informado".
-- Sem migração, sem DROP/UPDATE em massa, sem mutação do payload original.
+### Onda 0 — Baseline oficial de capacidades
+- Doc dedicado: `docs/especificacoes/marketing/plataformas-baseline.md` com fontes oficiais consultadas, data de consulta e status por plataforma.
+- Meta Ads: **verificado**, baseline `meta-2026-06-10-baseline`, próxima verificação em 30 dias.
+- Google Ads e TikTok Ads: **não verificados** (placeholder) — bloqueiam aprovação e geração de criativo até verificação humana.
 
-## Sequência de execução
-1. Criar adapter + tipos em `src/lib/ads/normalizeCampaignStructure.ts`.
-2. Criar testes do adapter (`src/test/normalize-campaign-structure.test.ts`).
-3. Criar `StructuredProposalModal` (árvore lateral + rodapé fixo).
-4. Ajustar `ActionApprovalCard` para propostas estruturadas: substituir os 3 botões pelo único "Visualizar proposta"; reaproveitar handlers atuais (`approveStrategy`, `onApprove`, `onReject`, `onAdjust`) dentro do modal.
-5. Reorganizar visualmente o Editor Estruturado para evidenciar a hierarquia Campanha / Conjunto / Anúncio / Feedback (renome de seções; sem alteração de mutations).
-6. Atualizar documentação: `docs/especificacoes/marketing/gestor-trafego.md` e `docs/especificacoes/transversais/mapa-ui.md`.
-7. Rodar testes.
+### Onda A — CanonicalCampaignPlan v2 + Strategist
+- `action_data.campaign_structure` ganha `schema_version` (1 = legacy, 2 = canônico). Mesmo nome de campo, sem migração, sem `UPDATE` em massa, sem remoção de legacy.
+- Adapter (`normalizeCampaignStructure`) continua tolerante a propostas antigas e passa a ler campos canônicos por conjunto (location, age_min/max, gender, placements, optimization_goal, conversion_event, budget_brl).
+- Strategist do plano estratégico passa a exigir, por conjunto de anúncios: região, idade, gênero, posicionamentos, meta de otimização, evento de conversão e local de conversão.
+- Quando a IA não sabe um campo obrigatório, preenche com `requires_user_input` — nunca inventa, nunca deixa silencioso.
 
-## Decisões técnicas
-- **Gerador (edge function strategist) NÃO é alterado nesta entrega.** A escrita de `campaign_structure` em novas propostas pode ser feita em entrega posterior sem afetar a UI — o adapter é tolerante e cobre tudo on-the-fly. Isso evita risco em código sensível e respeita "evite processamento desnecessário".
-- Reaproveitar `ProposalStructuredEditor` (Frente 4.3) como Editor de Ajuste dentro do modal — sem reescrever.
-- Reaproveitar `FullContentDialog` interno para a árvore (uma única tela, navegação por estado local).
-- Zero chamada de IA ao abrir/navegar/editar/salvar rascunho/recusar/feedback. Apenas "Gerar proposta revisada" e "Aprovar estratégia e gerar criativos" disparam IA, como hoje.
+### Onda B mínima — Registro de capacidades
+- 3 tabelas novas: `platform_capabilities`, `platform_compatibility_checks`, `platform_compatibility_alerts`.
+- Acesso: leitura para usuários logados, escrita para admin de plataforma, controle total via service_role.
+- Snapshot inicial semeado: Meta verificada, Google/TikTok placeholders não verificados.
+
+### Gates novos
+- **Structure Completeness Gate** (`src/lib/ads/gates/structureCompleteness.ts`) — bloqueia "Aprovar estratégia e gerar criativos" quando faltam campos obrigatórios ou há `requires_user_input`.
+- **Platform Compatibility Gate inicial** (`src/lib/ads/gates/platformCompatibility.ts`) — bloqueia quando plataforma está não verificada, revisão necessária, vencida, com falha de verificação, ou última verificação > 60 dias; também bloqueia objetivo/evento fora da capacidade registrada.
+- Ambos são puros, sem IA, sem rede.
+
+### UI mínima
+- Aba "Visão Geral" do modal estruturado: novo bloco **Validações** com bloqueios em vermelho e alertas em cinza.
+- Rodapé do modal: faixa amarela explicando por que a aprovação está bloqueada.
+- Botão "Aprovar estratégia e gerar criativos": desabilitado quando há qualquer bloqueio.
+- Botões "Ajustar proposta" e "Recusar proposta": continuam disponíveis.
+
+### Testes
+- 10 novos testes em `src/test/ads-gates.test.ts` — todos passando.
+- 8 testes existentes do adapter — continuam passando (18/18).
+
+### Documentação
+- `docs/especificacoes/marketing/plataformas-baseline.md` (novo)
+- `docs/especificacoes/marketing/gestor-trafego.md` (nova seção "Motor de Propostas — Onda 0 + A + B mínima")
+- `docs/especificacoes/transversais/mapa-ui.md` (nova seção "Validações de completude e compatibilidade")
 
 ## Restrições respeitadas
-Sem publicação automática, sem geração de criativo ao abrir, sem consumo de crédito, sem chamadas Meta/Google/TikTok, sem mem://, sem remover Quality Gate / Product-Funnel Fit Gate / versionamento / rascunho / feedback / payload bruto continua escondido em "Detalhes técnicos".
 
-## Documentação obrigatória
-- `docs/especificacoes/marketing/gestor-trafego.md`
-- `docs/especificacoes/transversais/mapa-ui.md`
+- Zero chamada de IA ao abrir, navegar, editar ou salvar rascunho.
+- Zero criativo gerado.
+- Zero publicação Meta/Google/TikTok.
+- Zero consumo de crédito.
+- Sem cron mensal.
+- Sem admin completo de compatibilidade.
+- Google Ads e TikTok Ads ficam preparados (placeholder no registro), mas não operacionais.
+- `mem://` não tocado.
+- Quality Gate, Product/Funnel Fit Gate, versionamento e editor: intactos.
+
+## Próximas ondas (fora desta entrega)
+
+- Cron mensal sem IA para verificar mudanças nas fontes oficiais (hash + alertas).
+- Tela de admin "Compatibilidade das Plataformas" (Gestor de Tráfego IA → Configurações Gerais).
+- Snapshot real de Google Ads e TikTok Ads após verificação humana.
+- Adapters compiladores (Meta/Google/TikTok) gerando rascunho de publicação.
