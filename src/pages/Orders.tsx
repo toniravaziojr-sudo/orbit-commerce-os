@@ -87,6 +87,7 @@ export default function Orders() {
     endDate,
     dateField,
     firstSaleOnly,
+    channel: channelFilter,
   });
 
   if (error) {
