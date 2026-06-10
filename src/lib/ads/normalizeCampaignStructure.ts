@@ -217,7 +217,8 @@ function fromCanonical(cs: any): CampaignStructure {
       }))
     : [];
 
-  return { campaign, ad_sets, ads, is_structured_campaign: true, source: "canonical" };
+  const sv: 1 | 2 = (cs?.schema_version === 2 ? 2 : 1) as 1 | 2;
+  return { schema_version: sv, campaign, ad_sets, ads, is_structured_campaign: true, source: "canonical" };
 }
 
 // -----------------------------------------------------------------------------
