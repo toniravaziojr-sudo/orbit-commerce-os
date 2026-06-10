@@ -352,17 +352,31 @@ const STRATEGIST_TOOLS = [
                 placements: { type: "string", description: "Posicionamentos (ex: Feed, Stories, Reels, Advantage+)" },
                 adsets: {
                   type: "array",
-                  description: "OBRIGATÓRIO: Lista dos conjuntos de anúncios desta campanha. TOF deve ter ≥2 conjuntos com públicos distintos. Testes devem ter 1 conjunto por anúncio (ABO). BOF deve ter ≥2 conjuntos segmentados.",
+                  description: "OBRIGATÓRIO: Lista dos conjuntos de anúncios desta campanha. TOF ≥2 conjuntos com públicos distintos; Testes 1 conjunto por anúncio (ABO); BOF ≥2 conjuntos segmentados. Cada conjunto DEVE vir COMPLETO (público, região, idade, gênero, evento de conversão, meta de otimização, posicionamentos, orçamento). Se algum campo obrigatório for desconhecido, use o valor literal 'requires_user_input' em vez de inventar.",
                   items: {
                     type: "object",
                     properties: {
                       adset_name: { type: "string", description: "Nome do conjunto (ex: CJ1 - Broad | TOF)" },
                       audience_type: { type: "string", enum: ["broad", "interest", "lookalike", "custom", "retargeting"], description: "Tipo de audiência deste conjunto" },
-                      audience_description: { type: "string", description: "Descrição do público deste conjunto (ex: Público amplo Homens 30-65 BR, LAL 1% compradores 180d, Visitantes 14d)" },
+                      audience_description: { type: "string", description: "Descrição textual do público deste conjunto" },
+                      // --- Targeting estruturado por conjunto (obrigatório no contrato canônico v2) ---
+                      location: { type: "string", description: "Região/país do conjunto (ex.: 'BR', 'São Paulo, BR'). Default seguro: BR." },
+                      age_min: { type: "number", description: "Idade mínima. Default: 18." },
+                      age_max: { type: "number", description: "Idade máxima. Default: 65." },
+                      gender: { type: "string", enum: ["Todos", "Masculino", "Feminino"], description: "Gênero alvo. Default: Todos." },
+                      placements: { type: "array", items: { type: "string" }, description: "Posicionamentos suportados. Default seguro: ['advantage_plus']." },
+                      // --- Otimização / conversão (obrigatórios) ---
+                      optimization_goal: { type: "string", enum: ["OFFSITE_CONVERSIONS","LINK_CLICKS","IMPRESSIONS","REACH","LANDING_PAGE_VIEWS","VALUE","LEAD_GENERATION","QUALITY_LEAD","ENGAGED_USERS"], description: "Meta de otimização do conjunto. OBRIGATÓRIO." },
+                      conversion_event: { type: "string", description: "Evento de conversão (ex.: PURCHASE). OBRIGATÓRIO para vendas/leads. Se o pixel/evento não estiver confirmado, use literal 'requires_user_input'." },
+                      conversion_location: { type: "string", enum: ["Site","Site e App","App","Site e Loja Física","Site e ligações"], description: "Local da conversão. Default: Site." },
                       budget_brl: { type: "number", description: "Orçamento diário deste conjunto em R$ (ABO) — obrigatório em campanhas de teste; opcional em CBO" },
                       ads_count: { type: "number", description: "Número de anúncios neste conjunto" },
                     },
-                    required: ["adset_name", "audience_type", "audience_description", "ads_count"],
+                    required: [
+                      "adset_name", "audience_type", "audience_description", "ads_count",
+                      "location", "age_min", "age_max", "gender", "placements",
+                      "optimization_goal", "conversion_event", "conversion_location",
+                    ],
                   },
                 },
               },

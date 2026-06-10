@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { isTwoStepAction, getTwoStepStage, useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { useProductCommercialFit } from "@/hooks/useProductCommercialFit";
+import { usePlatformCapability } from "@/hooks/usePlatformCapability";
 import { fitLevelLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 import {
   formatBudgetBRL,
@@ -46,6 +47,9 @@ import {
   type AdSetNode,
   type CampaignNode,
 } from "@/lib/ads/normalizeCampaignStructure";
+import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleteness";
+import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
+import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { formatDateTimeBR } from "@/lib/date-format";
 
@@ -240,17 +244,42 @@ export function StructuredProposalModal({
   const fitBadge = fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
   const approveBlockedByFit = !!fitData?.fit.soft_block;
 
+  // ---------- Gates: completude estrutural + compatibilidade da plataforma ----------
+  const platformKey = (structure.campaign.platform || action.channel || "meta").toLowerCase();
+  const { data: capability } = usePlatformCapability(isStrategyStage ? platformKey : null);
+
+  const completeness = useMemo(
+    () => (isStrategyStage ? runStructureCompletenessGate(structure) : { passed: true, blockers: [], warnings: [], summary: null }),
+    [isStrategyStage, structure],
+  );
+  const compatibility = useMemo(
+    () => (isStrategyStage ? runPlatformCompatibilityGate(structure, capability ?? null) : { passed: true, blockers: [], warnings: [], summary: null }),
+    [isStrategyStage, structure, capability],
+  );
+
+  const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers];
+  const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings];
+  const approveBlockedByGates = isStrategyStage && allBlockers.length > 0;
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates;
+
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
+    if (approveBlocked) return;
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
 
   const approveLabel = isStrategyStage
-    ? approveBlockedByFit
+    ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
     : "Aprovar";
+
+  const approveBlockedReason = approveBlockedByFit
+    ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+    : approveBlockedByGates
+      ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+      : null;
 
   return (
     <>
@@ -322,6 +351,8 @@ export function StructuredProposalModal({
                     fitMessage={fitData?.fit.user_message || null}
                     fitLabel={fitBadge?.label || null}
                     approveBlockedByFit={approveBlockedByFit}
+                    blockers={allBlockers}
+                    warnings={allWarnings}
                   />
                 )}
                 {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
@@ -338,34 +369,43 @@ export function StructuredProposalModal({
             </ScrollArea>
           </div>
 
-          <div className="border-t border-border/30 px-5 py-3 flex items-center gap-2 shrink-0 bg-background">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onReject(action.id)}
-              disabled={!!rejectingId || isApproving}
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              <X className="h-3.5 w-3.5" />
-              Recusar proposta
-            </Button>
-            <div className="flex-1" />
-            <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
-              <MessageSquare className="h-3.5 w-3.5" />
-              Ajustar proposta
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApprove}
-              disabled={isApproving || !!rejectingId || approveBlockedByFit}
-              title={approveBlockedByFit ? fitData?.fit.user_message || "Bloqueado por adequação" : undefined}
-            >
-              {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {approveLabel}
-            </Button>
+          <div className="border-t border-border/30 px-5 py-3 flex flex-col gap-2 shrink-0 bg-background">
+            {approveBlockedReason && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{approveBlockedReason}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onReject(action.id)}
+                disabled={!!rejectingId || isApproving}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <X className="h-3.5 w-3.5" />
+                Recusar proposta
+              </Button>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
+                <MessageSquare className="h-3.5 w-3.5" />
+                Ajustar proposta
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleApprove}
+                disabled={isApproving || !!rejectingId || approveBlocked}
+                title={approveBlockedReason || undefined}
+              >
+                {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {approveLabel}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
 
       {isStrategyStage && (
         <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} />
@@ -387,6 +427,8 @@ function OverviewSection({
   fitMessage,
   fitLabel,
   approveBlockedByFit,
+  blockers,
+  warnings,
 }: {
   action: PendingAction;
   campaign: CampaignNode;
@@ -396,6 +438,8 @@ function OverviewSection({
   fitMessage: string | null;
   fitLabel: string | null;
   approveBlockedByFit: boolean;
+  blockers: GateIssue[];
+  warnings: GateIssue[];
 }) {
   const reasoning = action.reasoning || campaign.rationale || null;
   return (
@@ -422,6 +466,36 @@ function OverviewSection({
           <Metric label="Anúncios" value={String(adsCount)} />
         </div>
       </Block>
+
+      {(blockers.length > 0 || warnings.length > 0) && (
+        <Block
+          title={blockers.length > 0 ? `Validações — ${blockers.length} bloqueio(s) pendente(s)` : "Validações"}
+          icon={blockers.length > 0
+            ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+            : <Target className="h-3.5 w-3.5 text-emerald-600" />}
+        >
+          {blockers.length > 0 && (
+            <div className="space-y-1.5">
+              {blockers.map((b, i) => (
+                <div key={`b-${i}`} className="flex items-start gap-2 text-xs">
+                  <Badge variant="destructive" className="text-[10px] shrink-0">{b.node}</Badge>
+                  <span className="text-rose-700 dark:text-rose-300">{b.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {warnings.map((w, i) => (
+                <div key={`w-${i}`} className="flex items-start gap-2 text-xs">
+                  <Badge variant="outline" className="text-[10px] shrink-0">{w.node}</Badge>
+                  <span className="text-muted-foreground">{w.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Block>
+      )}
 
       {fitMessage && (
         <Block
