@@ -50,6 +50,7 @@ import { MetaPixelSection } from "./meta/MetaPixelSection";
 import { MetaConversionsApiSection } from "./meta/MetaConversionsApiSection";
 import { MetaProductFeedsSection } from "./meta/MetaProductFeedsSection";
 import { MetaWhatsAppRegistrationSection } from "./meta/MetaWhatsAppRegistrationSection";
+import { MetaAdsIdentitySection } from "./meta/MetaAdsIdentitySection";
 
 // Icon map for catalog integration icons
 const ICON_MAP: Record<string, React.ReactNode> = {
