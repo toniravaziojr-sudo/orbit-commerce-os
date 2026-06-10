@@ -285,7 +285,7 @@ export function AdsOverviewTab({
       </Card>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {summaryCards.map(card => (
           <Card key={card.title} title={card.hint}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
