@@ -28,6 +28,7 @@ type: feature
 
 7. **Sub-abas de marketplace exibem botão "Ver detalhes no <marketplace>"** que leva para `/marketplaces/{nome}`. Nunca duplicar a gestão (anúncios, listings, sync) que já existe lá.
 8. **Gestor de Tráfego (`/ads`) — escopo declarado:** considera **exclusivamente mídia paga** (Meta + Google + TikTok Ads). Receita geral da loja virtual, marketplaces e canais orgânicos **não** entram. A aba Overview exibe lado a lado **"Receita Atribuída (Ads)"** (pixels) e **"Receita Real de Ads (pagos)"** (pedidos efetivados × atribuição last-click por `fbclid`/`gclid`/`ttclid` ou `utm_medium` paid em `order_attribution`), com **ROAS Atribuído** e **ROAS Real (Ads)** separados. Proibido reintroduzir card de "Receita Real Loja Virtual" — receita geral da loja é exclusiva do Dashboard.
+9. **Alerta de cobertura de rastreio (Gestor de Tráfego):** quando houver investimento no período e a cobertura `pedidos_pagos_com_atribuicao_ads / total_pedidos_pagos < 50%`, o Overview DEVE exibir card de aviso amarelo explicando que ROAS Real está subestimado por perda de `fbclid`/`gclid`/`ttclid` e instruindo o lojista a forçar UTM (`utm_source`, `utm_medium=cpc`, `utm_campaign`) em todas as campanhas. ROAS Atribuído ≠ ROAS Real **não é bug** — é janela da plataforma (até 7d clique + 1d view-through) vs caixa auditável. Proibido "corrigir" igualando os dois.
 
 ## Documento oficial
 - `docs/especificacoes/sistema/central-comando.md` §1.0 (estrutura, visibilidade, fonte de cada métrica)
