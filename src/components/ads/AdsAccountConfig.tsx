@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
+import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
 
 interface AdAccount {
   id: string;
@@ -96,6 +97,7 @@ function AccountConfigCard({
   const [showTemplate, setShowTemplate] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
+  const [showActivationDialog, setShowActivationDialog] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -168,12 +170,21 @@ function AccountConfigCard({
       setShowDeactivateWarning(true);
       return;
     }
+    if (enabled && !isAIEnabled) {
+      // Onda E: abrir diálogo para o usuário escolher entre Modo Piloto e Modo Piloto Inicial.
+      setShowActivationDialog(true);
+      return;
+    }
     onToggleAI(accountId, enabled);
   };
 
   const confirmDeactivate = () => {
     setShowDeactivateWarning(false);
     onToggleAI(accountId, false);
+  };
+
+  const confirmActivate = async () => {
+    onToggleAI(accountId, true);
   };
 
   const killSwitchActive = config?.kill_switch || false;
@@ -234,6 +245,9 @@ function AccountConfigCard({
       <CardContent className="pt-0 space-y-5">
         {channel === "meta" && (
           <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName || accountId} />
+        )}
+        {channel === "meta" && isAIEnabled && (
+          <AdsAIManualAnalysisButton platform="meta" adAccountId={accountId} />
         )}
         {/* Fase C.4 — Execução automática diária (por conta) */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
@@ -578,6 +592,14 @@ function AccountConfigCard({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <AdsAIActivationDialog
+          open={showActivationDialog}
+          onOpenChange={setShowActivationDialog}
+          onConfirmActivate={confirmActivate}
+          platform={channel}
+          adAccountId={accountId}
+        />
       </CardContent>
     </Card>
   );

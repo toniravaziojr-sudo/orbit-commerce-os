@@ -636,3 +636,16 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
     - **geração de criativo só ocorre depois da aprovação da estratégia** pelo usuário, mantendo o fluxo two_step_v1.
   - **Comportamento conjunto com os gates:** com o bloco preenchido, propostas Meta deixam de exibir "Pendente · Obrigatório" para campos cobertos pela configuração. Sem o bloco preenchido, o gate de estratégia ainda libera a aprovação (pixel/evento viram aviso), mas o gate de publicação (a ser ativado em onda futura) exigirá os IDs reais de página, Instagram e pixel.
 - Detalhe técnico em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Configuração de Criação Meta — Onda D") e baseline em `docs/especificacoes/marketing/plataformas-baseline.md`.
+
+### Gestor de Tráfego IA — Ativação por modos e análise inicial (Onda E, rev 2026-06-10)
+
+- `/ads` → ao **ligar o switch da IA** de uma conta Meta pela primeira vez, abre um diálogo com duas opções:
+  - **Modo Piloto:** ativa a IA e segue o fluxo normal. Não chama IA no momento da ativação. Não cria execução de análise.
+  - **Modo Piloto Inicial (Recomendado):** ativa a IA e roda uma análise estratégica inicial da conta. Avalia configurações, orçamento, ROI, diretrizes e campanhas atuais. Cria propostas na fila "Aguardando Ação". Não publica campanha, não gera criativo final automaticamente.
+- `/ads` → no card da conta Meta com IA ativa, novo bloco **"Análise inicial estratégica"** com botão **"Rodar análise inicial agora"**.
+  - Exige confirmação explícita antes de executar.
+  - Bloqueia execução se já existir análise em andamento para o mesmo escopo.
+  - Se a última análise foi concluída há menos de 24h, abre confirmação extra para evitar consumo desnecessário de IA.
+  - Mostra data/hora da última análise concluída.
+- Histórico das análises é persistido em tabela própria (`ads_ai_analysis_runs`) para auditoria, com snapshot do contexto usado, diagnóstico, estratégia, limitações e IDs das propostas criadas.
+- Detalhe em `docs/especificacoes/marketing/gestor-trafego.md` seção "Onda E — Modo Piloto vs Modo Piloto Inicial".
