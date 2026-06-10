@@ -344,8 +344,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
       primary_text: pickStr(preview?.copy_text, data?.copy_text, preview?.primary_text, data?.primary_text),
       headline: pickStr(preview?.headline, data?.headline),
       description: pickStr(preview?.description, data?.description),
-      cta: pickStr(preview?.cta, preview?.cta_type, data?.cta_type),
-      destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url),
+      // Criativo herda link/CTA legados que vinham no topo do payload
+      cta: pickStr(preview?.cta, preview?.cta_type, data?.cta_type) || legacyTopCta,
+      destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url) || legacyTopUrl,
+      tracking_params: legacyTopTracking,
       creative_prompt: pickStr(brief?.prompt, data?.creative_prompt),
       creative_format: pickStr(brief?.format, data?.creative_format_suggested, data?.creative_format),
       alternative_formats: asStringArray(brief?.alternative_formats),
