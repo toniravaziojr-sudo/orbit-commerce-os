@@ -992,16 +992,15 @@ Deno.serve(async (req) => {
     }
 
 
-    // Get fiscal settings for default provider
+    // Get fiscal settings (emitente) — transportadora vem sempre do pedido/integração, não há "padrão".
     const { data: fiscalSettings } = await supabase
       .from('fiscal_settings')
-      .select('default_shipping_provider, auto_update_order_status, razao_social, nome_fantasia, cnpj, telefone, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_municipio, endereco_uf')
+      .select('auto_update_order_status, razao_social, nome_fantasia, cnpj, telefone, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_municipio, endereco_uf')
       .eq('tenant_id', tenantId)
       .single();
 
-    // Determine provider
-    const provider = provider_override || 
-                     fiscalSettings?.default_shipping_provider || 
+    // Determine provider: override explícito → transportadora do pedido → fallback Correios.
+    const provider = provider_override ||
                      order.shipping_carrier?.toLowerCase() ||
                      'correios';
 

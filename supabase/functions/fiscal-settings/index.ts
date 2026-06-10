@@ -2,6 +2,10 @@
 // FISCAL SETTINGS - CRUD das Configurações Fiscais
 // GET: Retorna config do tenant (token mascarado)
 // POST: Salva/atualiza configuração
+// rev 2026-06-10c — força redeploy após limpeza de campos legados
+//                   (cfop_intrastadual/cfop_interestadual removidos do schema
+//                   em 2026-05-25; default_shipping_provider deixou de ser
+//                   ofertado pela UI em 2026-06-10).
 // =============================================
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
