@@ -204,7 +204,7 @@ async function processTenanDrafts(
   // e disparamos fiscal-emit se a configuração de auto-emit casar com o status atual.
   const ordersWithExistingDraft = paidOrders.filter((o: any) => ordersWithInvoice.has(o.id));
   if (ordersWithExistingDraft.length > 0 && isFiscalConfigured && fiscalSettings.emissao_automatica === true) {
-    const emitTriggerStatus = (fiscalSettings.emitir_apos_status || 'ready_to_invoice') as string;
+    // Gatilho único: dispara apenas quando o pedido está em 'ready_to_invoice'.
     const existingDraftIds = ordersWithExistingDraft.map((o: any) => o.id);
     const { data: draftInvoices } = await supabase
       .from('fiscal_invoices')
@@ -217,11 +217,7 @@ async function processTenanDrafts(
       const order = ordersWithExistingDraft.find((o: any) => o.id === inv.order_id);
       if (!order || !inv.numero || inv.numero <= 0) continue;
       const orderStatus = String(order.status || '');
-      const statusMatches =
-        emitTriggerStatus === 'paid'
-          ? (orderStatus === 'paid' || orderStatus === 'ready_to_invoice')
-          : (orderStatus === emitTriggerStatus);
-      if (!statusMatches) continue;
+      if (orderStatus !== 'ready_to_invoice') continue;
       try {
         const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
         fetch(emitUrl, {
