@@ -93,7 +93,7 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
   );
 }
 
-export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: DashboardMetricsGridProps) {
+export function DashboardMetricsGrid({ metrics, isLoading, trendLabel, hideAds = false, showSourceBadges = false }: DashboardMetricsGridProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -131,6 +131,10 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   // Format ROAS as "Xx" (e.g., "4.5x")
   const formatRoas = (value: number) => value > 0 ? `${value.toFixed(2)}x` : "0x";
 
+  const srcRevenue = showSourceBadges ? "Caixa real" : undefined;
+  const srcAds = showSourceBadges ? "Meta + Google + TikTok Ads" : undefined;
+  const srcAdsPending = showSourceBadges ? "Em breve" : undefined;
+
   return (
     <div className="space-y-4">
       {/* Bloco 1: Desempenho Geral (Faturamento + Marketing mesclados) */}
@@ -143,13 +147,22 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-3 flex gap-3 flex-wrap">
-          <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
-          <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
-          <MetricCard label="Investido em Anúncios" value={adSpend > 0 ? formatCurrency(adSpend) : "R$ 0,00"} icon={Megaphone} trend={adSpendTrend} trendLabel={trendLabel} variant="primary" />
-          <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatRoas(roasToday)}` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
+          <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" source={srcRevenue} />
+          <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" source={srcRevenue} />
+          {hideAds ? (
+            <MetricCard label="Investido em Anúncios" value="Em breve" icon={Megaphone} variant="default" source={srcAdsPending} />
+          ) : (
+            <MetricCard label="Investido em Anúncios" value={adSpend > 0 ? formatCurrency(adSpend) : "R$ 0,00"} icon={Megaphone} trend={adSpendTrend} trendLabel={trendLabel} variant="primary" source={srcAds} />
+          )}
+          {hideAds ? (
+            <MetricCard label="Retorno Real (ROI)" value="—" icon={TrendingUp} variant="default" source={srcAdsPending} />
+          ) : (
+            <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatRoas(roasToday)}` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} source={srcAds} />
+          )}
           <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
         </CardContent>
       </Card>
+
 
       {/* Bloco 2: Pedidos & Financeiro (com Total de Pedidos no início) */}
       <Card>
