@@ -1690,7 +1690,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         </div>
 
         {/* Frente 4 — Bloco do Brief (Etapa 1) */}
-        {isTwoStep && twoStepStage === "strategy" && creativeBrief && (
+        {isTwoStep && twoStepStage === "strategy" && creativeBrief && !isStructuredCampaign && (
           <div className="mx-3 mb-2 p-2.5 rounded-md border border-primary/20 bg-primary/5 text-xs space-y-1">
             <div className="flex items-center gap-1.5 font-semibold text-primary">
               <Sparkles className="h-3 w-3" />

@@ -1,18 +1,11 @@
 // =============================================================================
 // StructuredProposalModal — Visualização completa de proposta da IA
 //
-// Modal grande com árvore lateral (desktop) / lista empilhada (mobile),
-// representando a hierarquia real de mídia paga:
-//
-//   Visão Geral · Campanha · Conjunto(s) · Anúncio(s) · Validações · Histórico
-//
+// Apenas 4 abas: Visão Geral · Campanha · Conjunto(s) · Anúncio(s).
 // Rodapé fixo: Recusar · Ajustar · Aprovar estratégia e gerar criativos.
 //
 // REGRAS (anti-processamento):
-//  - Abrir o modal: 0 chamada de IA.
-//  - Navegar entre nós: 0 chamada de IA.
-//  - Abrir editor: 0 chamada de IA.
-//  - Recusar: 0 chamada de IA.
+//  - Abrir / navegar / ajustar / recusar: 0 chamada de IA.
 // =============================================================================
 
 import { useMemo, useState } from "react";
@@ -29,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertTriangle,
   Bot,
-  Check,
   ChevronRight,
   Eye,
   ImageIcon,
@@ -37,7 +29,6 @@ import {
   Loader2,
   Megaphone,
   MessageSquare,
-  ShieldCheck,
   Sparkles,
   Target,
   Users,
@@ -62,9 +53,7 @@ type NodeId =
   | "overview"
   | "campaign"
   | `adset:${number}`
-  | `ad:${number}`
-  | "validations"
-  | "history";
+  | `ad:${number}`;
 
 interface Props {
   action: PendingAction;
@@ -72,10 +61,131 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onApprove: (id: string) => void;
-  onReject: (id: string) => void; // abre o diálogo de recusa do parent
+  onReject: (id: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
 }
+
+/* ---------------------------------------------------------------------------
+   Tradutores PT-BR (sem chamadas externas)
+   --------------------------------------------------------------------------- */
+
+const DICT: Record<string, Record<string, string>> = {
+  objective: {
+    sales: "Vendas",
+    conversions: "Conversões",
+    traffic: "Tráfego",
+    awareness: "Reconhecimento de marca",
+    engagement: "Engajamento",
+    leads: "Geração de leads",
+    video_views: "Visualizações de vídeo",
+    messages: "Mensagens",
+    app_promotion: "Promoção de aplicativo",
+  },
+  budget_type: { daily: "Diário", lifetime: "Total da campanha" },
+  planned_status: { PAUSED: "Pausada", ACTIVE: "Ativa", ARCHIVED: "Arquivada" },
+  platform: {
+    meta: "Meta (Facebook e Instagram)",
+    facebook: "Facebook",
+    instagram: "Instagram",
+    google: "Google",
+    google_ads: "Google Ads",
+    tiktok: "TikTok",
+  },
+  cta: {
+    SHOP_NOW: "Comprar agora",
+    LEARN_MORE: "Saiba mais",
+    SIGN_UP: "Cadastre-se",
+    GET_OFFER: "Pegar oferta",
+    SEND_MESSAGE: "Enviar mensagem",
+    CONTACT_US: "Fale conosco",
+    DOWNLOAD: "Baixar",
+    SUBSCRIBE: "Inscrever-se",
+    APPLY_NOW: "Inscreva-se agora",
+    GET_QUOTE: "Solicitar orçamento",
+    ORDER_NOW: "Pedir agora",
+    BOOK_NOW: "Reservar agora",
+    BOOK_TRAVEL: "Reservar viagem",
+    DONATE_NOW: "Doar agora",
+    WATCH_MORE: "Assistir mais",
+    SEE_MENU: "Ver cardápio",
+    REQUEST_TIME: "Agendar horário",
+  },
+  buying_type: { AUCTION: "Leilão", RESERVED: "Reserva" },
+  funnel: {
+    tof: "Topo do funil (descoberta)",
+    mof: "Meio do funil (consideração)",
+    bof: "Fundo do funil (conversão)",
+    top: "Topo do funil (descoberta)",
+    middle: "Meio do funil (consideração)",
+    bottom: "Fundo do funil (conversão)",
+    prospecting: "Prospecção",
+    retargeting: "Remarketing",
+  },
+  audience_type: {
+    cold: "Público frio",
+    warm: "Público morno",
+    hot: "Público quente",
+    lookalike: "Públicos semelhantes",
+    custom: "Público personalizado",
+    interest: "Por interesses",
+    broad: "Público amplo",
+    retargeting: "Remarketing",
+  },
+  optimization_goal: {
+    OFFSITE_CONVERSIONS: "Conversões",
+    LINK_CLICKS: "Cliques no link",
+    IMPRESSIONS: "Impressões",
+    REACH: "Alcance",
+    LANDING_PAGE_VIEWS: "Visualizações da página",
+    VALUE: "Valor de compra",
+    THRUPLAY: "Reproduções completas",
+    POST_ENGAGEMENT: "Engajamento",
+    LEAD_GENERATION: "Geração de leads",
+  },
+  conversion_event: {
+    PURCHASE: "Compra",
+    ADD_TO_CART: "Adicionar ao carrinho",
+    INITIATE_CHECKOUT: "Iniciar checkout",
+    LEAD: "Lead",
+    COMPLETE_REGISTRATION: "Cadastro concluído",
+    VIEW_CONTENT: "Visualização de conteúdo",
+    ADD_PAYMENT_INFO: "Adicionar forma de pagamento",
+  },
+  placement: {
+    facebook_feed: "Feed do Facebook",
+    instagram_feed: "Feed do Instagram",
+    instagram_stories: "Stories do Instagram",
+    instagram_reels: "Reels do Instagram",
+    facebook_stories: "Stories do Facebook",
+    facebook_reels: "Reels do Facebook",
+    messenger: "Messenger",
+    audience_network: "Audience Network",
+    marketplace: "Marketplace",
+  },
+};
+
+function tr(group: string, value: string | null | undefined): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const key = String(value);
+  return DICT[group]?.[key] ?? DICT[group]?.[key.toUpperCase()] ?? DICT[group]?.[key.toLowerCase()] ?? key;
+}
+
+function translateCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
+  if (isStrategyStage) return "Aguardando aprovação da estratégia";
+  switch (status) {
+    case "pending_strategy_approval":
+      return "Aguardando aprovação da estratégia";
+    case "generating":
+      return "Gerando…";
+    case "ready":
+      return "Pronto";
+    default:
+      return "Não informado";
+  }
+}
+
+/* --------------------------------------------------------------------------- */
 
 export function StructuredProposalModal({
   action,
@@ -96,7 +206,6 @@ export function StructuredProposalModal({
   const [editorOpen, setEditorOpen] = useState(false);
   const [selected, setSelected] = useState<NodeId>("overview");
 
-  // Estrutura canônica (legacy ou novo)
   const structure = useMemo(
     () =>
       normalizeCampaignStructure(data, {
@@ -106,7 +215,6 @@ export function StructuredProposalModal({
     [data, action.action_type],
   );
 
-  // Merge ad_sets vindos do payload da campanha + ad_sets vindos como ações filhas
   const adSetsFromChildren: AdSetNode[] = (childActions || [])
     .filter((c) => c.action_type === "create_adset")
     .map((c, i) => {
@@ -122,7 +230,6 @@ export function StructuredProposalModal({
     structure.ad_sets.length > 0 ? structure.ad_sets : adSetsFromChildren;
   const ads: AdNode[] = structure.ads;
 
-  // Fit Gate (somente para Etapa 1 do two_step)
   const productId = (data as any)?.product_id || (data as any)?.preview?.product_id || null;
   const funnel = (data as any)?.funnel_stage || (data as any)?.preview?.funnel_stage || null;
   const { data: fitData } = useProductCommercialFit(
@@ -133,14 +240,10 @@ export function StructuredProposalModal({
   const fitBadge = fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
   const approveBlockedByFit = !!fitData?.fit.soft_block;
 
-  // Aprovação
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
-    if (isStrategyStage) {
-      approveStrategy.mutate(action.id);
-    } else {
-      onApprove(action.id);
-    }
+    if (isStrategyStage) approveStrategy.mutate(action.id);
+    else onApprove(action.id);
   };
 
   const approveLabel = isStrategyStage
@@ -175,36 +278,22 @@ export function StructuredProposalModal({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Corpo: árvore lateral + conteúdo */}
           <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-            {/* Árvore lateral (desktop) / lista empilhada compacta (mobile) */}
             <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
               <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
-                <TreeItem
-                  icon={<Eye className="h-3.5 w-3.5" />}
-                  label="Visão Geral"
-                  active={selected === "overview"}
-                  onClick={() => setSelected("overview")}
-                />
-                <TreeItem
-                  icon={<Megaphone className="h-3.5 w-3.5" />}
-                  label="Campanha"
-                  active={selected === "campaign"}
-                  onClick={() => setSelected("campaign")}
-                />
+                <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
+                  active={selected === "overview"} onClick={() => setSelected("overview")} />
+                <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
+                  active={selected === "campaign"} onClick={() => setSelected("campaign")} />
                 <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
                 {adSets.length === 0 ? (
                   <TreeEmpty label="Nenhum conjunto" />
                 ) : (
                   adSets.map((a, i) => (
-                    <TreeItem
-                      key={`adset-${i}`}
-                      indent
-                      icon={<Layers className="h-3.5 w-3.5" />}
+                    <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
                       label={a.name || `Conjunto ${i + 1}`}
                       active={selected === `adset:${i}`}
-                      onClick={() => setSelected(`adset:${i}`)}
-                    />
+                      onClick={() => setSelected(`adset:${i}`)} />
                   ))
                 )}
                 <TreeGroupLabel label={`Anúncios (${ads.length})`} />
@@ -212,42 +301,26 @@ export function StructuredProposalModal({
                   <TreeEmpty label="Nenhum anúncio" />
                 ) : (
                   ads.map((ad, i) => (
-                    <TreeItem
-                      key={`ad-${i}`}
-                      indent
-                      icon={<ImageIcon className="h-3.5 w-3.5" />}
+                    <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
                       label={ad.name || `Anúncio ${i + 1}`}
                       active={selected === `ad:${i}`}
-                      onClick={() => setSelected(`ad:${i}`)}
-                    />
+                      onClick={() => setSelected(`ad:${i}`)} />
                   ))
                 )}
-                <TreeItem
-                  icon={<ShieldCheck className="h-3.5 w-3.5" />}
-                  label="Validações"
-                  active={selected === "validations"}
-                  onClick={() => setSelected("validations")}
-                />
-                <TreeItem
-                  icon={<Bot className="h-3.5 w-3.5" />}
-                  label="Histórico"
-                  active={selected === "history"}
-                  onClick={() => setSelected("history")}
-                />
               </nav>
             </aside>
 
-            {/* Conteúdo do nó selecionado */}
             <ScrollArea className="flex-1 min-h-0">
               <div className="px-5 py-4">
                 {selected === "overview" && (
                   <OverviewSection
                     action={action}
                     campaign={structure.campaign}
-                    adSetsCount={adSets.length}
+                    adSets={adSets}
                     adsCount={ads.length}
                     isStrategyStage={isStrategyStage}
                     fitMessage={fitData?.fit.user_message || null}
+                    fitLabel={fitBadge?.label || null}
                     approveBlockedByFit={approveBlockedByFit}
                   />
                 )}
@@ -261,36 +334,10 @@ export function StructuredProposalModal({
                     isStrategyStage={isStrategyStage}
                   />
                 )}
-                {selected === "validations" && (
-                  <ValidationsSection
-                    fitMessage={fitData?.fit.user_message || null}
-                    fitLabel={fitBadge?.label || null}
-                    suggestedActions={fitData?.fit.suggested_actions || []}
-                    approveBlockedByFit={approveBlockedByFit}
-                  />
-                )}
-                {selected === "history" && <HistorySection action={action} />}
-
-                {/* Detalhes técnicos (recolhido) — disponível em qualquer nó */}
-                <details className="mt-6 rounded-md border border-border/30">
-                  <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-                    Detalhes técnicos
-                  </summary>
-                  <div className="px-3 pb-3 pt-1 text-[11px] text-muted-foreground space-y-1 font-mono break-all">
-                    <div>action_type: {action.action_type}</div>
-                    <div>flow_version: {(data as any)?.flow_version || "—"}</div>
-                    <div>structure_source: {structure.source}</div>
-                    {productId && <div>product_id: {productId}</div>}
-                    {fitData?.fit.reason_codes && (
-                      <div>fit_reason_codes: {fitData.fit.reason_codes.join(", ")}</div>
-                    )}
-                  </div>
-                </details>
               </div>
             </ScrollArea>
           </div>
 
-          {/* Rodapé fixo: ações */}
           <div className="border-t border-border/30 px-5 py-3 flex items-center gap-2 shrink-0 bg-background">
             <Button
               variant="ghost"
@@ -303,12 +350,7 @@ export function StructuredProposalModal({
               Recusar proposta
             </Button>
             <div className="flex-1" />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditorOpen(true)}
-              disabled={isApproving || !!rejectingId}
-            >
+            <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
               <MessageSquare className="h-3.5 w-3.5" />
               Ajustar proposta
             </Button>
@@ -316,7 +358,7 @@ export function StructuredProposalModal({
               size="sm"
               onClick={handleApprove}
               disabled={isApproving || !!rejectingId || approveBlockedByFit}
-              title={approveBlockedByFit ? fitData?.fit.user_message || "Bloqueado pelo gate" : undefined}
+              title={approveBlockedByFit ? fitData?.fit.user_message || "Bloqueado por adequação" : undefined}
             >
               {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               {approveLabel}
@@ -325,7 +367,6 @@ export function StructuredProposalModal({
         </DialogContent>
       </Dialog>
 
-      {/* Editor estruturado (mesmo da Frente 4.3) */}
       {isStrategyStage && (
         <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} />
       )}
@@ -334,26 +375,29 @@ export function StructuredProposalModal({
 }
 
 /* ===========================================================================
-   Subseções
+   Seções
    =========================================================================== */
 
 function OverviewSection({
   action,
   campaign,
-  adSetsCount,
+  adSets,
   adsCount,
   isStrategyStage,
   fitMessage,
+  fitLabel,
   approveBlockedByFit,
 }: {
   action: PendingAction;
   campaign: CampaignNode;
-  adSetsCount: number;
+  adSets: AdSetNode[];
   adsCount: number;
   isStrategyStage: boolean;
   fitMessage: string | null;
+  fitLabel: string | null;
   approveBlockedByFit: boolean;
 }) {
+  const reasoning = action.reasoning || campaign.rationale || null;
   return (
     <div className="space-y-4">
       {isStrategyStage && (
@@ -363,18 +407,18 @@ function OverviewSection({
         </div>
       )}
 
-      {action.reasoning && (
-        <Block title="Resumo da recomendação" icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-            {action.reasoning}
-          </p>
-        </Block>
-      )}
+      <Block title="Por que a IA recomendou esta proposta" icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
+        {reasoning ? (
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{reasoning}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Sem racional registrado.</p>
+        )}
+      </Block>
 
-      <Block title="Estrutura da proposta" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
+      <Block title="Resumo da estrutura" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
         <div className="grid grid-cols-3 gap-2 text-xs">
           <Metric label="Campanha" value={campaign.name || "—"} />
-          <Metric label="Conjuntos" value={String(adSetsCount)} />
+          <Metric label="Conjuntos de anúncios" value={String(adSets.length)} />
           <Metric label="Anúncios" value={String(adsCount)} />
         </div>
       </Block>
@@ -382,14 +426,11 @@ function OverviewSection({
       {fitMessage && (
         <Block
           title="Adequação produto × público"
-          icon={
-            approveBlockedByFit ? (
-              <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
-            ) : (
-              <Target className="h-3.5 w-3.5 text-emerald-600" />
-            )
-          }
+          icon={approveBlockedByFit
+            ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+            : <Target className="h-3.5 w-3.5 text-emerald-600" />}
         >
+          {fitLabel && <p className="text-sm font-medium mb-1">{fitLabel}</p>}
           <p className="text-sm text-muted-foreground leading-relaxed">{fitMessage}</p>
         </Block>
       )}
@@ -403,18 +444,18 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
           <Detail label="Nome" value={campaign.name} />
-          <Detail label="Objetivo" value={campaign.objective} />
-          <Detail label="Canal/Plataforma" value={campaign.platform || channel} />
-          <Detail label="Tipo de orçamento" value={campaign.budget_type} />
+          <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
+          <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
+          <Detail label="Tipo de orçamento" value={tr("budget_type", campaign.budget_type)} />
           <Detail label="Orçamento diário" value={formatBudgetBRL(campaign.daily_budget_cents)} />
-          <Detail label="Status planejado" value={campaign.planned_status} />
-          <Detail label="Botão (CTA)" value={campaign.cta} />
-          <Detail label="Tipo de compra" value={campaign.buying_type} />
+          <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
+          <Detail label="Botão de ação" value={tr("cta", campaign.cta)} />
+          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
           <Detail label="Link de destino" value={campaign.destination_url} fullWidth />
         </DetailGrid>
       </Block>
       {campaign.rationale && (
-        <Block title="Racional da IA" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
         </Block>
       )}
@@ -424,23 +465,24 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
 
 function AdSetSection({ adSet }: { adSet: AdSetNode | null }) {
   if (!adSet) return <p className="text-sm text-muted-foreground">Conjunto não encontrado.</p>;
+  const placements = adSet.placements.map((p) => tr("placement", p) || p);
   return (
     <div className="space-y-4">
       <Block title={adSet.name || "Conjunto"} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
-          <Detail label="Funil" value={adSet.funnel_stage} />
-          <Detail label="Tipo de público" value={adSet.audience_type} />
+          <Detail label="Etapa do funil" value={tr("funnel", adSet.funnel_stage)} />
+          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} />
           <Detail label="Idade" value={adSet.age_range} />
           <Detail label="Gênero" value={adSet.gender} />
           <Detail label="Região" value={adSet.location} />
-          <Detail label="Otimização" value={adSet.optimization_goal} />
-          <Detail label="Evento de conversão" value={adSet.conversion_event} />
-          <Detail label="Posicionamentos" value={adSet.placements.length ? adSet.placements.join(", ") : null} />
+          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} />
+          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} />
+          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} />
           <Detail label="Orçamento" value={formatBudgetBRL(adSet.daily_budget_cents)} />
           {adSet.targeting_summary && <Detail label="Resumo de segmentação" value={adSet.targeting_summary} fullWidth />}
           {adSet.schedule && (adSet.schedule.start || adSet.schedule.end) && (
             <Detail
-              label="Agendamento"
+              label="Período de veiculação"
               value={`${adSet.schedule.start || "—"} até ${adSet.schedule.end || "—"}`}
               fullWidth
             />
@@ -477,7 +519,7 @@ function AdSetSection({ adSet }: { adSet: AdSetNode | null }) {
       )}
 
       {adSet.rationale && (
-        <Block title="Racional da IA" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <Block title="Por que este conjunto" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{adSet.rationale}</p>
         </Block>
       )}
@@ -492,11 +534,11 @@ function AdSection({ ad, isStrategyStage }: { ad: AdNode | null; isStrategyStage
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
-          <Detail label="Status do criativo" value={mapCreativeStatus(ad.creative_status, isStrategyStage)} />
-          <Detail label="Headline" value={ad.headline} fullWidth />
+          <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, isStrategyStage)} />
+          <Detail label="Título" value={ad.headline} fullWidth />
           <Detail label="Texto principal" value={ad.primary_text} fullWidth />
           <Detail label="Descrição" value={ad.description} fullWidth />
-          <Detail label="Botão (CTA)" value={ad.cta} />
+          <Detail label="Botão de ação" value={tr("cta", ad.cta)} />
           <Detail label="Formato" value={ad.creative_format} />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
@@ -541,89 +583,8 @@ function AdSection({ ad, isStrategyStage }: { ad: AdNode | null; isStrategyStage
       )}
 
       {ad.rationale && (
-        <Block title="Racional da IA" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <Block title="Por que este anúncio" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.rationale}</p>
-        </Block>
-      )}
-    </div>
-  );
-}
-
-function ValidationsSection({
-  fitMessage,
-  fitLabel,
-  suggestedActions,
-  approveBlockedByFit,
-}: {
-  fitMessage: string | null;
-  fitLabel: string | null;
-  suggestedActions: string[];
-  approveBlockedByFit: boolean;
-}) {
-  return (
-    <div className="space-y-4">
-      <Block title="Quality Gate" icon={<ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />}>
-        <p className="text-sm text-muted-foreground">
-          Aprovado — a proposta só chega aqui depois de passar pelas verificações de qualidade.
-        </p>
-      </Block>
-      <Block
-        title="Adequação produto × público"
-        icon={
-          approveBlockedByFit ? (
-            <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
-          ) : (
-            <Target className="h-3.5 w-3.5 text-emerald-600" />
-          )
-        }
-      >
-        {fitLabel && <p className="text-sm font-medium mb-1">{fitLabel}</p>}
-        {fitMessage ? (
-          <p className="text-sm text-muted-foreground leading-relaxed">{fitMessage}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sem alertas.</p>
-        )}
-        {suggestedActions.length > 0 && (
-          <ul className="mt-2 list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-            {suggestedActions.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-        )}
-      </Block>
-    </div>
-  );
-}
-
-function HistorySection({ action }: { action: PendingAction }) {
-  const data = action.action_data || {};
-  const version = (data as any)?.version || 1;
-  const parentId = (data as any)?.parent_action_id || null;
-  const supersededBy = (data as any)?.superseded_by_action_id || null;
-  const draft = (data as any)?.draft_patch || null;
-  const feedback = (data as any)?.user_feedback || (data as any)?.feedback_history || null;
-
-  return (
-    <div className="space-y-4">
-      <Block title={`Versão atual: v${version}`} icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
-        <DetailGrid>
-          <Detail label="Status" value={action.status} />
-          <Detail label="Versão anterior" value={parentId} />
-          <Detail label="Versão substituta" value={supersededBy} />
-        </DetailGrid>
-      </Block>
-      {draft && (
-        <Block title="Rascunho atual" icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />}>
-          <p className="text-xs text-muted-foreground">
-            Existe um rascunho salvo. Use "Ajustar proposta" para revisar e gerar uma nova versão.
-          </p>
-        </Block>
-      )}
-      {feedback && (
-        <Block title="Feedback registrado" icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />}>
-          <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-            {typeof feedback === "string" ? feedback : JSON.stringify(feedback, null, 2)}
-          </p>
         </Block>
       )}
     </div>
@@ -635,18 +596,8 @@ function HistorySection({ action }: { action: PendingAction }) {
    =========================================================================== */
 
 function TreeItem({
-  icon,
-  label,
-  active,
-  onClick,
-  indent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  indent?: boolean;
-}) {
+  icon, label, active, onClick, indent,
+}: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; indent?: boolean }) {
   return (
     <button
       type="button"
@@ -654,9 +605,7 @@ function TreeItem({
       className={cn(
         "shrink-0 md:w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors",
         indent && "md:pl-6",
-        active
-          ? "bg-primary/10 text-primary font-semibold"
-          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+        active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
       )}
     >
       {icon}
@@ -675,20 +624,10 @@ function TreeGroupLabel({ label }: { label: string }) {
 }
 
 function TreeEmpty({ label }: { label: string }) {
-  return (
-    <p className="hidden md:block text-[10px] text-muted-foreground/60 italic px-3 py-1">{label}</p>
-  );
+  return <p className="hidden md:block text-[10px] text-muted-foreground/60 italic px-3 py-1">{label}</p>;
 }
 
-function Block({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function Block({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
       <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2">
@@ -705,14 +644,8 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label,
-  value,
-  fullWidth,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  fullWidth?: boolean;
-}) {
+  label, value, fullWidth,
+}: { label: string; value: string | number | null | undefined; fullWidth?: boolean }) {
   const display = value === null || value === undefined || value === "" ? "—" : String(value);
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
@@ -729,18 +662,4 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-semibold truncate">{value}</p>
     </div>
   );
-}
-
-function mapCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
-  if (isStrategyStage) return "Aguardando aprovação da estratégia";
-  switch (status) {
-    case "pending_strategy_approval":
-      return "Aguardando aprovação da estratégia";
-    case "generating":
-      return "Gerando…";
-    case "ready":
-      return "Pronto";
-    default:
-      return "Não informado";
-  }
 }
