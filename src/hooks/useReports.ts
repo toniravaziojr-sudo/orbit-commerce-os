@@ -89,6 +89,14 @@ export interface ReportFilters {
   startDate: Date;
   endDate: Date;
   groupBy?: 'day' | 'week' | 'month';
+  /** Filtro de canal de venda — usado pelo Dashboard com sub-abas. */
+  channel?: 'all' | 'storefront' | 'mercadolivre' | 'shopee' | 'tiktok_shop';
+}
+
+function applyChannel<T extends { eq: (col: string, val: any) => T }>(query: T, channel?: ReportFilters['channel']): T {
+  if (!channel || channel === 'all') return query;
+  if (channel === 'storefront') return query.eq('sales_channel', 'storefront');
+  return query.eq('marketplace_source', channel);
 }
 
 // Sales Over Time Report
@@ -257,15 +265,18 @@ export function useSalesByProduct(filters: ReportFilters, limit = 20) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'product', tenantId, filters.startDate, filters.endDate, limit],
+    queryKey: ['reports', 'product', tenantId, filters.startDate, filters.endDate, filters.channel, limit],
     queryFn: async (): Promise<SalesByProductData[]> => {
       if (!tenantId) return [];
 
       // Get orders in date range
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error: ordersError } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('id')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
@@ -316,14 +327,17 @@ export function useSalesByPaymentMethod(filters: ReportFilters) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'payment-method', tenantId, filters.startDate, filters.endDate],
+    queryKey: ['reports', 'payment-method', tenantId, filters.startDate, filters.endDate, filters.channel],
     queryFn: async (): Promise<SalesByPaymentMethodData[]> => {
       if (!tenantId) return [];
 
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('payment_method, total')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('payment_method, total')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
@@ -577,14 +591,17 @@ export function useSalesByState(filters: ReportFilters) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'state', tenantId, filters.startDate, filters.endDate],
+    queryKey: ['reports', 'state', tenantId, filters.startDate, filters.endDate, filters.channel],
     queryFn: async (): Promise<SalesByStateData[]> => {
       if (!tenantId) return [];
 
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('shipping_state, total')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('shipping_state, total')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);
@@ -622,14 +639,17 @@ export function useSalesByCity(filters: ReportFilters) {
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['reports', 'city', tenantId, filters.startDate, filters.endDate],
+    queryKey: ['reports', 'city', tenantId, filters.startDate, filters.endDate, filters.channel],
     queryFn: async (): Promise<SalesByCityData[]> => {
       if (!tenantId) return [];
 
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('shipping_state, shipping_city, total')
-        .eq('tenant_id', tenantId)
+      const { data: orders, error } = await applyChannel(
+        supabase
+          .from('orders')
+          .select('shipping_state, shipping_city, total')
+          .eq('tenant_id', tenantId) as any,
+        filters.channel,
+      )
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'ready_to_invoice', 'shipped', 'delivered']);

@@ -28,7 +28,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 
 | # | Grupo | Item | Rota | Módulo (plan) | blockedFeature | ownerOnly | Observações |
 |---|-------|------|------|---------------|----------------|-----------|-------------|
-| 1 | Principal | Central de Comando | `/command-center` | central | — | — | Sempre visível. Abas: Dashboard, Execuções, Insights, Assistente, Agenda |
+| 1 | Principal | Central de Comando | `/command-center` | central | — | — | Sempre visível. Abas: Dashboard, Execuções, Insights, Assistente, Agenda. **Dashboard** abre em sub-abas por canal: Geral, Loja Virtual e (condicionais à conexão ativa) Mercado Livre, Shopee, TikTok Shop (v2.2 — 2026-06-09). |
 | 2 | Principal | ChatGPT | `/chatgpt` | central | `assistant` | — | Badge "Upgrade" se bloqueado |
 | 3 | E-commerce | Pedidos | `/orders` | ecommerce | — | — | — |
 | 4 | E-commerce | Checkout Abandonado | `/abandoned-checkouts` | ecommerce | — | — | — |
