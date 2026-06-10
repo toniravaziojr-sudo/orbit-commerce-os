@@ -583,6 +583,8 @@ function IntegrationConfigSection({ configKey }: { configKey: string }) {
       return <MetaConversionsApiSection />;
     case "product_feeds":
       return <MetaProductFeedsSection />;
+    case "ads_identity":
+      return <MetaAdsIdentitySection />;
     default:
       return (
         <p className="text-xs text-muted-foreground py-2">
