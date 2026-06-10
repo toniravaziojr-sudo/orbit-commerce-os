@@ -184,7 +184,6 @@ Deno.serve(async (req) => {
         email_nfe_body,
         auto_create_shipment,
         auto_update_order_status,
-        default_shipping_provider,
         default_sales_nature_id,
       } = body;
 
@@ -239,7 +238,10 @@ Deno.serve(async (req) => {
             ? 'lucro_presumido'
             : 'simples_nacional';
 
-      const settingsData = {
+      // Lista branca de colunas reais. Qualquer campo extra (legado, campo
+      // futuro ainda não migrado, lixo do payload) é silenciosamente descartado
+      // — nunca derruba o save.
+      const settingsDataRaw: Record<string, unknown> = {
         tenant_id: tenantId,
         razao_social,
         nome_fantasia,
@@ -263,50 +265,66 @@ Deno.serve(async (req) => {
         numero_nfe_atual: numero_nfe_atual || 1,
         provider: provider || 'focusnfe',
         provider_token: tokenToSave,
-        // Fiscal Produção Universal — nunca persistir 'homologacao' (constraint mem://constraints/fiscal-producao-universal)
+        // Fiscal Produção Universal — nunca persistir 'homologacao'
         ambiente: 'producao',
         emissao_automatica: emissao_automatica || false,
-        // Gatilho único de auto-emissão: 'ready_to_invoice'. Valor legado 'paid' foi
-        // removido da UI e é normalizado aqui para evitar regressão silenciosa.
+        // Gatilho único de auto-emissão: 'ready_to_invoice'.
         emitir_apos_status: 'ready_to_invoice',
         origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
         email: normalizedEmail,
         telefone: normalizedTelefone,
-        // Aba "Outros" — persistência de toggles e textos do e-mail/remessa/kits
         desmembrar_estrutura: desmembrar_estrutura ?? false,
-        enviar_email_nfe: enviar_email_nfe !== false, // default true
+        enviar_email_nfe: enviar_email_nfe !== false,
         email_nfe_subject: normalizeOptionalText(email_nfe_subject),
         email_nfe_body: normalizeOptionalText(email_nfe_body),
         auto_create_shipment: auto_create_shipment ?? false,
-        auto_update_order_status: auto_update_order_status !== false, // default true
-        default_shipping_provider: normalizeOptionalText(default_shipping_provider),
+        auto_update_order_status: auto_update_order_status !== false,
         default_sales_nature_id: default_sales_nature_id || null,
         is_configured,
       };
 
+      // Lê uma vez as colunas reais da tabela e filtra o payload.
+      const { data: colsRows } = await adminClient
+        .from('information_schema.columns' as any)
+        .select('column_name')
+        .eq('table_schema', 'public')
+        .eq('table_name', 'fiscal_settings');
+      const realColumns = new Set<string>(
+        (colsRows || []).map((r: any) => r.column_name as string),
+      );
+      const settingsData: Record<string, unknown> = {};
+      const droppedKeys: string[] = [];
+      for (const [k, v] of Object.entries(settingsDataRaw)) {
+        if (realColumns.size === 0 || realColumns.has(k)) {
+          settingsData[k] = v;
+        } else {
+          droppedKeys.push(k);
+        }
+      }
+      if (droppedKeys.length > 0) {
+        console.warn('[fiscal-settings] Dropping legacy/unknown columns from payload:', droppedKeys);
+      }
+
       let result;
       if (existing) {
-        // Update
         const { data, error } = await supabase
           .from('fiscal_settings')
           .update(settingsData)
           .eq('id', existing.id)
           .select()
           .single();
-        
         if (error) throw error;
         result = data;
       } else {
-        // Insert
         const { data, error } = await supabase
           .from('fiscal_settings')
           .insert(settingsData)
           .select()
           .single();
-        
         if (error) throw error;
         result = data;
       }
+
 
       // Mask token in response
       if (result?.provider_token) {
