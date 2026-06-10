@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     // Operação ADMINISTRATIVA da conta Focus → token resolvido como account_admin abaixo.
 
-    // Autenticar usuário
+    // Autenticar: aceita JWT do usuário OU chamada interna service-role
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -33,33 +33,44 @@ Deno.serve(async (req) => {
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
 
-    // Obter usuário e tenant
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let tenantId: string;
+    if (isServiceRoleCall) {
+      // Chamada interna: tenant_id obrigatório no body
+      const bodyTmp = await req.clone().json().catch(() => ({}));
+      if (!bodyTmp?.tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'tenant_id é obrigatório em chamada interna' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      tenantId = bodyTmp.tenant_id;
+      console.log(`[fiscal-sync-focus-nfe] Chamada interna service-role. tenant=${tenantId}`);
+    } else {
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('current_tenant_id')
+        .eq('id', user.id)
+        .single();
+      if (!profile?.current_tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      tenantId = profile.current_tenant_id;
     }
-
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('current_tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.current_tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.current_tenant_id;
 
     // Buscar fiscal_settings
     const { data: settings, error: settingsError } = await supabaseClient

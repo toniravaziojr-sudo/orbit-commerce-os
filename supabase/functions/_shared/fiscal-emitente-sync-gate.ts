@@ -63,15 +63,16 @@ export async function ensureEmitenteSynced(
   let syncJson: any = null;
   try {
     const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/fiscal-sync-focus-nfe`;
-    const apikey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    // Padrão único de chamada interna: Bearer service-role, body com tenant_id.
+    // Não envia apikey para evitar conflito com o gateway.
     const r = await fetch(fnUrl, {
       method: "POST",
       headers: {
-        "Authorization": authHeader,
-        "apikey": apikey,
+        "Authorization": `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ tenant_id: tenantId }),
     });
     syncJson = await r.json().catch(() => ({}));
   } catch (e) {
