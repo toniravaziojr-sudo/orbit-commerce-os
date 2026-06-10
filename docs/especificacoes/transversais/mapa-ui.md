@@ -606,3 +606,33 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
   - Botão **"Ajustar proposta"** rola o editor estruturado direto para a seção correta (campanha / conjunto / anúncio) com base no `node_type` do primeiro blocker.
   - Erros de objetivo (ex.: `SALES`) deixam de aparecer como texto técnico. Mensagem é em PT-BR amigável e o gate passa a usar o mapper canônico ↔ Meta antes de comparar.
 - Detalhe da Platform Field Ownership Matrix, Objective Mapper e GateIssue v2 em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Motor de Propostas — Onda C").
+
+### Gestor de Tráfego IA — Configuração de Criação Meta (Onda D, rev 2026-06-10)
+
+- `/ads` → aba **Configurações Gerais** → seção **Meta Ads**: novo bloco **"Configuração de Criação Meta"**.
+  - **Finalidade:** fonte persistida operacional usada pelo Strategist para gerar propostas Meta Ads v2 completas com Campanha, Conjunto e Anúncio/Criativo. É a fonte de verdade dos defaults reais da conta — quando um campo aqui está preenchido, a IA usa esse valor em vez de marcar como pendente.
+  - **Campos do bloco:**
+    - conta de anúncio (vínculo com a conta Meta já conectada);
+    - página do Facebook;
+    - conta do Instagram;
+    - pixel / dataset;
+    - evento de conversão padrão;
+    - país / região;
+    - idioma;
+    - idade mínima;
+    - idade máxima;
+    - gênero;
+    - posicionamentos;
+    - estratégia / tipo de orçamento (CBO no nível de campanha ou ABO no nível de conjunto);
+    - orçamento diário padrão;
+    - status inicial da campanha ao publicar (pausada / ativa);
+    - CTA padrão do criativo;
+    - formato criativo padrão;
+    - UTM padrão (opcional).
+  - **Escopo desta entrega:**
+    - é usada no fluxo real de produção da Meta Ads — não é mock, não é configuração temporária;
+    - Google Ads e TikTok Ads **não** entram nesta etapa e seguem bloqueados por não verificação;
+    - **publicação real ainda não acontece nesta entrega** — o bloco apenas alimenta a estratégia gerada pela IA;
+    - **geração de criativo só ocorre depois da aprovação da estratégia** pelo usuário, mantendo o fluxo two_step_v1.
+  - **Comportamento conjunto com os gates:** com o bloco preenchido, propostas Meta deixam de exibir "Pendente · Obrigatório" para campos cobertos pela configuração. Sem o bloco preenchido, o gate de estratégia ainda libera a aprovação (pixel/evento viram aviso), mas o gate de publicação (a ser ativado em onda futura) exigirá os IDs reais de página, Instagram e pixel.
+- Detalhe técnico em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Configuração de Criação Meta — Onda D") e baseline em `docs/especificacoes/marketing/plataformas-baseline.md`.
