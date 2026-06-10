@@ -1,76 +1,38 @@
-# Plano — Dashboard por Canal + Separação Loja × Marketplaces (v2026-06-09 rev2)
+# Plano — Visualização Estruturada de Propostas (Gestor de Tráfego IA) — v2026-06-10
 
-## Entendimento confirmado
-- **Aba Geral**: visão consolidada — receita real = loja + todos marketplaces; investimento = Meta + Google + TikTok Ads (Ads internos de marketplace ficam como pendente declarado).
-- **Gestor de Tráfego**: continua "geral" porém **sem marketplaces**. Vamos rotular isso com clareza e padronizar a janela de período com o Dashboard.
-- **Aba Loja Virtual**: receita só da loja + gasto só nas plataformas de anúncio.
-- **Abas Mercado Livre / Shopee / TikTok**: receita só do respectivo canal. Visíveis **apenas se a conexão estiver ativa**. São **resumo financeiro** com botão "Ver detalhes" para o módulo dedicado do marketplace (sem duplicar a gestão que já existe lá).
-- **Pedidos de Venda**: continuam no mesmo lugar, mas com **ícone/etiqueta da origem** (Loja, ML, Shopee, TikTok) e **filtro por canal**.
+## Diagnóstico
+Hoje o card da fila "Aguardando Ação" já oferece Aprovar / Ajustar / Rejeitar diretamente, o que permite decisão sem visualizar a estrutura completa. O modal atual mostra blocos achatados que não refletem a hierarquia de mídia paga (Campanha → Conjunto(s) → Anúncio(s)).
 
-## Contexto técnico já existente (reaproveitar, não recriar)
-- Campo de canal no pedido: `sales_channel` (default `storefront`) + `marketplace_source` (ML/shopee/tiktok_shop). Índices já existem. **Não precisa migração de dados.**
-- Critério de "ativo": `marketplace_connections.is_active = true` para o marketplace correspondente. Já consultado em outros pontos do sistema.
-- "Venda realizada" definida no doc de Relatórios: `paid | processing | ready_to_invoice | shipped | delivered`. Reutilizar sem mudar.
+## UI/UX aprovada
+- Card de propostas de campanha estruturadas vira **resumo + 1 botão "Visualizar proposta"**.
+- Decisões (Aprovar / Ajustar / Recusar) migram para o rodapé fixo do modal estruturado.
+- Modal grande com **árvore lateral**: Visão Geral · Campanha · Conjuntos · Anúncios · Validações · Histórico · Detalhes técnicos (recolhido).
+- Fallback mobile mais simples (stepper/empilhado).
+- Card de ações operacionais legacy (orçamento, pausa, insight, plano estratégico, conjuntos órfãos) mantém comportamento atual.
 
-## Diagnóstico atual
-1. O Dashboard mistura loja + marketplaces sem separação visual, e o investimento já vem só de plataformas (sem rótulo da fonte).
-2. Gestor de Tráfego usa janela de período diferente e exibe "Receita" do pixel da Meta (atribuída), enquanto o Dashboard usa receita real de caixa — divergência aparente entre os dois.
-3. Pedidos de Venda não mostram canal de origem nem filtram por canal, apesar do dado existir.
-4. No tenant Respeite o Homem hoje: 100% das vendas são da loja virtual (599 pedidos `storefront`, 0 marketplace, ML inativo). Implementação fica pronta para quando marketplaces forem ativados.
+## Contrato de dados (aditivo)
+- Novo formato canônico `action_data.campaign_structure` { campaign, ad_sets[], ads[] }.
+- **Adapter de leitura** `normalizeCampaignStructure(action_data)` aceita payload novo e legacy (`adsets[]`, `ads[]`, `preview.*`, campos planos). Campos ausentes → "Não informado".
+- Sem migração, sem DROP/UPDATE em massa, sem mutação do payload original.
 
-## O que será entregue
+## Sequência de execução
+1. Criar adapter + tipos em `src/lib/ads/normalizeCampaignStructure.ts`.
+2. Criar testes do adapter (`src/test/normalize-campaign-structure.test.ts`).
+3. Criar `StructuredProposalModal` (árvore lateral + rodapé fixo).
+4. Ajustar `ActionApprovalCard` para propostas estruturadas: substituir os 3 botões pelo único "Visualizar proposta"; reaproveitar handlers atuais (`approveStrategy`, `onApprove`, `onReject`, `onAdjust`) dentro do modal.
+5. Reorganizar visualmente o Editor Estruturado para evidenciar a hierarquia Campanha / Conjunto / Anúncio / Feedback (renome de seções; sem alteração de mutations).
+6. Atualizar documentação: `docs/especificacoes/marketing/gestor-trafego.md` e `docs/especificacoes/transversais/mapa-ui.md`.
+7. Rodar testes.
 
-### Onda 1 — Abas no Dashboard da Central de Comando
-Estrutura:
-```text
-Central de Comando › Dashboard
- ├─ Geral          (sempre visível)
- ├─ Loja Virtual   (sempre visível)
- ├─ Mercado Livre  (só se conexão ML ativa)
- ├─ Shopee         (só se conexão Shopee ativa)
- └─ TikTok         (só se conexão TikTok Shop ativa)
-```
+## Decisões técnicas
+- **Gerador (edge function strategist) NÃO é alterado nesta entrega.** A escrita de `campaign_structure` em novas propostas pode ser feita em entrega posterior sem afetar a UI — o adapter é tolerante e cobre tudo on-the-fly. Isso evita risco em código sensível e respeita "evite processamento desnecessário".
+- Reaproveitar `ProposalStructuredEditor` (Frente 4.3) como Editor de Ajuste dentro do modal — sem reescrever.
+- Reaproveitar `FullContentDialog` interno para a árvore (uma única tela, navegação por estado local).
+- Zero chamada de IA ao abrir/navegar/editar/salvar rascunho/recusar/feedback. Apenas "Gerar proposta revisada" e "Aprovar estratégia e gerar criativos" disparam IA, como hoje.
 
-Comportamento:
-- Mesmo grid de métricas + mesmo Preview de Vendas, filtrados pela origem.
-- Cada card ganha um **selo discreto de fonte** ("Caixa real", "Meta/Google/TikTok Ads") para acabar com a confusão atual.
-- Abas de marketplace exibem botão **"Ver detalhes no módulo"** levando para `/marketplaces/{nome}` — não duplicam a gestão existente.
-- Ads internos de marketplace: card com selo **"Em breve"** (lacuna documental declarada).
+## Restrições respeitadas
+Sem publicação automática, sem geração de criativo ao abrir, sem consumo de crédito, sem chamadas Meta/Google/TikTok, sem mem://, sem remover Quality Gate / Product-Funnel Fit Gate / versionamento / rascunho / feedback / payload bruto continua escondido em "Detalhes técnicos".
 
-| Aba            | Receita considera                | Investimento considera                          |
-|----------------|----------------------------------|--------------------------------------------------|
-| Geral          | Loja + todos marketplaces        | Plataformas (Meta/Google/TikTok Ads)             |
-| Loja Virtual   | Só pedidos da loja               | Plataformas (Meta/Google/TikTok Ads)             |
-| Mercado Livre  | Só pedidos do ML                 | "Em breve" (Ads do ML — pendente)                |
-| Shopee         | Só pedidos da Shopee             | "Em breve" (Ads da Shopee — pendente)            |
-| TikTok         | Só pedidos do TikTok Shop        | TikTok Ads (já existe) + "Em breve" Shop Ads     |
-
-### Onda 2 — Alinhamento do Gestor de Tráfego
-- Padronizar janela de período (mesmo cálculo BRT do Dashboard) → investimento bate entre os dois módulos.
-- Renomear "Receita" para **"Receita atribuída (Meta/Google/TikTok)"** e exibir, ao lado, **"Receita Real da loja virtual"** vinda da mesma fonte do Dashboard.
-- Nota fixa no topo: *"Este módulo considera apenas plataformas de anúncio e loja virtual. Marketplaces são analisados no Dashboard."*
-
-### Onda 3 — Pedidos de Venda
-- **Ícone/etiqueta de origem** em cada linha (Loja, ML, Shopee, TikTok).
-- **Filtro multi-seleção por canal** no topo da lista.
-- Não altera regra fiscal/operacional. Só leitura e filtro.
-
-### Onda 4 — Documentação e anti-regressão
-- Atualizar `docs/especificacoes/sistema/central-comando.md` (nova estrutura de sub-abas + selos de fonte + critério de visibilidade).
-- Atualizar `docs/especificacoes/marketing/gestor-trafego.md` (escopo "sem marketplaces" e relação com o Dashboard).
-- Atualizar `docs/especificacoes/transversais/mapa-ui.md` (sub-abas da Central de Comando + ícone/filtro nos PVs).
-- Registrar memória de anti-regressão (`mem://features/command-center/dashboard-by-channel-standard`): "Dashboard tem fontes rotuladas; abas de marketplace dependem de conexão ativa; Gestor de Tráfego é loja+plataformas, sem marketplaces."
-
-## O que **não** entra (pendências declaradas)
-- Coleta de investimento de anúncios **dentro** dos marketplaces (ML Ads, Shopee Ads, TikTok Shop Ads). Aparece como "Em breve". Vira tema próprio depois.
-- Atribuição de pedidos de marketplace a campanhas (não há pixel nesses ambientes).
-
-## Validação prevista antes de fechar (no tenant Respeite o Homem)
-- Geral = loja + qualquer pedido marketplace que existir.
-- Loja Virtual bate com a tela atual (todos os 599 pedidos atuais).
-- Abas de marketplace não aparecem (já que nenhuma conexão está ativa hoje). Forçar uma ativação de teste para validar o gating.
-- Gestor de Tráfego e Dashboard mostram o **mesmo investimento** para o mesmo período.
-- PVs trazem ícone e filtro por canal funcionando.
-
-## Confirma que sigo nessa direção?
-Execução em 4 ondas curtas, na ordem acima. Posso começar pela Onda 1 assim que confirmar.
+## Documentação obrigatória
+- `docs/especificacoes/marketing/gestor-trafego.md`
+- `docs/especificacoes/transversais/mapa-ui.md`

@@ -25,6 +25,8 @@ import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabe
 import { useProductCommercialFit, type ProductFitData } from "@/hooks/useProductCommercialFit";
 import { fitLevelLabel, commercialClassLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
+import { StructuredProposalModal } from "./StructuredProposalModal";
+import { normalizeCampaignStructure } from "@/lib/ads/normalizeCampaignStructure";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
@@ -1466,6 +1468,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
+  const [structuredOpen, setStructuredOpen] = useState(false);
   const [creativeDialogOpen, setCreativeDialogOpen] = useState(false);
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
   const { approveStrategy } = useAdsPendingActions();
@@ -1503,6 +1506,14 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const approveBlockedByFit = enableFit && fitData?.fit.soft_block === true;
 
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
+
+  // Classificação: proposta estruturada (Campanha → Conjuntos → Anúncios) vs ação operacional legacy
+  const structuredCheck = normalizeCampaignStructure(data, {
+    actionType: action.action_type,
+    flowVersion: (data as any)?.flow_version,
+  });
+  const isStructuredCampaign =
+    action.action_type === "create_campaign" || structuredCheck.is_structured_campaign;
 
   const diagnosis = data.diagnosis || null;
   const summaryText = isStrategicPlan
@@ -1653,16 +1664,28 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               </div>
             )}
 
-            {/* "Ver completo" button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFullOpen(true)}
-              className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
-            >
-              <Eye className="h-3 w-3" />
-              Ver conteúdo completo
-            </Button>
+            {/* Botão de visualização — único CTA quando proposta estruturada (Campanha → Conjuntos → Anúncios). */}
+            {isStructuredCampaign ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setStructuredOpen(true)}
+                className="h-8 mt-1 text-xs gap-1.5"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Visualizar proposta
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFullOpen(true)}
+                className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
+              >
+                <Eye className="h-3 w-3" />
+                Ver conteúdo completo
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1717,6 +1740,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         )}
 
         {/* Action buttons */}
+        {!isStructuredCampaign && (
         <CardFooter className="px-3 pb-3 pt-0 gap-2 border-t border-border/30">
           {isTwoStep && twoStepStage === "strategy" ? (
             <Button
@@ -1788,7 +1812,25 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             Rejeitar
           </Button>
         </CardFooter>
+        )}
       </Card>
+
+      {/* Modal estruturado (Campanha → Conjuntos → Anúncios) — só para propostas de campanha */}
+      {isStructuredCampaign && (
+        <StructuredProposalModal
+          action={action}
+          childActions={childActions}
+          open={structuredOpen}
+          onOpenChange={setStructuredOpen}
+          onApprove={(id) => onApprove(id)}
+          onReject={() => {
+            setStructuredOpen(false);
+            setRejectOpen(true);
+          }}
+          approvingId={approvingId}
+          rejectingId={rejectingId}
+        />
+      )}
 
       {/* Frente 4 — Dialog da Etapa 2 */}
       {isTwoStep && (
