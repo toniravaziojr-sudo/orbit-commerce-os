@@ -1468,6 +1468,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
+  const [structuredOpen, setStructuredOpen] = useState(false);
   const [creativeDialogOpen, setCreativeDialogOpen] = useState(false);
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
   const { approveStrategy } = useAdsPendingActions();
