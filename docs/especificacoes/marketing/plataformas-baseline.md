@@ -80,3 +80,27 @@ Esta baseline é a fonte de verdade do que o Gestor de Tráfego IA assume hoje s
 
 - Verificador automático mensal (sem IA), com hash de capacidades, alertas e admin de revisão — fica para a próxima onda.
 - Capacidades reais de Google Ads e TikTok Ads precisam ser semeadas em uma Onda futura, após verificação humana das fontes oficiais.
+
+---
+
+## Objective Mapper (canônico ↔ plataforma) — Onda C
+
+| Enum canônico interno | Label PT-BR | Meta Ads | Google Ads | TikTok Ads |
+|---|---|---|---|---|
+| `sales` | Vendas | `OUTCOME_SALES` | (placeholder, não verificado) | (placeholder, não verificado) |
+| `leads` | Geração de leads | `OUTCOME_LEADS` | (placeholder) | (placeholder) |
+| `traffic` | Tráfego | `OUTCOME_TRAFFIC` | (placeholder) | (placeholder) |
+| `awareness` | Reconhecimento de marca | `OUTCOME_AWARENESS` | (placeholder) | (placeholder) |
+| `engagement` | Engajamento | `OUTCOME_ENGAGEMENT` | (placeholder) | (placeholder) |
+| `app_promotion` | Promoção de aplicativo | `OUTCOME_APP_PROMOTION` | (placeholder) | (placeholder) |
+
+**Regra de comparação:** o Platform Compatibility Gate **nunca** compara o
+enum canônico direto com a lista de objetivos suportados da plataforma. A
+comparação ocorre sempre depois de traduzir o canônico para o enum oficial
+via `translateObjectiveToMeta()` (ou o adapter equivalente da plataforma).
+Comparar `"SALES"` direto com `["OUTCOME_SALES", ...]` é proibido e foi a
+causa do bug histórico "objetivo SALES não suportado".
+
+Mesma regra se aplica a CTA, evento de conversão, posicionamento e formato
+criativo. Mappers ficam em `src/lib/ads/platform/metaAdapter.ts` (e
+adapters futuros por plataforma).
