@@ -285,11 +285,11 @@ export function StructuredProposalModal({
     else onApprove(action.id);
   };
 
-  const approveLabel = isStrategyStage
+  const approveLabel = approveLabelOverride ?? (isStrategyStage
     ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
-    : "Aprovar";
+    : "Aprovar");
 
   const approveBlockedReason = approveBlockedByFit
     ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
