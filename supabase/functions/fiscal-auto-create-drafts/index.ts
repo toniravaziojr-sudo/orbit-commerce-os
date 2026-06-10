@@ -531,13 +531,23 @@ async function processTenanDrafts(
 
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
-          const { data: emitData, error: emitErr } = await supabase.functions.invoke('fiscal-emit', {
-            body: { invoice_id: invoice.id, tenant_id: tenantId, auto: true },
+          const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || serviceKey;
+          const r = await fetch(emitUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': anonKey,
+              'Authorization': `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify({ invoice_id: invoice.id, tenant_id: tenantId, auto: true }),
           });
-          if (emitErr) {
-            console.error(`[fiscal-auto-create-drafts] Auto-emit erro invoice=${invoice.id}:`, emitErr);
+          const txt = await r.text().catch(() => '');
+          if (!r.ok) {
+            console.error(`[fiscal-auto-create-drafts] Auto-emit falhou invoice=${invoice.id} status=${r.status} body=${txt.slice(0,300)}`);
           } else {
-            console.log(`[fiscal-auto-create-drafts] Auto-emit ok invoice=${invoice.id} pedido=${order.order_number} resp=${JSON.stringify(emitData).slice(0,300)}`);
+            console.log(`[fiscal-auto-create-drafts] Auto-emit ok invoice=${invoice.id} pedido=${order.order_number} resp=${txt.slice(0,300)}`);
           }
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
