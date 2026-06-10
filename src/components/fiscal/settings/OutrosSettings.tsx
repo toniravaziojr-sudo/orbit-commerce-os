@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Select removido — não há mais seletor de transportadora padrão nesta tela.
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -18,13 +18,7 @@ import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
-const SHIPPING_PROVIDER_OPTIONS = [
-  { value: 'correios', label: 'Correios' },
-  { value: 'loggi', label: 'Loggi' },
-];
-// Sentinela usada apenas na UI para representar "sem transportadora padrão".
-// Convertido para null ao salvar — o componente Select não aceita value="".
-const SHIPPING_PROVIDER_DEFAULT_SENTINEL = '__order_carrier__';
+// Transportadora padrão removida — a remessa automática usa sempre a transportadora vinculada ao pedido.
 
 export function OutrosSettings() {
   const { settings, isLoading, saveSettings } = useFiscalSettings();
@@ -181,32 +175,9 @@ export function OutrosSettings() {
           </div>
 
           {formData.auto_create_shipment && (
-            <>
-              <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-                A remessa será criada automaticamente após a NF-e ser autorizada, somente para pedidos da loja ou marketplace. Pedidos manuais não são afetados.
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="default_shipping_provider">Transportadora Padrão</Label>
-                <Select
-                  value={formData.default_shipping_provider || SHIPPING_PROVIDER_DEFAULT_SENTINEL}
-                  onValueChange={(v) => handleChange('default_shipping_provider', v === SHIPPING_PROVIDER_DEFAULT_SENTINEL ? null : v)}
-                >
-                  <SelectTrigger><SelectValue placeholder="Usar transportadora do pedido" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SHIPPING_PROVIDER_DEFAULT_SENTINEL}>Usar transportadora do pedido</SelectItem>
-                    {SHIPPING_PROVIDER_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">A transportadora deve estar configurada em Integrações</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="auto_update_order_status">Atualizar Status do Pedido</Label>
-                  <p className="text-xs text-muted-foreground mt-1">Marcar pedido como "Etiqueta Criada" após gerar remessa</p>
-                </div>
-                <Switch id="auto_update_order_status" checked={formData.auto_update_order_status !== false} onCheckedChange={(checked) => handleChange('auto_update_order_status', checked)} />
-              </div>
-            </>
+            <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              A remessa será criada automaticamente após a NF-e ser autorizada, usando a transportadora do próprio pedido (definida no checkout ou pela integração configurada). Vale apenas para pedidos da loja ou marketplace — pedidos manuais não são afetados.
+            </div>
           )}
         </CardContent>
       </Card>
