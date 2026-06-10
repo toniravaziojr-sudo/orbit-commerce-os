@@ -77,3 +77,38 @@
 ### Docs atualizados
 - `docs/especificacoes/transversais/mapa-ui.md` (seção "Status técnico Meta na UI estratégica").
 - `docs/especificacoes/marketing/gestor-trafego.md` (D.3 reescrito).
+
+
+---
+
+## Correção 2026-06-10 (2) — Status técnico Meta lê integração real
+
+**Status:** Entregue.
+
+### Problema
+O status inline mostrava "Pendência técnica" mesmo com a integração Meta totalmente conectada, porque lia da tabela `ads_meta_production_config` (vazia desde a remoção do formulário manual na Onda D).
+
+### Correção
+- Novo hook `useMetaIntegrationAssetsStatus` consulta `tenant_meta_integrations` (status=active) do tenant atual e detecta: Conta de anúncio (`anuncios`), Página (qualquer integração Facebook/Instagram com `pages`/`page`), Pixel (`pixel_facebook`/`conversions_api`), API de Conversões (`conversions_api`).
+- `MetaIntegrationStatusInline` passa a usar esse hook. Verde quando os 4 ativos estão presentes; amarelo com lista exata do que falta em PT-BR (ex.: "Página do Facebook/Instagram não selecionada na integração").
+
+### Limpeza operacional
+- Removidas todas as propostas, artefatos, insights e execuções de análise da IA de tráfego do tenant Respeite o Homem (`d1a4d0ed-...`) para teste limpo do Modo Piloto Inicial.
+
+## Pendências abertas (próximas ondas)
+
+### Curto prazo (Meta)
+- **Seleção de Página na integração Meta**: o tenant Respeite o Homem hoje não tem `facebook_publicacoes`/`instagram_publicacoes` com Página selecionada. UI de Integrações precisa orientar explicitamente o usuário a selecionar Página para liberar publicação real.
+- **Cron diário de execução automática**: o switch "Execução automática diária" existe e persiste, mas ainda não há cron consumindo accounts com `autonomy_enabled=true` para rodar ações técnicas seguras (ajustes pequenos de orçamento, pausas emergenciais).
+- **Pipeline de publicação real Meta**: gates de `publish` estão prontos, mas a edge function que efetivamente cria Campanha → Conjunto → Anúncio na Meta Marketing API ainda não foi entregue. Hoje propostas param em "Aguardando Ação" sem botão "Publicar agora".
+- **Geração de criativo final pós-aprovação**: fluxo de gerar imagem/vídeo e copy após o usuário aprovar a estratégia ainda não está plugado ao motor de criativos (`creative_jobs`).
+- **Histórico de runs com UI**: tabela `ads_ai_analysis_runs` registra tudo, mas só existe o atalho `latestRun.finished_at` no botão. Falta tela dedicada com timeline, snapshot técnico expandível e propostas geradas por run.
+
+### Médio prazo
+- **Cron mensal de re-análise estratégica** (proativo, sem ação do usuário).
+- **Google Ads e TikTok Ads operacionais**: hoje ambos aparecem nas abas mas são ignorados pelo motor. Precisa adapter de objetivos, capabilities e fluxo de publicação por canal.
+- **Admin de compatibilidade**: painel para revisar `platform_capabilities`, `platform_compatibility_checks` e `platform_compatibility_alerts`.
+- **Configuração técnica avançada (opcional)**: reabrir o `MetaProductionConfigCard` em uma área "Avançado / Operacional" para tenants que queiram sobrescrever defaults de público, posicionamento, CTA e formato — sem poluir a UI estratégica principal.
+
+### Governança
+- **Memória anti-regressão**: criar `mem://constraints/ads-meta-status-source-of-truth` registrando que o status técnico Meta na UI do Gestor de Tráfego DEVE ler de `tenant_meta_integrations` (integração real) e nunca de `ads_meta_production_config` (config interna opcional).
