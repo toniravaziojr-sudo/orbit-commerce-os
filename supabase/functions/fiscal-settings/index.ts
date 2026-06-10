@@ -283,27 +283,32 @@ Deno.serve(async (req) => {
         is_configured,
       };
 
-      // Lê uma vez as colunas reais da tabela e filtra o payload.
-      const { data: colsRows } = await adminClient
-        .from('information_schema.columns' as any)
-        .select('column_name')
-        .eq('table_schema', 'public')
-        .eq('table_name', 'fiscal_settings');
-      const realColumns = new Set<string>(
-        (colsRows || []).map((r: any) => r.column_name as string),
-      );
+      // Blacklist explícita de campos legados / removidos do schema.
+      // Garante que payloads antigos (frontend não atualizado, integrações
+      // externas, lixo do React Query) NUNCA derrubem o save.
+      const LEGACY_KEYS = new Set<string>([
+        'cfop_intrastadual',
+        'cfop_interestadual',
+        'default_shipping_provider',
+      ]);
       const settingsData: Record<string, unknown> = {};
       const droppedKeys: string[] = [];
       for (const [k, v] of Object.entries(settingsDataRaw)) {
-        if (realColumns.size === 0 || realColumns.has(k)) {
-          settingsData[k] = v;
-        } else {
+        if (LEGACY_KEYS.has(k)) {
           droppedKeys.push(k);
+          continue;
         }
+        settingsData[k] = v;
+      }
+      // Também varre o body original para detectar tentativas de salvar
+      // campos legados mesmo que não estejam no settingsDataRaw.
+      for (const k of Object.keys(body || {})) {
+        if (LEGACY_KEYS.has(k) && !droppedKeys.includes(k)) droppedKeys.push(k);
       }
       if (droppedKeys.length > 0) {
-        console.warn('[fiscal-settings] Dropping legacy/unknown columns from payload:', droppedKeys);
+        console.warn('[fiscal-settings] Ignoring legacy fields in payload:', droppedKeys);
       }
+
 
       let result;
       if (existing) {
