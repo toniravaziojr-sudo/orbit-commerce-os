@@ -550,21 +550,23 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
   );
 }
 
-function AdSetSection({ adSet }: { adSet: AdSetNode | null }) {
+function AdSetSection({ adSet, blockers }: { adSet: AdSetNode | null; blockers: GateIssue[] }) {
   if (!adSet) return <p className="text-sm text-muted-foreground">Conjunto não encontrado.</p>;
   const placements = adSet.placements.map((p) => tr("placement", p) || p);
+  const pendingFields = new Set(blockers.map((b) => b.field));
+  const isPending = (field: string) => pendingFields.has(field);
   return (
     <div className="space-y-4">
       <Block title={adSet.name || "Conjunto"} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
           <Detail label="Etapa do funil" value={tr("funnel", adSet.funnel_stage)} />
-          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} />
-          <Detail label="Idade" value={adSet.age_range} />
-          <Detail label="Gênero" value={adSet.gender} />
-          <Detail label="Região" value={adSet.location} />
-          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} />
-          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} />
-          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} />
+          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} pendingField={isPending("adset.0.audience_type")} />
+          <Detail label="Idade" value={adSet.age_range} pendingField={isPending(`adset.${blockers[0]?.node_id ?? 0}.age_range`) || (!adSet.age_range && blockers.some(b => b.field.endsWith(".age_range")))} />
+          <Detail label="Gênero" value={adSet.gender} pendingField={!adSet.gender && blockers.some(b => b.field.endsWith(".gender"))} />
+          <Detail label="Região" value={adSet.location} pendingField={!adSet.location && blockers.some(b => b.field.endsWith(".location"))} />
+          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} pendingField={!adSet.optimization_goal && blockers.some(b => b.field.endsWith(".optimization_goal"))} />
+          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} pendingField={(!adSet.conversion_event || adSet.conversion_event === "requires_user_input") && blockers.some(b => b.field.endsWith(".conversion_event"))} />
+          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} pendingField={placements.length === 0 && blockers.some(b => b.field.endsWith(".placements"))} />
           <Detail label="Orçamento" value={formatBudgetBRL(adSet.daily_budget_cents)} />
           {adSet.targeting_summary && <Detail label="Resumo de segmentação" value={adSet.targeting_summary} fullWidth />}
           {adSet.schedule && (adSet.schedule.start || adSet.schedule.end) && (
