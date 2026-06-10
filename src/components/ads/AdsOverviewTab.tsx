@@ -271,6 +271,27 @@ export function AdsOverviewTab({
         </Card>
       )}
 
+      {/* Alerta de baixa cobertura de rastreio de Ads */}
+      {totals.spend_cents > 0 && (realAdsRevenue?.total_paid_orders ?? 0) > 0 && (realAdsRevenue?.coverage_pct ?? 0) < 50 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="py-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div className="space-y-1 text-xs">
+                <p className="font-medium text-foreground">
+                  Baixa cobertura de rastreio: apenas {realAdsRevenue?.coverage_pct?.toFixed(1)}% dos pedidos pagos no período têm origem de Ads identificada
+                  ({realAdsRevenue?.paid_orders} de {realAdsRevenue?.total_paid_orders}).
+                </p>
+                <p className="text-muted-foreground">
+                  Isso faz o ROAS Real ficar artificialmente baixo. A maioria dos cliques perde o identificador quando o cliente volta por outro caminho (Google, digitação direta, etc.).
+                  Para corrigir, configure parâmetros UTM em todas as campanhas de Meta, Google e TikTok (ex.: utm_source, utm_medium=cpc, utm_campaign). Assim o sistema reconhece a origem mesmo sem o clique original.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Nota de escopo: marketplaces ficam no Dashboard */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-3">
