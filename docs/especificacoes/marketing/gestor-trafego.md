@@ -3633,11 +3633,31 @@ Tabela real de produção registra cada análise: plataforma, conta, escopo (`ac
 A camada canônica de contexto é `collectStrategistContext` em `ads-autopilot-strategist`. A análise inicial chama o Strategist com `trigger=start` em vez de duplicar lógica. A edge `ads-ai-initial-analysis` captura snapshot resumido para auditoria humana, mas nunca inventa dados ausentes — registra como limitação.
 
 ### E.5 — Escopo
-Default: por conta (`scope=account`, Meta). Escopo `global` reservado para próxima onda; hoje a edge bloqueia plataformas diferentes de Meta.
+Default: por conta (`scope=account`, Meta).
 
-### E.6 — Restrições
+**Escopo global (correção 2026-06-10, edge v1.1.0):**
+- Novo botão "Análise inicial global" no topo do Gerenciador de Anúncios.
+- Itera todas as contas Meta com IA ativada do tenant (`ads_autopilot_account_configs.is_ai_enabled=true, channel=meta`).
+- Para cada conta válida, reutiliza a função interna `runForAccount` (que reusa `collectStrategistContext` via `ads-autopilot-strategist`).
+- Cria 1 run parent (`scope=global`, `ad_account_id=NULL`) + N runs filhas (`scope=account`, `parent_run_id` no `input_config_snapshot`).
+- Se uma conta já tem análise em andamento, é pulada sem quebrar o lote (status `skipped`, motivo `already_running`).
+- Se a conta teve análise concluída <24h e `force=false`, é pulada (motivo `recent_completed_requires_force`).
+- Google/TikTok: detectados em `ads_autopilot_account_configs.channel IN ('google','tiktok')` e listados como limitação amigável; **não bloqueiam** a análise da Meta.
+- Se o tenant tem apenas 1 conta Meta ativa, o global roda para essa conta e registra como `scope=global` no nível do tenant.
+- Run parent agrega: contagem total, completas, falhas, puladas; lista `per_account` com `context_summary`, `status`, `run_id` filho; `strategy_summary` em texto humano consolidado.
+
+### E.6 — Resumo do contexto usado
+A função `buildHumanContextSummary` gera, por conta, uma linha amigável:
+> "Esta análise considerou: conta Meta act_..., orçamento R$ 50,00, ROI/ROAS alvo 3.0, país BR, idade 18-65, posicionamentos Advantage+, CTA SHOP_NOW, formato single_image, diretrizes configuradas."
+
+Vai para `strategy_summary` (parent) e `account_snapshot_summary.per_account[].context_summary`. O payload técnico bruto permanece em `input_config_snapshot` para auditoria — nunca exposto na UI.
+
+### E.7 — Restrições
 - Modo Piloto não chama IA.
 - Modo Piloto Inicial chama IA uma única vez por escopo escolhido.
+- Global: chama IA uma vez por conta Meta elegível, sequencialmente (evita estourar custo).
 - Não roda ao abrir tela, navegar ou salvar configurações.
 - Não repete análise recente sem confirmação.
 - Não publica campanha, não muta Meta/Google/TikTok, não gera criativo final, não consome crédito sem aprovação.
+- Google/TikTok continuam não operacionais nesta etapa.
+
