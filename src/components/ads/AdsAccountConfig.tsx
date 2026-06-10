@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
+import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
 
 interface AdAccount {
   id: string;
