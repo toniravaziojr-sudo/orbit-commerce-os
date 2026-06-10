@@ -339,6 +339,13 @@ export default function AdsManager() {
 
         {/* === GERENCIADOR DE ANÚNCIOS === */}
         <TabsContent value="manager" className="space-y-4">
+          <AdsAIGlobalAnalysisButton
+            metaAccountsCount={accountConfigs.getAIEnabledAccounts("meta").length}
+            hasOtherChannels={
+              accountConfigs.getAIEnabledAccounts("google").length > 0 ||
+              accountConfigs.getAIEnabledAccounts("tiktok").length > 0
+            }
+          />
           <Tabs value={activeChannel} onValueChange={setActiveChannel}>
             <TabsList>
               <TabsTrigger value="meta" className="gap-2">
