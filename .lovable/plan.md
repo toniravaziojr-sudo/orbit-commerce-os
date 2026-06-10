@@ -56,3 +56,24 @@
 - Google/TikTok operacionais.
 - Painel de histórico detalhado das runs (a tabela existe; UI mínima foi adicionada via `latestRun.finished_at` no botão).
 
+
+---
+
+## Correção 2026-06-10 — Configurações Gerais focada em estratégia
+
+**Status:** Entregue.
+
+### Mudança
+- Configurações Gerais do Gestor de Tráfego IA passa a ser **exclusivamente estratégica** (orçamento, ROI, ROI por funil, estratégia, splits, prompt, ativação, execução diária, Modo Piloto / Piloto Inicial).
+- Removido da UI principal o formulário manual `MetaProductionConfigCard` (Página, Pixel, Instagram, evento de conversão, IDs técnicos, públicos, posicionamentos, CTA/formato default).
+- Substituído por status inline somente leitura (`MetaIntegrationStatusInline`): "Meta conectada · ativos sincronizados" ou alerta de pendência com link para `/integrations`.
+
+### Preservado
+- Tabela `ads_meta_production_config`, hook `useAdsMetaProductionConfig`, componente `MetaProductionConfigCard` (não removido — apenas desconectado da UI principal, disponível para área técnica futura).
+- `collectStrategistContext` continua lendo a configuração interna quando existir.
+- Gates por etapa (`strategy` / `creative` / `publish`) inalterados — ausência de Pixel/Página continua sendo limitação, não bloqueio de análise.
+- Modo Piloto, Modo Piloto Inicial, análise manual, `ads_ai_analysis_runs`, propostas Aguardando Ação e ownership Campanha → Conjunto → Anúncio intactos.
+
+### Docs atualizados
+- `docs/especificacoes/transversais/mapa-ui.md` (seção "Status técnico Meta na UI estratégica").
+- `docs/especificacoes/marketing/gestor-trafego.md` (D.3 reescrito).
