@@ -170,12 +170,21 @@ function AccountConfigCard({
       setShowDeactivateWarning(true);
       return;
     }
+    if (enabled && !isAIEnabled) {
+      // Onda E: abrir diálogo para o usuário escolher entre Modo Piloto e Modo Piloto Inicial.
+      setShowActivationDialog(true);
+      return;
+    }
     onToggleAI(accountId, enabled);
   };
 
   const confirmDeactivate = () => {
     setShowDeactivateWarning(false);
     onToggleAI(accountId, false);
+  };
+
+  const confirmActivate = async () => {
+    onToggleAI(accountId, true);
   };
 
   const killSwitchActive = config?.kill_switch || false;
