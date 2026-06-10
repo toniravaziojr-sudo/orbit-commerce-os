@@ -368,6 +368,9 @@ export function StructuredProposalModal({
                   <AdSection
                     ad={ads[Number(selected.split(":")[1])] || null}
                     isStrategyStage={isStrategyStage}
+                    blockers={allBlockers.filter(
+                      (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === selected.split(":")[1],
+                    )}
                   />
                 )}
               </div>
