@@ -62,6 +62,7 @@ function fullAd() {
     description: null,
     cta: "SHOP_NOW",
     destination_url: "https://x",
+    tracking_params: null,
     creative_prompt: null,
     creative_format: "SINGLE_IMAGE",
     alternative_formats: [],
