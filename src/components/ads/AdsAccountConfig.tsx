@@ -246,7 +246,7 @@ function AccountConfigCard({
 
       <CardContent className="pt-0 space-y-5">
         {channel === "meta" && (
-          <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName || accountId} />
+          <MetaIntegrationStatusInline adAccountId={accountId} />
         )}
         {channel === "meta" && isAIEnabled && (
           <AdsAIManualAnalysisButton platform="meta" adAccountId={accountId} />
