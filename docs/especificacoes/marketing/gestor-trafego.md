@@ -33,6 +33,25 @@ Este módulo considera **exclusivamente mídia paga** (Meta, Google, TikTok). Re
 
 **Critério "veio de Ads" (last-click)**: pedido com `fbclid` (Meta), `gclid` (Google), `ttclid` (TikTok) ou `utm_medium` em `cpc|paid|paid_social|ads`. Tráfego orgânico, direto, e-mail, WhatsApp e marketplaces ficam fora.
 
+### Por que ROAS Atribuído ≠ ROAS Real (e como interpretar)
+
+São duas verdades distintas e ambas devem coexistir no Overview:
+
+- **ROAS Atribuído** = o que **a plataforma diz** que gerou. Usa janelas estendidas da Meta/Google/TikTok (até 7d clique + 1d view-through) e inclui view-through. Tende a **superestimar**.
+- **ROAS Real (Ads)** = o que **o caixa confirma** como vinda de mídia paga rastreada. Só conta pedido pago cujo `fbclid`/`gclid`/`ttclid` ou `utm_medium` paid sobreviveu até o checkout. Tende a **subestimar** quando a cobertura de rastreio é baixa.
+
+A diferença entre os dois **não é bug** — é a janela de atribuição da plataforma vs caixa real auditável. O número certo do gestor para decisão de investimento é o **ROAS Real**, desde que a cobertura de rastreio esteja alta (≥50%).
+
+### Alerta de cobertura baixa (v6.12.1)
+
+Quando, no período selecionado, houve investimento em Ads e **menos de 50% dos pedidos pagos** trazem identificador rastreável (`fbclid`/`gclid`/`ttclid` ou `utm_medium` paid), o Overview exibe um card de alerta amarelo explicando:
+
+1. Por que o ROAS Real está artificialmente baixo (clique perdido quando o cliente volta por outro canal/dispositivo).
+2. Que a solução é forçar UTM em **todas** as campanhas Meta/Google/TikTok (`utm_source`, `utm_medium=cpc`, `utm_campaign`).
+3. Que ao subir a cobertura, o ROAS Real passa a ser fonte confiável de decisão.
+
+Cobertura = `pedidos_pagos_com_atribuicao_ads / total_pedidos_pagos_no_periodo`. Calculada no mesmo hook do card de Receita Real de Ads, sem custo extra de query relevante.
+
 ### Módulos Relacionados
 
 | Módulo | Doc | Relação |
