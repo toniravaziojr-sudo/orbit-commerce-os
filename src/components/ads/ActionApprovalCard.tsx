@@ -1812,7 +1812,25 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             Rejeitar
           </Button>
         </CardFooter>
+        )}
       </Card>
+
+      {/* Modal estruturado (Campanha → Conjuntos → Anúncios) — só para propostas de campanha */}
+      {isStructuredCampaign && (
+        <StructuredProposalModal
+          action={action}
+          childActions={childActions}
+          open={structuredOpen}
+          onOpenChange={setStructuredOpen}
+          onApprove={(id) => onApprove(id)}
+          onReject={() => {
+            setStructuredOpen(false);
+            setRejectOpen(true);
+          }}
+          approvingId={approvingId}
+          rejectingId={rejectingId}
+        />
+      )}
 
       {/* Frente 4 — Dialog da Etapa 2 */}
       {isTwoStep && (
