@@ -227,23 +227,24 @@ async function processTenanDrafts(
       if (orderStatus !== 'ready_to_invoice') continue;
       try {
         const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-        const emitPromise = fetch(emitUrl, {
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+        const r = await fetch(emitUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${anonKey}`,
+            'x-internal-call': '1',
           },
           body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
-        })
-          .then(async (r) => {
-            const txt = await r.text().catch(() => '');
-            console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) response invoice=${inv.id} status=${r.status} body=${txt.slice(0, 300)}`);
-          })
-          .catch(err => console.error(`[fiscal-auto-create-drafts] Auto-emit (existing draft) error for ${inv.id}:`, err));
-        // Garante que o fetch complete mesmo após a Response retornar
-        try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
-        await emitPromise;
-        console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, status=${orderStatus})`);
+        });
+        const txt = await r.text().catch(() => '');
+        if (!r.ok) {
+          console.error(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) falhou invoice=${inv.id} status=${r.status} body=${txt.slice(0,300)}`);
+        } else {
+          console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) ok invoice=${inv.id} pedido=${order.order_number} resp=${txt.slice(0,300)}`);
+        }
       } catch (err) {
         console.error(`[fiscal-auto-create-drafts] Erro disparando auto-emit em rascunho existente ${inv.id}:`, err);
       }
@@ -532,28 +533,24 @@ async function processTenanDrafts(
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
           const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-          const emitPromise = fetch(emitUrl, {
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+          const r = await fetch(emitUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'apikey': serviceKey,
+              'Authorization': `Bearer ${anonKey}`,
+              'x-internal-call': '1',
             },
-            body: JSON.stringify({
-              invoice_id: invoice.id,
-              tenant_id: tenantId,
-              auto: true,
-            }),
-          })
-            .then(async (r) => {
-              const txt = await r.text().catch(() => '');
-              console.log(`[fiscal-auto-create-drafts] Auto-emit response invoice=${invoice.id} status=${r.status} body=${txt.slice(0, 300)}`);
-            })
-            .catch(err => {
-              console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
-            });
-          try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
-          await emitPromise;
-          console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, order_status=${orderStatus})`);
+            body: JSON.stringify({ invoice_id: invoice.id, tenant_id: tenantId, auto: true }),
+          });
+          const txt = await r.text().catch(() => '');
+          if (!r.ok) {
+            console.error(`[fiscal-auto-create-drafts] Auto-emit falhou invoice=${invoice.id} status=${r.status} body=${txt.slice(0,300)}`);
+          } else {
+            console.log(`[fiscal-auto-create-drafts] Auto-emit ok invoice=${invoice.id} pedido=${order.order_number} resp=${txt.slice(0,300)}`);
+          }
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
         }
