@@ -3592,8 +3592,13 @@ Tabela `ads_meta_production_config` (1 registro por tenant × conta de anúncios
 
 Defaults seguros: BR · pt_BR · 18-65 · todos · Advantage+ · Leilão · objetivo `sales` · status `PAUSED` · CTA `SHOP_NOW` · formato `1x1`. **Pixel, Página, Instagram Actor e Evento de conversão nunca são inventados.**
 
-### D.3 — UI: bloco "Configuração de Criação Meta"
-Renderizado em **Gestor de Tráfego IA → Configurações Gerais → Meta Ads**, dentro do card de cada conta. Mostra dados configurados, pendentes obrigatórios (vermelho) e opcionais (cinza). Permite salvar parcial; pendências de Página/Pixel/Evento só bloqueiam a etapa de publicação (futura).
+### D.3 — UI: separação estratégia × ativos técnicos (rev 2026-06-10, correção pós-Onda E)
+A aba **Configurações Gerais** do Gestor de Tráfego IA é exclusivamente para diretrizes **estratégicas e comerciais** do usuário: ativação da IA, execução automática diária, Modo Piloto / Modo Piloto Inicial, orçamento, ROI ideal, ROI mínimo por funil, estratégia geral, splits de funil e prompt estratégico (com botão de geração assistida por IA).
+
+O formulário manual "Configuração de Criação Meta" (Página do Facebook, Conta do Instagram, Pixel/Dataset, evento de conversão, IDs técnicos, públicos personalizados, posicionamentos, CTA/formato default, UTM etc.) **foi removido da UI principal**. Esses ativos são tratados como **dados técnicos da integração Meta**: coletados via sincronização read-only, armazenados em cache/tabelas internas e usados pelo Strategist e pelos gates sem exigir digitação manual do usuário na tela estratégica.
+
+No card de cada conta Meta o usuário vê apenas um **status inline somente leitura**: "Meta conectada · ativos sincronizados pela integração" quando OK, ou um alerta curto listando o que a integração não detectou (ex.: Pixel ausente) com link para Integrações. Eventual fallback manual fica restrito à área técnica de integração — não é o fluxo principal. A tabela `ads_meta_production_config` e o hook `useAdsMetaProductionConfig` continuam existindo como **estrutura operacional interna**, consumidos pelo Strategist (`collectStrategistContext`) e pelos gates; ausência de dado técnico vira `limitations` em `ads_ai_analysis_runs`, não campo obrigatório na UI estratégica.
+
 
 ### D.4 — Gates por etapa
 `runStructureCompletenessGate(structure, { stage })` aceita 3 etapas:
