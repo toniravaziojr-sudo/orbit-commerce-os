@@ -265,7 +265,9 @@ Deno.serve(async (req) => {
         provider_token: tokenToSave,
         ambiente: ambiente || 'homologacao',
         emissao_automatica: emissao_automatica || false,
-        emitir_apos_status: emitir_apos_status || 'paid',
+        // Gatilho único de auto-emissão: 'ready_to_invoice'. Valor legado 'paid' foi
+        // removido da UI e é normalizado aqui para evitar regressão silenciosa.
+        emitir_apos_status: 'ready_to_invoice',
         origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
         email: normalizedEmail,
         telefone: normalizedTelefone,
