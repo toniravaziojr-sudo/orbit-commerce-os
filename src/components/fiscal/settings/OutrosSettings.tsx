@@ -182,12 +182,18 @@ export function OutrosSettings() {
 
           {formData.auto_create_shipment && (
             <>
+              <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+                A remessa será criada automaticamente após a NF-e ser autorizada, somente para pedidos da loja ou marketplace. Pedidos manuais não são afetados.
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="default_shipping_provider">Transportadora Padrão</Label>
-                <Select value={formData.default_shipping_provider || ''} onValueChange={(v) => handleChange('default_shipping_provider', v)}>
+                <Select
+                  value={formData.default_shipping_provider || SHIPPING_PROVIDER_DEFAULT_SENTINEL}
+                  onValueChange={(v) => handleChange('default_shipping_provider', v === SHIPPING_PROVIDER_DEFAULT_SENTINEL ? null : v)}
+                >
                   <SelectTrigger><SelectValue placeholder="Usar transportadora do pedido" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Usar transportadora do pedido</SelectItem>
+                    <SelectItem value={SHIPPING_PROVIDER_DEFAULT_SENTINEL}>Usar transportadora do pedido</SelectItem>
                     {SHIPPING_PROVIDER_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                   </SelectContent>
                 </Select>
