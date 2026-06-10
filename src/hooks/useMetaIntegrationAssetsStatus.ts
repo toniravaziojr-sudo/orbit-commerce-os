@@ -2,6 +2,10 @@
 // useMetaIntegrationAssetsStatus
 // Lê os ativos reais da integração Meta do tenant (tenant_meta_integrations)
 // para o card de status técnico do Gestor de Tráfego IA.
+//
+// IMPORTANTE: a Página do Facebook usada para anúncios é selecionada DENTRO
+// da própria integração `anuncios` (config "Identidade dos Anúncios"). Não é
+// derivada de Publicações/Comentários — esses são fluxos orgânicos separados.
 // =============================================================================
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,20 +16,11 @@ export interface MetaIntegrationAssetsStatus {
   hasPage: boolean;
   hasPixel: boolean;
   hasConversionsApi: boolean;
-  /** Pronto para análise estratégica + publicação (página, pixel e CAPI). */
+  /** Pronto para análise estratégica + publicação (conta, página, pixel e CAPI). */
   readyForPublish: boolean;
   /** Lista de ativos faltantes em PT-BR para mensagens amigáveis. */
   missing: string[];
 }
-
-const PAGE_INTEGRATIONS = new Set([
-  "facebook_publicacoes",
-  "instagram_publicacoes",
-  "facebook_messenger",
-  "facebook_comentarios",
-  "instagram_comentarios",
-  "leads",
-]);
 
 function rowHasPage(selected: any): boolean {
   if (!selected) return false;
@@ -70,18 +65,21 @@ export function useMetaIntegrationAssetsStatus() {
       for (const row of data || []) {
         const sel = (row as any).selected_assets || {};
         const intId = (row as any).integration_id as string;
-        if (intId === "anuncios" && rowHasAdAccount(sel)) hasAdAccount = true;
+        if (intId === "anuncios") {
+          if (rowHasAdAccount(sel)) hasAdAccount = true;
+          // A Página vinculada aos anúncios mora aqui dentro (config "Identidade").
+          if (rowHasPage(sel)) hasPage = true;
+        }
         if (intId === "pixel_facebook" && rowHasPixel(sel)) hasPixel = true;
         if (intId === "conversions_api") {
           hasConversionsApi = true;
           if (rowHasPixel(sel)) hasPixel = true;
         }
-        if (PAGE_INTEGRATIONS.has(intId) && rowHasPage(sel)) hasPage = true;
       }
 
       const missing: string[] = [];
       if (!hasAdAccount) missing.push("Conta de anúncio");
-      if (!hasPage) missing.push("Página do Facebook/Instagram");
+      if (!hasPage) missing.push("Página vinculada aos anúncios");
       if (!hasPixel) missing.push("Pixel");
       if (!hasConversionsApi) missing.push("API de Conversões");
 

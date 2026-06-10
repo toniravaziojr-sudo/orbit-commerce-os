@@ -50,6 +50,7 @@ import { MetaPixelSection } from "./meta/MetaPixelSection";
 import { MetaConversionsApiSection } from "./meta/MetaConversionsApiSection";
 import { MetaProductFeedsSection } from "./meta/MetaProductFeedsSection";
 import { MetaWhatsAppRegistrationSection } from "./meta/MetaWhatsAppRegistrationSection";
+import { MetaAdsIdentitySection } from "./meta/MetaAdsIdentitySection";
 
 // Icon map for catalog integration icons
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -582,6 +583,8 @@ function IntegrationConfigSection({ configKey }: { configKey: string }) {
       return <MetaConversionsApiSection />;
     case "product_feeds":
       return <MetaProductFeedsSection />;
+    case "ads_identity":
+      return <MetaAdsIdentitySection />;
     default:
       return (
         <p className="text-xs text-muted-foreground py-2">
