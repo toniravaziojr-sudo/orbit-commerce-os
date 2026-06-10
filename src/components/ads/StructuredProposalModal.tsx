@@ -427,6 +427,8 @@ function OverviewSection({
   fitMessage,
   fitLabel,
   approveBlockedByFit,
+  blockers,
+  warnings,
 }: {
   action: PendingAction;
   campaign: CampaignNode;
@@ -436,6 +438,8 @@ function OverviewSection({
   fitMessage: string | null;
   fitLabel: string | null;
   approveBlockedByFit: boolean;
+  blockers: GateIssue[];
+  warnings: GateIssue[];
 }) {
   const reasoning = action.reasoning || campaign.rationale || null;
   return (
@@ -462,6 +466,36 @@ function OverviewSection({
           <Metric label="Anúncios" value={String(adsCount)} />
         </div>
       </Block>
+
+      {(blockers.length > 0 || warnings.length > 0) && (
+        <Block
+          title={blockers.length > 0 ? `Validações — ${blockers.length} bloqueio(s) pendente(s)` : "Validações"}
+          icon={blockers.length > 0
+            ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+            : <Target className="h-3.5 w-3.5 text-emerald-600" />}
+        >
+          {blockers.length > 0 && (
+            <div className="space-y-1.5">
+              {blockers.map((b, i) => (
+                <div key={`b-${i}`} className="flex items-start gap-2 text-xs">
+                  <Badge variant="destructive" className="text-[10px] shrink-0">{b.node}</Badge>
+                  <span className="text-rose-700 dark:text-rose-300">{b.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {warnings.map((w, i) => (
+                <div key={`w-${i}`} className="flex items-start gap-2 text-xs">
+                  <Badge variant="outline" className="text-[10px] shrink-0">{w.node}</Badge>
+                  <span className="text-muted-foreground">{w.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Block>
+      )}
 
       {fitMessage && (
         <Block
