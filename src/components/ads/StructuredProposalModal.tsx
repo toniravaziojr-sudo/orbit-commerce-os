@@ -304,8 +304,8 @@ export function StructuredProposalModal({
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Megaphone className="h-4 w-4 text-primary" />
-              {structure.campaign.name || "Proposta de Campanha"}
-              {isStrategyStage && (
+              {titleOverride ?? (structure.campaign.name || "Proposta")}
+              {isStrategyStage && !overviewOnly && (
                 <Badge variant="outline" className="text-[10px] ml-1">
                   Etapa 1 — estratégia
                 </Badge>
@@ -319,7 +319,7 @@ export function StructuredProposalModal({
                   {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}
                 </>
               )}
-              {fitBadge && <> · Adequação: {fitBadge.label}</>}
+              {fitBadge && !overviewOnly && <> · Adequação: {fitBadge.label}</>}
             </DialogDescription>
           </DialogHeader>
 
