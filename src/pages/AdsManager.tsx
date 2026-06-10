@@ -18,6 +18,7 @@ import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
 import { useAdsInsights } from "@/hooks/useAdsInsights";
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
+import { AdsAIGlobalAnalysisButton } from "@/components/ads/AdsAIGlobalAnalysisButton";
 import { AdsChannelIntegrationAlert } from "@/components/ads/AdsChannelIntegrationAlert";
 import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
