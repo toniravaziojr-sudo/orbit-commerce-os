@@ -1,8 +1,14 @@
 // =============================================================================
-// ads-ai-initial-analysis — Onda E
+// ads-ai-initial-analysis — Onda E (correção: escopo global mínimo)
 // Executa a "análise inicial" do Gestor de Tráfego IA (Modo Piloto Inicial
 // ou execução manual). Reaproveita o Strategist como motor de contexto/IA e
 // persiste o resultado em ads_ai_analysis_runs para auditoria.
+//
+// Escopos suportados:
+//  - account: roda para uma única conta Meta.
+//  - global : roda para todas as contas Meta operacionais/ativas do tenant.
+//             Google/TikTok ainda não são operacionais — são listados como
+//             limitação amigável e ignorados na execução.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -13,9 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VERSION = "ads-ai-initial-analysis@1.0.0";
-
-// Janela em horas para considerar uma análise concluída "recente"
+const VERSION = "ads-ai-initial-analysis@1.1.0";
 const RECENT_HOURS = 24;
 
 function ok(data: unknown) {
@@ -29,6 +33,281 @@ function fail(error: string, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
     status,
   });
+}
+
+interface RunAccountInput {
+  supabase: any;
+  tenantId: string;
+  platform: string;
+  adAccountId: string;
+  trigger: "activation_initial" | "manual";
+  createdBy: string | null;
+  force: boolean;
+  parentRunId?: string | null;
+}
+
+interface RunAccountOutput {
+  ad_account_id: string;
+  run_id: string | null;
+  status: "completed" | "failed" | "skipped";
+  skip_reason?: string;
+  created_action_ids: string[];
+  diagnosis_summary?: string;
+  strategy_summary?: string;
+  error?: string | null;
+  context_summary?: string;
+}
+
+/**
+ * Monta um resumo amigável (humano) do contexto usado na análise.
+ * Não expõe payload técnico bruto. O snapshot completo continua em
+ * input_config_snapshot para auditoria.
+ */
+function buildHumanContextSummary(
+  adAccountId: string,
+  cfg: any | null,
+  prod: any | null,
+): string {
+  const parts: string[] = [];
+  parts.push(`conta Meta ${adAccountId}`);
+  if (cfg?.budget_cents != null) {
+    const v = (Number(cfg.budget_cents) / 100).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    parts.push(`orçamento ${v}`);
+  }
+  if (cfg?.target_roi) parts.push(`ROI/ROAS alvo ${cfg.target_roi}`);
+  if (prod?.default_country) parts.push(`país ${prod.default_country}`);
+  if (prod?.default_age_min != null && prod?.default_age_max != null) {
+    parts.push(`idade ${prod.default_age_min}-${prod.default_age_max}`);
+  }
+  if (Array.isArray(prod?.default_placements) && prod.default_placements.length) {
+    parts.push(`posicionamentos ${prod.default_placements.join(", ")}`);
+  }
+  if (prod?.default_cta) parts.push(`CTA ${prod.default_cta}`);
+  if (prod?.default_creative_format) parts.push(`formato ${prod.default_creative_format}`);
+  if (cfg?.user_instructions) parts.push("diretrizes configuradas");
+  return `Esta análise considerou: ${parts.join(", ")}.`;
+}
+
+/**
+ * Executa a análise para UMA conta. Reutilizado pelos modos account e global.
+ * Cria a run (scope=account), invoca o strategist, atualiza a run.
+ */
+async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> {
+  const { supabase, tenantId, platform, adAccountId, trigger, createdBy, force, parentRunId } = input;
+
+  // 1) Skip se já existe execução running para esta conta
+  const { data: runningRows } = await supabase
+    .from("ads_ai_analysis_runs")
+    .select("id, status")
+    .eq("tenant_id", tenantId)
+    .eq("platform", platform)
+    .eq("scope", "account")
+    .eq("ad_account_id", adAccountId)
+    .in("status", ["queued", "running"]);
+  if (runningRows && runningRows.length > 0) {
+    return {
+      ad_account_id: adAccountId,
+      run_id: runningRows[0].id,
+      status: "skipped",
+      skip_reason: "already_running",
+      created_action_ids: [],
+    };
+  }
+
+  // 2) Se não veio force, pula análise concluída <24h
+  if (!force) {
+    const sinceIso = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("ads_ai_analysis_runs")
+      .select("id, finished_at")
+      .eq("tenant_id", tenantId)
+      .eq("platform", platform)
+      .eq("scope", "account")
+      .eq("ad_account_id", adAccountId)
+      .eq("status", "completed")
+      .gte("finished_at", sinceIso)
+      .order("finished_at", { ascending: false })
+      .limit(1);
+    if (recent && recent.length > 0) {
+      return {
+        ad_account_id: adAccountId,
+        run_id: recent[0].id,
+        status: "skipped",
+        skip_reason: "recent_completed_requires_force",
+        created_action_ids: [],
+      };
+    }
+  }
+
+  // 3) Carrega configs para snapshot e resumo humano
+  const { data: cfgs } = await supabase
+    .from("ads_autopilot_account_configs")
+    .select("ad_account_id, channel, budget_cents, budget_mode, target_roi, min_roi_cold, min_roi_warm, strategy_mode, user_instructions, autonomy_mode, kill_switch, is_ai_enabled")
+    .eq("tenant_id", tenantId)
+    .eq("channel", platform)
+    .eq("ad_account_id", adAccountId)
+    .maybeSingle();
+
+  const { data: prodCfg } = await supabase
+    .from("ads_meta_production_config")
+    .select("ad_account_id, facebook_page_id, instagram_actor_id, pixel_id, default_conversion_event, default_objective, default_buying_type, default_budget_type, default_daily_budget_cents, default_country, default_language, default_age_min, default_age_max, default_placements, default_cta, default_creative_format")
+    .eq("tenant_id", tenantId)
+    .eq("ad_account_id", adAccountId)
+    .maybeSingle();
+
+  const contextSummary = buildHumanContextSummary(adAccountId, cfgs, prodCfg);
+
+  const limitations: string[] = [];
+  if (!cfgs?.is_ai_enabled) limitations.push("Conta sem IA ativada — análise rodou em modo simulado.");
+  if (!prodCfg?.facebook_page_id) limitations.push("Página do Facebook não configurada.");
+  if (!prodCfg?.pixel_id) limitations.push("Pixel não configurado.");
+  if (!prodCfg?.default_conversion_event) limitations.push("Evento de conversão padrão não configurado.");
+
+  // 4) Cria a run
+  const { data: inserted, error: insErr } = await supabase
+    .from("ads_ai_analysis_runs")
+    .insert({
+      tenant_id: tenantId,
+      platform,
+      ad_account_id: adAccountId,
+      scope: "account",
+      trigger,
+      status: "running",
+      started_at: new Date().toISOString(),
+      created_by: createdBy,
+      input_config_snapshot: {
+        platform,
+        scope: "account",
+        ad_account_id: adAccountId,
+        trigger,
+        version: VERSION,
+        parent_run_id: parentRunId || null,
+        account_config: cfgs || null,
+        production_config: prodCfg || null,
+      },
+      account_snapshot_summary: {
+        ad_account_id: adAccountId,
+        human_summary: contextSummary,
+        has_facebook_page: !!prodCfg?.facebook_page_id,
+        has_instagram: !!prodCfg?.instagram_actor_id,
+        has_pixel: !!prodCfg?.pixel_id,
+        has_conversion_event: !!prodCfg?.default_conversion_event,
+        default_objective: prodCfg?.default_objective || null,
+        default_country: prodCfg?.default_country || null,
+        target_roi: cfgs?.target_roi || null,
+      },
+      limitations,
+    })
+    .select("id")
+    .single();
+
+  if (insErr) {
+    // Race: já criada por outra execução
+    const { data: existing } = await supabase
+      .from("ads_ai_analysis_runs")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("platform", platform)
+      .eq("scope", "account")
+      .eq("ad_account_id", adAccountId)
+      .in("status", ["queued", "running"])
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id) {
+      return {
+        ad_account_id: adAccountId,
+        run_id: existing.id,
+        status: "skipped",
+        skip_reason: "already_running",
+        created_action_ids: [],
+      };
+    }
+    return {
+      ad_account_id: adAccountId,
+      run_id: null,
+      status: "failed",
+      error: insErr.message,
+      created_action_ids: [],
+      context_summary: contextSummary,
+    };
+  }
+  const runId = inserted!.id;
+
+  // 5) Invoca o Strategist
+  let strategistResult: any = null;
+  let strategistError: string | null = null;
+  try {
+    const { data: stratData, error: stratErr } = await supabase.functions.invoke(
+      "ads-autopilot-strategist",
+      {
+        body: {
+          tenant_id: tenantId,
+          trigger: "start",
+          target_account_id: adAccountId,
+          target_channel: platform,
+          initiated_by: "ads-ai-initial-analysis",
+          analysis_run_id: runId,
+          parent_run_id: parentRunId || null,
+        },
+      },
+    );
+    if (stratErr) strategistError = stratErr.message || String(stratErr);
+    else strategistResult = stratData;
+  } catch (e: any) {
+    strategistError = e?.message || String(e);
+  }
+
+  // 6) Coleta ações criadas nesta janela para esta conta
+  const { data: createdActions } = await supabase
+    .from("ads_autopilot_actions")
+    .select("id, action_type, ad_account_id")
+    .eq("tenant_id", tenantId)
+    .eq("channel", platform)
+    .gte("created_at", new Date(Date.now() - 15 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const createdActionIds = (createdActions || [])
+    .filter((a: any) => !a.ad_account_id || a.ad_account_id === adAccountId)
+    .map((a: any) => a.id);
+
+  // 7) Atualiza a run
+  const succeeded = !strategistError;
+  const diagnosis =
+    strategistResult?.data?.diagnosis ||
+    strategistResult?.diagnosis ||
+    (succeeded
+      ? "Análise inicial concluída. Veja as propostas na fila Aguardando Ação."
+      : "Não foi possível concluir a análise inicial.");
+  const strategy =
+    strategistResult?.data?.strategy_summary ||
+    strategistResult?.strategy_summary ||
+    (succeeded ? "Estratégia inicial registrada como propostas pendentes de aprovação." : "");
+
+  await supabase
+    .from("ads_ai_analysis_runs")
+    .update({
+      status: succeeded ? "completed" : "failed",
+      finished_at: new Date().toISOString(),
+      diagnosis_summary: diagnosis,
+      strategy_summary: strategy,
+      created_action_ids: createdActionIds,
+      error_message: strategistError,
+    })
+    .eq("id", runId);
+
+  return {
+    ad_account_id: adAccountId,
+    run_id: runId,
+    status: succeeded ? "completed" : "failed",
+    created_action_ids: createdActionIds,
+    diagnosis_summary: diagnosis,
+    strategy_summary: strategy,
+    error: strategistError,
+    context_summary: contextSummary,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -52,46 +331,66 @@ Deno.serve(async (req) => {
     const createdBy: string | null = body.created_by || null;
 
     if (!tenantId) return fail("tenant_id_required");
-    if (scope === "account" && !adAccountId) return fail("ad_account_id_required_for_account_scope");
-
-    // Hoje só Meta é operacional para análise inicial
-    if (platform !== "meta") {
+    if (scope === "account" && !adAccountId)
+      return fail("ad_account_id_required_for_account_scope");
+    if (platform !== "meta")
       return fail("platform_not_operational_for_initial_analysis");
-    }
 
-    // 1) Bloqueia se já existe execução running para o mesmo escopo
-    const { data: runningRows } = await supabase
-      .from("ads_ai_analysis_runs")
-      .select("id, status, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("platform", platform)
-      .eq("scope", scope)
-      .in("status", ["queued", "running"]);
-
-    const sameAccount = (runningRows || []).filter((r: any) => true); // unique index garante exclusividade
-    if (sameAccount.length > 0) {
+    // ===== Escopo ACCOUNT =====
+    if (scope === "account") {
+      const out = await runForAccount({
+        supabase, tenantId, platform, adAccountId: adAccountId!,
+        trigger, createdBy, force,
+      });
+      if (out.status === "skipped") {
+        return ok({
+          skipped: true,
+          reason: out.skip_reason,
+          run_id: out.run_id,
+        });
+      }
       return ok({
-        skipped: true,
-        reason: "already_running",
-        run_id: sameAccount[0].id,
+        run_id: out.run_id,
+        status: out.status,
+        created_action_ids: out.created_action_ids,
+        context_summary: out.context_summary,
+        limitations: [],
+        error: out.error || null,
       });
     }
 
-    // 2) Avisa se há análise recente concluída e não veio force
+    // ===== Escopo GLOBAL =====
+    // 1) Bloqueia se já existe run global ativa
+    const { data: existingGlobal } = await supabase
+      .from("ads_ai_analysis_runs")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("platform", platform)
+      .eq("scope", "global")
+      .in("status", ["queued", "running"])
+      .limit(1)
+      .maybeSingle();
+    if (existingGlobal?.id) {
+      return ok({
+        skipped: true,
+        reason: "already_running",
+        run_id: existingGlobal.id,
+      });
+    }
+
+    // 2) Se não veio force, pula global concluído <24h
     if (!force) {
       const sinceIso = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000).toISOString();
-      let recentQ = supabase
+      const { data: recent } = await supabase
         .from("ads_ai_analysis_runs")
         .select("id, finished_at")
         .eq("tenant_id", tenantId)
         .eq("platform", platform)
-        .eq("scope", scope)
+        .eq("scope", "global")
         .eq("status", "completed")
         .gte("finished_at", sinceIso)
         .order("finished_at", { ascending: false })
         .limit(1);
-      if (adAccountId) recentQ = recentQ.eq("ad_account_id", adAccountId);
-      const { data: recent } = await recentQ;
       if (recent && recent.length > 0) {
         return ok({
           skipped: true,
@@ -102,170 +401,157 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 3) Cria a run (status=running). O unique index garante 1 ativa por escopo.
-    const { data: inserted, error: insErr } = await supabase
+    // 3) Busca todas as contas Meta com IA ativada
+    const { data: metaAccounts } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("channel", "meta")
+      .eq("is_ai_enabled", true);
+
+    const accountIds = Array.from(
+      new Set((metaAccounts || []).map((a: any) => a.ad_account_id).filter(Boolean)),
+    );
+
+    // 4) Detecta presença de Google/TikTok configurado, para limitação amigável
+    const { data: otherChannels } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("channel")
+      .eq("tenant_id", tenantId)
+      .in("channel", ["google", "tiktok"]);
+    const hasOther = (otherChannels || []).length > 0;
+
+    const limitations: string[] = [];
+    if (hasOther) {
+      limitations.push(
+        "Google Ads e TikTok Ads ainda não estão operacionais nesta etapa. Foram ignorados nesta análise.",
+      );
+    }
+    if (accountIds.length === 0) {
+      limitations.push("Nenhuma conta Meta com IA ativada — análise global sem alvos operacionais.");
+    }
+
+    // 5) Cria a run parent (scope=global)
+    const { data: parentInserted, error: parentErr } = await supabase
       .from("ads_ai_analysis_runs")
       .insert({
         tenant_id: tenantId,
         platform,
-        ad_account_id: adAccountId,
-        scope,
+        ad_account_id: null,
+        scope: "global",
         trigger,
         status: "running",
         started_at: new Date().toISOString(),
         created_by: createdBy,
         input_config_snapshot: {
           platform,
-          scope,
-          ad_account_id: adAccountId,
+          scope: "global",
           trigger,
           version: VERSION,
+          target_account_ids: accountIds,
+          has_non_operational_channels: hasOther,
         },
+        limitations,
       })
       .select("id")
       .single();
-    if (insErr) {
-      // Provavelmente conflito do unique index (race) — devolve já existente.
+    if (parentErr) {
       const { data: existing } = await supabase
         .from("ads_ai_analysis_runs")
         .select("id")
         .eq("tenant_id", tenantId)
         .eq("platform", platform)
-        .eq("scope", scope)
+        .eq("scope", "global")
         .in("status", ["queued", "running"])
         .limit(1)
         .maybeSingle();
       if (existing?.id) return ok({ skipped: true, reason: "already_running", run_id: existing.id });
-      return fail(insErr.message);
+      return fail(parentErr.message);
     }
-    const runId = inserted!.id;
+    const parentRunId = parentInserted!.id;
 
-    // 4) Carrega configs ativas usadas como contexto (snapshot amigável)
-    let cfgQ = supabase
-      .from("ads_autopilot_account_configs")
-      .select("ad_account_id, channel, budget_cents, budget_mode, target_roi, min_roi_cold, min_roi_warm, strategy_mode, user_instructions, autonomy_mode, kill_switch, is_ai_enabled")
-      .eq("tenant_id", tenantId)
-      .eq("channel", platform)
-      .eq("is_ai_enabled", true);
-    if (adAccountId) cfgQ = cfgQ.eq("ad_account_id", adAccountId);
-    const { data: cfgs } = await cfgQ;
-
-    let metaProdQ = supabase
-      .from("ads_meta_production_config")
-      .select("ad_account_id, facebook_page_id, instagram_actor_id, pixel_id, default_conversion_event, default_objective, default_buying_type, default_budget_type, default_daily_budget_cents, default_country, default_language, default_age_min, default_age_max, default_placements, default_cta, default_creative_format")
-      .eq("tenant_id", tenantId);
-    if (adAccountId) metaProdQ = metaProdQ.eq("ad_account_id", adAccountId);
-    const { data: prodCfgs } = await metaProdQ;
-
-    const accountSnapshot = {
-      platform,
-      scope,
-      accounts: (cfgs || []).map((c: any) => ({
-        ad_account_id: c.ad_account_id,
-        budget_cents: c.budget_cents,
-        budget_mode: c.budget_mode,
-        target_roi: c.target_roi,
-        strategy_mode: c.strategy_mode,
-        has_user_instructions: !!(c.user_instructions && c.user_instructions.length),
-        autonomy_mode: c.autonomy_mode,
-      })),
-      production_config: (prodCfgs || []).map((p: any) => ({
-        ad_account_id: p.ad_account_id,
-        has_facebook_page: !!p.facebook_page_id,
-        has_instagram: !!p.instagram_actor_id,
-        has_pixel: !!p.pixel_id,
-        has_conversion_event: !!p.default_conversion_event,
-        default_objective: p.default_objective,
-        default_daily_budget_cents: p.default_daily_budget_cents,
-        default_country: p.default_country,
-        default_cta: p.default_cta,
-        default_creative_format: p.default_creative_format,
-      })),
-    };
-
-    const limitations: string[] = [];
-    if ((cfgs || []).length === 0) limitations.push("Nenhuma conta de anúncios ativa para esta análise.");
-    if ((prodCfgs || []).some((p: any) => !p.facebook_page_id)) limitations.push("Página do Facebook não configurada em ao menos uma conta.");
-    if ((prodCfgs || []).some((p: any) => !p.pixel_id)) limitations.push("Pixel não configurado em ao menos uma conta.");
-    if ((prodCfgs || []).some((p: any) => !p.default_conversion_event)) limitations.push("Evento de conversão padrão não configurado em ao menos uma conta.");
-
-    // Atualiza snapshot na run antes de chamar a IA (para auditoria mesmo em falha)
-    await supabase
-      .from("ads_ai_analysis_runs")
-      .update({
-        account_snapshot_summary: accountSnapshot,
-        limitations,
-      })
-      .eq("id", runId);
-
-    // 5) Invoca o Strategist (motor real de produção). trigger="start" replica o
-    // comportamento de "primeira ativação" — gera diagnóstico + plano + propostas.
-    let strategistResult: any = null;
-    let strategistError: string | null = null;
-    try {
-      const { data: stratData, error: stratErr } = await supabase.functions.invoke(
-        "ads-autopilot-strategist",
-        {
-          body: {
-            tenant_id: tenantId,
-            trigger: "start",
-            target_account_id: adAccountId,
-            target_channel: platform,
-            // Marcador de auditoria — não altera lógica do strategist
-            initiated_by: "ads-ai-initial-analysis",
-            analysis_run_id: runId,
-          },
-        },
-      );
-      if (stratErr) strategistError = stratErr.message || String(stratErr);
-      else strategistResult = stratData;
-    } catch (e: any) {
-      strategistError = e?.message || String(e);
+    // 6) Executa por conta (sequencial — evita explodir custo IA)
+    const childResults: RunAccountOutput[] = [];
+    for (const accId of accountIds) {
+      try {
+        const out = await runForAccount({
+          supabase, tenantId, platform, adAccountId: accId,
+          trigger, createdBy, force, parentRunId,
+        });
+        childResults.push(out);
+      } catch (e: any) {
+        childResults.push({
+          ad_account_id: accId,
+          run_id: null,
+          status: "failed",
+          error: e?.message || String(e),
+          created_action_ids: [],
+        });
+      }
     }
 
-    // 6) Coleta ações criadas pelo strategist nesta janela
-    const { data: createdActions } = await supabase
-      .from("ads_autopilot_actions")
-      .select("id, action_type")
-      .eq("tenant_id", tenantId)
-      .gte("created_at", new Date(Date.now() - 15 * 60 * 1000).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(50);
+    // 7) Consolida e fecha a run global
+    const completed = childResults.filter((c) => c.status === "completed");
+    const failed = childResults.filter((c) => c.status === "failed");
+    const skipped = childResults.filter((c) => c.status === "skipped");
+    const allActionIds = childResults.flatMap((c) => c.created_action_ids || []);
+    const finalStatus = failed.length > 0 && completed.length === 0 ? "failed" : "completed";
 
-    const createdActionIds = (createdActions || []).map((a: any) => a.id);
+    const contextSummaries = childResults
+      .filter((c) => c.context_summary)
+      .map((c) => `- ${c.context_summary}`)
+      .join("\n");
 
-    // 7) Atualiza a run (completed/failed)
-    const succeeded = !strategistError;
-    const diagnosis =
-      strategistResult?.data?.diagnosis ||
-      strategistResult?.diagnosis ||
-      (succeeded
-        ? "Análise inicial concluída. Veja as propostas na fila Aguardando Ação."
-        : "Não foi possível concluir a análise inicial.");
+    const globalDiagnosis = [
+      `Análise global concluída para ${completed.length} conta(s) Meta.`,
+      skipped.length ? `${skipped.length} pulada(s) (em andamento ou recente).` : "",
+      failed.length ? `${failed.length} falhou(aram).` : "",
+      hasOther ? "Google Ads e TikTok Ads ignorados (ainda não operacionais)." : "",
+    ].filter(Boolean).join(" ");
 
-    const strategy =
-      strategistResult?.data?.strategy_summary ||
-      strategistResult?.strategy_summary ||
-      (succeeded ? "Estratégia inicial registrada como propostas pendentes de aprovação." : "");
+    const globalStrategy = contextSummaries
+      ? `Contas analisadas:\n${contextSummaries}`
+      : "Sem contas Meta operacionais para esta análise.";
 
     await supabase
       .from("ads_ai_analysis_runs")
       .update({
-        status: succeeded ? "completed" : "failed",
+        status: finalStatus,
         finished_at: new Date().toISOString(),
-        diagnosis_summary: diagnosis,
-        strategy_summary: strategy,
-        created_action_ids: createdActionIds,
-        error_message: strategistError,
+        diagnosis_summary: globalDiagnosis,
+        strategy_summary: globalStrategy,
+        created_action_ids: allActionIds,
+        account_snapshot_summary: {
+          scope: "global",
+          accounts_total: accountIds.length,
+          accounts_completed: completed.length,
+          accounts_failed: failed.length,
+          accounts_skipped: skipped.length,
+          ignored_channels: hasOther ? ["google", "tiktok"] : [],
+          per_account: childResults.map((c) => ({
+            ad_account_id: c.ad_account_id,
+            status: c.status,
+            skip_reason: c.skip_reason || null,
+            run_id: c.run_id,
+            context_summary: c.context_summary || null,
+          })),
+        },
+        error_message: failed.length
+          ? failed.map((f) => `${f.ad_account_id}: ${f.error}`).join("; ")
+          : null,
       })
-      .eq("id", runId);
+      .eq("id", parentRunId);
 
     return ok({
-      run_id: runId,
-      status: succeeded ? "completed" : "failed",
-      created_action_ids: createdActionIds,
+      run_id: parentRunId,
+      scope: "global",
+      status: finalStatus,
+      accounts_total: accountIds.length,
+      accounts_completed: completed.length,
+      accounts_failed: failed.length,
+      accounts_skipped: skipped.length,
       limitations,
-      error: strategistError,
+      per_account: childResults,
     });
   } catch (err: any) {
     console.error(`[${VERSION}] fatal`, err?.message || err);
