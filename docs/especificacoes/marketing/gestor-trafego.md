@@ -15,18 +15,23 @@ Pipeline autônomo de gestão de tráfego pago cross-channel (Meta, Google, TikT
 
 ### Escopo (importante)
 
-Este módulo considera **apenas plataformas de anúncio (Meta, Google, TikTok) + Loja Virtual**. Vendas e investimentos de marketplaces (Mercado Livre, Shopee, TikTok Shop) **não** entram aqui — elas são analisadas nas sub-abas correspondentes do Dashboard da Central de Comando (`mem://features/command-center/dashboard-by-channel-standard`).
+Este módulo considera **exclusivamente mídia paga** (Meta, Google, TikTok). Receita geral da loja virtual, marketplaces e canais orgânicos (direto, e-mail, WhatsApp, SEO) **não** entram aqui — esses dados vivem no Dashboard da Central de Comando (`mem://features/command-center/dashboard-by-channel-standard`).
 
-### Fontes de receita exibidas
+### Cards de métricas (v6.12.0)
 
 | Card | Fonte | Significado |
 |------|-------|-------------|
-| **Investimento Total** | `meta_ad_insights + google_ad_insights + tiktok_ad_insights` | Soma do gasto reportado pelas plataformas no período |
-| **Receita atribuída (Ads)** | `conversion_value_cents` dos pixels (Meta + Google + TikTok) | Receita reportada pelos pixels — pode divergir do caixa real |
-| **Receita Real Loja Virtual** | Mesma fonte do Dashboard (canal `storefront`) | Caixa real da loja virtual no período, em BRT |
-| **ROAS Blended** | Receita atribuída ÷ Investimento | Indicador comparável entre canais |
+| **Investimento Total** | `meta_ad_insights + google_ad_insights + tiktok_ad_insights` | Gasto reportado pelas plataformas no período |
+| **Receita Atribuída (Ads)** | `conversion_value_cents` dos pixels (Meta + Google + TikTok) | Receita reportada pelos pixels — padrão de mercado |
+| **Receita Real de Ads (pagos)** | `orders` (status efetivado) × `order_attribution` (last-click: fbclid/gclid/ttclid ou utm_medium paid) | Caixa real de pedidos pagos cuja origem rastreada foi mídia paga |
+| **ROAS Atribuído** | Receita Atribuída ÷ Investimento | Comparável entre canais e com o que cada plataforma reporta |
+| **ROAS Real (Ads)** | Receita Real de Ads ÷ Investimento | Verdade de caixa: quanto cada R$1 investido virou venda paga atribuível a Ads |
+| **CPA Médio** | Investimento ÷ Conversões | Custo por aquisição reportado pelas plataformas |
+| **Conversões** | Soma de conversões dos pixels | Volume reportado pelos pixels |
 
-A coexistência das duas receitas (atribuída x real) elimina a confusão histórica entre "Receita" do Dashboard e "Receita" do Gestor de Tráfego.
+**Critério "venda realizada"** (igual ao Dashboard e Relatórios): status do pedido em `paid | processing | ready_to_invoice | shipped | delivered`. Pedidos pendentes, abandonados ou cancelados **nunca** entram.
+
+**Critério "veio de Ads" (last-click)**: pedido com `fbclid` (Meta), `gclid` (Google), `ttclid` (TikTok) ou `utm_medium` em `cpc|paid|paid_social|ads`. Tráfego orgânico, direto, e-mail, WhatsApp e marketplaces ficam fora.
 
 ### Módulos Relacionados
 
