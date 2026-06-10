@@ -621,6 +621,14 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
   - **Publicação (futura):** exigirá Página, identidade do anúncio, Pixel/dataset (quando objetivo demandar conversão), evento e permissões.
 - Detalhe técnico em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Configurações Gerais — separação estratégia × ativos técnicos") e baseline em `docs/especificacoes/marketing/plataformas-baseline.md`.
 
+### Integrações Meta — Identidade dos Anúncios (rev 2026-06-10)
+
+- `/integrations` → card **Meta → grupo Marketing & Conversão → linha Anúncios**: ao ativar a integração, o usuário primeiro seleciona uma ou mais **Contas de Anúncio** (multi-seleção). Logo abaixo, uma seção expansível **"Identidade dos Anúncios"** permite escolher a **Página do Facebook** (obrigatória) e, opcionalmente, a **conta do Instagram** que serão usadas como identidade de publicação dos anúncios criados nessa conta Meta.
+- Página e Instagram para anúncios passam a viver **dentro da própria integração de Anúncios** — não são derivados das integrações de **Publicações**, **Comentários**, **Messenger**, **Direct** ou **Leads**, que tratam de fluxo orgânico/atendimento e podem perfeitamente estar desligadas.
+- O **status técnico Meta** no Gestor de Tráfego IA (`/ads`) passa a exigir: Conta de Anúncio + Página vinculada aos anúncios + Pixel + API de Conversões — todos lidos de `tenant_meta_integrations`. Ausência de Página dentro de Anúncios mantém o alerta de pendência com link para Integrações.
+
+
+
 
 ### Gestor de Tráfego IA — Ativação por modos e análise inicial (Onda E, rev 2026-06-10)
 
