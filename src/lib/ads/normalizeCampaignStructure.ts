@@ -315,8 +315,7 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
       data?.creative_prompt ||
       data?.headline;
     if (!anything && !isCampaignLike) return null;
-    const isTwoStepStrategy =
-      opts.flowVersion === "two_step_v1" && !preview?.creative_url && !data?.asset_url;
+    const isTwoStepStrategy = opts.flowVersion === "two_step_v1";
     return {
       name: pickStr(data?.ad_name) || "Anúncio 1",
       ad_set_ref: null,
