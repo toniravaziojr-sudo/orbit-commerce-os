@@ -139,6 +139,8 @@ async function processTenanDrafts(
     .select(`
       id,
       order_number,
+      status,
+      payment_status,
       total,
       subtotal,
       shipping_total,
