@@ -1664,16 +1664,28 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               </div>
             )}
 
-            {/* "Ver completo" button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFullOpen(true)}
-              className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
-            >
-              <Eye className="h-3 w-3" />
-              Ver conteúdo completo
-            </Button>
+            {/* Botão de visualização — único CTA quando proposta estruturada (Campanha → Conjuntos → Anúncios). */}
+            {isStructuredCampaign ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setStructuredOpen(true)}
+                className="h-8 mt-1 text-xs gap-1.5"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Visualizar proposta
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFullOpen(true)}
+                className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
+              >
+                <Eye className="h-3 w-3" />
+                Ver conteúdo completo
+              </Button>
+            )}
           </div>
         </div>
 
