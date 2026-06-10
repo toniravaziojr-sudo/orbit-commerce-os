@@ -530,7 +530,8 @@ function OverviewSection({
 }
 
 function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channel: string }) {
-  const hasInherited = !!(campaign.inherited_destination_url || campaign.inherited_cta);
+  // Onda D: link/CTA/tracking pertencem APENAS a Anúncio/Criativo.
+  // Bloco "Resumo herdado dos anúncios" removido da Campanha por completo.
   return (
     <div className="space-y-4">
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
@@ -544,20 +545,6 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
         </DetailGrid>
       </Block>
-      {hasInherited && (
-        <Block
-          title="Resumo herdado dos anúncios"
-          icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-        >
-          <p className="text-[11px] text-muted-foreground italic mb-2">
-            Estes valores pertencem ao Anúncio/Criativo. São mostrados aqui apenas como leitura.
-          </p>
-          <DetailGrid>
-            <Detail label="Botão de ação (do anúncio)" value={tr("cta", campaign.inherited_cta)} />
-            <Detail label="Link de destino (do anúncio)" value={campaign.inherited_destination_url} fullWidth />
-          </DetailGrid>
-        </Block>
-      )}
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
