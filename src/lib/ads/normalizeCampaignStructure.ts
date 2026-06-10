@@ -67,6 +67,8 @@ export interface AdNode {
 }
 
 export interface CampaignStructure {
+  /** Versão do contrato canônico desta proposta (1 = legacy, 2 = canonical v2). */
+  schema_version: 1 | 2;
   campaign: CampaignNode;
   ad_sets: AdSetNode[];
   ads: AdNode[];
