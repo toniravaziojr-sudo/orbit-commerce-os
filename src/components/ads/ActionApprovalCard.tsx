@@ -1507,13 +1507,24 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
 
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
 
-  // Classificação: proposta estruturada (Campanha → Conjuntos → Anúncios) vs ação operacional legacy
+  // Classificação:
+  //  - useStructuredModal: tipos que abrem o modal novo (Visualizar proposta)
+  //  - operacionais simples (adjust_budget / pause_campaign / activate_campaign): inline, sem dialog
   const structuredCheck = normalizeCampaignStructure(data, {
     actionType: action.action_type,
     flowVersion: (data as any)?.flow_version,
   });
-  const isStructuredCampaign =
-    action.action_type === "create_campaign" || structuredCheck.is_structured_campaign;
+  const STRUCTURED_MODAL_TYPES = new Set([
+    "strategic_plan",
+    "create_campaign",
+    "create_adset",
+    "generate_creative",
+  ]);
+  const useStructuredModal =
+    STRUCTURED_MODAL_TYPES.has(action.action_type) ||
+    structuredCheck.is_structured_campaign;
+  // Mantém compatibilidade com restante do arquivo
+  const isStructuredCampaign = useStructuredModal;
 
   const diagnosis = data.diagnosis || null;
   const summaryText = isStrategicPlan
@@ -1815,8 +1826,8 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         )}
       </Card>
 
-      {/* Modal estruturado (Campanha → Conjuntos → Anúncios) — só para propostas de campanha */}
-      {isStructuredCampaign && (
+      {/* Modal estruturado — Plano Estratégico (apenas Visão Geral) + Campanha/Conjunto/Anúncio */}
+      {useStructuredModal && (
         <StructuredProposalModal
           action={action}
           childActions={childActions}
@@ -1829,6 +1840,9 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           }}
           approvingId={approvingId}
           rejectingId={rejectingId}
+          overviewOnly={isStrategicPlan}
+          titleOverride={isStrategicPlan ? "Plano Estratégico" : undefined}
+          approveLabelOverride={isStrategicPlan ? "Aprovar plano" : undefined}
         />
       )}
 

@@ -834,36 +834,36 @@ O prompt estratégico (`user_instructions`) é **sugestivo**:
 - Se houver conflito entre o prompt e configurações manuais (ROI, orçamento, estratégia, splits), as **configurações manuais SEMPRE prevalecem**
 - A IA exibe aviso no sistema de que as instruções são sugestivas e não sobrepõem configs numéricas
 
-### Preview de Ações (ActionDetailDialog)
+### Preview de Ações (StructuredProposalModal + inline)
 
-Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com preview estruturado completo. O componente `ActionDetailDialog.tsx` renderiza previews específicos por tipo:
+A partir de v6.13.0, todas as propostas de planejamento e criação passam a usar **um único dialog estruturado** (`StructuredProposalModal`), e as ações operacionais simples permanecem **inline no card**, sem abrir dialog.
 
-| Tipo de Ação | Preview Estruturado |
-|---|---|
-| `create_campaign` | Nome, objetivo, status, orçamento diário, conjuntos de anúncios (com segmentação) e anúncios (headline, copy, CTA) |
-| `create_adset` | Nome, campanha, orçamento, otimização, segmentação detalhada (idade, gênero, geo, interesses, Custom/Lookalike Audiences), agendamento |
-| `generate_creative` | Produto, canal, formato, variações, estilo de geração, pasta de destino, objetivo e público-alvo. **Preview de imagens geradas** (v5.9.8): busca `creative_jobs.output_urls` quando `job_id` presente, com auto-refresh a cada 5s durante processamento e fallback visual para estados de erro |
-| `adjust_budget` / `allocate_budget` | Entidade, orçamento anterior vs novo, variação % |
-| `pause_campaign` | Nome, gasto atual, economia/dia estimada |
-| `report_insight` | Corpo do insight, categoria, prioridade |
-| Outros | JSON formatado (fallback) |
+**Regras de roteamento por tipo de ação:**
 
-**Componentes internos:**
-- `CampaignPreview` — Preview hierárquico (campanha → adsets → ads)
-- `AdsetPreview` — Conjunto com `TargetingPreview` integrado
-- `CreativePreview` — Com detalhes enriquecidos (produto, canal, formato, variações, estilo, pasta). **v5.9.8**: Query ao `creative_jobs` para exibir imagens prontas quando `job_id` presente (auto-refresh enquanto `running`/`pending`)
-- `BudgetPreview` — Comparação antes/depois com destaque
-- `PausePreview` — Economia estimada
-- `TargetingPreview` — Breakdown de segmentação (interesses como badges, Custom Audiences, Lookalikes com ratio %)
-- `RawDataPreview` — Fallback JSON para dados de reversão e tipos desconhecidos
+| Tipo de Ação | Onde aparece | Conteúdo |
+|---|---|---|
+| `strategic_plan` | Modal unificado, **apenas aba "Visão Geral"** (sem sidebar Campanha/Conjuntos/Anúncios) | Diagnóstico, Estratégia recomendada, Próximas ações sugeridas, Limitações observadas, Impacto esperado |
+| `create_campaign` (e duplicações de campanha) | Modal unificado completo | Visão Geral · Campanha · Conjuntos · Anúncios |
+| `create_adset` (e duplicações de conjunto) | Modal unificado | Visão Geral + Conjunto |
+| `generate_creative` (criativo novo / duplicação de anúncio) | Modal unificado | Visão Geral + Anúncio (criativo, copy, título, CTA, conjunto vinculado) |
+| `adjust_budget` / `allocate_budget` | **Inline no card** (sem dialog) | Antes → depois, variação %, raciocínio resumido. Botões Aprovar/Ajustar/Rejeitar no próprio card |
+| `pause_campaign` | **Inline no card** (sem dialog) | Campanha alvo, gasto atual, economia/dia estimada. Botões Aprovar/Rejeitar no próprio card |
+| `activate_campaign` | Oculto da aprovação humana (interno) | — |
 
-**Elementos adicionais no dialog:**
-- Raciocínio da IA (`reasoning`)
-- Badges de confiança e métrica trigger
-- Dados de reversão (`rollback_data`) em JSON
-- Mensagem de erro quando aplicável
+**Footer fixo do modal:** `Recusar proposta` · `Ajustar proposta` · `Aprovar` (rótulo do Aprovar muda por contexto: "Aprovar plano" para `strategic_plan`, "Aprovar estratégia e gerar criativos" para Etapa 1 do fluxo two-step, "Aprovar" nos demais).
 
-**Interação:** Card clicável + botão "Detalhes" (com `Eye` icon). Botões de ação (Aprovar/Rejeitar/Desfazer) usam `stopPropagation` para não abrir o dialog.
+**Botão único no card** para propostas que abrem modal: **"Visualizar proposta"** (com `Eye` icon). Não há mais botões Aprovar/Ajustar/Rejeitar inline para essas — toda decisão acontece dentro do modal.
+
+**Anti-processamento (custo IA):** Abrir / navegar entre abas / recusar / iniciar ajuste **não disparam nenhuma chamada de IA**. Só `Aprovar e gerar criativos` (Etapa 1 two-step) consome créditos, e ainda assim **não publica a campanha**.
+
+**Gates de bloqueio de aprovação** continuam ativos no modal: completude estrutural, compatibilidade da plataforma e adequação produto × público (apenas em Etapa 1 do fluxo two-step). Plano Estratégico **não passa por esses gates** (não tem hierarquia de campanha).
+
+**Componentes:**
+- `StructuredProposalModal.tsx` — modal único, aceita `overviewOnly`, `titleOverride`, `approveLabelOverride`.
+- `ActionApprovalCard.tsx` — roteia para modal (`useStructuredModal`) ou mantém footer inline (`adjust_budget`/`pause_campaign`).
+- `ProposalStructuredEditor.tsx` — drawer de ajuste estruturado para Etapa 1 (two-step). Texto livre permanece como fallback nos demais casos.
+
+**Interação:** Card resumido + "Visualizar proposta" (modal) ou botões inline (operacionais). `stopPropagation` mantido para não abrir o card ao clicar em ações.
 
 ### Rollback / Desfazer Ações (v1.1)
 

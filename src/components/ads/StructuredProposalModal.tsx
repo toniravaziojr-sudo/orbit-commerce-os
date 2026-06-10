@@ -66,8 +66,18 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onAdjust?: (id: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
+  /**
+   * Quando true, renderiza apenas Visão Geral (sem sidebar/Campanha/Conjuntos/Anúncios).
+   * Usado para Plano Estratégico e ações sem hierarquia de campanha.
+   */
+  overviewOnly?: boolean;
+  /** Título customizado do modal (ex.: "Plano Estratégico"). */
+  titleOverride?: string;
+  /** Rótulo customizado do botão aprovar (ex.: "Aprovar plano"). */
+  approveLabelOverride?: string;
 }
 
 /* ---------------------------------------------------------------------------
@@ -198,13 +208,18 @@ export function StructuredProposalModal({
   onOpenChange,
   onApprove,
   onReject,
+  onAdjust,
   approvingId,
   rejectingId,
+  overviewOnly = false,
+  titleOverride,
+  approveLabelOverride,
 }: Props) {
   const data = action.action_data || {};
   const isTwoStep = isTwoStepAction(action);
   const twoStepStage = getTwoStepStage(action);
   const isStrategyStage = isTwoStep && twoStepStage === "strategy";
+  const isStrategicPlan = action.action_type === "strategic_plan";
 
   const { approveStrategy } = useAdsPendingActions();
   const [editorOpen, setEditorOpen] = useState(false);
@@ -270,11 +285,11 @@ export function StructuredProposalModal({
     else onApprove(action.id);
   };
 
-  const approveLabel = isStrategyStage
+  const approveLabel = approveLabelOverride ?? (isStrategyStage
     ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
-    : "Aprovar";
+    : "Aprovar");
 
   const approveBlockedReason = approveBlockedByFit
     ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
@@ -289,8 +304,8 @@ export function StructuredProposalModal({
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Megaphone className="h-4 w-4 text-primary" />
-              {structure.campaign.name || "Proposta de Campanha"}
-              {isStrategyStage && (
+              {titleOverride ?? (structure.campaign.name || "Proposta")}
+              {isStrategyStage && !overviewOnly && (
                 <Badge variant="outline" className="text-[10px] ml-1">
                   Etapa 1 — estratégia
                 </Badge>
@@ -304,60 +319,64 @@ export function StructuredProposalModal({
                   {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}
                 </>
               )}
-              {fitBadge && <> · Adequação: {fitBadge.label}</>}
+              {fitBadge && !overviewOnly && <> · Adequação: {fitBadge.label}</>}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-            <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
-              <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
-                <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
-                  active={selected === "overview"} onClick={() => setSelected("overview")} />
-                <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
-                  active={selected === "campaign"} onClick={() => setSelected("campaign")} />
-                <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
-                {adSets.length === 0 ? (
-                  <TreeEmpty label="Nenhum conjunto" />
-                ) : (
-                  adSets.map((a, i) => (
-                    <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
-                      label={a.name || `Conjunto ${i + 1}`}
-                      active={selected === `adset:${i}`}
-                      onClick={() => setSelected(`adset:${i}`)} />
-                  ))
-                )}
-                <TreeGroupLabel label={`Anúncios (${ads.length})`} />
-                {ads.length === 0 ? (
-                  <TreeEmpty label="Nenhum anúncio" />
-                ) : (
-                  ads.map((ad, i) => (
-                    <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
-                      label={ad.name || `Anúncio ${i + 1}`}
-                      active={selected === `ad:${i}`}
-                      onClick={() => setSelected(`ad:${i}`)} />
-                  ))
-                )}
-              </nav>
-            </aside>
+            {!overviewOnly && (
+              <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
+                <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
+                  <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
+                    active={selected === "overview"} onClick={() => setSelected("overview")} />
+                  <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
+                    active={selected === "campaign"} onClick={() => setSelected("campaign")} />
+                  <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
+                  {adSets.length === 0 ? (
+                    <TreeEmpty label="Nenhum conjunto" />
+                  ) : (
+                    adSets.map((a, i) => (
+                      <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
+                        label={a.name || `Conjunto ${i + 1}`}
+                        active={selected === `adset:${i}`}
+                        onClick={() => setSelected(`adset:${i}`)} />
+                    ))
+                  )}
+                  <TreeGroupLabel label={`Anúncios (${ads.length})`} />
+                  {ads.length === 0 ? (
+                    <TreeEmpty label="Nenhum anúncio" />
+                  ) : (
+                    ads.map((ad, i) => (
+                      <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
+                        label={ad.name || `Anúncio ${i + 1}`}
+                        active={selected === `ad:${i}`}
+                        onClick={() => setSelected(`ad:${i}`)} />
+                    ))
+                  )}
+                </nav>
+              </aside>
+            )}
 
             <ScrollArea className="flex-1 min-h-0">
               <div className="px-5 py-4">
-                {selected === "overview" && (
+                {(overviewOnly || selected === "overview") && (
                   <OverviewSection
                     action={action}
                     campaign={structure.campaign}
                     adSets={adSets}
                     adsCount={ads.length}
                     isStrategyStage={isStrategyStage}
-                    fitMessage={fitData?.fit.user_message || null}
-                    fitLabel={fitBadge?.label || null}
-                    approveBlockedByFit={approveBlockedByFit}
-                    blockers={allBlockers}
-                    warnings={allWarnings}
+                    isStrategicPlan={isStrategicPlan}
+                    overviewOnly={overviewOnly}
+                    fitMessage={overviewOnly ? null : (fitData?.fit.user_message || null)}
+                    fitLabel={overviewOnly ? null : (fitBadge?.label || null)}
+                    approveBlockedByFit={overviewOnly ? false : approveBlockedByFit}
+                    blockers={overviewOnly ? [] : allBlockers}
+                    warnings={overviewOnly ? [] : allWarnings}
                   />
                 )}
-                {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
-                {selected.startsWith("adset:") && (
+                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
+                {!overviewOnly && selected.startsWith("adset:") && (
                   <AdSetSection
                     adSet={adSets[Number(selected.split(":")[1])] || null}
                     blockers={allBlockers.filter(
@@ -365,7 +384,7 @@ export function StructuredProposalModal({
                     )}
                   />
                 )}
-                {selected.startsWith("ad:") && (
+                {!overviewOnly && selected.startsWith("ad:") && (
                   <AdSection
                     ad={ads[Number(selected.split(":")[1])] || null}
                     isStrategyStage={isStrategyStage}
@@ -441,6 +460,8 @@ function OverviewSection({
   adSets,
   adsCount,
   isStrategyStage,
+  isStrategicPlan,
+  overviewOnly,
   fitMessage,
   fitLabel,
   approveBlockedByFit,
@@ -452,6 +473,8 @@ function OverviewSection({
   adSets: AdSetNode[];
   adsCount: number;
   isStrategyStage: boolean;
+  isStrategicPlan: boolean;
+  overviewOnly: boolean;
   fitMessage: string | null;
   fitLabel: string | null;
   approveBlockedByFit: boolean;
@@ -459,16 +482,28 @@ function OverviewSection({
   warnings: GateIssue[];
 }) {
   const reasoning = action.reasoning || campaign.rationale || null;
+  const data = (action.action_data || {}) as Record<string, any>;
+  const diagnosis = data.diagnosis || null;
+  const expectedImpact = action.expected_impact || data.expected_impact || null;
+  const limitations: string[] = Array.isArray(data.limitations) ? data.limitations : [];
+  const nextActions: any[] = Array.isArray(data.next_actions) ? data.next_actions : (Array.isArray(data.actions) ? data.actions : []);
+
   return (
     <div className="space-y-4">
-      {isStrategyStage && (
+      {isStrategyStage && !isStrategicPlan && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           Nenhum criativo final foi gerado ainda. A geração acontece apenas após aprovar a estratégia.
           Aprovar gera os criativos — <strong>ainda não publica a campanha</strong>.
         </div>
       )}
 
-      <Block title="Por que a IA recomendou esta proposta" icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
+      {isStrategicPlan && diagnosis && (
+        <Block title="Diagnóstico" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{diagnosis}</p>
+        </Block>
+      )}
+
+      <Block title={isStrategicPlan ? "Estratégia recomendada" : "Por que a IA recomendou esta proposta"} icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
         {reasoning ? (
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{reasoning}</p>
         ) : (
@@ -476,13 +511,42 @@ function OverviewSection({
         )}
       </Block>
 
-      <Block title="Resumo da estrutura" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <Metric label="Campanha" value={campaign.name || "—"} />
-          <Metric label="Conjuntos de anúncios" value={String(adSets.length)} />
-          <Metric label="Anúncios" value={String(adsCount)} />
-        </div>
-      </Block>
+      {isStrategicPlan && nextActions.length > 0 && (
+        <Block title={`Próximas ações sugeridas (${nextActions.length})`} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
+          <ol className="space-y-1.5 text-sm text-muted-foreground list-decimal list-inside">
+            {nextActions.map((a, i) => {
+              const label = typeof a === "string"
+                ? a
+                : (a?.title || a?.name || a?.description || a?.summary || JSON.stringify(a));
+              return <li key={i} className="leading-relaxed">{label}</li>;
+            })}
+          </ol>
+        </Block>
+      )}
+
+      {isStrategicPlan && limitations.length > 0 && (
+        <Block title="Limitações observadas" icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}>
+          <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
+            {limitations.map((l, i) => <li key={i}>{l}</li>)}
+          </ul>
+        </Block>
+      )}
+
+      {expectedImpact && (
+        <Block title="Impacto esperado" icon={<Target className="h-3.5 w-3.5 text-emerald-600" />}>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{expectedImpact}</p>
+        </Block>
+      )}
+
+      {!overviewOnly && (
+        <Block title="Resumo da estrutura" icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <Metric label="Campanha" value={campaign.name || "—"} />
+            <Metric label="Conjuntos de anúncios" value={String(adSets.length)} />
+            <Metric label="Anúncios" value={String(adsCount)} />
+          </div>
+        </Block>
+      )}
 
       {(blockers.length > 0 || warnings.length > 0) && (
         <Block
