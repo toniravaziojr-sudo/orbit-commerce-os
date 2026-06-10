@@ -3613,3 +3613,31 @@ O modal de proposta usa `strategy` — assim, "evento de conversão pendente" de
 - Zero chamada Meta para criar campanha.
 - Sem cron, sem admin avançado, sem Google/TikTok operacional, sem regeneração automática de propostas.
 
+
+## Onda E — Modo Piloto vs Modo Piloto Inicial (10/06/2026)
+
+### E.1 — Ativação com duas opções
+Ao ligar o switch da IA pela primeira vez, abre um diálogo perguntando:
+- **Modo Piloto:** ativa a IA e segue o fluxo normal a partir de agora. Não chama IA, não cria execução de análise.
+- **Modo Piloto Inicial (Recomendado):** ativa a IA e roda uma análise estratégica inicial da conta, como se um gestor de tráfego estivesse começando agora. Cria propostas na fila Aguardando Ação. Não publica, não gera criativo final automaticamente.
+
+O disparo automático de Strategist no toggle foi removido — IA só roda quando o usuário escolhe explicitamente.
+
+### E.2 — Botão manual "Rodar análise inicial agora"
+Exibido no card da conta Meta quando a IA está ativa. Confirmação obrigatória. Bloqueia execução duplicada e pede nova confirmação se a última análise tiver menos de 24h.
+
+### E.3 — Persistência (`ads_ai_analysis_runs`)
+Tabela real de produção registra cada análise: plataforma, conta, escopo (`account` ou `global`), gatilho (`activation_initial` ou `manual`), status, horários, snapshot do contexto usado, diagnóstico, estratégia, riscos, limitações detectadas, IDs das propostas criadas, mensagem de erro. Unique index parcial garante que só exista uma execução em andamento por escopo.
+
+### E.4 — Motor (AdsStrategyContextBuilder)
+A camada canônica de contexto é `collectStrategistContext` em `ads-autopilot-strategist`. A análise inicial chama o Strategist com `trigger=start` em vez de duplicar lógica. A edge `ads-ai-initial-analysis` captura snapshot resumido para auditoria humana, mas nunca inventa dados ausentes — registra como limitação.
+
+### E.5 — Escopo
+Default: por conta (`scope=account`, Meta). Escopo `global` reservado para próxima onda; hoje a edge bloqueia plataformas diferentes de Meta.
+
+### E.6 — Restrições
+- Modo Piloto não chama IA.
+- Modo Piloto Inicial chama IA uma única vez por escopo escolhido.
+- Não roda ao abrir tela, navegar ou salvar configurações.
+- Não repete análise recente sem confirmação.
+- Não publica campanha, não muta Meta/Google/TikTok, não gera criativo final, não consome crédito sem aprovação.
