@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { isTwoStepAction, getTwoStepStage, useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { useProductCommercialFit } from "@/hooks/useProductCommercialFit";
+import { usePlatformCapability } from "@/hooks/usePlatformCapability";
 import { fitLevelLabel } from "../../../supabase/functions/_shared/ads-autopilot/productFunnelFitGate";
 import {
   formatBudgetBRL,
@@ -46,6 +47,9 @@ import {
   type AdSetNode,
   type CampaignNode,
 } from "@/lib/ads/normalizeCampaignStructure";
+import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleteness";
+import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
+import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { formatDateTimeBR } from "@/lib/date-format";
 
