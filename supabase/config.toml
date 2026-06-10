@@ -260,7 +260,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.fiscal-sync-focus-nfe]
-verify_jwt = true
+verify_jwt = false
 
 [functions.fiscal-emit]
 verify_jwt = false
