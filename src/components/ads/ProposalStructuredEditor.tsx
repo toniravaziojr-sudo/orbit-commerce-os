@@ -149,7 +149,7 @@ function diffFields(initial: EditableFields, current: EditableFields) {
   return { changed, previous_values, new_values };
 }
 
-export function ProposalStructuredEditor({ action, open, onOpenChange }: ProposalStructuredEditorProps) {
+export function ProposalStructuredEditor({ action, open, onOpenChange, initialFocus }: ProposalStructuredEditorProps) {
   const queryClient = useQueryClient();
   const [initial, setInitial] = useState<EditableFields>(buildInitial(null));
   const [current, setCurrent] = useState<EditableFields>(buildInitial(null));
