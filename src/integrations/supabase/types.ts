@@ -67,6 +67,78 @@ export type Database = {
           },
         ]
       }
+      ads_ai_analysis_runs: {
+        Row: {
+          account_snapshot_summary: Json
+          ad_account_id: string | null
+          created_action_ids: Json
+          created_at: string
+          created_by: string | null
+          diagnosis_summary: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          input_config_snapshot: Json
+          limitations: Json
+          platform: string
+          risks: Json
+          scope: string
+          session_id: string | null
+          started_at: string | null
+          status: string
+          strategy_summary: string | null
+          tenant_id: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          account_snapshot_summary?: Json
+          ad_account_id?: string | null
+          created_action_ids?: Json
+          created_at?: string
+          created_by?: string | null
+          diagnosis_summary?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_config_snapshot?: Json
+          limitations?: Json
+          platform?: string
+          risks?: Json
+          scope?: string
+          session_id?: string | null
+          started_at?: string | null
+          status?: string
+          strategy_summary?: string | null
+          tenant_id: string
+          trigger: string
+          updated_at?: string
+        }
+        Update: {
+          account_snapshot_summary?: Json
+          ad_account_id?: string | null
+          created_action_ids?: Json
+          created_at?: string
+          created_by?: string | null
+          diagnosis_summary?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          input_config_snapshot?: Json
+          limitations?: Json
+          platform?: string
+          risks?: Json
+          scope?: string
+          session_id?: string | null
+          started_at?: string | null
+          status?: string
+          strategy_summary?: string | null
+          tenant_id?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ads_autopilot_account_configs: {
         Row: {
           ad_account_id: string
