@@ -99,6 +99,10 @@ export function AdsOverviewTab({
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedChannels, setSelectedChannels] = useState<Set<ChannelKey>>(new Set(["meta", "google", "tiktok"]));
 
+  // Receita real da loja virtual (mesma fonte do Dashboard, canal storefront)
+  const { data: storefrontMetrics } = useDashboardMetrics(startDate, endDate, "storefront");
+  const storefrontRevenueCents = Math.round(((storefrontMetrics?.totalRevenueToday) || 0) * 100);
+
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
     setEndDate(end);
