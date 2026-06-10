@@ -228,7 +228,7 @@ async function processTenanDrafts(
           },
           body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
         }).catch(err => console.error(`[fiscal-auto-create-drafts] Auto-emit (existing draft) error for ${inv.id}:`, err));
-        console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, trigger=${emitTriggerStatus}, status=${orderStatus})`);
+        console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, status=${orderStatus})`);
       } catch (err) {
         console.error(`[fiscal-auto-create-drafts] Erro disparando auto-emit em rascunho existente ${inv.id}:`, err);
       }
