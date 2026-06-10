@@ -425,7 +425,7 @@ export function StructuredProposalModal({
 
 
       {isStrategyStage && (
-        <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} />
+        <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} initialFocus={editorFocus} />
       )}
     </>
   );
