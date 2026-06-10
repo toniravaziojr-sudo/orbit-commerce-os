@@ -98,7 +98,7 @@ describe("Structure Completeness Gate", () => {
     expect(r.blockers).toHaveLength(0);
   });
 
-  it("bloqueia quando Conjunto vem vazio (sem região/idade/gênero/posicionamento/otimização/evento)", () => {
+  it("bloqueia quando Conjunto vem vazio (etapa estratégia: região/idade/gênero/posicionamento/otimização)", () => {
     const s = emptyStructured();
     s.ad_sets = [{ ...fullAdSet(), location: null, age_range: null, gender: null, placements: [], optimization_goal: null, conversion_event: null }];
     s.ads = [fullAd()];
@@ -111,18 +111,47 @@ describe("Structure Completeness Gate", () => {
       "adset.0.gender",
       "adset.0.placements",
       "adset.0.optimization_goal",
-      "adset.0.conversion_event",
     ]));
+    // Onda D: evento de conversão não bloqueia mais a etapa de estratégia.
+    expect(fields).not.toContain("adset.0.conversion_event");
   });
 
-  it("trata requires_user_input no evento de conversão como blocker amigável", () => {
+  it("evento de conversão = requires_user_input vira warning na etapa estratégia", () => {
     const s = emptyStructured();
     s.ad_sets = [{ ...fullAdSet(), conversion_event: "requires_user_input" }];
     s.ads = [fullAd()];
     const r = runStructureCompletenessGate(s);
+    expect(r.passed).toBe(true);
+    const w = r.warnings.find((x) => x.field === "adset.0.conversion_event");
+    expect(w?.kind).toBe("requires_user_input");
+  });
+
+  it("etapa publish bloqueia quando evento de conversão está pendente", () => {
+    const s = emptyStructured();
+    s.ad_sets = [{ ...fullAdSet(), conversion_event: "requires_user_input" }];
+    s.ads = [fullAd()];
+    const r = runStructureCompletenessGate(s, { stage: "publish" });
     expect(r.passed).toBe(false);
-    const b = r.blockers.find((x) => x.field === "adset.0.conversion_event");
-    expect(b?.kind).toBe("requires_user_input");
+    expect(r.blockers.some((b) => b.field === "adset.0.conversion_event")).toBe(true);
+  });
+
+  it("etapa creative só exige campos do criativo, não pixel nem público", () => {
+    const s = emptyStructured();
+    // Conjunto vazio de propósito — não deve bloquear stage=creative
+    s.ad_sets = [{ ...fullAdSet(), location: null, age_range: null, gender: null, placements: [], optimization_goal: null }];
+    s.ads = [fullAd()];
+    const r = runStructureCompletenessGate(s, { stage: "creative" });
+    expect(r.passed).toBe(true);
+  });
+
+  it("etapa creative bloqueia quando link/CTA do anúncio faltam", () => {
+    const s = emptyStructured();
+    s.ad_sets = [fullAdSet()];
+    s.ads = [{ ...fullAd(), destination_url: null, cta: null }];
+    const r = runStructureCompletenessGate(s, { stage: "creative" });
+    expect(r.passed).toBe(false);
+    const fields = r.blockers.map((b) => b.field);
+    expect(fields).toEqual(expect.arrayContaining(["ad.0.destination_url", "ad.0.cta"]));
   });
 
   it("bloqueia quando não há nenhum conjunto/anúncio", () => {
