@@ -35,8 +35,10 @@
 - `useAdsAIAnalysisRun({ platform, adAccountId, scope })`: lista runs recentes, retorna `latestRun`/`hasRunning`, expõe `run.mutate({ scope, ad_account_id, trigger, force })`, e faz polling de 5s enquanto houver execução em andamento.
 
 ### E.7 — Escopo
-- Default: `account` (Meta + conta específica).
-- `global` reservado para próxima onda quando Google/TikTok forem operacionais. Edge bloqueia `platform != meta`.
+- `account` (Meta + conta específica): diálogo de ativação + botão manual por card de conta.
+- `global` (correção 2026-06-10, v1.1.0 da edge): novo botão `AdsAIGlobalAnalysisButton` no topo do Gerenciador de Anúncios. Itera todas as contas Meta com IA ativada, reusa `runForAccount`, cria 1 run parent (`scope=global`) + N runs filhas (`scope=account`, `parent_run_id` no snapshot). Google/TikTok ignorados com limitação amigável: "Google Ads e TikTok Ads ainda não estão operacionais nesta etapa."
+- Dedup global: unique index parcial em `(tenant, platform, COALESCE(ad_account_id,'__global__'), scope) WHERE status IN ('queued','running')` cobre tanto run parent quanto filhas. Contas já em execução são puladas sem quebrar o lote.
+- Resumo amigável: `buildHumanContextSummary` monta linha por conta ("Esta análise considerou: conta Meta act_..., orçamento R$ ..., ROI alvo ..., país BR, idade 18-65, posicionamentos Advantage+, CTA ..., formato ..., diretrizes configuradas."). Vai para `strategy_summary` da run parent e `account_snapshot_summary.per_account[].context_summary`. Payload técnico bruto permanece em `input_config_snapshot`.
 
 ## Restrições respeitadas
 - Zero publicação Meta/Google/TikTok.
@@ -46,9 +48,11 @@
 - Modo Piloto não chama IA.
 - Nenhuma análise dispara ao abrir/navegar/salvar.
 - Dedup garantido por unique index (não depende de race no app).
+- Global ignora Google/TikTok sem bloquear Meta.
 
 ## Não entregue (fora do escopo desta onda)
 - Cron mensal automatizado de análise.
 - Admin completo de compatibilidade.
 - Google/TikTok operacionais.
 - Painel de histórico detalhado das runs (a tabela existe; UI mínima foi adicionada via `latestRun.finished_at` no botão).
+
