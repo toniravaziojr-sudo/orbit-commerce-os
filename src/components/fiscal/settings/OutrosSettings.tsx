@@ -18,13 +18,7 @@ import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
-const SHIPPING_PROVIDER_OPTIONS = [
-  { value: 'correios', label: 'Correios' },
-  { value: 'loggi', label: 'Loggi' },
-];
-// Sentinela usada apenas na UI para representar "sem transportadora padrão".
-// Convertido para null ao salvar — o componente Select não aceita value="".
-const SHIPPING_PROVIDER_DEFAULT_SENTINEL = '__order_carrier__';
+// Transportadora padrão removida — a remessa automática usa sempre a transportadora vinculada ao pedido.
 
 export function OutrosSettings() {
   const { settings, isLoading, saveSettings } = useFiscalSettings();
