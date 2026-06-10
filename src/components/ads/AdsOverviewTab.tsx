@@ -342,7 +342,7 @@ export function AdsOverviewTab({
                   <span className="font-medium">{formatNumber(ch.conversions)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Receita</span>
+                  <span className="text-muted-foreground">Receita atribuída</span>
                   <span className="font-medium">{formatCurrency(ch.conversion_value_cents)}</span>
                 </div>
               </CardContent>
