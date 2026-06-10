@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check, Info, Store } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
+import { useAdsRealRevenue } from "@/hooks/useAdsRealRevenue";
 
 interface ChannelSummary {
   channel: string;
@@ -99,9 +99,9 @@ export function AdsOverviewTab({
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedChannels, setSelectedChannels] = useState<Set<ChannelKey>>(new Set(["meta", "google", "tiktok"]));
 
-  // Receita real da loja virtual (mesma fonte do Dashboard, canal storefront)
-  const { data: storefrontMetrics } = useDashboardMetrics(startDate, endDate, "storefront");
-  const storefrontRevenueCents = Math.round(((storefrontMetrics?.totalRevenueToday) || 0) * 100);
+  // Receita Real de Ads (pagos): pedidos efetivados no período atribuídos a mídia paga (last-click)
+  const { data: realAdsRevenue } = useAdsRealRevenue(startDate, endDate);
+  const realAdsRevenueCents = realAdsRevenue?.total_cents || 0;
 
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
@@ -186,17 +186,19 @@ export function AdsOverviewTab({
     );
   }
 
-  const roas = totals.spend_cents > 0 ? totals.conversion_value_cents / totals.spend_cents : 0;
+  const roasAttributed = totals.spend_cents > 0 ? totals.conversion_value_cents / totals.spend_cents : 0;
+  const roasReal = totals.spend_cents > 0 ? realAdsRevenueCents / totals.spend_cents : 0;
   const cpa = totals.conversions > 0 ? totals.spend_cents / totals.conversions : 0;
   const pacingPct = globalBudgetCents > 0 ? Math.min((totals.spend_cents / globalBudgetCents) * 100, 100) : 0;
 
   const summaryCards = [
     { title: "Investimento Total", value: formatCurrency(totals.spend_cents), icon: DollarSign, hint: "Soma de Meta + Google + TikTok Ads no período" },
-    { title: "ROAS Blended", value: `${roas.toFixed(2)}x`, icon: TrendingUp, hint: "Receita atribuída ÷ Investimento" },
+    { title: "Receita Atribuída (Ads)", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3, hint: "Valor reportado pelos pixels de Meta, Google e TikTok no período" },
+    { title: "Receita Real de Ads (pagos)", value: formatCurrency(realAdsRevenueCents), icon: ShoppingCart, hint: "Pedidos pagos no período atribuídos a mídia paga (last-click via fbclid/gclid/ttclid)" },
+    { title: "ROAS Atribuído", value: `${roasAttributed.toFixed(2)}x`, icon: TrendingUp, hint: "Receita Atribuída ÷ Investimento — padrão de mercado" },
+    { title: "ROAS Real (Ads)", value: `${roasReal.toFixed(2)}x`, icon: TrendingUp, hint: "Receita Real de Ads (pagos) ÷ Investimento — verdade de caixa" },
     { title: "CPA Médio", value: formatCurrency(cpa), icon: MousePointer, hint: "Custo por aquisição reportado pelas plataformas" },
     { title: "Conversões", value: formatNumber(totals.conversions), icon: ShoppingCart, hint: "Conversões reportadas pelos pixels" },
-    { title: "Receita atribuída (Ads)", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3, hint: "Valor reportado pelos pixels de Meta, Google e TikTok — pode divergir do caixa real" },
-    { title: "Receita Real Loja Virtual", value: formatCurrency(storefrontRevenueCents), icon: Store, hint: "Caixa real da Loja Virtual no período (mesma fonte do Dashboard)" },
   ];
 
   const allChannelsSelected = selectedChannels.size === AVAILABLE_CHANNELS.length;
