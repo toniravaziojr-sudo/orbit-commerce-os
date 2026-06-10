@@ -576,3 +576,15 @@ A proposta antiga vira `superseded` e a nova vira filha (`parent_action_id` + `s
 Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir Ajuste" textual antigo como fallback.
 
 **Frente 4.4 parcial — Feedback.** O gate de feedback (`useAdsAutopilotFeedbackGate`) já interceptava Aprovar e Rejeitar com chips de motivo + textarea — sem mudança nesta entrega. No editor estruturado o feedback de ajuste (motivo, chips, observação) vai junto com o patch para a IA, mas ainda **não altera** o Strategist (entrega futura).
+
+### Gestor de Tráfego IA — Visualização Estruturada de Propostas (rev 2026-06-10, v6.13.0)
+
+**Card da fila "Aguardando Ação" — propostas de campanha estruturadas.** Para Nova Campanha (`create_campaign`), Etapa 1 do `two_step_v1` e payloads legacy que o adapter classifica como campanha (Campanha → Conjunto(s) → Anúncio(s)), o card passa a ter **um único CTA: "Visualizar proposta"**. Os botões **Aprovar / Ajustar / Rejeitar não aparecem mais no card** — só dentro do modal. O resumo do card continua exibindo: tipo da ação, nome da campanha, funil, adequação produto×público, orçamento, produto/oferta, selo "Etapa 1 — estratégia" quando aplicável, aviso "Nenhum criativo final foi gerado ainda" quando aplicável. Propostas operacionais legacy (pausa, ajuste de orçamento, plano estratégico, conjuntos órfãos) mantêm o card antigo com 3 botões.
+
+**Modal "Visualizar proposta".** Abre em tela cheia (`max-w-5xl`, `90vh`) com **árvore lateral no desktop** e **lista empilhada horizontal no mobile**. Nós: Visão Geral · Campanha · Conjuntos (1..N) · Anúncios (1..N) · Validações · Histórico. Bloco "Detalhes técnicos" recolhido por padrão em todos os nós.
+
+**Rodapé fixo do modal — único local das decisões.** Ordem: **Recusar proposta** (esquerda, ghost vermelho) · **Ajustar proposta** (centro, outline) · **Aprovar estratégia e gerar criativos** (direita, primary). Em propostas legacy não-two_step o rótulo do primário vira "Aprovar". O botão de aprovação fica **desabilitado** quando o Product/Funnel Fit Gate sinaliza bloqueio, com tooltip explicando o motivo.
+
+**Editor estruturado.** Continua sendo o drawer da Frente 4.3, agora aberto pelo "Ajustar proposta" de dentro do modal. Seções renomeadas para refletir a hierarquia: **Campanha** · **Conjunto de anúncios** (engloba Público + Segmentação + Exclusões) · **Anúncio** (engloba Produto + Copy + Criativo) · **Feedback para a IA**. Mutations, rascunho, versionamento e feedback permanecem idênticos.
+
+**Anti-regressão.** Card de proposta estruturada **não pode** voltar a exibir Aprovar/Ajustar/Rejeitar diretamente. Modal **não pode** voltar a exibir payload bruto no corpo principal — apenas em "Detalhes técnicos" recolhido. Adapter `normalizeCampaignStructure` **não pode** mutar `action_data`. Compatibilidade com payload legacy é obrigatória. Detalhe operacional, regras anti-processamento (0 chamadas IA ao abrir/navegar/editar/salvar) e contrato `campaign_structure` em `docs/especificacoes/marketing/gestor-trafego.md` "Visualização Estruturada de Propostas (v6.13.0)".
