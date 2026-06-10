@@ -171,6 +171,24 @@ export function ProposalStructuredEditor({ action, open, onOpenChange, initialFo
     setFeedbackChips(Array.isArray(draft?.chips) ? draft.chips : []);
   }, [action?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Foco inicial vindo do gate: rola até a seção correta após abrir
+  useEffect(() => {
+    if (!open || !initialFocus) return;
+    const map: Record<string, string> = {
+      campaign: "campaign",
+      ad_set: "ad_set",
+      ad: "ad",
+      creative: "ad", // criativo está dentro da seção "Anúncio"
+      platform: "campaign",
+    };
+    const key = map[initialFocus];
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-editor-section="${key}"]`) as HTMLElement | null;
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [open, initialFocus]);
+
   const { changed, previous_values, new_values } = useMemo(
     () => diffFields(initial, current),
     [initial, current],
