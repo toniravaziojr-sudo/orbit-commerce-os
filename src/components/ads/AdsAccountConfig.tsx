@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
-import { useAdsMetaProductionConfig, isProductionConfigReadyForPublish } from "@/hooks/useAdsMetaProductionConfig";
+import { useMetaIntegrationAssetsStatus } from "@/hooks/useMetaIntegrationAssetsStatus";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
@@ -63,27 +63,22 @@ const STRATEGY_OPTIONS = [
  * pela integração Meta. Esta tela não pede IDs técnicos manualmente.
  */
 function MetaIntegrationStatusInline({ adAccountId }: { adAccountId: string }) {
-  const { data: cfg, isLoading } = useAdsMetaProductionConfig(adAccountId);
-  if (isLoading) return null;
-  const ready = isProductionConfigReadyForPublish(cfg);
-  if (ready) {
+  const { data: status, isLoading } = useMetaIntegrationAssetsStatus();
+  if (isLoading || !status) return null;
+  if (status.readyForPublish) {
     return (
       <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
         <CheckCircle2 className="h-4 w-4" />
-        <span>Meta conectada. Ativos técnicos (Página, Pixel, Instagram, evento de conversão) sincronizados pela integração.</span>
+        <span>Meta conectada. Ativos técnicos (Página, Pixel, Conta de anúncio, API de Conversões) sincronizados pela integração.</span>
       </div>
     );
   }
-  const missing: string[] = [];
-  if (!cfg?.facebook_page_id) missing.push("Página");
-  if (!cfg?.pixel_id) missing.push("Pixel");
-  if (!cfg?.default_conversion_event) missing.push("evento de conversão");
   return (
     <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-900/10 py-2">
       <AlertTriangle className="h-4 w-4 text-amber-600" />
       <AlertDescription className="text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
         <span>
-          Pendência técnica na integração Meta{missing.length > 0 ? `: ${missing.join(", ")} não detectado(s) pela integração.` : "."} A análise estratégica continua disponível; a publicação real exigirá esses dados.
+          Pendência técnica na integração Meta: {status.missing.join(", ")} não selecionado(s) na integração. A análise estratégica continua disponível; a publicação real exigirá esses dados.
         </span>
         <Button asChild size="sm" variant="outline" className="h-7 gap-1 shrink-0">
           <Link to="/integrations"><ExternalLink className="h-3 w-3" /> Integrações</Link>
