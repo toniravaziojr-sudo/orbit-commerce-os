@@ -357,7 +357,12 @@ export function StructuredProposalModal({
                 )}
                 {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
                 {selected.startsWith("adset:") && (
-                  <AdSetSection adSet={adSets[Number(selected.split(":")[1])] || null} />
+                  <AdSetSection
+                    adSet={adSets[Number(selected.split(":")[1])] || null}
+                    blockers={allBlockers.filter(
+                      (b) => b.node_type === "ad_set" && b.node_id === selected.split(":")[1],
+                    )}
+                  />
                 )}
                 {selected.startsWith("ad:") && (
                   <AdSection
