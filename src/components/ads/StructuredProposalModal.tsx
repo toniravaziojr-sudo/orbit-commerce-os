@@ -244,17 +244,42 @@ export function StructuredProposalModal({
   const fitBadge = fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
   const approveBlockedByFit = !!fitData?.fit.soft_block;
 
+  // ---------- Gates: completude estrutural + compatibilidade da plataforma ----------
+  const platformKey = (structure.campaign.platform || action.channel || "meta").toLowerCase();
+  const { data: capability } = usePlatformCapability(isStrategyStage ? platformKey : null);
+
+  const completeness = useMemo(
+    () => (isStrategyStage ? runStructureCompletenessGate(structure) : { passed: true, blockers: [], warnings: [], summary: null }),
+    [isStrategyStage, structure],
+  );
+  const compatibility = useMemo(
+    () => (isStrategyStage ? runPlatformCompatibilityGate(structure, capability ?? null) : { passed: true, blockers: [], warnings: [], summary: null }),
+    [isStrategyStage, structure, capability],
+  );
+
+  const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers];
+  const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings];
+  const approveBlockedByGates = isStrategyStage && allBlockers.length > 0;
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates;
+
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
+    if (approveBlocked) return;
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
 
   const approveLabel = isStrategyStage
-    ? approveBlockedByFit
+    ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
     : "Aprovar";
+
+  const approveBlockedReason = approveBlockedByFit
+    ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+    : approveBlockedByGates
+      ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+      : null;
 
   return (
     <>
