@@ -191,11 +191,12 @@ export function AdsOverviewTab({
   const pacingPct = globalBudgetCents > 0 ? Math.min((totals.spend_cents / globalBudgetCents) * 100, 100) : 0;
 
   const summaryCards = [
-    { title: "Investimento Total", value: formatCurrency(totals.spend_cents), icon: DollarSign },
-    { title: "ROAS Blended", value: `${roas.toFixed(2)}x`, icon: TrendingUp },
-    { title: "CPA Médio", value: formatCurrency(cpa), icon: MousePointer },
-    { title: "Conversões", value: formatNumber(totals.conversions), icon: ShoppingCart },
-    { title: "Receita", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3 },
+    { title: "Investimento Total", value: formatCurrency(totals.spend_cents), icon: DollarSign, hint: "Soma de Meta + Google + TikTok Ads no período" },
+    { title: "ROAS Blended", value: `${roas.toFixed(2)}x`, icon: TrendingUp, hint: "Receita atribuída ÷ Investimento" },
+    { title: "CPA Médio", value: formatCurrency(cpa), icon: MousePointer, hint: "Custo por aquisição reportado pelas plataformas" },
+    { title: "Conversões", value: formatNumber(totals.conversions), icon: ShoppingCart, hint: "Conversões reportadas pelos pixels" },
+    { title: "Receita atribuída (Ads)", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3, hint: "Valor reportado pelos pixels de Meta, Google e TikTok — pode divergir do caixa real" },
+    { title: "Receita Real Loja Virtual", value: formatCurrency(storefrontRevenueCents), icon: Store, hint: "Caixa real da Loja Virtual no período (mesma fonte do Dashboard)" },
   ];
 
   const allChannelsSelected = selectedChannels.size === AVAILABLE_CHANNELS.length;
