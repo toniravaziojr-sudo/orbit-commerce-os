@@ -592,6 +592,14 @@ function AccountConfigCard({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <AdsAIActivationDialog
+          open={showActivationDialog}
+          onOpenChange={setShowActivationDialog}
+          onConfirmActivate={confirmActivate}
+          platform={channel}
+          adAccountId={accountId}
+        />
       </CardContent>
     </Card>
   );
