@@ -372,30 +372,8 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
             </Field>
           </Section>
 
-          {/* Produto */}
-          <Section title="Produto e oferta">
-            <Field label="Produto (ID)">
-              <Input
-                value={current.product_id}
-                onChange={(e) => upd("product_id", e.target.value)}
-                placeholder="UUID do produto"
-              />
-            </Field>
-            <Field label="Nome do produto (referência)">
-              <Input value={current.product_name} onChange={(e) => upd("product_name", e.target.value)} />
-            </Field>
-            <Field label="Observação sobre a oferta">
-              <Textarea
-                rows={2}
-                value={current.offer_note}
-                onChange={(e) => upd("offer_note", e.target.value)}
-                placeholder="Ex.: usar como oferta de entrada, sem desconto agressivo"
-              />
-            </Field>
-          </Section>
-
-          {/* Público */}
-          <Section title="Público">
+          {/* Nível 2 — Conjunto de anúncios (público, segmentação, exclusões) */}
+          <Section title="Conjunto de anúncios">
             <Field label="Funil">
               <Select value={current.funnel_stage} onValueChange={(v) => upd("funnel_stage", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
