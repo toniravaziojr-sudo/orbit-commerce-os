@@ -246,6 +246,9 @@ function AccountConfigCard({
         {channel === "meta" && (
           <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName || accountId} />
         )}
+        {channel === "meta" && isAIEnabled && (
+          <AdsAIManualAnalysisButton platform="meta" adAccountId={accountId} />
+        )}
         {/* Fase C.4 — Execução automática diária (por conta) */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
           <div className="flex items-start justify-between gap-3">
