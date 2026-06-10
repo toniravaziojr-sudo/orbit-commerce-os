@@ -157,6 +157,7 @@ export function useOrders(options?: {
   endDate?: Date;
   dateField?: string;
   firstSaleOnly?: boolean;
+  channel?: string; // 'all' | 'storefront' | 'mercadolivre' | 'shopee' | 'tiktok_shop'
 }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
@@ -170,9 +171,18 @@ export function useOrders(options?: {
   const endDate = options?.endDate;
   const dateField = options?.dateField ?? 'created_at';
   const firstSaleOnly = options?.firstSaleOnly ?? false;
+  const channel = options?.channel ?? 'all';
+
+  const applyChannel = (q: any) => {
+    if (channel === 'storefront') return q.eq('sales_channel', 'storefront').is('marketplace_source', null);
+    if (channel === 'mercadolivre' || channel === 'shopee' || channel === 'tiktok_shop') {
+      return q.eq('marketplace_source', channel);
+    }
+    return q;
+  };
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField, firstSaleOnly],
+    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField, firstSaleOnly, channel],
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
@@ -196,6 +206,7 @@ export function useOrders(options?: {
       if (shippingStatus && shippingStatus !== 'all') {
         query = query.eq('shipping_status', shippingStatus as any);
       }
+      query = applyChannel(query);
 
       if (startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
