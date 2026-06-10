@@ -29,7 +29,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
-import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
+import { useAdsMetaProductionConfig, isProductionConfigReadyForPublish } from "@/hooks/useAdsMetaProductionConfig";
+import { Link } from "react-router-dom";
+import { CheckCircle2, ExternalLink } from "lucide-react";
 import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
 
 interface AdAccount {
