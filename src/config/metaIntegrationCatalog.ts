@@ -252,6 +252,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Megaphone',
     requiredScopes: ['ads_management', 'ads_read'],
     featureKey: null,
+    hasConfigSection: true,
+    configSectionKey: 'ads_identity',
     assetType: 'ad_account',
     assetLabel: 'Conta de Anúncio',
   },
