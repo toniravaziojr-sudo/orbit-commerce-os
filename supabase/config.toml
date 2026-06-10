@@ -263,7 +263,10 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.fiscal-emit]
-verify_jwt = true
+verify_jwt = false
+
+[functions.fiscal-prepare-invoice]
+verify_jwt = false
 
 [functions.fiscal-check-status]
 verify_jwt = true

@@ -115,6 +115,18 @@ Regras permanentes:
 | **verify_jwt** | `false` (necessário para chamadas internas sem sessão de usuário) |
 | **Segurança** | Chamada pública/anon/publishable negada. Execução global só pelo orquestrador interno usando credencial interna (`service_role`). |
 
+#### Pipeline auto-emit (PV → NF → SEFAZ)
+
+Quando o emissor está configurado, `emissao_automatica=true` e o pedido está em `ready_to_invoice`, `fiscal-auto-create-drafts` executa **duas chamadas internas em sequência** (sem chamada manual do usuário):
+
+1. `fiscal-prepare-invoice` — cria a NF (snapshot) a partir do Pedido de Venda (`fiscal_stage='pronta_emitir'`).
+2. `fiscal-emit` — transmite a NF criada para a SEFAZ.
+
+Padrão único de header entre edge functions: `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`. Por isso `fiscal-emit` e `fiscal-prepare-invoice` ficam com `verify_jwt = false` em `supabase/config.toml` — o gateway rejeitaria a service key (formato `sb_*` não é JWT). A validação de papel (service-role × usuário) e o `tenant_id` ficam dentro das próprias funções. Ver `mem://constraints/edge-internal-call-requires-verify-jwt-false`.
+
+Se a NF nasce com pendências (`fiscal_stage='pendencia'`), o auto-emit é abortado e a NF aparece na Central de Execuções para ação manual; o PV original nunca é alterado.
+
+
 ### Regra: Zero Sync on Load (v8.23.0)
 
 | Campo | Valor |

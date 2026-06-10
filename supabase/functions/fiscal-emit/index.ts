@@ -31,18 +31,12 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    const apiKeyHeader = req.headers.get('apikey');
-    const internalCall = req.headers.get('x-internal-call') === '1';
 
-    // Detecta chamada interna service_role (auto-emissão automática a partir
-    // de fiscal-auto-create-drafts). Pode chegar como:
-    //  - Authorization: Bearer <service_key>  (legado, formato JWT)
-    //  - apikey: <service_key> + x-internal-call: 1 (formato novo sb_ keys)
-    const isServiceRoleCall =
-      authHeader === `Bearer ${supabaseServiceKey}` ||
-      (internalCall && apiKeyHeader === supabaseServiceKey);
+    // Chamada interna service_role (auto-emissão a partir de fiscal-auto-create-drafts
+    // ou outras edge functions). Padrão único: Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>.
+    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
 
-    if (!authHeader && !isServiceRoleCall) {
+    if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

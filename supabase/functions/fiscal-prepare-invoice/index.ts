@@ -28,34 +28,52 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Chamada interna service_role (auto-emissão).
+    const isServiceRoleCall = authHeader === `Bearer ${serviceKey}`;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-    if (authError || !user) {
-      return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles').select('current_tenant_id').eq('id', user.id).single();
-    const tenantId = profile?.current_tenant_id;
-    if (!tenantId) {
-      return new Response(JSON.stringify({ success: false, error: 'No tenant' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { invoice_id } = await req.json();
+    const body = await req.json();
+    const { invoice_id } = body;
     if (!invoice_id) {
       return new Response(JSON.stringify({ success: false, error: 'invoice_id required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    let tenantId: string;
+
+    if (isServiceRoleCall) {
+      if (!body.tenant_id) {
+        return new Response(JSON.stringify({ success: false, error: 'tenant_id é obrigatório em chamada interna' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      tenantId = body.tenant_id as string;
+      console.log(`[fiscal-prepare-invoice] Chamada interna auto-prepare. tenant=${tenantId} invoice=${invoice_id}`);
+    } else {
+      const supabase = createClient(supabaseUrl, serviceKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      );
+      if (authError || !user) {
+        return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles').select('current_tenant_id').eq('id', user.id).single();
+      const resolvedTenant = profile?.current_tenant_id;
+      if (!resolvedTenant) {
+        return new Response(JSON.stringify({ success: false, error: 'No tenant' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      tenantId = resolvedTenant;
+    }
+
 
     const admin = createClient(supabaseUrl, serviceKey);
 

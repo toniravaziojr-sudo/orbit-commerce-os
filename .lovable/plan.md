@@ -1,114 +1,48 @@
-# Plano — Onda E: Modo Piloto vs Modo Piloto Inicial + análise inicial manual
+## Revisão do contexto
 
-**Status:** Entregue 2026-06-10. Sucessora da Onda D (config Meta persistida).
+Reli os docs relevantes (ERP Fiscal, padrão de cron/edge auth e regra de proibição da GUC do service key). A regra documental canônica do projeto é clara:
 
-## Entregue
+- Chamadas entre edge functions devem usar **anon key no header `Authorization: Bearer`** e a edge alvo faz a validação interna (papel/tenant) no corpo.
+- Service role key não deve circular como Bearer entre funções neste projeto — foi exatamente o que travou o disparo nas últimas tentativas (o gateway rejeita o formato antigo de service key como JWT).
 
-### E.1 — Diálogo de ativação com duas opções
-- Ao ligar o switch da IA pela primeira vez (ou após desligar), abre `AdsAIActivationDialog`.
-- Modo Piloto: ativa a IA e segue o fluxo normal. **Não chama IA. Não cria `analysis_run`.**
-- Modo Piloto Inicial (Recomendado): ativa a IA e dispara `ads-ai-initial-analysis` com `trigger=activation_initial`, `scope=account`.
-- O auto-disparo do Strategist em `useAdsAccountConfigs.toggleAI` foi **removido**. O fluxo só roda IA quando o usuário escolhe explicitamente.
+Conclusão: a direção das últimas correções estava certa em parte (passar a anon key + sinalizador interno), mas o tratamento da emissão automática ainda está acoplado a uma chamada HTTP entre funções, que é frágil quando há rotação de chave, mudança de gateway ou cold start. Isso explica por que o sintoma volta a cada teste.
 
-### E.2 — Botão manual "Rodar análise inicial agora"
-- Componente `AdsAIManualAnalysisButton` renderizado no card da conta Meta quando a IA está ativa.
-- Confirmação obrigatória antes de executar.
-- Tratamento de duplicidade: se já existe execução `running` para o mesmo escopo → toast informativo; se concluída há <24h → diálogo extra pedindo confirmação para rodar novamente (`force=true`).
+## Mudança de plano (decisão técnica, sem mudança de UI/UX nem de negócio)
 
-### E.3 — Edge Function `ads-ai-initial-analysis` (produção)
-- Cria `ads_ai_analysis_runs` (status `running`).
-- Reaproveita o `ads-autopilot-strategist` (`trigger=start`, `target_account_id`) como motor real — não duplica lógica de contexto.
-- Persiste `account_snapshot_summary`, `input_config_snapshot`, `limitations`, `diagnosis_summary`, `strategy_summary`, `created_action_ids`.
-- Bloqueia execução duplicada via **unique index parcial** em `(tenant, platform, ad_account_id|__global__, scope) WHERE status IN ('queued','running')`.
-- Não publica. Não chama Meta/Google/TikTok para mutação. Não gera criativo final automaticamente.
+Trocar o disparo da emissão automática de "uma função chama outra por HTTP" por **fila no banco + um único processador**:
 
-### E.4 — Persistência (`ads_ai_analysis_runs`)
-- Tabela real de produção, com RLS por tenant.
-- Campos: `tenant_id, platform, ad_account_id, scope, trigger, status, started_at, finished_at, input_config_snapshot, account_snapshot_summary, diagnosis_summary, strategy_summary, risks, limitations, created_action_ids, session_id, error_message, created_by`.
-- Auditoria + histórico + base para UI mostrar resumo amigável.
+1. Quando o pedido entra no estado que autoriza emissão (pago + status pronto para faturar), a função de rascunhos só faz duas coisas:
+   - Garante que o Pedido de Venda existe.
+   - Marca o registro fiscal correspondente como "pronto para emissão" na fila já existente de rascunhos fiscais.
+2. O cron de processamento da fila (que já roda) passa a ser o único responsável por emitir a NF, chamando a lógica de emissão **dentro do mesmo runtime** (sem chamada HTTP cruzada).
+3. A função pública de emissão manual (usada pela tela) continua existindo e inalterada para o usuário.
 
-### E.5 — Camada de contexto (AdsStrategyContextBuilder)
-- `collectStrategistContext` no `ads-autopilot-strategist` é a camada canônica. A análise inicial não duplica — chama o Strategist.
-- A edge `ads-ai-initial-analysis` apenas captura snapshot resumido (configs Meta + production_config) para auditoria humana, sem inventar dados.
+Por que isso é mais sólido:
 
-### E.6 — Hook + tipos
-- `useAdsAIAnalysisRun({ platform, adAccountId, scope })`: lista runs recentes, retorna `latestRun`/`hasRunning`, expõe `run.mutate({ scope, ad_account_id, trigger, force })`, e faz polling de 5s enquanto houver execução em andamento.
+- Elimina a dependência de autenticação entre funções (causa raiz dos últimos erros).
+- Reaproveita o cron de fila que já existe — sem novo agendamento, sem novo processamento desnecessário.
+- Mantém rastreabilidade: cada item da fila tem estado, tentativa e erro registrados.
+- Não muda nada para o usuário final: a tela, o fluxo do pedido e a emissão manual continuam iguais.
 
-### E.7 — Escopo
-- `account` (Meta + conta específica): diálogo de ativação + botão manual por card de conta.
-- `global` (correção 2026-06-10, v1.1.0 da edge): novo botão `AdsAIGlobalAnalysisButton` no topo do Gerenciador de Anúncios. Itera todas as contas Meta com IA ativada, reusa `runForAccount`, cria 1 run parent (`scope=global`) + N runs filhas (`scope=account`, `parent_run_id` no snapshot). Google/TikTok ignorados com limitação amigável: "Google Ads e TikTok Ads ainda não estão operacionais nesta etapa."
-- Dedup global: unique index parcial em `(tenant, platform, COALESCE(ad_account_id,'__global__'), scope) WHERE status IN ('queued','running')` cobre tanto run parent quanto filhas. Contas já em execução são puladas sem quebrar o lote.
-- Resumo amigável: `buildHumanContextSummary` monta linha por conta ("Esta análise considerou: conta Meta act_..., orçamento R$ ..., ROI alvo ..., país BR, idade 18-65, posicionamentos Advantage+, CTA ..., formato ..., diretrizes configuradas."). Vai para `strategy_summary` da run parent e `account_snapshot_summary.per_account[].context_summary`. Payload técnico bruto permanece em `input_config_snapshot`.
+## Critérios de aceite
 
-## Restrições respeitadas
-- Zero publicação Meta/Google/TikTok.
-- Zero mutação na conta de anúncios real.
-- Zero criativo final gerado automaticamente.
-- Zero crédito consumido fora da chamada estratégica única autorizada pelo usuário.
-- Modo Piloto não chama IA.
-- Nenhuma análise dispara ao abrir/navegar/salvar.
-- Dedup garantido por unique index (não depende de race no app).
-- Global ignora Google/TikTok sem bloquear Meta.
+- Ao aprovar um pedido manualmente, o sistema:
+  1. Cria o Pedido de Venda.
+  2. Cria a Remessa em rascunho.
+  3. Em até um ciclo do cron, emite a NF automaticamente.
+  4. Após autorização da NF, libera a Remessa para despacho.
+- Nenhum item depende de chamada HTTP entre edge functions.
+- Logs do cron mostram: item pego da fila, resultado da emissão, próximo passo.
 
-## Não entregue (fora do escopo desta onda)
-- Cron mensal automatizado de análise.
-- Admin completo de compatibilidade.
-- Google/TikTok operacionais.
-- Painel de histórico detalhado das runs (a tabela existe; UI mínima foi adicionada via `latestRun.finished_at` no botão).
+## Validação que farei após implementar
 
+- Limpar dados do teste anterior.
+- Criar um novo pedido aprovado no tenant Respeite o Homem.
+- Acompanhar a fila e os logs até ver a NF autorizada e a Remessa pronta.
+- Só declaro "corrigido e validado" com a NF autorizada na base.
 
----
+## Documentação
 
-## Correção 2026-06-10 — Configurações Gerais focada em estratégia
+Ao concluir, atualizo a especificação de ERP Fiscal descrevendo o novo caminho de emissão automática via fila (substituindo a descrição atual baseada em chamada entre funções) e registro a regra anti-regressão: "emissão automática nunca depende de chamada HTTP entre edge functions".
 
-**Status:** Entregue.
-
-### Mudança
-- Configurações Gerais do Gestor de Tráfego IA passa a ser **exclusivamente estratégica** (orçamento, ROI, ROI por funil, estratégia, splits, prompt, ativação, execução diária, Modo Piloto / Piloto Inicial).
-- Removido da UI principal o formulário manual `MetaProductionConfigCard` (Página, Pixel, Instagram, evento de conversão, IDs técnicos, públicos, posicionamentos, CTA/formato default).
-- Substituído por status inline somente leitura (`MetaIntegrationStatusInline`): "Meta conectada · ativos sincronizados" ou alerta de pendência com link para `/integrations`.
-
-### Preservado
-- Tabela `ads_meta_production_config`, hook `useAdsMetaProductionConfig`, componente `MetaProductionConfigCard` (não removido — apenas desconectado da UI principal, disponível para área técnica futura).
-- `collectStrategistContext` continua lendo a configuração interna quando existir.
-- Gates por etapa (`strategy` / `creative` / `publish`) inalterados — ausência de Pixel/Página continua sendo limitação, não bloqueio de análise.
-- Modo Piloto, Modo Piloto Inicial, análise manual, `ads_ai_analysis_runs`, propostas Aguardando Ação e ownership Campanha → Conjunto → Anúncio intactos.
-
-### Docs atualizados
-- `docs/especificacoes/transversais/mapa-ui.md` (seção "Status técnico Meta na UI estratégica").
-- `docs/especificacoes/marketing/gestor-trafego.md` (D.3 reescrito).
-
-
----
-
-## Correção 2026-06-10 (2) — Status técnico Meta lê integração real
-
-**Status:** Entregue.
-
-### Problema
-O status inline mostrava "Pendência técnica" mesmo com a integração Meta totalmente conectada, porque lia da tabela `ads_meta_production_config` (vazia desde a remoção do formulário manual na Onda D).
-
-### Correção
-- Novo hook `useMetaIntegrationAssetsStatus` consulta `tenant_meta_integrations` (status=active) do tenant atual e detecta: Conta de anúncio (`anuncios`), Página (qualquer integração Facebook/Instagram com `pages`/`page`), Pixel (`pixel_facebook`/`conversions_api`), API de Conversões (`conversions_api`).
-- `MetaIntegrationStatusInline` passa a usar esse hook. Verde quando os 4 ativos estão presentes; amarelo com lista exata do que falta em PT-BR (ex.: "Página do Facebook/Instagram não selecionada na integração").
-
-### Limpeza operacional
-- Removidas todas as propostas, artefatos, insights e execuções de análise da IA de tráfego do tenant Respeite o Homem (`d1a4d0ed-...`) para teste limpo do Modo Piloto Inicial.
-
-## Pendências abertas (próximas ondas)
-
-### Curto prazo (Meta)
-- **Seleção de Página na integração Meta**: o tenant Respeite o Homem hoje não tem `facebook_publicacoes`/`instagram_publicacoes` com Página selecionada. UI de Integrações precisa orientar explicitamente o usuário a selecionar Página para liberar publicação real.
-- **Cron diário de execução automática**: o switch "Execução automática diária" existe e persiste, mas ainda não há cron consumindo accounts com `autonomy_enabled=true` para rodar ações técnicas seguras (ajustes pequenos de orçamento, pausas emergenciais).
-- **Pipeline de publicação real Meta**: gates de `publish` estão prontos, mas a edge function que efetivamente cria Campanha → Conjunto → Anúncio na Meta Marketing API ainda não foi entregue. Hoje propostas param em "Aguardando Ação" sem botão "Publicar agora".
-- **Geração de criativo final pós-aprovação**: fluxo de gerar imagem/vídeo e copy após o usuário aprovar a estratégia ainda não está plugado ao motor de criativos (`creative_jobs`).
-- **Histórico de runs com UI**: tabela `ads_ai_analysis_runs` registra tudo, mas só existe o atalho `latestRun.finished_at` no botão. Falta tela dedicada com timeline, snapshot técnico expandível e propostas geradas por run.
-
-### Médio prazo
-- **Cron mensal de re-análise estratégica** (proativo, sem ação do usuário).
-- **Google Ads e TikTok Ads operacionais**: hoje ambos aparecem nas abas mas são ignorados pelo motor. Precisa adapter de objetivos, capabilities e fluxo de publicação por canal.
-- **Admin de compatibilidade**: painel para revisar `platform_capabilities`, `platform_compatibility_checks` e `platform_compatibility_alerts`.
-- **Configuração técnica avançada (opcional)**: reabrir o `MetaProductionConfigCard` em uma área "Avançado / Operacional" para tenants que queiram sobrescrever defaults de público, posicionamento, CTA e formato — sem poluir a UI estratégica principal.
-
-### Governança
-- **Memória anti-regressão**: criar `mem://constraints/ads-meta-status-source-of-truth` registrando que o status técnico Meta na UI do Gestor de Tráfego DEVE ler de `tenant_meta_integrations` (integração real) e nunca de `ads_meta_production_config` (config interna opcional).
+Posso seguir com esse plano?
