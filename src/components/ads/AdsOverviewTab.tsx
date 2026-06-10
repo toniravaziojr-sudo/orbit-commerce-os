@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check, Info, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 
 interface ChannelSummary {
   channel: string;
