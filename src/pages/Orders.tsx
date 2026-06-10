@@ -30,6 +30,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [shippingFilter, setShippingFilter] = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
   const [firstSaleOnly, setFirstSaleOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -86,6 +87,7 @@ export default function Orders() {
     endDate,
     dateField,
     firstSaleOnly,
+    channel: channelFilter,
   });
 
   if (error) {
@@ -302,6 +304,18 @@ export default function Orders() {
                   <SelectItem value="delivered">Entregue</SelectItem>
                   <SelectItem value="returned">Devolvido</SelectItem>
                   <SelectItem value="failed">Problema</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={channelFilter} onValueChange={(v) => { setChannelFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as origens</SelectItem>
+                  <SelectItem value="storefront">Loja Virtual</SelectItem>
+                  <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+                  <SelectItem value="shopee">Shopee</SelectItem>
+                  <SelectItem value="tiktok_shop">TikTok Shop</SelectItem>
                 </SelectContent>
               </Select>
               <Button

@@ -511,7 +511,8 @@ graph TD
 | Elemento | Comportamento |
 |----------|---------------|
 | Busca | Por número, nome ou email |
-| Filtros | Status, pagamento, envio, 1ª Venda. Período via `DateRangeFilter` |
+| Filtros | Status, pagamento, envio, **Origem (Loja Virtual / ML / Shopee / TikTok Shop)**, 1ª Venda. Período via `DateRangeFilter` |
+| Origem (ícone) | Cada linha exibe ícone da origem do pedido (Loja, ML, Shopee, TikTok, Venda IA) via `OrderSourceBadge`. Critério: `sales_channel` + `marketplace_source` |
 | Estatísticas | 4 cards: Total, Aprovados, NF Emitida, Enviados — queries separadas com filtros ativos |
 | 1ª Venda | Badge "1ª" ao lado do valor + toggle de filtro |
 | Paginação | 50 por página |
