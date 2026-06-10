@@ -228,12 +228,13 @@ async function processTenanDrafts(
       try {
         const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
         const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
         const r = await fetch(emitUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': serviceKey,
-            'Authorization': `Bearer ${serviceKey}`,
+            'Authorization': `Bearer ${anonKey}`,
             'x-internal-call': '1',
           },
           body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
