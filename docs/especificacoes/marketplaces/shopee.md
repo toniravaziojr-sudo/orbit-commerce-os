@@ -10,6 +10,10 @@
 
 ---
 
+> **Padrão canônico:** este marketplace **segue o padrão definido em `_padrao-canonico-marketplaces.md`** (Mercado Livre é o golden path). Qualquer divergência precisa estar declarada explicitamente neste doc e aprovada pelo usuário.
+
+---
+
 ## Visão Geral
 
 Integração OAuth com Shopee Open Platform (OpenAPI v2) para sincronização de pedidos, catálogo e mensagens.
