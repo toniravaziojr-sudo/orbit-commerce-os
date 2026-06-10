@@ -1315,6 +1315,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     googleAssets,
     tiktokCampaigns,
     tiktokInsights,
+    // Onda D — Configuração de Criação Meta indexada por conta
+    metaProductionConfigsByAccount,
     // Etapa 7.mem — Subfase D: observação carregada uma vez por ciclo, NÃO influencia a IA.
     tenant_memory_observation: tenantMemoryObservation,
   };
