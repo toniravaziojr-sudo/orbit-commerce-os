@@ -1138,6 +1138,116 @@ export type Database = {
           },
         ]
       }
+      ads_meta_production_config: {
+        Row: {
+          ad_account_id: string
+          attribution_window: string | null
+          created_at: string
+          custom_audiences: Json
+          default_age_max: number
+          default_age_min: number
+          default_audience_type: string
+          default_budget_type: string
+          default_buying_type: string
+          default_conversion_event: string | null
+          default_country: string
+          default_creative_format: string
+          default_cta: string
+          default_daily_budget_cents: number | null
+          default_funnel_stage: string
+          default_gender: string
+          default_language: string
+          default_objective: string
+          default_placements: Json
+          default_planned_status: string
+          default_utm_params: Json
+          exclude_customers: boolean
+          facebook_page_id: string | null
+          id: string
+          instagram_actor_id: string | null
+          interests_lookalikes: Json
+          metadata: Json
+          pixel_id: string | null
+          reference_image_strategy: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          attribution_window?: string | null
+          created_at?: string
+          custom_audiences?: Json
+          default_age_max?: number
+          default_age_min?: number
+          default_audience_type?: string
+          default_budget_type?: string
+          default_buying_type?: string
+          default_conversion_event?: string | null
+          default_country?: string
+          default_creative_format?: string
+          default_cta?: string
+          default_daily_budget_cents?: number | null
+          default_funnel_stage?: string
+          default_gender?: string
+          default_language?: string
+          default_objective?: string
+          default_placements?: Json
+          default_planned_status?: string
+          default_utm_params?: Json
+          exclude_customers?: boolean
+          facebook_page_id?: string | null
+          id?: string
+          instagram_actor_id?: string | null
+          interests_lookalikes?: Json
+          metadata?: Json
+          pixel_id?: string | null
+          reference_image_strategy?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          attribution_window?: string | null
+          created_at?: string
+          custom_audiences?: Json
+          default_age_max?: number
+          default_age_min?: number
+          default_audience_type?: string
+          default_budget_type?: string
+          default_buying_type?: string
+          default_conversion_event?: string | null
+          default_country?: string
+          default_creative_format?: string
+          default_cta?: string
+          default_daily_budget_cents?: number | null
+          default_funnel_stage?: string
+          default_gender?: string
+          default_language?: string
+          default_objective?: string
+          default_placements?: Json
+          default_planned_status?: string
+          default_utm_params?: Json
+          exclude_customers?: boolean
+          facebook_page_id?: string | null
+          id?: string
+          instagram_actor_id?: string | null
+          interests_lookalikes?: Json
+          metadata?: Json
+          pixel_id?: string | null
+          reference_image_strategy?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_meta_production_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_tracking_health: {
         Row: {
           ad_account_id: string | null

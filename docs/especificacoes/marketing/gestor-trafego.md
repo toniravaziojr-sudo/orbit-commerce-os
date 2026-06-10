@@ -3576,3 +3576,40 @@ em vez de `—` silencioso. Nenhuma proposta é regerada por IA nesta etapa.
 - Zero publicação em Meta / Google / TikTok.
 - Zero consumo de crédito.
 - Sem cron mensal, sem admin completo, sem Google/TikTok operacionais.
+
+---
+
+## Motor de Propostas — Onda D (Base de produção Meta enxuta, v2026-06-10)
+
+### Resumo executivo
+Foco em deixar o fluxo real de criação de campanhas Meta Ads em condição de produção inicial. Sem cron, sem admin avançado, sem Google/TikTok operacionais, sem publicação.
+
+### D.1 — Aba Campanha enxuta
+Removido em definitivo o bloco "Resumo herdado dos anúncios" da aba Campanha. A aba mostra **apenas**: nome, objetivo, canal, modo de compra, tipo de orçamento, orçamento diário, status inicial e racional. Link, CTA e tracking só aparecem em Anúncio/Criativo.
+
+### D.2 — Configuração de Criação Meta (persistida)
+Tabela `ads_meta_production_config` (1 registro por tenant × conta de anúncios) — fonte de verdade real dos defaults usados pelo Strategist. Campos: identidade (Página, Instagram), mensuração (Pixel, evento, janela), defaults de Campanha, defaults de Conjunto (país, idioma, idade, gênero, posicionamento, exclusão de clientes, públicos, lookalikes) e defaults de Anúncio/Criativo (CTA, formato, UTM, estratégia de imagem).
+
+Defaults seguros: BR · pt_BR · 18-65 · todos · Advantage+ · Leilão · objetivo `sales` · status `PAUSED` · CTA `SHOP_NOW` · formato `1x1`. **Pixel, Página, Instagram Actor e Evento de conversão nunca são inventados.**
+
+### D.3 — UI: bloco "Configuração de Criação Meta"
+Renderizado em **Gestor de Tráfego IA → Configurações Gerais → Meta Ads**, dentro do card de cada conta. Mostra dados configurados, pendentes obrigatórios (vermelho) e opcionais (cinza). Permite salvar parcial; pendências de Página/Pixel/Evento só bloqueiam a etapa de publicação (futura).
+
+### D.4 — Gates por etapa
+`runStructureCompletenessGate(structure, { stage })` aceita 3 etapas:
+- **strategy (default):** Campanha + Conjunto + Criativo minimamente prontos. Evento de conversão = warning.
+- **creative:** apenas Criativo (produto, link, CTA, copy/prompt, formato, referência).
+- **publish:** evento de conversão obrigatório; Página e Pixel cobertos pela Configuração de Criação Meta.
+
+O modal de proposta usa `strategy` — assim, "evento de conversão pendente" deixou de bloquear a aprovação.
+
+### D.5 — Strategist usa a Configuração de Criação Meta
+`gatherContext` carrega as configs Meta do tenant e indexa por `ad_account_id`. Um bloco `## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)` é injetado no prompt do Strategist Meta com todos os defaults reais — ou instruções de fallback conservador. Pixel/Página/Instagram/Evento não configurados aparecem como `requires_user_input`.
+
+### D.6 — Restrições mantidas
+- Zero IA chamada ao abrir, navegar, editar ou salvar.
+- Zero criativo gerado, zero crédito consumido.
+- Zero publicação Meta/Google/TikTok.
+- Zero chamada Meta para criar campanha.
+- Sem cron, sem admin avançado, sem Google/TikTok operacional, sem regeneração automática de propostas.
+

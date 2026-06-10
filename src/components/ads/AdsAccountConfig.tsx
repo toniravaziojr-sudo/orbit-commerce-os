@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
+import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
 
 interface AdAccount {
   id: string;
@@ -231,6 +232,9 @@ function AccountConfigCard({
       </CardHeader>
 
       <CardContent className="pt-0 space-y-5">
+        {channel === "meta" && (
+          <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName || accountId} />
+        )}
         {/* Fase C.4 — Execução automática diária (por conta) */}
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
           <div className="flex items-start justify-between gap-3">

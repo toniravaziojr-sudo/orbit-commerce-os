@@ -1007,6 +1007,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     // TikTok Ads local cache
     tiktokCampaignsRes,
     tiktokInsightsRes,
+    // Onda D — Meta production configs
+    metaProductionConfigsRes,
   ] = await Promise.all([
     supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
@@ -1034,6 +1036,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, synced_at").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
+    // Onda D — Configuração de Criação Meta (fonte de verdade dos defaults por conta)
+    supabase.from("ads_meta_production_config").select("*").eq("tenant_id", tenantId).limit(50),
   ]);
 
   const products = productsRes.data || [];
@@ -1061,6 +1065,13 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const googleAssets = googleAssetsRes.data || [];
   const tiktokCampaigns = tiktokCampaignsRes?.data || [];
   const tiktokInsights = tiktokInsightsRes?.data || [];
+  // Onda D — indexa configs Meta por ad_account_id
+  const metaProductionConfigsByAccount: Record<string, any> = {};
+  ((metaProductionConfigsRes as any)?.data || []).forEach((row: any) => {
+    if (row?.ad_account_id) metaProductionConfigsByAccount[row.ad_account_id] = row;
+  });
+
+
 
   // Resolve store URL from tenant_domains (source of truth)
   const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
@@ -1304,12 +1315,77 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     googleAssets,
     tiktokCampaigns,
     tiktokInsights,
+    // Onda D — Configuração de Criação Meta indexada por conta
+    metaProductionConfigsByAccount,
     // Etapa 7.mem — Subfase D: observação carregada uma vez por ciclo, NÃO influencia a IA.
     tenant_memory_observation: tenantMemoryObservation,
   };
 }
 
 // ============ BUILD STRATEGIST PROMPT ============
+
+// Onda D — Bloco "Configuração de Criação Meta" injetado no prompt do Strategist.
+// Não inventa Pixel/Página/Instagram/evento. Quando o dado não está configurado,
+// marca como `requires_user_input` e o gate de etapa lida com a pendência.
+function buildMetaProductionConfigBlock(cfg: any | null | undefined): string {
+  if (!cfg) {
+    return [
+      "## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)",
+      "Nenhuma configuração persistida encontrada para esta conta de anúncios.",
+      "Use defaults conservadores: país BR, idioma pt_BR, idade 18-65, gênero todos,",
+      "posicionamentos automáticos (Advantage+), modo de compra Leilão, status inicial PAUSED,",
+      "CTA SHOP_NOW, formato 1x1. Para Pixel/Página/Instagram/Evento de conversão,",
+      "use o valor literal 'requires_user_input' (NÃO INVENTAR).",
+    ].join("\n");
+  }
+  const v = (x: any, fallback = "requires_user_input") => (x == null || x === "" ? fallback : x);
+  const placements = Array.isArray(cfg.default_placements) ? cfg.default_placements.join(", ") : "advantage_plus";
+  const budgetReais = cfg.default_daily_budget_cents != null
+    ? (Number(cfg.default_daily_budget_cents) / 100).toFixed(2)
+    : null;
+  return [
+    "## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO) — FONTE DE VERDADE DA CONTA",
+    "Use estes defaults ao montar Campaign / AdSet / Ad. Para qualquer dado obrigatório",
+    "não configurado, use literalmente 'requires_user_input' (NÃO INVENTAR Pixel, Página,",
+    "Instagram Actor ou Evento de conversão).",
+    "",
+    "### Identidade",
+    `- Página do Facebook: ${v(cfg.facebook_page_id)}`,
+    `- Instagram Actor: ${v(cfg.instagram_actor_id, "n/d")}`,
+    "",
+    "### Mensuração",
+    `- Pixel ID: ${v(cfg.pixel_id)}`,
+    `- Evento de conversão padrão: ${v(cfg.default_conversion_event)}`,
+    `- Janela de atribuição: ${v(cfg.attribution_window, "padrão da plataforma")}`,
+    "",
+    "### Campanha (defaults)",
+    `- Objetivo canônico: ${cfg.default_objective || "sales"}`,
+    `- Modo de compra: ${cfg.default_buying_type || "AUCTION"}`,
+    `- Tipo de orçamento: ${cfg.default_budget_type || "daily"}`,
+    `- Orçamento diário padrão: ${budgetReais ? `R$ ${budgetReais}` : "usar orçamento da proposta"}`,
+    `- Status inicial: ${cfg.default_planned_status || "PAUSED"}`,
+    "",
+    "### Conjunto (defaults)",
+    `- País: ${cfg.default_country || "BR"} | Idioma: ${cfg.default_language || "pt_BR"}`,
+    `- Idade: ${cfg.default_age_min ?? 18}-${cfg.default_age_max ?? 65}`,
+    `- Gênero: ${cfg.default_gender || "all"}`,
+    `- Posicionamentos: ${placements}`,
+    `- Tipo de público padrão: ${cfg.default_audience_type || "broad"}`,
+    `- Etapa de funil padrão: ${cfg.default_funnel_stage || "tof"}`,
+    `- Excluir clientes/compradores do público frio: ${cfg.exclude_customers ? "sim" : "não"}`,
+    "",
+    "### Anúncio / Criativo (defaults)",
+    `- CTA padrão: ${cfg.default_cta || "SHOP_NOW"}`,
+    `- Formato padrão: ${cfg.default_creative_format || "1x1"}`,
+    `- Estratégia de imagem de referência: ${cfg.reference_image_strategy || "product_main_image"}`,
+    "",
+    "REGRAS OBRIGATÓRIAS:",
+    "- NÃO coloque link/CTA no nível Campanha — pertencem ao Ad/Criativo.",
+    "- Não deixe nenhum conjunto sem público/região/idade/gênero/posicionamento/otimização.",
+    "- Use objetivo no enum canônico (sales, leads, traffic, awareness, engagement, app_promotion).",
+    "- O adapter Meta traduz para o enum oficial — não grave OUTCOME_SALES diretamente.",
+  ].join("\n");
+}
 
 function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
   // === GOOGLE ADS BRANCH ===
@@ -1765,6 +1841,8 @@ IMPORTANTE: No planned_actions do plano estratégico, inclua OBRIGATORIAMENTE: p
 - NUNCA use UUIDs na URL — use o slug do produto
 - Se não houver URL da loja configurada, use o caminho relativo (/produto/slug)
 - Inclua UTM params para rastreamento correto
+
+${buildMetaProductionConfigBlock(context?.metaProductionConfigsByAccount?.[config.ad_account_id])}
 
 ${triggerInstruction}
 
