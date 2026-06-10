@@ -647,5 +647,13 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
   - Bloqueia execução se já existir análise em andamento para o mesmo escopo.
   - Se a última análise foi concluída há menos de 24h, abre confirmação extra para evitar consumo desnecessário de IA.
   - Mostra data/hora da última análise concluída.
+- `/ads` → topo do **Gerenciador de Anúncios**, novo bloco **"Análise inicial global"** (correção 2026-06-10):
+  - Roda a análise inicial em todas as contas Meta com IA ativada de uma vez.
+  - Mostra contagem de contas Meta elegíveis.
+  - Mesmas travas: confirmação explícita, bloqueio se há análise global em andamento, confirmação extra se concluída há menos de 24h.
+  - Se o tenant tem contas Google/TikTok configuradas, exibe limitação amigável: "Google Ads e TikTok Ads ainda não estão operacionais nesta etapa e serão ignorados." Não bloqueia a análise da Meta.
+  - Se uma conta específica já está em análise individual, é pulada do lote sem quebrar as demais.
+  - Cada conta gera uma run filha (`scope=account`) com seu próprio resumo de contexto; o painel mostra um resumo global consolidado.
 - Histórico das análises é persistido em tabela própria (`ads_ai_analysis_runs`) para auditoria, com snapshot do contexto usado, diagnóstico, estratégia, limitações e IDs das propostas criadas.
 - Detalhe em `docs/especificacoes/marketing/gestor-trafego.md` seção "Onda E — Modo Piloto vs Modo Piloto Inicial".
+
