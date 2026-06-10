@@ -1007,6 +1007,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     // TikTok Ads local cache
     tiktokCampaignsRes,
     tiktokInsightsRes,
+    // Onda D — Meta production configs
+    metaProductionConfigsRes,
   ] = await Promise.all([
     supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
@@ -1064,8 +1066,11 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const tiktokCampaigns = tiktokCampaignsRes?.data || [];
   const tiktokInsights = tiktokInsightsRes?.data || [];
   // Onda D — indexa configs Meta por ad_account_id
-  const metaProductionConfigsRow = arguments[0]; // noop to keep diff small
-  // (variável metaProductionConfigsByAccount montada abaixo)
+  const metaProductionConfigsByAccount: Record<string, any> = {};
+  ((metaProductionConfigsRes as any)?.data || []).forEach((row: any) => {
+    if (row?.ad_account_id) metaProductionConfigsByAccount[row.ad_account_id] = row;
+  });
+
 
 
   // Resolve store URL from tenant_domains (source of truth)
