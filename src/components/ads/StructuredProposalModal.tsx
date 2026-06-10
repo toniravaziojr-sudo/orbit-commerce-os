@@ -513,6 +513,7 @@ function OverviewSection({
 }
 
 function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channel: string }) {
+  const hasInherited = !!(campaign.inherited_destination_url || campaign.inherited_cta);
   return (
     <div className="space-y-4">
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
@@ -520,14 +521,26 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
           <Detail label="Nome" value={campaign.name} />
           <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
           <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
+          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
           <Detail label="Tipo de orçamento" value={tr("budget_type", campaign.budget_type)} />
           <Detail label="Orçamento diário" value={formatBudgetBRL(campaign.daily_budget_cents)} />
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
-          <Detail label="Botão de ação" value={tr("cta", campaign.cta)} />
-          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
-          <Detail label="Link de destino" value={campaign.destination_url} fullWidth />
         </DetailGrid>
       </Block>
+      {hasInherited && (
+        <Block
+          title="Resumo herdado dos anúncios"
+          icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+        >
+          <p className="text-[11px] text-muted-foreground italic mb-2">
+            Estes valores pertencem ao Anúncio/Criativo. São mostrados aqui apenas como leitura.
+          </p>
+          <DetailGrid>
+            <Detail label="Botão de ação (do anúncio)" value={tr("cta", campaign.inherited_cta)} />
+            <Detail label="Link de destino (do anúncio)" value={campaign.inherited_destination_url} fullWidth />
+          </DetailGrid>
+        </Block>
+      )}
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
