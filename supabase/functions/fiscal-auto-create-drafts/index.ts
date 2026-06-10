@@ -204,7 +204,12 @@ async function processTenanDrafts(
   // Cenário: pedido foi pago (rascunho criado) e depois transitou para 'ready_to_invoice'.
   // O gatilho re-enfileira o pedido; aqui detectamos rascunhos existentes (status=draft)
   // e disparamos fiscal-emit se a configuração de auto-emit casar com o status atual.
-  const ordersWithExistingDraft = paidOrders.filter((o: any) => ordersWithInvoice.has(o.id));
+  // IMPORTANTE: roda APENAS em modo TRIGGER (singleOrderId definido) para evitar
+  // avalanche de chamadas no CRON que tentaria reemitir todos os rascunhos antigos
+  // (e bate em rate limit). Pedidos antigos travados são tratados manualmente.
+  const ordersWithExistingDraft = singleOrderId
+    ? paidOrders.filter((o: any) => ordersWithInvoice.has(o.id))
+    : [];
   if (ordersWithExistingDraft.length > 0 && isFiscalConfigured && fiscalSettings.emissao_automatica === true) {
     // Gatilho único: dispara apenas quando o pedido está em 'ready_to_invoice'.
     const existingDraftIds = ordersWithExistingDraft.map((o: any) => o.id);
@@ -222,14 +227,22 @@ async function processTenanDrafts(
       if (orderStatus !== 'ready_to_invoice') continue;
       try {
         const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-        fetch(emitUrl, {
+        const emitPromise = fetch(emitUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
           },
           body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
-        }).catch(err => console.error(`[fiscal-auto-create-drafts] Auto-emit (existing draft) error for ${inv.id}:`, err));
+        })
+          .then(async (r) => {
+            const txt = await r.text().catch(() => '');
+            console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) response invoice=${inv.id} status=${r.status} body=${txt.slice(0, 300)}`);
+          })
+          .catch(err => console.error(`[fiscal-auto-create-drafts] Auto-emit (existing draft) error for ${inv.id}:`, err));
+        // Garante que o fetch complete mesmo após a Response retornar
+        try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
+        await emitPromise;
         console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, status=${orderStatus})`);
       } catch (err) {
         console.error(`[fiscal-auto-create-drafts] Erro disparando auto-emit em rascunho existente ${inv.id}:`, err);
@@ -519,8 +532,7 @@ async function processTenanDrafts(
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
           const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-          // fire-and-forget: não bloqueia a criação de outros rascunhos
-          fetch(emitUrl, {
+          const emitPromise = fetch(emitUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -531,9 +543,16 @@ async function processTenanDrafts(
               tenant_id: tenantId,
               auto: true,
             }),
-          }).catch(err => {
-            console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
-          });
+          })
+            .then(async (r) => {
+              const txt = await r.text().catch(() => '');
+              console.log(`[fiscal-auto-create-drafts] Auto-emit response invoice=${invoice.id} status=${r.status} body=${txt.slice(0, 300)}`);
+            })
+            .catch(err => {
+              console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
+            });
+          try { (globalThis as any).EdgeRuntime?.waitUntil?.(emitPromise); } catch {}
+          await emitPromise;
           console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, order_status=${orderStatus})`);
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
