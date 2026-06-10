@@ -332,7 +332,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
             </span>
           </div>
 
-          {/* Campanha */}
+          {/* Nível 1 — Campanha */}
           <Section title="Campanha">
             <Field label="Nome da campanha">
               <Input value={current.campaign_name} onChange={(e) => upd("campaign_name", e.target.value)} />
