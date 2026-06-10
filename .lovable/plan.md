@@ -1,62 +1,54 @@
-# Plano — Onda D: base de produção Meta Ads enxuta
+# Plano — Onda E: Modo Piloto vs Modo Piloto Inicial + análise inicial manual
 
-**Status:** Entregue 2026-06-10. Sucessora da Onda C (ownership por nível).
+**Status:** Entregue 2026-06-10. Sucessora da Onda D (config Meta persistida).
 
-## Entregue nesta rodada
+## Entregue
 
-### D.1 — Limpeza da aba Campanha
-- Removido o bloco "Resumo herdado dos anúncios" do `CampaignSection` no modal de proposta.
-- A aba Campanha agora exibe **apenas** nome, objetivo, canal, modo de compra, tipo de orçamento, orçamento diário, status inicial e racional.
-- Link, CTA e tracking só aparecem na aba Anúncio/Criativo. Campos legados continuam disponíveis no normalizer para compatibilidade técnica, mas não vazam para UI.
+### E.1 — Diálogo de ativação com duas opções
+- Ao ligar o switch da IA pela primeira vez (ou após desligar), abre `AdsAIActivationDialog`.
+- Modo Piloto: ativa a IA e segue o fluxo normal. **Não chama IA. Não cria `analysis_run`.**
+- Modo Piloto Inicial (Recomendado): ativa a IA e dispara `ads-ai-initial-analysis` com `trigger=activation_initial`, `scope=account`.
+- O auto-disparo do Strategist em `useAdsAccountConfigs.toggleAI` foi **removido**. O fluxo só roda IA quando o usuário escolhe explicitamente.
 
-### D.2 — Configuração de Criação Meta (persistida)
-- Nova tabela `ads_meta_production_config` (1 registro por tenant × conta de anúncios).
-- Fonte de verdade operacional usada pelo Strategist. Não é mock, não é temporária.
-- Campos cobertos:
-  - **Identidade:** página do Facebook, conta do Instagram.
-  - **Mensuração:** Pixel, evento de conversão padrão, janela de atribuição.
-  - **Campanha:** objetivo, modo de compra, tipo de orçamento, orçamento diário padrão, status inicial.
-  - **Conjunto:** país, idioma, idade min/max, gênero, posicionamentos, tipo de público, etapa de funil, exclusão de clientes, públicos personalizados, lookalikes.
-  - **Anúncio/Criativo:** CTA, formato, UTM padrão, estratégia de imagem de referência.
-- Defaults seguros aplicados automaticamente: BR, pt_BR, 18-65, todos, Advantage+, Leilão, objetivo `sales`, status `PAUSED`, CTA `SHOP_NOW`, formato `1x1`.
-- Não inventa Pixel, Página, Instagram Actor ou evento — vai como pendência.
+### E.2 — Botão manual "Rodar análise inicial agora"
+- Componente `AdsAIManualAnalysisButton` renderizado no card da conta Meta quando a IA está ativa.
+- Confirmação obrigatória antes de executar.
+- Tratamento de duplicidade: se já existe execução `running` para o mesmo escopo → toast informativo; se concluída há <24h → diálogo extra pedindo confirmação para rodar novamente (`force=true`).
 
-### D.3 — UI: bloco "Configuração de Criação Meta"
-- Componente `MetaProductionConfigCard` em `src/components/ads/`.
-- Renderizado no topo do card de cada conta Meta dentro de Gestor de Tráfego IA → Configurações Gerais → Meta Ads.
-- Mostra dados configurados, pendentes obrigatórios (vermelho) e opcionais (cinza).
-- Permite salvar configuração parcial — Página/Pixel/Evento só bloqueiam publicação real (etapa C, futura).
-- Hook `useAdsMetaProductionConfig` com helpers `isProductionConfigReadyForStrategy` e `isProductionConfigReadyForPublish`.
+### E.3 — Edge Function `ads-ai-initial-analysis` (produção)
+- Cria `ads_ai_analysis_runs` (status `running`).
+- Reaproveita o `ads-autopilot-strategist` (`trigger=start`, `target_account_id`) como motor real — não duplica lógica de contexto.
+- Persiste `account_snapshot_summary`, `input_config_snapshot`, `limitations`, `diagnosis_summary`, `strategy_summary`, `created_action_ids`.
+- Bloqueia execução duplicada via **unique index parcial** em `(tenant, platform, ad_account_id|__global__, scope) WHERE status IN ('queued','running')`.
+- Não publica. Não chama Meta/Google/TikTok para mutação. Não gera criativo final automaticamente.
 
-### D.4 — Gates por etapa
-- `runStructureCompletenessGate(structure, { stage })` aceita 3 etapas:
-  - **strategy (default):** Campanha + Conjunto + Anúncio/Criativo minimamente prontos. Evento de conversão = warning, não blocker.
-  - **creative:** apenas Criativo (produto, link, CTA, copy/prompt, formato, referência).
-  - **publish:** evento de conversão obrigatório (Pixel). Página e Pixel ficam para a configuração de produção.
-- O modal de proposta segue chamando o gate na etapa `strategy` (default), portanto o erro "evento de conversão pendente" deixou de bloquear aprovação de estratégia.
+### E.4 — Persistência (`ads_ai_analysis_runs`)
+- Tabela real de produção, com RLS por tenant.
+- Campos: `tenant_id, platform, ad_account_id, scope, trigger, status, started_at, finished_at, input_config_snapshot, account_snapshot_summary, diagnosis_summary, strategy_summary, risks, limitations, created_action_ids, session_id, error_message, created_by`.
+- Auditoria + histórico + base para UI mostrar resumo amigável.
 
-### D.5 — Strategist usa a Configuração de Criação Meta
-- `gatherContext` carrega todas as configs Meta do tenant e indexa por `ad_account_id`.
-- Novo helper `buildMetaProductionConfigBlock()` injeta no prompt do Strategist Meta um bloco "CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)" com os defaults reais — ou instruções de fallback conservador quando não houver config.
-- O prompt explicita que dados não configurados devem aparecer como `requires_user_input`. Pixel/Página/Instagram/Evento nunca podem ser inventados.
-- Regras herdadas da Onda C continuam: objetivo no enum canônico, sem link/CTA na Campanha, sem conjunto vazio.
+### E.5 — Camada de contexto (AdsStrategyContextBuilder)
+- `collectStrategistContext` no `ads-autopilot-strategist` é a camada canônica. A análise inicial não duplica — chama o Strategist.
+- A edge `ads-ai-initial-analysis` apenas captura snapshot resumido (configs Meta + production_config) para auditoria humana, sem inventar dados.
 
-### D.6 — Testes e documentação
-- `src/test/ads-gates.test.ts` atualizado para a nova semântica por etapa (5 novos cenários cobrindo strategy/creative/publish).
-- Suíte rodada: `ads-gates` (13) + `ads-meta-adapter` (8) + `normalize-campaign-structure` (8) — **29/29 verdes**.
-- Documentação: este plano + `docs/especificacoes/marketing/gestor-trafego.md` (seção Onda D adicionada).
+### E.6 — Hook + tipos
+- `useAdsAIAnalysisRun({ platform, adAccountId, scope })`: lista runs recentes, retorna `latestRun`/`hasRunning`, expõe `run.mutate({ scope, ad_account_id, trigger, force })`, e faz polling de 5s enquanto houver execução em andamento.
+
+### E.7 — Escopo
+- Default: `account` (Meta + conta específica).
+- `global` reservado para próxima onda quando Google/TikTok forem operacionais. Edge bloqueia `platform != meta`.
 
 ## Restrições respeitadas
-- Zero criativo gerado, zero crédito consumido.
 - Zero publicação Meta/Google/TikTok.
-- Zero chamada Meta para criar campanha.
-- Zero IA chamada ao abrir, navegar, editar ou salvar.
-- Sem cron mensal, sem admin avançado de compatibilidade, sem Google/TikTok operacional.
-- Sem regeneração automática de proposta para validar.
-- Sem criação de tabela/configuração não utilizada pelo fluxo real.
+- Zero mutação na conta de anúncios real.
+- Zero criativo final gerado automaticamente.
+- Zero crédito consumido fora da chamada estratégica única autorizada pelo usuário.
+- Modo Piloto não chama IA.
+- Nenhuma análise dispara ao abrir/navegar/salvar.
+- Dedup garantido por unique index (não depende de race no app).
 
-## Pendente para próximas ondas
-- Etapa C (publicação real Meta): leitura da Configuração de Criação Meta + criação efetiva via API.
-- Adapters compiladores Google/TikTok.
-- Cron mensal de verificação automática de baseline.
-- Admin de compatibilidade.
+## Não entregue (fora do escopo desta onda)
+- Cron mensal automatizado de análise.
+- Admin completo de compatibilidade.
+- Google/TikTok operacionais.
+- Painel de histórico detalhado das runs (a tabela existe; UI mínima foi adicionada via `latestRun.finished_at` no botão).
