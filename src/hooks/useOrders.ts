@@ -240,7 +240,7 @@ export function useOrders(options?: {
 
   // Separate stats query — counts from ALL matching orders, not just current page
   const statsQuery = useQuery({
-    queryKey: ['orders-stats', currentTenant?.id, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
+    queryKey: ['orders-stats', currentTenant?.id, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField, channel],
     queryFn: async () => {
       if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0, chargebackInProgressCount: 0, chargebackLostCount: 0, chargebackRecoveredCount: 0 };
 
@@ -280,6 +280,7 @@ export function useOrders(options?: {
         if (endIso) {
           q = q.lte(dateField, endIso);
         }
+        q = applyChannel(q);
         return q;
       };
 
