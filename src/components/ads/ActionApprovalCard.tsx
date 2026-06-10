@@ -1740,6 +1740,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         )}
 
         {/* Action buttons */}
+        {!isStructuredCampaign && (
         <CardFooter className="px-3 pb-3 pt-0 gap-2 border-t border-border/30">
           {isTwoStep && twoStepStage === "strategy" ? (
             <Button
