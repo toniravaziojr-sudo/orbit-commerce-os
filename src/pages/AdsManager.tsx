@@ -18,6 +18,7 @@ import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
 import { useAdsInsights } from "@/hooks/useAdsInsights";
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
+import { AdsAIGlobalAnalysisButton } from "@/components/ads/AdsAIGlobalAnalysisButton";
 import { AdsChannelIntegrationAlert } from "@/components/ads/AdsChannelIntegrationAlert";
 import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
@@ -339,6 +340,13 @@ export default function AdsManager() {
 
         {/* === GERENCIADOR DE ANÚNCIOS === */}
         <TabsContent value="manager" className="space-y-4">
+          <AdsAIGlobalAnalysisButton
+            metaAccountsCount={accountConfigs.getAIEnabledAccounts("meta").length}
+            hasOtherChannels={
+              accountConfigs.getAIEnabledAccounts("google").length > 0 ||
+              accountConfigs.getAIEnabledAccounts("tiktok").length > 0
+            }
+          />
           <Tabs value={activeChannel} onValueChange={setActiveChannel}>
             <TabsList>
               <TabsTrigger value="meta" className="gap-2">
