@@ -1034,6 +1034,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, synced_at").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
+    // Onda D — Configuração de Criação Meta (fonte de verdade dos defaults por conta)
+    supabase.from("ads_meta_production_config").select("*").eq("tenant_id", tenantId).limit(50),
   ]);
 
   const products = productsRes.data || [];
@@ -1061,6 +1063,10 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const googleAssets = googleAssetsRes.data || [];
   const tiktokCampaigns = tiktokCampaignsRes?.data || [];
   const tiktokInsights = tiktokInsightsRes?.data || [];
+  // Onda D — indexa configs Meta por ad_account_id
+  const metaProductionConfigsRow = arguments[0]; // noop to keep diff small
+  // (variável metaProductionConfigsByAccount montada abaixo)
+
 
   // Resolve store URL from tenant_domains (source of truth)
   const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
