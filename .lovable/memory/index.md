@@ -18,6 +18,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 
 ## Memories
 - [Dashboard por Canal](mem://features/command-center/dashboard-by-channel-standard) — Sub-abas do Dashboard (Geral, Loja Virtual, ML, Shopee, TikTok). Visibilidade por `marketplace_connections.is_active`. Filtro único em `lib/dashboard/channelFilter.ts`. Marketplaces exibem "Em breve" para Ads. Selo de fonte em cada card.
+- [Marketplaces — Padrão Canônico](mem://features/marketplaces/canonical-flow-standard) — Mercado Livre é golden path. Todo marketplace novo (Shopee, TikTok, etc.) reusa mesmo contrato de conexão, sync, PVs, fiscal, logística, atendimento e dashboard.
 - [PV Status Shipment Mirror Preserves Active](mem://constraints/pv-status-shipment-mirror-preserves-active) — Espelho PV→Objeto: só remove objeto em status terminais (cancelado, expirado, estornado, devolvido, chargeback). Conclusão/NF criada/pendente NUNCA remove. Reconciliação 15m cobre PV manual/duplicado sem order_id.
 - [Meta Tracking Edge Snippet Vault Parity](mem://constraints/meta-tracking-edge-snippet-vault-parity) — v8.35.0 Onda 7: snippet inline `_sfCapi` do storefront-html DEVE mesclar `_sf_identity` completo (nome/cidade/UF/CEP/dob/customer_id hashed). Toda nova edge/snippet emissora de CAPI tem o mesmo dever.
 - [Turn Orchestrator logical_turn_id](mem://constraints/turn-orchestrator-logical-turn-id) — Reg #2.13: bot carrega metadata.logical_turn_id; freshness pré-tool e pré-envio; status open/claimed/processed/send_failed/dead; complete_turn somente após envio aceito.
