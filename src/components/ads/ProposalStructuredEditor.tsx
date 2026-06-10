@@ -35,6 +35,9 @@ interface ProposalStructuredEditorProps {
   action: PendingAction | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Foco inicial vindo do "Ajustar proposta" no modal de proposta.
+   *  Quando informado, o editor rola até a seção correspondente. */
+  initialFocus?: "campaign" | "ad_set" | "ad" | "creative" | "platform" | null;
 }
 
 const FUNNEL_OPTIONS = [
