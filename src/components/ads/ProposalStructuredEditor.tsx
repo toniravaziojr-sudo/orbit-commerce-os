@@ -433,7 +433,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange, initialFo
           </Section>
 
           {/* Nível 3 — Anúncio (produto, copy, criativo) */}
-          <Section title="Anúncio">
+          <Section title="Anúncio" sectionKey="ad">
             <Field label="Produto (ID)">
               <Input
                 value={current.product_id}
