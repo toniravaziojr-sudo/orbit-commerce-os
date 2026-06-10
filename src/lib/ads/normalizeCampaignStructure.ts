@@ -152,6 +152,9 @@ function buildLocation(t: any): string | null {
 // -----------------------------------------------------------------------------
 
 function fromCanonical(cs: any): CampaignStructure {
+  const legacyTopCta = pickStr(cs?.campaign?.cta);
+  const legacyTopUrl = pickStr(cs?.campaign?.destination_url, cs?.campaign?.destination);
+
   const campaign: CampaignNode = {
     name: pickStr(cs?.campaign?.name),
     objective: pickStr(cs?.campaign?.objective),
@@ -159,10 +162,10 @@ function fromCanonical(cs: any): CampaignStructure {
     buying_type: pickStr(cs?.campaign?.buying_type),
     budget_type: pickStr(cs?.campaign?.budget_type),
     daily_budget_cents: pickNum(cs?.campaign?.daily_budget_cents, cs?.campaign?.daily_budget),
-    destination_url: pickStr(cs?.campaign?.destination_url, cs?.campaign?.destination),
-    cta: pickStr(cs?.campaign?.cta),
     planned_status: pickStr(cs?.campaign?.planned_status),
     rationale: pickStr(cs?.campaign?.rationale),
+    inherited_destination_url: legacyTopUrl,
+    inherited_cta: legacyTopCta,
   };
 
   const ad_sets: AdSetNode[] = Array.isArray(cs?.ad_sets)
@@ -204,8 +207,11 @@ function fromCanonical(cs: any): CampaignStructure {
         primary_text: pickStr(ad?.primary_text),
         headline: pickStr(ad?.headline),
         description: pickStr(ad?.description),
-        cta: pickStr(ad?.cta),
-        destination_url: pickStr(ad?.destination_url),
+        // Criativo: link/CTA/tracking são lidos do ad e, se ausentes,
+        // herdam o que veio no topo do payload (legado), nunca o contrário.
+        cta: pickStr(ad?.cta) || legacyTopCta,
+        destination_url: pickStr(ad?.destination_url) || legacyTopUrl,
+        tracking_params: pickStr(ad?.tracking_params, ad?.utm_params, ad?.url_tags),
         creative_prompt: pickStr(ad?.creative_prompt),
         creative_format: pickStr(ad?.creative_format),
         alternative_formats: asStringArray(ad?.alternative_formats),
