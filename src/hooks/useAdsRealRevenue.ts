@@ -44,9 +44,23 @@ export function useAdsRealRevenue(startDate?: Date, endDate?: Date) {
         google_cents: 0,
         tiktok_cents: 0,
         paid_orders: 0,
+        total_paid_orders: 0,
+        coverage_pct: 0,
       };
       if (!tenantId) return empty;
 
+      // 1) Count total paid orders in the period (denominator for coverage)
+      let totalQuery = supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .in("status", PAID_STATUSES);
+      if (startDate) totalQuery = totalQuery.gte("created_at", startDate.toISOString());
+      if (endDate) totalQuery = totalQuery.lte("created_at", endDate.toISOString());
+      const { count: totalPaidOrders, error: totalErr } = await totalQuery;
+      if (totalErr) throw totalErr;
+
+      // 2) Paid orders with Ads attribution (last-click)
       let query = supabase
         .from("order_attribution")
         .select("fbclid, gclid, ttclid, utm_medium, orders!inner(id, total, status, created_at, tenant_id)")
@@ -60,7 +74,7 @@ export function useAdsRealRevenue(startDate?: Date, endDate?: Date) {
       const { data, error } = await query;
       if (error) throw error;
 
-      const acc = { ...empty };
+      const acc = { ...empty, total_paid_orders: totalPaidOrders || 0 };
       const paidMediumSet = new Set(["cpc", "paid", "paid_social", "ads"]);
 
       for (const row of (data || []) as any[]) {
@@ -70,16 +84,14 @@ export function useAdsRealRevenue(startDate?: Date, endDate?: Date) {
         if (!Number.isFinite(totalReais) || totalReais <= 0) continue;
         const cents = Math.round(totalReais * 100);
 
-        // Last-click attribution priority: click id > utm_medium paid
         let bucket: "meta" | "google" | "tiktok" | null = null;
         if (row.fbclid) bucket = "meta";
         else if (row.gclid) bucket = "google";
         else if (row.ttclid) bucket = "tiktok";
         else if (row.utm_medium && paidMediumSet.has(String(row.utm_medium).toLowerCase())) {
-          // utm_medium paid but no click id — keep as generic Ads, default Meta? Skip bucket assignment.
-          bucket = "meta"; // conservative bucket-less fallback for total purposes
+          bucket = "meta";
         } else {
-          continue; // not paid traffic
+          continue;
         }
 
         acc.total_cents += cents;
@@ -88,6 +100,10 @@ export function useAdsRealRevenue(startDate?: Date, endDate?: Date) {
         else if (bucket === "google") acc.google_cents += cents;
         else if (bucket === "tiktok") acc.tiktok_cents += cents;
       }
+
+      acc.coverage_pct = acc.total_paid_orders > 0
+        ? Math.round((acc.paid_orders / acc.total_paid_orders) * 1000) / 10
+        : 0;
 
       return acc;
     },
