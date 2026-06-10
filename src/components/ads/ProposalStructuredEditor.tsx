@@ -411,8 +411,26 @@ export function ProposalStructuredEditor({ action, open, onOpenChange }: Proposa
             </Field>
           </Section>
 
-          {/* Criativo & copy */}
-          <Section title="Criativo e copy">
+          {/* Nível 3 — Anúncio (produto, copy, criativo) */}
+          <Section title="Anúncio">
+            <Field label="Produto (ID)">
+              <Input
+                value={current.product_id}
+                onChange={(e) => upd("product_id", e.target.value)}
+                placeholder="UUID do produto"
+              />
+            </Field>
+            <Field label="Nome do produto (referência)">
+              <Input value={current.product_name} onChange={(e) => upd("product_name", e.target.value)} />
+            </Field>
+            <Field label="Observação sobre a oferta">
+              <Textarea
+                rows={2}
+                value={current.offer_note}
+                onChange={(e) => upd("offer_note", e.target.value)}
+                placeholder="Ex.: usar como oferta de entrada, sem desconto agressivo"
+              />
+            </Field>
             <Field label="Prompt criativo">
               <Textarea
                 rows={4}
