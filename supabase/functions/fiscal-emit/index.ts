@@ -31,7 +31,18 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const apiKeyHeader = req.headers.get('apikey');
+    const internalCall = req.headers.get('x-internal-call') === '1';
+
+    // Detecta chamada interna service_role (auto-emissão automática a partir
+    // de fiscal-auto-create-drafts). Pode chegar como:
+    //  - Authorization: Bearer <service_key>  (legado, formato JWT)
+    //  - apikey: <service_key> + x-internal-call: 1 (formato novo sb_ keys)
+    const isServiceRoleCall =
+      authHeader === `Bearer ${supabaseServiceKey}` ||
+      (internalCall && apiKeyHeader === supabaseServiceKey);
+
+    if (!authHeader && !isServiceRoleCall) {
       return new Response(
         JSON.stringify({ success: false, error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -39,11 +50,6 @@ Deno.serve(async (req) => {
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Detecta chamada interna service_role (auto-emissão automática a partir
-    // de fiscal-auto-create-drafts). Nesse caso, body deve conter tenant_id
-    // e a checagem de role é dispensada (não há usuário humano envolvido).
-    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
 
     const body = await req.json();
     const { invoice_id } = body;
