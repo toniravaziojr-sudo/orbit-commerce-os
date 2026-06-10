@@ -66,8 +66,18 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onAdjust?: (id: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
+  /**
+   * Quando true, renderiza apenas Visão Geral (sem sidebar/Campanha/Conjuntos/Anúncios).
+   * Usado para Plano Estratégico e ações sem hierarquia de campanha.
+   */
+  overviewOnly?: boolean;
+  /** Título customizado do modal (ex.: "Plano Estratégico"). */
+  titleOverride?: string;
+  /** Rótulo customizado do botão aprovar (ex.: "Aprovar plano"). */
+  approveLabelOverride?: string;
 }
 
 /* ---------------------------------------------------------------------------
