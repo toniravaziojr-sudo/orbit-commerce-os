@@ -68,7 +68,7 @@ export function EmitenteSettings() {
     endereco_logradouro: '', endereco_numero: '', endereco_complemento: '', endereco_bairro: '',
     endereco_municipio: '', endereco_municipio_codigo: '', endereco_uf: '', endereco_cep: '',
     email: '', telefone: '',
-    crt: 1, cfop_intrastadual: '5102', cfop_interestadual: '6102', csosn_padrao: '', cst_padrao: '',
+    crt: 1, csosn_padrao: '', cst_padrao: '',
     serie_nfe: 1, numero_nfe_atual: 1, ambiente: 'producao', origem_fiscal_padrao: 0,
   });
   const [certPassword, setCertPassword] = useState('');

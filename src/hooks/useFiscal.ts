@@ -30,8 +30,6 @@ export interface FiscalSettings {
   email: string | null;
   telefone: string | null;
   crt: number;
-  cfop_intrastadual: string;
-  cfop_interestadual: string;
   csosn_padrao: string | null;
   cst_padrao: string | null;
   regime_tributario: 'simples_nacional' | 'lucro_presumido' | 'lucro_real' | 'mei';
@@ -59,7 +57,6 @@ export interface FiscalSettings {
   // Shipping automation fields
   auto_create_shipment: boolean;
   auto_update_order_status: boolean;
-  default_shipping_provider: string | null;
   // Email notification
   enviar_email_nfe: boolean;
   email_nfe_subject: string | null;
