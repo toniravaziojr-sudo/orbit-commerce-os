@@ -20,10 +20,12 @@ export interface CampaignNode {
   buying_type: string | null;
   budget_type: string | null;          // daily | lifetime | adset_level
   daily_budget_cents: number | null;
-  destination_url: string | null;
-  cta: string | null;
   planned_status: string | null;       // PAUSED | ACTIVE
   rationale: string | null;
+  /** Resumo herdado dos anúncios (NUNCA configuração principal da Campanha).
+   *  Preenchido pelo adapter quando o payload legado guardou link/CTA no topo. */
+  inherited_destination_url: string | null;
+  inherited_cta: string | null;
 }
 
 export interface AdSetNode {
@@ -55,8 +57,10 @@ export interface AdNode {
   primary_text: string | null;
   headline: string | null;
   description: string | null;
+  // ---- Pertencem ao CRIATIVO (Onda C.2) ----
   cta: string | null;
   destination_url: string | null;
+  tracking_params: string | null;
   creative_prompt: string | null;
   creative_format: string | null;
   alternative_formats: string[];
@@ -67,17 +71,12 @@ export interface AdNode {
 }
 
 export interface CampaignStructure {
-  /** Versão do contrato canônico desta proposta (1 = legacy, 2 = canonical v2). */
+  /** Versão do contrato canônico desta proposta (1=legacy, 2=canonical v2, 2.1=ownership-by-level). */
   schema_version: 1 | 2;
   campaign: CampaignNode;
   ad_sets: AdSetNode[];
   ads: AdNode[];
-  // Sinaliza se essa estrutura representa uma proposta de campanha
-  // (Campanha → Conjuntos → Anúncios) ou se é uma ação operacional
-  // (pause_campaign, adjust_budget, strategic_plan, generate_creative…).
   is_structured_campaign: boolean;
-  // Origem do dado: "canonical" (gravado pela IA já no formato novo)
-  // ou "legacy_adapter" (montado on-the-fly a partir do payload antigo).
   source: "canonical" | "legacy_adapter";
 }
 
