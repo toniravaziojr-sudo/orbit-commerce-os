@@ -261,13 +261,19 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
         name: pickStr(a?.adset_name, a?.name, p?.adset_name) || `Conjunto ${i + 1}`,
         funnel_stage: pickStr(a?.funnel_stage, p?.funnel_stage, data?.funnel_stage, preview?.funnel_stage),
         audience_type: pickStr(a?.audience_type, p?.audience_type),
-        targeting_summary: pickStr(p?.targeting_summary, a?.targeting_summary),
+        targeting_summary: pickStr(p?.targeting_summary, a?.targeting_summary, a?.audience_description),
         inclusions: asStringArray(t?.interests || a?.inclusions),
         exclusions: asStringArray(t?.excluded_custom_audiences || a?.exclusions),
         customer_exclusion_applied: null,
         customer_exclusion_label: null,
-        location: buildLocation(t),
-        age_range: pickStr(p?.age_range, a?.age_range) || buildAgeRange(t),
+        // Contrato canônico v2: aceita location/age_min/age_max/gender estruturados por conjunto
+        location: pickStr(a?.location) || buildLocation(t),
+        age_range:
+          pickStr(p?.age_range, a?.age_range) ||
+          (typeof a?.age_min === "number" || typeof a?.age_max === "number"
+            ? `${a?.age_min ?? 18}-${a?.age_max ?? 65}`
+            : null) ||
+          buildAgeRange(t),
         gender: pickStr(p?.gender, a?.gender) || buildGender(t),
         placements: asStringArray(a?.placements || p?.placements),
         optimization_goal: pickStr(a?.optimization_goal),
@@ -275,7 +281,9 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
         schedule: a?.schedule
           ? { start: pickStr(a.schedule.start_time, a.schedule.start), end: pickStr(a.schedule.end_time, a.schedule.end) }
           : null,
-        daily_budget_cents: pickNum(a?.daily_budget_cents),
+        daily_budget_cents:
+          pickNum(a?.daily_budget_cents) ??
+          (typeof a?.budget_brl === "number" ? Math.round(a.budget_brl * 100) : null),
         rationale: pickStr(a?.reasoning),
       } as AdSetNode;
     });
