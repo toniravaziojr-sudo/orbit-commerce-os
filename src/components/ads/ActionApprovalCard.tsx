@@ -1826,8 +1826,8 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
         )}
       </Card>
 
-      {/* Modal estruturado (Campanha → Conjuntos → Anúncios) — só para propostas de campanha */}
-      {isStructuredCampaign && (
+      {/* Modal estruturado — Plano Estratégico (apenas Visão Geral) + Campanha/Conjunto/Anúncio */}
+      {useStructuredModal && (
         <StructuredProposalModal
           action={action}
           childActions={childActions}
@@ -1840,6 +1840,9 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           }}
           approvingId={approvingId}
           rejectingId={rejectingId}
+          overviewOnly={isStrategicPlan}
+          titleOverride={isStrategicPlan ? "Plano Estratégico" : undefined}
+          approveLabelOverride={isStrategicPlan ? "Aprovar plano" : undefined}
         />
       )}
 
