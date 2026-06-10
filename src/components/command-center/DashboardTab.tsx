@@ -155,7 +155,7 @@ export function DashboardTab() {
               startDate={startDate}
               endDate={endDate}
               trendLabel={trendLabel}
-              detailHref="/marketplaces/tiktok-shop"
+              detailHref="/marketplaces/tiktokshop"
               detailLabel="Ver detalhes no TikTok Shop"
             />
           </TabsContent>
