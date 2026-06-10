@@ -354,7 +354,7 @@ export function ProposalStructuredEditor({ action, open, onOpenChange, initialFo
           </div>
 
           {/* Nível 1 — Campanha */}
-          <Section title="Campanha">
+          <Section title="Campanha" sectionKey="campaign">
             <Field label="Nome da campanha">
               <Input value={current.campaign_name} onChange={(e) => upd("campaign_name", e.target.value)} />
             </Field>
