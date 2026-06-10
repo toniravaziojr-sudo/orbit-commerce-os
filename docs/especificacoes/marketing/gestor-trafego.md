@@ -3410,3 +3410,64 @@ Sem alteração de mutations, rascunho, versionamento ou feedback persistidos.
 - Modal **não pode** voltar a exibir payload bruto no corpo principal (somente em "Detalhes técnicos" recolhido).
 - Adapter **não pode** mutar `action_data`.
 - Compatibilidade com payload legacy (`adsets[]`, `ads[]`, `preview.*`) é obrigatória.
+
+---
+
+## Motor de Propostas — Onda 0 + A + B mínima (v2026-06-10)
+
+Esta seção formaliza a entrega que corrige a origem estrutural das propostas. A UI estruturada (modal hierárquico Campanha → Conjunto → Anúncio) já estava entregue; o que estava faltando era o **motor gerar a estrutura completa** e o sistema **bloquear aprovação** quando viesse incompleta ou incompatível.
+
+### Onda 0 — Baseline oficial de capacidades
+
+Doc dedicado: `docs/especificacoes/marketing/plataformas-baseline.md`.
+
+- Fonte de verdade do que cada plataforma aceita hoje, com URLs oficiais e datas de consulta.
+- Meta Ads entra como **verificado**. Google Ads e TikTok Ads entram como **não verificado** (placeholder) e ficam bloqueados para aprovação/geração de criativo até verificação humana.
+- Cron mensal automático fica para entrega futura. Esta onda só semeia manualmente.
+
+### Onda A — CanonicalCampaignPlan v2 e Strategist
+
+- `action_data.campaign_structure` ganha `schema_version` (1 = legacy, 2 = canônico v2). Nome do campo mantido — sem migração, sem `UPDATE` em massa, sem remoção de campos legacy. Adapter (`normalizeCampaignStructure`) continua tolerante a propostas antigas.
+- O Strategist passa a exigir, para **cada conjunto de anúncios** dentro do plano: nome, tipo de público, descrição do público, região/país, faixa etária (min/max), gênero, posicionamentos, meta de otimização, evento de conversão e local de conversão. Orçamento por conjunto continua obrigatório em campanhas ABO de teste.
+- Quando o motor não sabe um campo obrigatório (ex.: evento de conversão sem Pixel confirmado), ele preenche com o valor literal `requires_user_input`. O Gate trata isso como bloqueio amigável — nunca aparece como `—` silencioso na UI.
+- Defaults seguros vêm do registro de capacidades (não do prompt): país `BR`, modo de compra `AUCTION`, posicionamentos `advantage_plus`, local de conversão `Site`, idade 18-65, gênero `Todos`, status inicial `PAUSED`.
+
+### Onda B mínima — Registro de capacidades
+
+Três tabelas: `platform_capabilities`, `platform_compatibility_checks`, `platform_compatibility_alerts`. Acesso de leitura para qualquer usuário logado; escrita só para admin de plataforma; service_role completo para edge functions.
+
+Snapshot inicial:
+- Meta: `status='verificado'`, `last_verified_at=NOW()`, `next_check_at=+30d`, capabilities completas, fontes oficiais registradas.
+- Google: `status='nao_verificado'`, placeholder.
+- TikTok: `status='nao_verificado'`, placeholder.
+
+### Gates novos
+
+- **Structure Completeness Gate** (`src/lib/ads/gates/structureCompleteness.ts`) — roda no cliente sobre `CampaignStructure`, devolve `blockers[]` + `warnings[]` + `summary`. Bloqueia "Aprovar estratégia e gerar criativos" se houver qualquer campo obrigatório ausente ou `requires_user_input`.
+- **Platform Compatibility Gate inicial** (`src/lib/ads/gates/platformCompatibility.ts`) — recebe a linha do registro de capacidades e bloqueia quando: plataforma não verificada, `revisao_necessaria`, `vencido`, `verificacao_falhou`, ou última verificação > 60 dias. Também bloqueia objetivo/evento fora do suportado; posicionamento/CTA/formato fora vira warning.
+
+Os dois gates são **pure functions**, sem chamadas de IA ou rede. O modal lê o registro via `usePlatformCapability` (query simples, cache 5 min).
+
+### Comportamento no modal
+
+- Aba **Visão Geral** ganha bloco "Validações" com bloqueios em vermelho (`Badge destructive` + nó afetado) e alertas em cinza.
+- Rodapé do modal mostra uma linha amarela explicando por que o botão de aprovar está bloqueado, quando aplicável.
+- Botão "Aprovar estratégia e gerar criativos" fica desabilitado quando há qualquer blocker; tooltip explica o motivo.
+- Botões "Ajustar proposta" e "Recusar" continuam ativos. Salvar rascunho e editar continuam sem consumir IA.
+
+### Restrições mantidas
+
+- Zero chamada de IA ao abrir, navegar, editar ou salvar rascunho.
+- Zero criativo gerado nesta etapa.
+- Zero publicação em Meta/Google/TikTok.
+- Zero consumo de crédito.
+- Sem cron mensal nesta entrega.
+- Sem admin completo de compatibilidade nesta entrega.
+- Google Ads e TikTok Ads ficam preparados (placeholder no registro), mas não operacionais.
+
+### O que entra em ondas futuras
+
+- Verificador mensal (sem IA) que cruza fontes oficiais, atualiza hash e gera alertas.
+- Tela de admin "Compatibilidade das Plataformas".
+- Snapshot real de Google Ads e TikTok Ads após verificação humana.
+- Adapters compiladores (Meta/Google/TikTok) — esta entrega só valida; ainda não compila payload de publicação.
