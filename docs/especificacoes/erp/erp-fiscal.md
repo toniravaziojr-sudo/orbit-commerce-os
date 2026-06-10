@@ -2224,16 +2224,17 @@ O builder Focus NFe (`_shared/focus-nfe-adapter.ts`) agora recebe o CRT do emite
 
 Conteúdo adicional do usuário em "Informações Complementares" é preservado após a frase. Aplicado tanto em `fiscal-emit` quanto em `fiscal-submit`.
 
-### 3. Auto-emissão end-to-end (respeitando "Emitir NF-e quando…")
+### 3. Auto-emissão end-to-end (gatilho único `ready_to_invoice`)
 
-Atualizado: 2026-05-29.
+Atualizado: 2026-06-10.
 
-A auto-emissão é controlada por dois campos em `fiscal_settings`:
+A auto-emissão é controlada por um único campo em `fiscal_settings`:
 
 - `emissao_automatica` (boolean) — ativa/desativa o disparo automático.
-- `emitir_apos_status` (text) — define o gatilho:
-  - `'ready_to_invoice'` (padrão da UI) — só emite quando o pedido chega ao status "Pronto para emitir NF".
-  - `'paid'` (legado) — emite assim que o pedido vira pago (mantém comportamento anterior).
+
+O gatilho é único: **NF-e é emitida automaticamente quando o pedido entra em `ready_to_invoice` (Pronto para emitir NF)** e tem vínculo com pedido real (loja ou marketplace). PV manual (sem `order_id`) **nunca** entra nesse fluxo.
+
+A coluna `emitir_apos_status` continua na tabela por compatibilidade, mas o backend `fiscal-settings` força sempre o valor `'ready_to_invoice'` no save, e o motor `fiscal-auto-create-drafts` não lê mais essa coluna — usa `ready_to_invoice` direto. A opção legada `'paid'` foi removida da UI e normalizada no banco em 2026-06-10. Ver `mem://constraints/fiscal-auto-emit-respeita-status-configurado`.
 
 **Fluxo:**
 
@@ -2241,9 +2242,9 @@ A auto-emissão é controlada por dois campos em `fiscal_settings`:
 2. `scheduler-tick` consome a fila e chama `fiscal-auto-create-drafts` em modo TRIGGER.
 3. O rascunho de Pedido de Venda é criado sempre que o emissor está configurado (independe do toggle de auto-emit) — isso garante que o módulo Fiscal sempre tenha o rascunho disponível para ação manual.
 4. **Decisão de emitir** acontece em seguida:
-   - Se `emissao_automatica = true` E `emitir_apos_status` casar com `order.status` atual → invoca `fiscal-emit` em fire-and-forget.
-   - Caso contrário → rascunho permanece em `draft` aguardando ou o status configurado, ou ação manual.
-5. **Transição posterior para `ready_to_invoice`**: o trigger re-enfileira o pedido; o consumidor detecta o rascunho já existente e, se a condição casar agora, dispara `fiscal-emit` no rascunho previamente criado (sem duplicar).
+   - Se `emissao_automatica = true` E `order.status === 'ready_to_invoice'` → invoca `fiscal-emit` em fire-and-forget.
+   - Caso contrário → rascunho permanece em `draft` aguardando o status ou ação manual.
+5. **Transição posterior para `ready_to_invoice`**: o trigger re-enfileira o pedido; o consumidor detecta o rascunho já existente e dispara `fiscal-emit` no rascunho previamente criado (sem duplicar).
 
 **Regras de segurança:**
 
@@ -2252,6 +2253,7 @@ A auto-emissão é controlada por dois campos em `fiscal_settings`:
 - Cancelamento manual e reenvio (com novo `ref`) continuam inalterados.
 - Toggle desligado → nenhuma chamada externa ocorre. Não há cron parado consumindo recursos: o fluxo inteiro é event-driven a partir do gatilho de pedidos.
 - Sem retroatividade: pedidos antigos já pagos antes da ativação do toggle não são reprocessados automaticamente.
+- Fluxo manual (PV criado direto no módulo Fiscal sem vínculo a pedido) **não é afetado** — auto-emit e auto-remessa só atuam sobre PV com `order_id`.
 
 ### Limite de massa
 Operações em lote de DANFE/XML mantêm limite de 100 notas por execução. A emissão automática não tem teto (uma por pedido aprovado).

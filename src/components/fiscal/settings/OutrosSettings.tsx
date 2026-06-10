@@ -18,14 +18,13 @@ import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
-const EMIT_STATUS_OPTIONS = [
-  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
-  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
-];
 const SHIPPING_PROVIDER_OPTIONS = [
   { value: 'correios', label: 'Correios' },
   { value: 'loggi', label: 'Loggi' },
 ];
+// Sentinela usada apenas na UI para representar "sem transportadora padrão".
+// Convertido para null ao salvar — o componente Select não aceita value="".
+const SHIPPING_PROVIDER_DEFAULT_SENTINEL = '__order_carrier__';
 
 export function OutrosSettings() {
   const { settings, isLoading, saveSettings } = useFiscalSettings();
@@ -98,12 +97,8 @@ export function OutrosSettings() {
           </div>
 
           {formData.emissao_automatica && (
-            <div className="space-y-2">
-              <Label htmlFor="emitir_apos_status">Emitir NF-e quando</Label>
-              <Select value={formData.emitir_apos_status || 'paid'} onValueChange={(v) => handleChange('emitir_apos_status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{EMIT_STATUS_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
-              </Select>
+            <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              A NF-e será emitida automaticamente quando o pedido entrar em <span className="font-medium text-foreground">"Pronto para emitir NF"</span>, somente para pedidos da loja ou marketplace. Pedidos manuais não são afetados.
             </div>
           )}
         </CardContent>
@@ -187,12 +182,18 @@ export function OutrosSettings() {
 
           {formData.auto_create_shipment && (
             <>
+              <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+                A remessa será criada automaticamente após a NF-e ser autorizada, somente para pedidos da loja ou marketplace. Pedidos manuais não são afetados.
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="default_shipping_provider">Transportadora Padrão</Label>
-                <Select value={formData.default_shipping_provider || ''} onValueChange={(v) => handleChange('default_shipping_provider', v)}>
+                <Select
+                  value={formData.default_shipping_provider || SHIPPING_PROVIDER_DEFAULT_SENTINEL}
+                  onValueChange={(v) => handleChange('default_shipping_provider', v === SHIPPING_PROVIDER_DEFAULT_SENTINEL ? null : v)}
+                >
                   <SelectTrigger><SelectValue placeholder="Usar transportadora do pedido" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Usar transportadora do pedido</SelectItem>
+                    <SelectItem value={SHIPPING_PROVIDER_DEFAULT_SENTINEL}>Usar transportadora do pedido</SelectItem>
                     {SHIPPING_PROVIDER_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                   </SelectContent>
                 </Select>

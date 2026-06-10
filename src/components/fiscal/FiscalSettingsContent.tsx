@@ -31,11 +31,7 @@ const CRT_OPTIONS = [
 
 // Ambiente fixo em produção — sistema operando em ambiente fiscal real.
 
-// Order status options for auto-emit
-const EMIT_STATUS_OPTIONS = [
-  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
-  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
-];
+// (Seletor "Emitir NF-e quando" foi removido — gatilho único: ready_to_invoice)
 
 // Shipping provider options
 const SHIPPING_PROVIDER_OPTIONS = [
@@ -732,21 +728,8 @@ export function FiscalSettingsContent() {
               </div>
 
               {formData.emissao_automatica && (
-                <div className="space-y-2">
-                  <Label htmlFor="emitir_apos_status">Emitir NF-e quando</Label>
-                  <Select
-                    value={formData.emitir_apos_status || 'paid'}
-                    onValueChange={(v) => handleChange('emitir_apos_status', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EMIT_STATUS_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+                  A NF-e será emitida automaticamente quando o pedido entrar em <span className="font-medium text-foreground">"Pronto para emitir NF"</span>, somente para pedidos da loja ou marketplace. Pedidos manuais não são afetados.
                 </div>
               )}
 

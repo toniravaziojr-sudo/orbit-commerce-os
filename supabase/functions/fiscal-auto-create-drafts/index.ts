@@ -204,7 +204,7 @@ async function processTenanDrafts(
   // e disparamos fiscal-emit se a configuração de auto-emit casar com o status atual.
   const ordersWithExistingDraft = paidOrders.filter((o: any) => ordersWithInvoice.has(o.id));
   if (ordersWithExistingDraft.length > 0 && isFiscalConfigured && fiscalSettings.emissao_automatica === true) {
-    const emitTriggerStatus = (fiscalSettings.emitir_apos_status || 'ready_to_invoice') as string;
+    // Gatilho único: dispara apenas quando o pedido está em 'ready_to_invoice'.
     const existingDraftIds = ordersWithExistingDraft.map((o: any) => o.id);
     const { data: draftInvoices } = await supabase
       .from('fiscal_invoices')
@@ -217,11 +217,7 @@ async function processTenanDrafts(
       const order = ordersWithExistingDraft.find((o: any) => o.id === inv.order_id);
       if (!order || !inv.numero || inv.numero <= 0) continue;
       const orderStatus = String(order.status || '');
-      const statusMatches =
-        emitTriggerStatus === 'paid'
-          ? (orderStatus === 'paid' || orderStatus === 'ready_to_invoice')
-          : (orderStatus === emitTriggerStatus);
-      if (!statusMatches) continue;
+      if (orderStatus !== 'ready_to_invoice') continue;
       try {
         const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
         fetch(emitUrl, {
@@ -232,7 +228,7 @@ async function processTenanDrafts(
           },
           body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
         }).catch(err => console.error(`[fiscal-auto-create-drafts] Auto-emit (existing draft) error for ${inv.id}:`, err));
-        console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, trigger=${emitTriggerStatus}, status=${orderStatus})`);
+        console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) disparado para invoice ${inv.id} (pedido ${order.order_number}, status=${orderStatus})`);
       } catch (err) {
         console.error(`[fiscal-auto-create-drafts] Erro disparando auto-emit em rascunho existente ${inv.id}:`, err);
       }
@@ -512,17 +508,11 @@ async function processTenanDrafts(
       //  1. Emissor fiscal totalmente configurado
       //  2. fiscal_settings.emissao_automatica === true
       //  3. Numeração válida (numero > 0)
-      //  4. Status do pedido casa com fiscal_settings.emitir_apos_status:
-      //       - 'paid' (legado): qualquer status elegível (paid OU ready_to_invoice)
-      //       - 'ready_to_invoice' (padrão): SOMENTE quando o pedido atingir ready_to_invoice
+      //  4. Pedido em 'ready_to_invoice' (único gatilho oficial — opção 'paid' legada removida)
       // Notas com pendências (rejected) ou erro técnico permanecem como rascunho/rejeitadas
       // e aparecem na Central de Execuções para ação manual.
-      const emitTriggerStatus = (fiscalSettings.emitir_apos_status || 'ready_to_invoice') as string;
       const orderStatus = String(order.status || '');
-      const statusMatches =
-        emitTriggerStatus === 'paid'
-          ? (orderStatus === 'paid' || orderStatus === 'ready_to_invoice')
-          : (orderStatus === emitTriggerStatus);
+      const statusMatches = orderStatus === 'ready_to_invoice';
 
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         try {
@@ -542,12 +532,12 @@ async function processTenanDrafts(
           }).catch(err => {
             console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
           });
-          console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, trigger=${emitTriggerStatus}, order_status=${orderStatus})`);
+          console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number}, order_status=${orderStatus})`);
         } catch (autoEmitErr) {
           console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
         }
       } else if (fiscalSettings.emissao_automatica === true && numero > 0 && !statusMatches) {
-        console.log(`[fiscal-auto-create-drafts] Rascunho criado para pedido ${order.order_number} (status=${orderStatus}); auto-emit aguardando status configurado: '${emitTriggerStatus}'`);
+        console.log(`[fiscal-auto-create-drafts] Rascunho criado para pedido ${order.order_number} (status=${orderStatus}); auto-emit aguardando status 'ready_to_invoice'.`);
       }
 
     } catch (error) {
