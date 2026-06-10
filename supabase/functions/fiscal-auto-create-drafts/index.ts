@@ -225,30 +225,53 @@ async function processTenanDrafts(
       if (!order || !inv.numero || inv.numero <= 0) continue;
       const orderStatus = String(order.status || '');
       if (orderStatus !== 'ready_to_invoice') continue;
+
+      const baseUrl = Deno.env.get('SUPABASE_URL')!;
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const internalHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      };
+
       try {
-        const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
-        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
-        const r = await fetch(emitUrl, {
+        // PV → NF (snapshot)
+        const prepResp = await fetch(`${baseUrl}/functions/v1/fiscal-prepare-invoice`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceKey,
-            'Authorization': `Bearer ${anonKey}`,
-            'x-internal-call': '1',
-          },
-          body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId, auto: true }),
+          headers: internalHeaders,
+          body: JSON.stringify({ invoice_id: inv.id, tenant_id: tenantId }),
         });
-        const txt = await r.text().catch(() => '');
-        if (!r.ok) {
-          console.error(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) falhou invoice=${inv.id} status=${r.status} body=${txt.slice(0,300)}`);
+        const prepText = await prepResp.text().catch(() => '');
+        let prepJson: any = null;
+        try { prepJson = JSON.parse(prepText); } catch { /* ignore */ }
+
+        if (!prepResp.ok || !prepJson?.success) {
+          console.error(`[fiscal-auto-create-drafts] (legado) Auto-prepare falhou pv=${inv.id} status=${prepResp.status} body=${prepText.slice(0,300)}`);
+          continue;
+        }
+
+        const nfInvoiceId = prepJson.invoice_id as string;
+        const nfStage = prepJson.fiscal_stage as string;
+        if (nfStage !== 'pronta_emitir') {
+          console.log(`[fiscal-auto-create-drafts] (legado) NF ${nfInvoiceId} criada com pendências — auto-emit ignorado.`);
+          continue;
+        }
+
+        const emitResp = await fetch(`${baseUrl}/functions/v1/fiscal-emit`, {
+          method: 'POST',
+          headers: internalHeaders,
+          body: JSON.stringify({ invoice_id: nfInvoiceId, tenant_id: tenantId, auto: true }),
+        });
+        const emitText = await emitResp.text().catch(() => '');
+        if (!emitResp.ok) {
+          console.error(`[fiscal-auto-create-drafts] (legado) Auto-emit falhou nf=${nfInvoiceId} status=${emitResp.status} body=${emitText.slice(0,300)}`);
         } else {
-          console.log(`[fiscal-auto-create-drafts] Auto-emit (rascunho existente) ok invoice=${inv.id} pedido=${order.order_number} resp=${txt.slice(0,300)}`);
+          console.log(`[fiscal-auto-create-drafts] (legado) Auto-emit ok pv=${inv.id} nf=${nfInvoiceId} pedido=${order.order_number} resp=${emitText.slice(0,300)}`);
         }
       } catch (err) {
-        console.error(`[fiscal-auto-create-drafts] Erro disparando auto-emit em rascunho existente ${inv.id}:`, err);
+        console.error(`[fiscal-auto-create-drafts] (legado) Erro no pipeline auto-emit pv=${inv.id}:`, err);
       }
     }
+
   }
 
   console.log(`[fiscal-auto-create-drafts] Found ${ordersToCreate.length} orders needing drafts`);
