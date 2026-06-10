@@ -93,7 +93,6 @@ export function useAdsAccountConfigs() {
       );
       let isFirstEver = false;
       if (existing) {
-        // It's only a "first activation" if AI was NEVER enabled before (is_ai_enabled was always false/null)
         isFirstEver = !existing.is_ai_enabled && enabled;
         const { error } = await supabase
           .from("ads_autopilot_account_configs")
@@ -101,7 +100,6 @@ export function useAdsAccountConfigs() {
           .eq("id", existing.id);
         if (error) throw error;
       } else {
-        // Brand new config row = definitely first activation
         isFirstEver = enabled;
         const { error } = await supabase
           .from("ads_autopilot_account_configs")
@@ -110,24 +108,12 @@ export function useAdsAccountConfigs() {
       }
       return { isFirstEver };
     },
-    onSuccess: (result, { channel, ad_account_id, enabled }) => {
+    onSuccess: (_result, { enabled }) => {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
-      
-      // ONLY first-ever activation triggers the STRATEGIST (full analysis + plan + execution)
-      // Re-activations (toggle off then on) do NOT re-trigger to avoid duplicate sessions
-      if (enabled && result?.isFirstEver) {
-        setTimeout(async () => {
-          try {
-            const { error } = await supabase.functions.invoke("ads-autopilot-strategist", {
-              body: { tenant_id: tenantId, trigger: "start", target_account_id: ad_account_id, target_channel: channel },
-            });
-            if (error) console.error("AI strategist activation error:", error);
-          } catch (e) {
-            console.error("AI strategist activation error:", e);
-          }
-        }, 1500);
-      }
+      // Onda E: a análise inicial NÃO dispara automaticamente.
+      // O usuário escolhe entre Modo Piloto e Modo Piloto Inicial no diálogo de ativação,
+      // ou aciona manualmente via "Rodar análise inicial agora".
     },
     onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
