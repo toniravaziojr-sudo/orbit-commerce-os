@@ -1,16 +1,21 @@
 // =============================================================================
-// Structure Completeness Gate (Gestor de Tráfego IA) — v2 com ownership
+// Structure Completeness Gate — Onda D (gates por etapa)
 //
-// Cada blocker/warning agora carrega `node_type` correto:
-//   - CTA/Link/Copy/headline ausentes → creative
-//   - Evento/otimização/posicionamentos/região/idade/gênero → ad_set
-//   - Modo de compra/tipo de orçamento/objetivo/nome → campaign
+// Etapas:
+//   - "strategy"  → Aprovar estratégia: exige Campanha, Conjunto e Anúncio/Criativo
+//                   minimamente definidos. NÃO exige Pixel/Evento/Página.
+//   - "creative"  → Gerar criativos: exige apenas o Criativo do anúncio
+//                   (produto, link, CTA, copy/headline, formato, prompt/referência).
+//   - "publish"   → Publicar campanha: exige Página, Pixel/Evento e demais
+//                   pré-requisitos finais da plataforma.
 //
-// Continua puro, sem IA, sem rede.
+// Função pura, sem IA, sem rede.
 // =============================================================================
 
 import type { CampaignStructure } from "../normalizeCampaignStructure";
 import { EMPTY_GATE, type GateIssue, type GateNodeType, type GateResult } from "./types";
+
+export type GateStage = "strategy" | "creative" | "publish";
 
 const REQUIRES_INPUT = "requires_user_input";
 
@@ -50,22 +55,63 @@ function make(
   };
 }
 
-export function runStructureCompletenessGate(structure: CampaignStructure): GateResult {
+/**
+ * Executa o gate para a etapa indicada. Default = "strategy" (compatível
+ * com chamadores existentes do modal de proposta).
+ */
+export function runStructureCompletenessGate(
+  structure: CampaignStructure,
+  opts: { stage?: GateStage } = {},
+): GateResult {
+  const stage: GateStage = opts.stage ?? "strategy";
   if (!structure?.is_structured_campaign) return EMPTY_GATE;
 
   const blockers: GateIssue[] = [];
   const warnings: GateIssue[] = [];
 
-  // -------- Campanha --------
+  // ----- Etapa B (gerar criativo) — escopo restrito ao criativo -----
+  if (stage === "creative") {
+    structure.ads.forEach((ad, idx) => {
+      const nodeId = String(idx);
+      const node = ad.name || `Anúncio ${idx + 1}`;
+      const prefix = `ad.${idx}`;
+      if (isMissing(ad.product_name)) blockers.push(make("creative", nodeId, node, `${prefix}.product_name`, "blocker", "Selecione o produto/oferta do anúncio."));
+      if (isMissing(ad.destination_url)) blockers.push(make("creative", nodeId, node, `${prefix}.destination_url`, "blocker", "Defina o link do produto."));
+      if (isMissing(ad.cta)) blockers.push(make("creative", nodeId, node, `${prefix}.cta`, "blocker", "Defina o botão de ação."));
+      if (isMissing(ad.primary_text) && isMissing(ad.creative_prompt)) {
+        blockers.push(make("creative", nodeId, node, `${prefix}.primary_text`, "blocker", "Defina o texto principal ou o prompt do criativo."));
+      }
+      if (isMissing(ad.creative_format)) blockers.push(make("creative", nodeId, node, `${prefix}.creative_format`, "blocker", "Defina o formato do criativo (ex.: 1:1, 9:16)."));
+      if (isMissing(ad.reference_image_url) && isMissing(ad.creative_prompt)) {
+        warnings.push(make("creative", nodeId, node, `${prefix}.reference_image_url`, "warning", "Recomendado: imagem de referência do produto ou prompt detalhado."));
+      }
+    });
+    return summarize(blockers, warnings);
+  }
+
+  // ----- Etapa C (publicar) — exige plataforma pronta -----
+  if (stage === "publish") {
+    structure.ad_sets.forEach((a, idx) => {
+      const nodeId = String(idx);
+      const node = a.name || `Conjunto ${idx + 1}`;
+      const prefix = `adset.${idx}`;
+      if (needsUserInput(a.conversion_event) || isMissing(a.conversion_event)) {
+        blockers.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "blocker", "Confirme o evento de conversão (Pixel) antes de publicar.", { kind: "requires_user_input" }));
+      }
+    });
+    // Página e Pixel são validados em outro lugar (configuração de produção).
+    return summarize(blockers, warnings);
+  }
+
+  // ===== Etapa A (estratégia) — default =====
   const c = structure.campaign;
   if (isMissing(c.name)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.name", "blocker", "A campanha precisa de um nome."));
   if (isMissing(c.objective)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.objective", "blocker", "Defina o objetivo da campanha."));
   if (isMissing(c.buying_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.buying_type", "warning", "Modo de compra não definido — será usado Leilão por padrão."));
   if (isMissing(c.budget_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.budget_type", "warning", "Tipo de orçamento não definido — será usado Diário por padrão."));
   if (isMissing(c.daily_budget_cents)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.daily_budget_cents", "blocker", "Informe o orçamento da campanha."));
-  if (isMissing(c.planned_status)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.planned_status", "warning", "Status inicial não definido — será criada como PAUSADA por padrão."));
+  if (isMissing(c.planned_status)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.planned_status", "warning", "Status inicial não definido — será criada como Pausada por padrão."));
 
-  // -------- Conjuntos de anúncios --------
   if (structure.ad_sets.length === 0) {
     blockers.push(make("ad_set", null, "Conjuntos de anúncios", "ad_sets", "blocker", "A proposta não tem nenhum conjunto de anúncios."));
   }
@@ -80,10 +126,10 @@ export function runStructureCompletenessGate(structure: CampaignStructure): Gate
     if (isMissing(a.gender)) blockers.push(make("ad_set", nodeId, node, `${prefix}.gender`, "blocker", "Defina o gênero do conjunto."));
     if (isMissing(a.placements)) blockers.push(make("ad_set", nodeId, node, `${prefix}.placements`, "blocker", "Defina os posicionamentos do conjunto (use Automático/Advantage+ se não souber)."));
     if (isMissing(a.optimization_goal)) blockers.push(make("ad_set", nodeId, node, `${prefix}.optimization_goal`, "blocker", "Defina a meta de otimização do conjunto."));
+    // Evento de conversão NÃO bloqueia aprovação da estratégia (Onda D).
+    // É exigido apenas na etapa de publicação. Aqui só avisamos.
     if (needsUserInput(a.conversion_event)) {
-      blockers.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "blocker", "Confirme o evento de conversão (Pixel) antes de aprovar.", { kind: "requires_user_input" }));
-    } else if (isMissing(a.conversion_event)) {
-      blockers.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "blocker", "Defina o evento de conversão (ex.: Compra, Adicionar ao carrinho)."));
+      warnings.push(make("ad_set", nodeId, node, `${prefix}.conversion_event`, "warning", "Confirme o evento de conversão (Pixel) antes de publicar.", { kind: "requires_user_input" }));
     }
     if (isMissing(a.targeting_summary) && a.inclusions.length === 0) {
       warnings.push(make("ad_set", nodeId, node, `${prefix}.targeting_summary`, "warning", "Recomendado: descrever o público do conjunto."));
@@ -93,7 +139,6 @@ export function runStructureCompletenessGate(structure: CampaignStructure): Gate
     }
   });
 
-  // -------- Anúncios / Criativos --------
   if (structure.ads.length === 0) {
     blockers.push(make("ad", null, "Anúncios", "ads", "blocker", "A proposta não tem nenhum anúncio."));
   }
@@ -102,7 +147,6 @@ export function runStructureCompletenessGate(structure: CampaignStructure): Gate
     const node = ad.name || `Anúncio ${idx + 1}`;
     const prefix = `ad.${idx}`;
 
-    // Copy / headline / CTA / link / formato pertencem ao CRIATIVO
     if (isMissing(ad.headline)) blockers.push(make("creative", nodeId, node, `${prefix}.headline`, "blocker", "Defina o título do anúncio."));
     if (isMissing(ad.primary_text)) blockers.push(make("creative", nodeId, node, `${prefix}.primary_text`, "blocker", "Defina o texto principal do anúncio."));
     if (isMissing(ad.cta)) blockers.push(make("creative", nodeId, node, `${prefix}.cta`, "blocker", "Defina o botão de ação (ex.: Comprar agora, Saiba mais)."));
@@ -110,12 +154,15 @@ export function runStructureCompletenessGate(structure: CampaignStructure): Gate
     if (isMissing(ad.creative_format)) warnings.push(make("creative", nodeId, node, `${prefix}.creative_format`, "warning", "Recomendado: definir o formato do criativo (imagem, vídeo, carrossel)."));
   });
 
+  return summarize(blockers, warnings);
+}
+
+function summarize(blockers: GateIssue[], warnings: GateIssue[]): GateResult {
   const passed = blockers.length === 0;
   const summary = passed
     ? null
     : blockers.length === 1
       ? `Falta 1 campo obrigatório: ${blockers[0].message}`
       : `Faltam ${blockers.length} campos obrigatórios para liberar a aprovação.`;
-
   return { passed, blockers, warnings, summary };
 }
