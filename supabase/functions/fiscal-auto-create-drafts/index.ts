@@ -538,6 +538,7 @@ async function processTenanDrafts(
             headers: {
               'Content-Type': 'application/json',
               'apikey': serviceKey,
+              'Authorization': `Bearer ${serviceKey}`,
               'x-internal-call': '1',
             },
             body: JSON.stringify({ invoice_id: invoice.id, tenant_id: tenantId, auto: true }),
