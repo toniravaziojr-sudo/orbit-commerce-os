@@ -15869,6 +15869,164 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_capabilities: {
+        Row: {
+          adapter_version: string
+          api_version: string | null
+          capabilities_json: Json
+          capabilities_version: string
+          capability_hash: string
+          created_at: string
+          docs_sources: Json
+          id: string
+          last_verified_at: string | null
+          next_check_at: string | null
+          notes: string | null
+          platform: string
+          schema_version: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          adapter_version?: string
+          api_version?: string | null
+          capabilities_json?: Json
+          capabilities_version: string
+          capability_hash: string
+          created_at?: string
+          docs_sources?: Json
+          id?: string
+          last_verified_at?: string | null
+          next_check_at?: string | null
+          notes?: string | null
+          platform: string
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          adapter_version?: string
+          api_version?: string | null
+          capabilities_json?: Json
+          capabilities_version?: string
+          capability_hash?: string
+          created_at?: string
+          docs_sources?: Json
+          id?: string
+          last_verified_at?: string | null
+          next_check_at?: string | null
+          notes?: string | null
+          platform?: string
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_compatibility_alerts: {
+        Row: {
+          created_at: string
+          detected_at: string
+          id: string
+          message: string | null
+          platform: string
+          resolution_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          severity: string
+          source_check_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detected_at?: string
+          id?: string
+          message?: string | null
+          platform: string
+          resolution_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity?: string
+          source_check_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detected_at?: string
+          id?: string
+          message?: string | null
+          platform?: string
+          resolution_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity?: string
+          source_check_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_compatibility_alerts_source_check_id_fkey"
+            columns: ["source_check_id"]
+            isOneToOne: false
+            referencedRelation: "platform_compatibility_checks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_compatibility_checks: {
+        Row: {
+          check_finished_at: string | null
+          check_started_at: string
+          created_at: string
+          current_hash: string | null
+          diff_summary: Json | null
+          error_message: string | null
+          id: string
+          platform: string
+          previous_hash: string | null
+          severity: string | null
+          sources_checked: Json | null
+          status: string
+          triggered_by: string
+        }
+        Insert: {
+          check_finished_at?: string | null
+          check_started_at?: string
+          created_at?: string
+          current_hash?: string | null
+          diff_summary?: Json | null
+          error_message?: string | null
+          id?: string
+          platform: string
+          previous_hash?: string | null
+          severity?: string | null
+          sources_checked?: Json | null
+          status?: string
+          triggered_by?: string
+        }
+        Update: {
+          check_finished_at?: string | null
+          check_started_at?: string
+          created_at?: string
+          current_hash?: string | null
+          diff_summary?: Json | null
+          error_message?: string | null
+          id?: string
+          platform?: string
+          previous_hash?: string | null
+          severity?: string | null
+          sources_checked?: Json | null
+          status?: string
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       platform_cost_ledger: {
         Row: {
           category: string
