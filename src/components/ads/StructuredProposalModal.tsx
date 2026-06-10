@@ -621,23 +621,35 @@ function AdSetSection({ adSet, blockers }: { adSet: AdSetNode | null; blockers: 
   );
 }
 
-function AdSection({ ad, isStrategyStage }: { ad: AdNode | null; isStrategyStage: boolean }) {
+function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStrategyStage: boolean; blockers: GateIssue[] }) {
   if (!ad) return <p className="text-sm text-muted-foreground">Anúncio não encontrado.</p>;
+  const pending = new Set(blockers.map((b) => b.field));
+  const isP = (suffix: string) => Array.from(pending).some((f) => f.endsWith(suffix));
   return (
     <div className="space-y-4">
+      {/* Bloco 1: ANÚNCIO (entrega) */}
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
-          <Detail label="Produto/oferta" value={ad.product_name} />
+          <Detail label="Nome do anúncio" value={ad.name} />
+          <Detail label="Conjunto vinculado" value={ad.ad_set_ref} />
           <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, isStrategyStage)} />
-          <Detail label="Título" value={ad.headline} fullWidth />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth />
+        </DetailGrid>
+      </Block>
+
+      {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
+      <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
+        <DetailGrid>
+          <Detail label="Produto/oferta" value={ad.product_name} />
+          <Detail label="Formato" value={ad.creative_format} pendingField={!ad.creative_format && isP(".creative_format")} />
+          <Detail label="Título" value={ad.headline} fullWidth pendingField={!ad.headline && isP(".headline")} />
+          <Detail label="Texto principal" value={ad.primary_text} fullWidth pendingField={!ad.primary_text && isP(".primary_text")} />
           <Detail label="Descrição" value={ad.description} fullWidth />
-          <Detail label="Botão de ação" value={tr("cta", ad.cta)} />
-          <Detail label="Formato" value={ad.creative_format} />
+          <Detail label="Botão de ação" value={tr("cta", ad.cta)} pendingField={!ad.cta && isP(".cta")} />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
           )}
-          <Detail label="Link de destino" value={ad.destination_url} fullWidth />
+          <Detail label="Link de destino" value={ad.destination_url} fullWidth pendingField={!ad.destination_url && isP(".destination_url")} />
+          {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
           {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
         </DetailGrid>
       </Block>
