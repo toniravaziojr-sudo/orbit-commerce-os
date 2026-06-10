@@ -738,13 +738,21 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth,
-}: { label: string; value: string | number | null | undefined; fullWidth?: boolean }) {
-  const display = value === null || value === undefined || value === "" ? "—" : String(value);
+  label, value, fullWidth, pendingField,
+}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean }) {
+  const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-      <p className="text-sm break-words">{display}</p>
+      {empty && pendingField ? (
+        <p className="text-sm">
+          <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 px-1.5 py-0.5 text-[11px] font-medium">
+            Pendente · Obrigatório
+          </span>
+        </p>
+      ) : (
+        <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+      )}
     </div>
   );
 }
