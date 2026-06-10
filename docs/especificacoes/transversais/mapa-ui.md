@@ -607,35 +607,20 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
   - Erros de objetivo (ex.: `SALES`) deixam de aparecer como texto técnico. Mensagem é em PT-BR amigável e o gate passa a usar o mapper canônico ↔ Meta antes de comparar.
 - Detalhe da Platform Field Ownership Matrix, Objective Mapper e GateIssue v2 em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Motor de Propostas — Onda C").
 
-### Gestor de Tráfego IA — Configuração de Criação Meta (Onda D, rev 2026-06-10)
+### Gestor de Tráfego IA — Status técnico Meta na UI estratégica (rev 2026-06-10, correção Onda D→F)
 
-- `/ads` → aba **Configurações Gerais** → seção **Meta Ads**: novo bloco **"Configuração de Criação Meta"**.
-  - **Finalidade:** fonte persistida operacional usada pelo Strategist para gerar propostas Meta Ads v2 completas com Campanha, Conjunto e Anúncio/Criativo. É a fonte de verdade dos defaults reais da conta — quando um campo aqui está preenchido, a IA usa esse valor em vez de marcar como pendente.
-  - **Campos do bloco:**
-    - conta de anúncio (vínculo com a conta Meta já conectada);
-    - página do Facebook;
-    - conta do Instagram;
-    - pixel / dataset;
-    - evento de conversão padrão;
-    - país / região;
-    - idioma;
-    - idade mínima;
-    - idade máxima;
-    - gênero;
-    - posicionamentos;
-    - estratégia / tipo de orçamento (CBO no nível de campanha ou ABO no nível de conjunto);
-    - orçamento diário padrão;
-    - status inicial da campanha ao publicar (pausada / ativa);
-    - CTA padrão do criativo;
-    - formato criativo padrão;
-    - UTM padrão (opcional).
-  - **Escopo desta entrega:**
-    - é usada no fluxo real de produção da Meta Ads — não é mock, não é configuração temporária;
-    - Google Ads e TikTok Ads **não** entram nesta etapa e seguem bloqueados por não verificação;
-    - **publicação real ainda não acontece nesta entrega** — o bloco apenas alimenta a estratégia gerada pela IA;
-    - **geração de criativo só ocorre depois da aprovação da estratégia** pelo usuário, mantendo o fluxo two_step_v1.
-  - **Comportamento conjunto com os gates:** com o bloco preenchido, propostas Meta deixam de exibir "Pendente · Obrigatório" para campos cobertos pela configuração. Sem o bloco preenchido, o gate de estratégia ainda libera a aprovação (pixel/evento viram aviso), mas o gate de publicação (a ser ativado em onda futura) exigirá os IDs reais de página, Instagram e pixel.
-- Detalhe técnico em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Configuração de Criação Meta — Onda D") e baseline em `docs/especificacoes/marketing/plataformas-baseline.md`.
+- `/ads` → aba **Configurações Gerais** é dedicada às **diretrizes estratégicas do usuário**: ativação da IA, execução automática diária, orçamento, ROI ideal, ROI mínimo por funil, estratégia geral, splits de funil, prompt estratégico e botão de geração de prompt com IA.
+- **Removido da UI principal:** o formulário manual "Configuração de Criação Meta" (Página do Facebook, Conta do Instagram, Pixel/Dataset, evento de conversão padrão, IDs técnicos, públicos personalizados, posicionamentos, CTA/formato padrão etc.). Esses ativos são responsabilidade da **integração Meta** e devem ser coletados via sincronização read-only, não digitados pelo usuário na tela estratégica.
+- **No card de cada conta Meta** passa a aparecer apenas um **status inline somente leitura**:
+  - **OK:** "Meta conectada. Ativos técnicos sincronizados pela integração." (quando Página, Pixel e evento de conversão estão disponíveis na configuração interna).
+  - **Pendência:** alerta curto listando o que a integração não detectou (ex.: "Pixel não detectado") com link para **Integrações**. Nunca pede ao usuário para digitar IDs técnicos nessa tela.
+- **Backend preservado:** a tabela `ads_meta_production_config` e o hook `useAdsMetaProductionConfig` continuam existindo como **estrutura operacional interna** — preenchidos por integração/sync ou ajuste técnico avançado, e consumidos pelo Strategist e pelos gates. O componente `MetaProductionConfigCard` deixa de ser renderizado na UI principal; eventual fallback manual fica restrito à área técnica de integração (não é o fluxo principal).
+- **Gates por etapa:**
+  - **Análise/estratégia:** não é bloqueada por ausência de Pixel/Página/Instagram — ausência vira `limitations` no `ads_ai_analysis_runs`.
+  - **Proposta/criativo:** usa diretrizes estratégicas + dados do produto.
+  - **Publicação (futura):** exigirá Página, identidade do anúncio, Pixel/dataset (quando objetivo demandar conversão), evento e permissões.
+- Detalhe técnico em `docs/especificacoes/marketing/gestor-trafego.md` (seção "Configurações Gerais — separação estratégia × ativos técnicos") e baseline em `docs/especificacoes/marketing/plataformas-baseline.md`.
+
 
 ### Gestor de Tráfego IA — Ativação por modos e análise inicial (Onda E, rev 2026-06-10)
 
