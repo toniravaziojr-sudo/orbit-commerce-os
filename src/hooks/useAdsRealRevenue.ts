@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
  *
  * Pedidos orgânicos / direto / e-mail / WhatsApp / marketplaces ficam de fora.
  */
-const PAID_STATUSES = ["paid", "processing", "ready_to_invoice", "shipped", "delivered"];
+const PAID_STATUSES = ["paid", "processing", "ready_to_invoice", "shipped", "delivered"] as const;
 
 export interface AdsRealRevenueBreakdown {
   total_cents: number;
