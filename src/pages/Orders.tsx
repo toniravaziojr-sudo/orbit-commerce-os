@@ -306,6 +306,18 @@ export default function Orders() {
                   <SelectItem value="failed">Problema</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={channelFilter} onValueChange={(v) => { setChannelFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as origens</SelectItem>
+                  <SelectItem value="storefront">Loja Virtual</SelectItem>
+                  <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+                  <SelectItem value="shopee">Shopee</SelectItem>
+                  <SelectItem value="tiktok_shop">TikTok Shop</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant={firstSaleOnly ? "default" : "outline"}
                 size="sm"
