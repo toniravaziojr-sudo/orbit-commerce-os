@@ -116,12 +116,21 @@ describe("normalizeCampaignStructure", () => {
     expect(out.ads[0].creative_status).toBe("ready");
   });
 
-  it("exibe nulls em campos ausentes sem quebrar", () => {
-    const out = normalizeCampaignStructure({}, { actionType: "create_campaign" });
+  it("payload vazio não quebra e devolve campos nulos", () => {
+    const out = normalizeCampaignStructure({}, {});
     expect(out.campaign.name).toBeNull();
     expect(out.ad_sets).toEqual([]);
     expect(out.ads).toEqual([]);
     expect(out.is_structured_campaign).toBe(false);
+  });
+
+  it("create_campaign vazio ainda é classificado como estruturado (com 1 conjunto inferido)", () => {
+    const out = normalizeCampaignStructure({}, { actionType: "create_campaign" });
+    expect(out.is_structured_campaign).toBe(true);
+    expect(out.ad_sets).toHaveLength(1);
+    expect(out.ad_sets[0].name).toBe("Conjunto 1");
+    // Sem campos preenchidos
+    expect(out.ad_sets[0].targeting_summary).toBeNull();
   });
 
   it("ação operacional legacy (pause_campaign) não é classificada como estruturada", () => {
