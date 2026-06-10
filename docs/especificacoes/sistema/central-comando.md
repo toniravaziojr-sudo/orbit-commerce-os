@@ -51,26 +51,44 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 ## 1. Aba Dashboard
 
 > Anteriormente chamada "Overview". Renomeada na v2.0.0.
+> **v2.2 (2026-06-09):** Dashboard ganhou **sub-abas por canal de venda**. Estrutura completa em §1.0.
+
+### 1.0 Sub-abas por canal de venda (v2.2 — 2026-06-09)
+
+A Aba Dashboard agora abre em **sub-abas por canal de venda**:
+
+| Sub-aba | Visibilidade | Receita considera | Investimento considera |
+|---------|--------------|-------------------|------------------------|
+| **Geral** | sempre visível | Loja + todos marketplaces (`sales_channel = 'storefront'` OU qualquer `marketplace_source`) | Meta + Google + TikTok Ads (Ads internos de marketplace ficam como "Em breve") |
+| **Loja Virtual** | sempre visível | Só `sales_channel = 'storefront'` | Meta + Google + TikTok Ads |
+| **Mercado Livre** | só se `marketplace_connections.is_active = true` para `marketplace = 'mercadolivre'` | Só `marketplace_source = 'mercadolivre'` | **Em breve** (Ads do ML — pendente, não temos coleta) |
+| **Shopee** | só se conexão Shopee ativa | Só `marketplace_source = 'shopee'` | **Em breve** |
+| **TikTok Shop** | só se conexão TikTok Shop ativa | Só `marketplace_source = 'tiktok_shop'` | **Em breve** |
+
+Cada sub-aba mostra o mesmo grid de métricas + o Preview de Vendas, filtrados pelo canal. As sub-abas de marketplace exibem botão **"Ver detalhes no <marketplace>"** que leva para `/marketplaces/{nome}` (não duplicam a gestão).
+
+**Selo de fonte:** quando as sub-abas estão ativas (`showSourceBadges`), cada card de Faturamento, Investimento e ROI exibe pequeno selo `Fonte: ...` (`Caixa real`, `Meta + Google + TikTok Ads`, `Em breve`). Elimina a confusão de "Receita do Dashboard ≠ Receita do Gestor de Tráfego".
+
+**Critério de "marketplace ativo":** hook `useActiveMarketplaces` consulta `marketplace_connections` por tenant e classifica por `marketplace IN ('mercadolivre'|'shopee'|'tiktok_shop')` com `is_active = true`. Esse é o **único critério** que controla a visibilidade — não exige pedido sincronizado.
+
+**Fonte do filtro de canal:** módulo único `src/lib/dashboard/channelFilter.ts` (`applyChannelFilter`, `channelIncludesAds`, `channelLabel`). Reaproveitado em `useDashboardMetrics`, `useReports` (product/payment/state/city) e qualquer leitura futura. Pedidos: `sales_channel = 'storefront'` para a loja; `marketplace_source = '<chave>'` para marketplaces.
 
 ### Estrutura Visual (de cima para baixo)
 
 1. **PaymentMethodBanner** — Banner de aviso para plano básico sem cartão
 2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `transversais/padroes-ui.md` § Padrão de Datas)
 3. **OrderLimitWarning** — Barra de progresso de limite de pedidos do plano
-4. **DashboardMetricsGrid** — 4 categorias de métricas empilhadas (§1.1)
-5. **CommunicationsWidget** — Atendimentos, erros de notificação, emails não lidos
-6. **AdsAlertsWidget** — Alertas do gestor de tráfego (saldo, ações pendentes, insights)
-7. **FiscalAlertsWidget** — Alertas fiscais (NF-e em pedidos cancelados)
-8. **Preview de Vendas** — Bloco com 4 cards Top 5 (Produtos, Estados, Cidades, Formas de Pagamento), cada um com botão "Ver mais" que abre a aba correspondente em `/reports`. Detalhes em `docs/especificacoes/sistema/relatorios.md`.
-9. **Grid 3 colunas:**
-   - **Pedidos Recentes** (2 cols) — Lista dos últimos 4 pedidos com status
-   - **Coluna lateral** (1 col):
-     - IntegrationAlerts (WhatsApp/Email)
-     - StorefrontHealthCard (violações de URL, uptime)
-     - Card "Atenção Agora" (itens demo estáticos)
-10. **Ações Rápidas** — Grid de botões: Novo Produto, Novo Pedido, Novo Cliente, Processar Pedidos
+4. **Sub-abas por canal** (Geral / Loja Virtual / [marketplaces ativos]) — §1.0
+5. Dentro de cada sub-aba:
+   - **DashboardMetricsGrid** — 4 categorias de métricas empilhadas (§1.1) com selo de fonte
+   - **Preview de Vendas** — Bloco com 4 cards Top 5, filtrado pelo canal da sub-aba
+   - (apenas em sub-abas de marketplace) Botão "Ver detalhes no <marketplace>"
+
+Outros widgets do dashboard (CommunicationsWidget, AdsAlertsWidget, FiscalAlertsWidget, Pedidos Recentes, IntegrationAlerts, StorefrontHealthCard, Ações Rápidas) permanecem **fora das sub-abas** (visão geral do tenant, não por canal).
 
 > **Removido na v2.1 (2026-06-01):** o card antigo de "Saúde do WhatsApp" não aparece mais no Dashboard. A saúde da conexão WhatsApp vive exclusivamente em **Integrações › WhatsApp**. Não re-adicionar.
+
+
 
 ### 1.1 Layout de Métricas (v8.8.0 — 4 Categorias)
 
