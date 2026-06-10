@@ -1507,6 +1507,14 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
 
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
 
+  // Classificação: proposta estruturada (Campanha → Conjuntos → Anúncios) vs ação operacional legacy
+  const structuredCheck = normalizeCampaignStructure(data, {
+    actionType: action.action_type,
+    flowVersion: (data as any)?.flow_version,
+  });
+  const isStructuredCampaign =
+    action.action_type === "create_campaign" || structuredCheck.is_structured_campaign;
+
   const diagnosis = data.diagnosis || null;
   const summaryText = isStrategicPlan
     ? sanitizeDisplayText(diagnosis || preview.copy_text || "")
