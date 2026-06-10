@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check, Info, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 
 interface ChannelSummary {
   channel: string;
@@ -97,6 +98,10 @@ export function AdsOverviewTab({
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedChannels, setSelectedChannels] = useState<Set<ChannelKey>>(new Set(["meta", "google", "tiktok"]));
+
+  // Receita real da loja virtual (mesma fonte do Dashboard, canal storefront)
+  const { data: storefrontMetrics } = useDashboardMetrics(startDate, endDate, "storefront");
+  const storefrontRevenueCents = Math.round(((storefrontMetrics?.totalRevenueToday) || 0) * 100);
 
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
@@ -186,11 +191,12 @@ export function AdsOverviewTab({
   const pacingPct = globalBudgetCents > 0 ? Math.min((totals.spend_cents / globalBudgetCents) * 100, 100) : 0;
 
   const summaryCards = [
-    { title: "Investimento Total", value: formatCurrency(totals.spend_cents), icon: DollarSign },
-    { title: "ROAS Blended", value: `${roas.toFixed(2)}x`, icon: TrendingUp },
-    { title: "CPA Médio", value: formatCurrency(cpa), icon: MousePointer },
-    { title: "Conversões", value: formatNumber(totals.conversions), icon: ShoppingCart },
-    { title: "Receita", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3 },
+    { title: "Investimento Total", value: formatCurrency(totals.spend_cents), icon: DollarSign, hint: "Soma de Meta + Google + TikTok Ads no período" },
+    { title: "ROAS Blended", value: `${roas.toFixed(2)}x`, icon: TrendingUp, hint: "Receita atribuída ÷ Investimento" },
+    { title: "CPA Médio", value: formatCurrency(cpa), icon: MousePointer, hint: "Custo por aquisição reportado pelas plataformas" },
+    { title: "Conversões", value: formatNumber(totals.conversions), icon: ShoppingCart, hint: "Conversões reportadas pelos pixels" },
+    { title: "Receita atribuída (Ads)", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3, hint: "Valor reportado pelos pixels de Meta, Google e TikTok — pode divergir do caixa real" },
+    { title: "Receita Real Loja Virtual", value: formatCurrency(storefrontRevenueCents), icon: Store, hint: "Caixa real da Loja Virtual no período (mesma fonte do Dashboard)" },
   ];
 
   const allChannelsSelected = selectedChannels.size === AVAILABLE_CHANNELS.length;
@@ -263,13 +269,26 @@ export function AdsOverviewTab({
         </Card>
       )}
 
+      {/* Nota de escopo: marketplaces ficam no Dashboard */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="py-3">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Este módulo considera apenas plataformas de anúncio e a loja virtual.
+              Vendas de Mercado Livre, Shopee e TikTok Shop são analisadas no Dashboard da Central de Comando.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {summaryCards.map(card => (
-          <Card key={card.title}>
+          <Card key={card.title} title={card.hint}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium">{card.title}</CardTitle>
-              <card.icon className="h-3.5 w-3.5 text-muted-foreground" />
+              <CardTitle className="text-xs font-medium leading-tight">{card.title}</CardTitle>
+              <card.icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             </CardHeader>
             <CardContent className="pt-0">
               <div className="text-lg font-bold">{card.value}</div>
@@ -323,7 +342,7 @@ export function AdsOverviewTab({
                   <span className="font-medium">{formatNumber(ch.conversions)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Receita</span>
+                  <span className="text-muted-foreground">Receita atribuída</span>
                   <span className="font-medium">{formatCurrency(ch.conversion_value_cents)}</span>
                 </div>
               </CardContent>
