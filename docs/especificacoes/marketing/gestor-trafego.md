@@ -13,6 +13,21 @@
 
 Pipeline autônomo de gestão de tráfego pago cross-channel (Meta, Google, TikTok) com IA. Utiliza arquitetura de **Motor Duplo** (Guardião + Estrategista) e 4 agentes especializados para análise, otimização e criação de campanhas.
 
+### Escopo (importante)
+
+Este módulo considera **apenas plataformas de anúncio (Meta, Google, TikTok) + Loja Virtual**. Vendas e investimentos de marketplaces (Mercado Livre, Shopee, TikTok Shop) **não** entram aqui — elas são analisadas nas sub-abas correspondentes do Dashboard da Central de Comando (`mem://features/command-center/dashboard-by-channel-standard`).
+
+### Fontes de receita exibidas
+
+| Card | Fonte | Significado |
+|------|-------|-------------|
+| **Investimento Total** | `meta_ad_insights + google_ad_insights + tiktok_ad_insights` | Soma do gasto reportado pelas plataformas no período |
+| **Receita atribuída (Ads)** | `conversion_value_cents` dos pixels (Meta + Google + TikTok) | Receita reportada pelos pixels — pode divergir do caixa real |
+| **Receita Real Loja Virtual** | Mesma fonte do Dashboard (canal `storefront`) | Caixa real da loja virtual no período, em BRT |
+| **ROAS Blended** | Receita atribuída ÷ Investimento | Indicador comparável entre canais |
+
+A coexistência das duas receitas (atribuída x real) elimina a confusão histórica entre "Receita" do Dashboard e "Receita" do Gestor de Tráfego.
+
 ### Módulos Relacionados
 
 | Módulo | Doc | Relação |
