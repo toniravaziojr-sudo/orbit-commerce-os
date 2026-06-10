@@ -1324,6 +1324,69 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
 
 // ============ BUILD STRATEGIST PROMPT ============
 
+// Onda D — Bloco "Configuração de Criação Meta" injetado no prompt do Strategist.
+// Não inventa Pixel/Página/Instagram/evento. Quando o dado não está configurado,
+// marca como `requires_user_input` e o gate de etapa lida com a pendência.
+function buildMetaProductionConfigBlock(cfg: any | null | undefined): string {
+  if (!cfg) {
+    return [
+      "## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)",
+      "Nenhuma configuração persistida encontrada para esta conta de anúncios.",
+      "Use defaults conservadores: país BR, idioma pt_BR, idade 18-65, gênero todos,",
+      "posicionamentos automáticos (Advantage+), modo de compra Leilão, status inicial PAUSED,",
+      "CTA SHOP_NOW, formato 1x1. Para Pixel/Página/Instagram/Evento de conversão,",
+      "use o valor literal 'requires_user_input' (NÃO INVENTAR).",
+    ].join("\n");
+  }
+  const v = (x: any, fallback = "requires_user_input") => (x == null || x === "" ? fallback : x);
+  const placements = Array.isArray(cfg.default_placements) ? cfg.default_placements.join(", ") : "advantage_plus";
+  const budgetReais = cfg.default_daily_budget_cents != null
+    ? (Number(cfg.default_daily_budget_cents) / 100).toFixed(2)
+    : null;
+  return [
+    "## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO) — FONTE DE VERDADE DA CONTA",
+    "Use estes defaults ao montar Campaign / AdSet / Ad. Para qualquer dado obrigatório",
+    "não configurado, use literalmente 'requires_user_input' (NÃO INVENTAR Pixel, Página,",
+    "Instagram Actor ou Evento de conversão).",
+    "",
+    "### Identidade",
+    `- Página do Facebook: ${v(cfg.facebook_page_id)}`,
+    `- Instagram Actor: ${v(cfg.instagram_actor_id, "n/d")}`,
+    "",
+    "### Mensuração",
+    `- Pixel ID: ${v(cfg.pixel_id)}`,
+    `- Evento de conversão padrão: ${v(cfg.default_conversion_event)}`,
+    `- Janela de atribuição: ${v(cfg.attribution_window, "padrão da plataforma")}`,
+    "",
+    "### Campanha (defaults)",
+    `- Objetivo canônico: ${cfg.default_objective || "sales"}`,
+    `- Modo de compra: ${cfg.default_buying_type || "AUCTION"}`,
+    `- Tipo de orçamento: ${cfg.default_budget_type || "daily"}`,
+    `- Orçamento diário padrão: ${budgetReais ? `R$ ${budgetReais}` : "usar orçamento da proposta"}`,
+    `- Status inicial: ${cfg.default_planned_status || "PAUSED"}`,
+    "",
+    "### Conjunto (defaults)",
+    `- País: ${cfg.default_country || "BR"} | Idioma: ${cfg.default_language || "pt_BR"}`,
+    `- Idade: ${cfg.default_age_min ?? 18}-${cfg.default_age_max ?? 65}`,
+    `- Gênero: ${cfg.default_gender || "all"}`,
+    `- Posicionamentos: ${placements}`,
+    `- Tipo de público padrão: ${cfg.default_audience_type || "broad"}`,
+    `- Etapa de funil padrão: ${cfg.default_funnel_stage || "tof"}`,
+    `- Excluir clientes/compradores do público frio: ${cfg.exclude_customers ? "sim" : "não"}`,
+    "",
+    "### Anúncio / Criativo (defaults)",
+    `- CTA padrão: ${cfg.default_cta || "SHOP_NOW"}`,
+    `- Formato padrão: ${cfg.default_creative_format || "1x1"}`,
+    `- Estratégia de imagem de referência: ${cfg.reference_image_strategy || "product_main_image"}`,
+    "",
+    "REGRAS OBRIGATÓRIAS:",
+    "- NÃO coloque link/CTA no nível Campanha — pertencem ao Ad/Criativo.",
+    "- Não deixe nenhum conjunto sem público/região/idade/gênero/posicionamento/otimização.",
+    "- Use objetivo no enum canônico (sales, leads, traffic, awareness, engagement, app_promotion).",
+    "- O adapter Meta traduz para o enum oficial — não grave OUTCOME_SALES diretamente.",
+  ].join("\n");
+}
+
 function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
   // === GOOGLE ADS BRANCH ===
   if (config.channel === "google") {
