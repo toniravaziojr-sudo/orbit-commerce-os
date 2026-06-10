@@ -351,6 +351,8 @@ export function StructuredProposalModal({
                     fitMessage={fitData?.fit.user_message || null}
                     fitLabel={fitBadge?.label || null}
                     approveBlockedByFit={approveBlockedByFit}
+                    blockers={allBlockers}
+                    warnings={allWarnings}
                   />
                 )}
                 {selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
@@ -367,34 +369,43 @@ export function StructuredProposalModal({
             </ScrollArea>
           </div>
 
-          <div className="border-t border-border/30 px-5 py-3 flex items-center gap-2 shrink-0 bg-background">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onReject(action.id)}
-              disabled={!!rejectingId || isApproving}
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              <X className="h-3.5 w-3.5" />
-              Recusar proposta
-            </Button>
-            <div className="flex-1" />
-            <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
-              <MessageSquare className="h-3.5 w-3.5" />
-              Ajustar proposta
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApprove}
-              disabled={isApproving || !!rejectingId || approveBlockedByFit}
-              title={approveBlockedByFit ? fitData?.fit.user_message || "Bloqueado por adequação" : undefined}
-            >
-              {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {approveLabel}
-            </Button>
+          <div className="border-t border-border/30 px-5 py-3 flex flex-col gap-2 shrink-0 bg-background">
+            {approveBlockedReason && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{approveBlockedReason}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onReject(action.id)}
+                disabled={!!rejectingId || isApproving}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <X className="h-3.5 w-3.5" />
+                Recusar proposta
+              </Button>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)} disabled={isApproving || !!rejectingId}>
+                <MessageSquare className="h-3.5 w-3.5" />
+                Ajustar proposta
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleApprove}
+                disabled={isApproving || !!rejectingId || approveBlocked}
+                title={approveBlockedReason || undefined}
+              >
+                {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {approveLabel}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
 
       {isStrategyStage && (
         <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} />
