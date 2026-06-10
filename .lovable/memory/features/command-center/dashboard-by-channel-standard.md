@@ -27,7 +27,10 @@ type: feature
 6. **"Venda realizada" continua sendo:** `status IN ('paid','processing','ready_to_invoice','shipped','delivered')` AND `payment_gateway_id IS NOT NULL` (Ghost Order Rule). Vale para todas as sub-abas. Definido em `docs/especificacoes/sistema/relatorios.md`.
 
 7. **Sub-abas de marketplace exibem botão "Ver detalhes no <marketplace>"** que leva para `/marketplaces/{nome}`. Nunca duplicar a gestão (anúncios, listings, sync) que já existe lá.
+8. **Gestor de Tráfego (`/ads`) — escopo declarado:** considera apenas Meta + Google + TikTok Ads + Loja Virtual. Marketplaces nunca entram. A aba Overview exibe lado a lado **"Receita atribuída (Ads)"** (pixels) e **"Receita Real Loja Virtual"** (caixa real, mesma fonte do Dashboard canal `storefront`) — proibido voltar a usar o rótulo genérico "Receita".
 
 ## Documento oficial
 - `docs/especificacoes/sistema/central-comando.md` §1.0 (estrutura, visibilidade, fonte de cada métrica)
+- `docs/especificacoes/marketing/gestor-trafego.md` (escopo + tabela de fontes de receita)
 - `docs/especificacoes/transversais/mapa-ui.md` (sub-abas da Central de Comando)
+
