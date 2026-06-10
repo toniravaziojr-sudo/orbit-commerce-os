@@ -241,6 +241,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
     Array.isArray(data?.adsets) ||
     Array.isArray(data?.ads);
 
+  const legacyTopUrl = pickStr(data?.destination_url, preview?.destination_url, data?.website_url);
+  const legacyTopCta = pickStr(data?.cta_type, preview?.cta_type, preview?.cta);
+  const legacyTopTracking = pickStr(data?.tracking_params, data?.utm_params, preview?.tracking_params);
+
   const campaign: CampaignNode = {
     name: pickStr(data?.campaign_name, preview?.campaign_name),
     objective: pickStr(data?.objective, preview?.objective, data?.campaign_type),
@@ -248,10 +252,10 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
     buying_type: pickStr(data?.buying_type),
     budget_type: pickStr(data?.budget_type) || (data?.daily_budget_cents ? "daily" : data?.lifetime_budget_cents ? "lifetime" : null),
     daily_budget_cents: pickNum(data?.daily_budget_cents, preview?.daily_budget_cents),
-    destination_url: pickStr(data?.destination_url, preview?.destination_url, data?.website_url),
-    cta: pickStr(data?.cta_type, preview?.cta_type, preview?.cta),
     planned_status: pickStr(data?.initial_status, data?.status) || "PAUSED",
     rationale: pickStr(data?.reasoning, preview?.copy_text),
+    inherited_destination_url: legacyTopUrl,
+    inherited_cta: legacyTopCta,
   };
 
   // ad_sets: pode vir como data.adsets[] (com targeting próprio) ou inferir 1 conjunto
