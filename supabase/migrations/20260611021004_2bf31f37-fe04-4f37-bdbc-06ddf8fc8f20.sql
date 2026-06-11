@@ -1,0 +1,1 @@
+UPDATE orders SET status='cancelled', payment_status='cancelled' WHERE id='f799854d-fea8-4292-9751-8e1c7c1beeef';

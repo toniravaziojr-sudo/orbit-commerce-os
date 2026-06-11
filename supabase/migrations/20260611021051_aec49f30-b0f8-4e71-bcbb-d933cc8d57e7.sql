@@ -1,0 +1,1 @@
+UPDATE fiscal_invoice_items SET order_item_id=NULL WHERE order_item_id='1c97ed15-7233-4112-baaa-0b0d5baae54a';
