@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     }
 
     // Buscar pedido
-    let orderQuery = supabase.from('orders').select('id, tenant_id, order_number');
+    let orderQuery = supabase.from('orders').select('id, tenant_id, order_number, status');
     
     if (order_id) {
       orderQuery = orderQuery.eq('id', order_id);
