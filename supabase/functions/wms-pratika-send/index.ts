@@ -397,21 +397,31 @@ Deno.serve(async (req) => {
         });
 
         if (!trkResult.success) {
-          await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-            reference_type: 'invoice', status: 'error',
-            error_message: `NF enviada, falha no rastreio: ${trkErrMsg}`,
-          });
+          const errMsg = `NF enviada, falha no rastreio: ${trkErrMsg}`;
+          if (claimRowId) {
+            await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: errMsg }).eq('id', claimRowId);
+          } else {
+            await supabase.from('wms_pratika_logs').insert({
+              tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+              reference_type: 'invoice', status: 'error', error_message: errMsg,
+            });
+          }
           return new Response(JSON.stringify({ success: false, stage: 'tracking', error: trkErrMsg, nfe_sent: true }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
       }
 
-      await supabase.from('wms_pratika_logs').insert({
-        tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-        reference_type: 'invoice', status: 'success',
-        request_payload: `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`,
-      });
+      const successPayload = `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`;
+      if (claimRowId) {
+        await supabase.from('wms_pratika_logs').update({
+          status: 'success', request_payload: successPayload, error_message: null,
+        }).eq('id', claimRowId);
+      } else {
+        await supabase.from('wms_pratika_logs').insert({
+          tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+          reference_type: 'invoice', status: 'success', request_payload: successPayload,
+        });
+      }
 
       return new Response(JSON.stringify({
         success: true, combined: true, invoice_id: invoice.id, tracking_code: shipment.tracking_code
