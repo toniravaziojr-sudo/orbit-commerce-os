@@ -51,6 +51,7 @@ import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleten
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
 import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
+import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type NodeId =
@@ -497,45 +498,32 @@ function OverviewSection({
         </div>
       )}
 
-      {isStrategicPlan && diagnosis && (
-        <Block title="Diagnóstico" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{diagnosis}</p>
-        </Block>
-      )}
+      {isStrategicPlan ? (
+        <StrategicPlanContent
+          diagnosis={diagnosis}
+          plannedActions={(data as any).planned_actions ?? nextActions}
+          expectedResults={(data as any).expected_results ?? (typeof expectedImpact === "string" ? expectedImpact : null)}
+          riskAssessment={(data as any).risk_assessment ?? null}
+          timeline={(data as any).timeline ?? null}
+          reasoning={reasoning}
+          budgetAllocation={(data as any).budget_allocation ?? null}
+        />
+      ) : (
+        <>
+          <Block title="Por que a IA recomendou esta proposta" icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
+            {reasoning ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{reasoning}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Sem racional registrado.</p>
+            )}
+          </Block>
 
-      <Block title={isStrategicPlan ? "Estratégia recomendada" : "Por que a IA recomendou esta proposta"} icon={<Bot className="h-3.5 w-3.5 text-primary" />}>
-        {reasoning ? (
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{reasoning}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground italic">Sem racional registrado.</p>
-        )}
-      </Block>
-
-      {isStrategicPlan && nextActions.length > 0 && (
-        <Block title={`Próximas ações sugeridas (${nextActions.length})`} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
-          <ol className="space-y-1.5 text-sm text-muted-foreground list-decimal list-inside">
-            {nextActions.map((a, i) => {
-              const label = typeof a === "string"
-                ? a
-                : (a?.title || a?.name || a?.description || a?.summary || JSON.stringify(a));
-              return <li key={i} className="leading-relaxed">{label}</li>;
-            })}
-          </ol>
-        </Block>
-      )}
-
-      {isStrategicPlan && limitations.length > 0 && (
-        <Block title="Limitações observadas" icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}>
-          <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
-            {limitations.map((l, i) => <li key={i}>{l}</li>)}
-          </ul>
-        </Block>
-      )}
-
-      {expectedImpact && (
-        <Block title="Impacto esperado" icon={<Target className="h-3.5 w-3.5 text-emerald-600" />}>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{expectedImpact}</p>
-        </Block>
+          {expectedImpact && (
+            <Block title="Impacto esperado" icon={<Target className="h-3.5 w-3.5 text-emerald-600" />}>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{expectedImpact}</p>
+            </Block>
+          )}
+        </>
       )}
 
       {!overviewOnly && (
