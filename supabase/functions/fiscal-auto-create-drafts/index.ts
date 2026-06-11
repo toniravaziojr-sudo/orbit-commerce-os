@@ -342,7 +342,7 @@ async function processTenanDrafts(
           .in('product_id', productIds),
         supabase
           .from('products')
-          .select('id, ncm, cest, origin_code, gtin, barcode, weight')
+          .select('id, sku, ncm, cest, origin_code, gtin, barcode, weight')
           .in('id', productIds),
       ]);
 
@@ -385,7 +385,7 @@ async function processTenanDrafts(
           numero_item: index + 1,
           order_item_id: item.id || null,
           product_id: item.product_id || null,
-          codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
+          codigo_produto: resolveCodigoProduto(item, productMap, index),
           descricao: item.product_name || 'Produto',
           ncm: fiscalProduct?.ncm || product?.ncm || '',
           cfop: fiscalProduct?.cfop_override || cfop,
