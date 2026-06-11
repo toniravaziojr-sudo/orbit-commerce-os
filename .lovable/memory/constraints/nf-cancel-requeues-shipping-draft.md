@@ -31,9 +31,12 @@ A RPC insere uma nova linha em `shipping_draft_queue` vinculada ao PV
    (`transportadora_nome`) com fallback `correios`.
 
 O resultado da chamada é registrado em `fiscal_invoice_events` com
-`event_type = 'shipping_requeue_after_cancel'` para auditoria. Erro na
-RPC NÃO falha o cancelamento — apenas registra
-`shipping_requeue_after_cancel_error`.
+`event_type = 'shipping_requeue_after_cancel'` para auditoria. Quando o
+requeue retorna `success=true` ou `reason='already_queued'`, a mesma edge
+deve disparar imediatamente `shipping-draft-process` filtrado pelo PV,
+para transformar o rascunho pendente em objeto `draft` visível na aba
+"Prontos para emitir" sem esperar o cron. Erro na RPC ou no disparo NÃO
+falha o cancelamento — apenas registra auditoria/aviso.
 
 ## Por que existe a RPC separada do trigger
 
@@ -46,6 +49,8 @@ não há INSERT novo. Sem a RPC, o lojista ficaria com PV em aberto e
 
 - Cancelar NF de pedido com despacho local e PV ficar sem rascunho
   logístico enfileirado.
+- Cancelar NF, ter linha nova em `shipping_draft_queue`, mas deixar o
+  operador esperando o cron para o objeto reaparecer na tela.
 - Reusar a RPC para criar rascunho em PV de pedido roteado a gateway
   (criaria duplicidade de despacho — gateway tem fluxo próprio via
   `gateway_sync_queue`).

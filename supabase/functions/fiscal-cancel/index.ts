@@ -223,11 +223,48 @@ Deno.serve(async (req) => {
           'requeue_shipping_draft_for_pv',
           { p_pv_id: invoice.source_order_invoice_id }
         );
+
+        const shouldDispatchShippingDraft = !requeueErr && (
+          requeueRes?.success === true ||
+          requeueRes?.reason === 'already_queued'
+        );
+
+        if (shouldDispatchShippingDraft) {
+          try {
+            const projectUrl = Deno.env.get('SUPABASE_URL');
+            const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+            if (projectUrl && serviceRoleKey) {
+              fetch(`${projectUrl}/functions/v1/shipping-draft-process`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${serviceRoleKey}`,
+                  'apikey': serviceRoleKey,
+                },
+                body: JSON.stringify({
+                  limit: 1,
+                  source_pedido_venda_id: invoice.source_order_invoice_id,
+                }),
+              }).catch((dispatchErr) => {
+                console.warn('[fiscal-cancel] shipping-draft-process dispatch failed:', dispatchErr);
+              });
+            }
+          } catch (dispatchErr) {
+            console.warn('[fiscal-cancel] shipping-draft-process dispatch error:', dispatchErr);
+          }
+        }
+
         await supabaseClient.from('fiscal_invoice_events').insert({
           invoice_id,
           tenant_id: tenantId,
           event_type: 'shipping_requeue_after_cancel',
-          event_data: { pv_id: invoice.source_order_invoice_id, result: requeueRes, error: requeueErr?.message ?? null },
+          event_data: {
+            pv_id: invoice.source_order_invoice_id,
+            result: requeueRes,
+            error: requeueErr?.message ?? null,
+            dispatch_requested: shouldDispatchShippingDraft,
+          },
         });
       } catch (e) {
         // Não falhar o cancelamento por erro no requeue — apenas registrar
