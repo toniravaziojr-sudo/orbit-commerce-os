@@ -362,11 +362,24 @@ Deno.serve(async (req) => {
       if ([8, 12, 13, 14].includes(digits.length)) return digits;
       return s.substring(0, 14);
     };
-    const invoiceItems = itens.map((item: any) => ({
+    // Fonte única do código do produto: SKU do cadastro (anti-regressão)
+    const manualProductIds = Array.from(
+      new Set(itens.map((it: any) => it.product_id).filter(Boolean) as string[])
+    );
+    const manualProductMap = new Map<string, { sku: string | null }>();
+    if (manualProductIds.length > 0) {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id, sku')
+        .in('id', manualProductIds);
+      (prods || []).forEach((p: any) => manualProductMap.set(p.id, { sku: p.sku }));
+    }
+
+    const invoiceItems = itens.map((item: any, index: number) => ({
       invoice_id: invoice.id,
       numero_item: item.numero_item,
       product_id: item.product_id || null,
-      codigo_produto: item.codigo || `ITEM${item.numero_item}`,
+      codigo_produto: resolveCodigoProduto(item, manualProductMap, index),
       descricao: item.descricao,
       ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),
       cfop: (item.cfop || cfopHeader).replace(/\D/g, '') || cfopHeader,

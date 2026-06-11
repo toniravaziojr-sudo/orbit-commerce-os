@@ -1,5 +1,6 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+import { resolveCodigoProduto } from "../_shared/fiscal-codigo-produto.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -168,12 +169,24 @@ Deno.serve(async (req) => {
         if ([8, 12, 13, 14].includes(digits.length)) return digits;
         return s.substring(0, 14);
       };
+      // Fonte única do código do produto: SKU do cadastro (anti-regressão)
+      const updProductIds = Array.from(
+        new Set((data.items as any[]).map((it: any) => it.product_id).filter(Boolean) as string[])
+      );
+      const updProductMap = new Map<string, { sku: string | null }>();
+      if (updProductIds.length > 0) {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, sku')
+          .in('id', updProductIds);
+        (prods || []).forEach((p: any) => updProductMap.set(p.id, { sku: p.sku }));
+      }
       // Insert updated items
       const itemsToInsert = data.items.map((item: any, index: number) => ({
         invoice_id,
         numero_item: index + 1,
         product_id: item.product_id || null,
-        codigo_produto: item.codigo_produto || item.product_id || `PROD-${index + 1}`,
+        codigo_produto: resolveCodigoProduto(item, updProductMap, index),
         descricao: item.descricao,
         ncm: item.ncm?.replace(/\D/g, '') || '',
         cfop: item.cfop || data.cfop || '5102',
