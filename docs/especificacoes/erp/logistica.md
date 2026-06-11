@@ -945,8 +945,10 @@ A integração com o WMS Pratika (DDS Informática) opera de forma **reativa e c
 ### Travas e idempotência
 
 - Configuração do tenant: interruptores `auto_send_nfe` e `auto_send_label`. Desligado = nenhum envio.
-- Idempotência por pedido no log combinado: se já houve sucesso anterior para o mesmo pedido, não há reenvio.
+- **Trava de claim por NF (2026-06-11):** antes de qualquer chamada à Pratika, a função reserva o envio inserindo uma linha "em andamento" no histórico, protegida por índice único parcial. Isso impede que dois gatilhos quase simultâneos (autorização da NF e criação do objeto logístico) disparem o mesmo envio em paralelo. Se houver concorrência, a segunda chamada retorna imediatamente sem chamar a Pratika de novo. Ao final, a linha reservada é **atualizada** com o resultado (sucesso ou erro), sem duplicar registros.
+- Idempotência rápida por pedido: se já houve sucesso anterior para a mesma NF, a função pula imediatamente.
 - Idempotência por sub-etapa: se a NF já foi enviada com sucesso antes (numa tentativa parcial), a operação combinada pula direto para o rastreio.
+- Reenvio administrativo (`force=true`) ignora a trava e gera linha nova de histórico — caso documentado de uso humano.
 
 ### Reconciliação automática
 
@@ -954,9 +956,10 @@ A cada 30 minutos, uma rotina varre pedidos das últimas 24h com NF autorizada *
 
 ### Validação E2E
 
-- Aguardando novo teste real ponta a ponta após esta refatoração (envio acoplado + CNPJ cru).
+- Validado em 2026-06-11 com o pedido #616 (ciclo completo: pedido → PV → NF autorizada → etiqueta → remessa → Pratika).
+- Trava de claim validada em 2026-06-11 via teste de concorrência em banco (segundo INSERT bloqueado pelo índice único parcial).
 
-Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration` e `mem://constraints/wms-pratika-combined-send-and-cnpj-raw`.
+Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration`, `mem://constraints/wms-pratika-combined-send-and-cnpj-raw` e `mem://constraints/wms-pratika-combined-claim-lock`.
 
 
 ---
