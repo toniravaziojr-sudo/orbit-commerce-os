@@ -406,7 +406,11 @@ Anti-regressão: `mem://constraints/nf-cancel-blocked-by-shipment-state`,
 `mem://constraints/shipping-delivery-status-enum-spelling-canonical`.
 Casos de origem: PV 403 / NF 404 (2026-06-08, ciclo limpo do PV); pedidos
 #612 e #613 (Respeite o Homem, 2026-06-11) — NFs 421/422 emitidas com SKU
-errado, justificaram o requeue automático.
+errado, justificaram o requeue automático. **NF 424 (Edivaldo, 2026-06-11b)**
+— cancelamento gerou requeue mas o processador parou no dedup encontrando
+o objeto antigo já cancelado; corrigido para ignorar objetos com status
+`cancelado` na verificação de duplicidade (apenas objetos ativos travam a
+recriação).
 
 
 

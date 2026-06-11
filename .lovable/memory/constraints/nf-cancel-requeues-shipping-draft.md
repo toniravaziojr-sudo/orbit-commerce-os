@@ -77,3 +77,33 @@ objeto logístico — retrabalho e risco de esquecimento.
 - Memórias irmãs: `mem://constraints/nf-cancel-blocked-by-shipment-state`,
   `mem://constraints/nf-cancel-reopens-pv-clean`,
   `mem://constraints/shipping-draft-mirrors-pedido-venda`.
+
+## Regra adicional (rev 2026-06-11b) — Dedup ignora cancelados
+
+O processador `shipping-draft-process` aplica dedup por
+`source_pedido_venda_id` / `order_id` **excluindo** objetos com
+`delivery_status='canceled'`. Objeto cancelado é histórico (foi
+desativado pelo cancelamento da NF anterior) e não pode bloquear a
+criação do novo rascunho.
+
+### Sintoma da regressão (sem essa regra)
+
+NF é cancelada → `fiscal-cancel` marca o objeto antigo como `canceled`
++ `invoice_id=NULL` → reenfileira o PV → `shipping-draft-process` roda,
+acha o objeto cancelado na verificação de duplicidade, marca a fila
+como `done` e **NÃO cria** o novo rascunho. PV fica em "Pronto para
+emitir" sem objeto logístico associado.
+
+### O que NUNCA pode acontecer
+
+- Dedup de `shipping-draft-process` voltar a comparar contra **todos**
+  os objetos do PV/pedido sem filtrar `delivery_status='canceled'`.
+- Outros status terminais (`returned`, `delivered`) entrarem no filtro
+  de exclusão — apenas `canceled` é histórico revogado. Os demais
+  representam fluxo concluído normalmente.
+
+## Arquivos
+
+- `supabase/functions/shipping-draft-process/index.ts` — bloco Dedup.
+- `supabase/functions/fiscal-cancel/index.ts` — gatilho de requeue + dispatch.
+- Migration: `supabase/migrations/20260611185714_*.sql` (RPC).
