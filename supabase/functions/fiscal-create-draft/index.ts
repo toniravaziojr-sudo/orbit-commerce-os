@@ -10,6 +10,7 @@ import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fi
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveCodigoProduto } from "../_shared/fiscal-codigo-produto.ts";
 import { ensurePvContentDeclaration } from "../_shared/ensure-pv-content-declaration.ts";
 
 
