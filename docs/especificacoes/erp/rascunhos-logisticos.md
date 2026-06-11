@@ -245,6 +245,7 @@ Lista populada a partir dos `service_name` distintos existentes nas remessas do 
 | 2026-04-06 | v2.4.0 | Fluxo integrado NF-e → Remessa → Despacho. Helper nfe-shipment-link.ts. NF-e obrigatória. Status dispatched. UI de impressão e despacho. |
 | 2026-04-14 | v2.4.1 | Filtros de Rastreios cobrindo PAC/Sedex como Correios, fallback dedicado e "Sem transportadora". Normalização case-insensitive. |
 | 2026-04-16 | v2.5.0 | Coluna `shipments.service_name` adicionada. Propagação obrigatória dos 3 campos (carrier+service_name+service_code) em scheduler-tick, shipping-create-shipment e shipping-register-manual. UI passa a mostrar "Correios · PAC/Sedex" e ganha filtro dinâmico de Serviço. Backfill aplicado no tenant Respeite o Homem (106 remessas normalizadas). |
+| 2026-06-11 | v2.6.0 | **Adoção de rascunho + Despacho automático.** Ao receber etiqueta/postagem (`shipment-ingest`), o sistema procura primeiro um rascunho existente do mesmo pedido (sem rastreio) e **adota** esse registro, em vez de criar uma segunda remessa "fantasma". Quando o evento é `label_created` ou `posted`, o pedido é **promovido automaticamente** para `dispatched` com `shipped_at = now()` (apenas se estiver em estado anterior ao despacho: `paid`, `processing`, `ready_to_invoice`, `invoice_authorized`, `invoice_issued`, `fulfilled`). Elimina o caso de remessa duplicada em `failed` + pedido travado em `processing`. Origem: auditoria 2026-06-11 (Respeite o Homem, pedido #612). |
 
 ---
 
