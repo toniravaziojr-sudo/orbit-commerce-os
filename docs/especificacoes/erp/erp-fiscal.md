@@ -188,7 +188,45 @@ Kit "Combo Calvície"  ──►   desmembrar=OFF ──► 1 item (Combo Calví
 | `supabase/functions/_shared/kit-unbundler.ts` | **Não utilizado em fluxos de PV/NF** (legado — kept apenas para referência histórica) | Operava sobre `order_items` |
 | `supabase/functions/_shared/kit-unbundler-fiscal-items.ts` | `fiscal-prepare-invoice` (PV→NF) | Opera sobre itens já em formato `fiscal_invoice_items`. **Resolução de produto: `fiscal_invoice_items.product_id` direto na linha (fonte única, preenchido na criação do PV em todos os caminhos — automático, manual, duplicado).** Fallbacks legados (`order_item_id`, SKU, prefixo de 8 hex) ficam como rede de segurança para linhas antigas. Expande componentes com tributos recalculados, peso recomposto e auditoria. |
 
-**Anti-regressão:** ver memória `mem://constraints/fiscal-kit-unbundling-at-nf-time`.
+
+
+### Código do Produto na NF — SKU do cadastro é fonte única (rev 2026-06-11)
+
+O campo `fiscal_invoice_items.codigo_produto` (que sai no XML, no DANFE e no envio para o WMS Pratika) segue uma regra única e obrigatória em **todos** os caminhos de criação/edição de Pedido de Venda e Nota Fiscal:
+
+1. Se o item tem `product_id` vinculado **e** `products.sku` está preenchido → `codigo_produto = products.sku`. Sempre. Sem exceção.
+2. Senão, usa o SKU/código enviado no item — desde que **não** seja apenas o prefixo de 8 caracteres hex do UUID do produto (resíduo do bug histórico).
+3. Fallback final: `ITEM-N` (componentes de kit: `COMP-N`). **Proibido** usar `product_id.substring(0, 8)` como código.
+
+**Helper canônico:** `supabase/functions/_shared/fiscal-codigo-produto.ts::resolveCodigoProduto(item, productMap, index)`.
+
+**Pontos obrigatórios de consumo:**
+- `fiscal-auto-create-drafts` (PV automático do pedido pago)
+- `fiscal-create-draft` (PV manual a partir de pedido existente)
+- `fiscal-create-manual` (PV 100% manual via ProductSelector)
+- `fiscal-update-draft` (edição de rascunho de PV/NF — refaz lookup ao salvar)
+- `_shared/kit-unbundler-fiscal-items.ts` (componentes herdam SKU do cadastro do próprio componente)
+
+Qualquer nova edge function que escreva em `fiscal_invoice_items.codigo_produto` **deve** usar o helper. Code review rejeita `product_id?.substring(0, 8)` em qualquer forma.
+
+**Backfill seguro (idempotente, restrito a rascunhos):**
+```sql
+UPDATE fiscal_invoice_items fii
+SET codigo_produto = p.sku
+FROM fiscal_invoices fi, products p
+WHERE fii.invoice_id = fi.id
+  AND fii.product_id = p.id
+  AND p.sku IS NOT NULL AND length(btrim(p.sku)) > 0
+  AND fi.status IN ('draft','rejected')
+  AND fii.codigo_produto = substring(fii.product_id::text, 1, 8);
+```
+NF com `status='authorized'` é imutável na SEFAZ — nunca tocar.
+
+**Incidente de origem:** NFs 421 e 422 (Respeite o Homem, jun/2026) saíram com `8259065f` no lugar do SKU `0001` do Shampoo Calvície Zero. O carrinho não persistia SKU no item do pedido e o motor fiscal caía no fallback de UUID, contaminando XML, DANFE e SOAP da Pratika.
+
+**Anti-regressão:** ver memória `mem://constraints/fiscal-item-codigo-produto-sku-cadastro-source-of-truth`.
+
+
 
 
 
