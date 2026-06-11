@@ -384,15 +384,26 @@ justificativa e mostra uma mensagem em destaque; (2) a edge function
    `recompute_pv_pedido_status`. Não é exibida observação extra (nem
    "NF cancelada", nem "Pedido sem itens", nem nada). O PV fica disponível
    para emitir uma nova NF.
-3. **FK `shipments.invoice_id` agora é `ON DELETE SET NULL`** — exclusões
+3. **NOVO objeto logístico é enfileirado automaticamente (rev 2026-06-11).**
+   Logo após o reset do PV, a edge `fiscal-cancel` chama a RPC
+   `public.requeue_shipping_draft_for_pv(p_pv_id)` que insere um novo
+   rascunho em `shipping_draft_queue` vinculado ao PV. Idempotente
+   (respeita o unique parcial `shipping_draft_queue_pv_open_unique`),
+   pula PVs roteados para gateway (Frenet) / marketplace e PVs em status
+   terminal. Fecha o ciclo de "reset em 1 clique": cancelar a NF errada
+   já devolve o PV pronto para emitir nova NF **e** com novo rascunho de
+   etiqueta esperando na fila. O resultado é registrado em
+   `fiscal_invoice_events` como `shipping_requeue_after_cancel`.
+4. **FK `shipments.invoice_id` agora é `ON DELETE SET NULL`** — exclusões
    futuras da NF cancelada não esbarram em referência pendente.
 
 Anti-regressão: `mem://constraints/nf-cancel-blocked-by-shipment-state`,
-`mem://constraints/nf-cancel-reopens-pv-clean` e
+`mem://constraints/nf-cancel-reopens-pv-clean`,
+`mem://constraints/nf-cancel-requeues-shipping-draft` e
 `mem://constraints/shipping-delivery-status-enum-spelling-canonical`.
-Caso de origem: PV 403 / NF 404 / objeto AP053729025BR (Respeite o Homem,
-2026-06-08) — o ciclo anterior deixou a observação fantasma "Pedido sem
-itens" no PV e impedia a exclusão da NF.
+Casos de origem: PV 403 / NF 404 (2026-06-08, ciclo limpo do PV); pedidos
+#612 e #613 (Respeite o Homem, 2026-06-11) — NFs 421/422 emitidas com SKU
+errado, justificaram o requeue automático.
 
 
 
