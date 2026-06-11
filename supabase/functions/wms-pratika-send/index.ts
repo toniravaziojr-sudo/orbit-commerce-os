@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Idempotência — chave estável é a NF (invoice_id). Compat com registros antigos por order_id.
+      // Idempotência rápida — chave é a NF (invoice_id). Compat com registros antigos por order_id.
       if (!force) {
         const orFilter = resolvedOrderId
           ? `reference_id.eq.${invoice.id},reference_id.eq.${resolvedOrderId}`
@@ -267,13 +267,38 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Reserva de trava — impede 2 chamadas simultâneas da mesma NF (índice único parcial
+      // uniq_wms_pratika_combined_inflight garante 1 linha pending/success por NF).
+      let claimRowId: string | null = null;
+      if (!force) {
+        const { data: claim, error: claimErr } = await supabase
+          .from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'pending',
+            request_payload: `claim · invoice: ${invoice.id}`,
+          }).select('id').single();
+        if (claimErr) {
+          if ((claimErr as any).code === '23505') {
+            console.log(`[wms-pratika] send_combined dedup-claim invoice=${invoice.id}`);
+            return new Response(JSON.stringify({ success: true, already_in_progress: true }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+          throw claimErr;
+        }
+        claimRowId = claim?.id || null;
+      }
+
       const chaveLimpa = String(invoice.chave_acesso || '').replace(/\D/g, '');
       if (chaveLimpa.length !== 44) {
         const msg = `Chave de acesso inválida (${chaveLimpa.length} dígitos)`;
-        await supabase.from('wms_pratika_logs').insert({
-          tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-          reference_type: 'invoice', status: 'error', error_message: msg,
-        });
+        if (claimRowId) {
+          await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: msg }).eq('id', claimRowId);
+        } else {
+          await supabase.from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'error', error_message: msg,
+          });
+        }
         return new Response(JSON.stringify({ success: false, stage: 'validation', error: msg }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
