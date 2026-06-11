@@ -425,15 +425,18 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
         );
       case "strategic_plan":
         return (
-          <StrategicPlanContent
-            diagnosis={data.diagnosis}
-            plannedActions={data.planned_actions}
-            expectedResults={data.expected_results}
-            riskAssessment={data.risk_assessment}
-            timeline={data.timeline}
-            reasoning={action.reasoning}
-            budgetAllocation={data.budget_allocation}
-          />
+          <div className="space-y-4">
+            {data.diagnosis && (
+              <DetailSection icon={<Bot className="h-4 w-4" />} title="Diagnóstico">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                  {data.diagnosis}
+                </p>
+              </DetailSection>
+            )}
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              Para ver os detalhes completos do plano (ações planejadas, orçamento, públicos, criativos) e aprovar ou ajustar, abra a aba <strong>Aguardando Ação</strong>.
+            </div>
+          </div>
         );
       default:
         return <RawDataPreview data={data} title="Dados da Ação" />;
