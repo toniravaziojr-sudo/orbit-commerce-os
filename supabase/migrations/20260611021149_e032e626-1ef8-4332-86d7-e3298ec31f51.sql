@@ -1,0 +1,13 @@
+DELETE FROM shipping_content_declarations WHERE fiscal_invoice_id='4ca06a4c-c8fe-4c18-a95c-e7dbeec222c7' OR order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM fiscal_invoice_items WHERE invoice_id='4ca06a4c-c8fe-4c18-a95c-e7dbeec222c7';
+DELETE FROM fiscal_invoice_events WHERE invoice_id='4ca06a4c-c8fe-4c18-a95c-e7dbeec222c7';
+DELETE FROM fiscal_invoices WHERE id='4ca06a4c-c8fe-4c18-a95c-e7dbeec222c7';
+DELETE FROM fiscal_draft_queue WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM shipping_draft_queue WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM order_items WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM order_history WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM order_attribution WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM order_price_audit WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM payment_transactions WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM notification_logs WHERE order_id='f799854d-fea8-4292-9751-8e1c7c1beeef';
+DELETE FROM orders WHERE id='f799854d-fea8-4292-9751-8e1c7c1beeef';
