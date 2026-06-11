@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     }
 
     // Buscar pedido
-    let orderQuery = supabase.from('orders').select('id, tenant_id, order_number');
+    let orderQuery = supabase.from('orders').select('id, tenant_id, order_number, status');
     
     if (order_id) {
       orderQuery = orderQuery.eq('id', order_id);
@@ -209,13 +209,30 @@ Deno.serve(async (req) => {
       `${carrierConflict ? ` (CONFLICT: original was '${originalCarrier}')` : ''}`
     );
 
-    // Verificar se já existe remessa com mesmo order_id + tracking_code (idempotência)
+    // 1) Idempotência: já existe shipment com mesmo order_id + tracking_code?
     const { data: existingShipment } = await supabase
       .from('shipments')
       .select('id, delivery_status, last_status_at')
       .eq('order_id', resolvedOrderId)
       .eq('tracking_code', tracking_code)
-      .single();
+      .maybeSingle();
+
+    // 2) Se não existe, procura rascunho automático (sem tracking) criado pelo
+    //    gatilho sync_shipment_with_pv_status. Reutilizamos esse rascunho em vez
+    //    de criar uma remessa duplicada, evitando o "shipment fantasma".
+    let draftToAdopt: { id: string; delivery_status: string } | null = null;
+    if (!existingShipment) {
+      const { data: draft } = await supabase
+        .from('shipments')
+        .select('id, delivery_status')
+        .eq('order_id', resolvedOrderId)
+        .or('tracking_code.is.null,tracking_code.eq.')
+        .eq('manually_adjusted', false)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (draft) draftToAdopt = draft;
+    }
 
     let shipmentId: string;
     let isNew = false;
@@ -250,6 +267,38 @@ Deno.serve(async (req) => {
       }
 
       shipmentId = existingShipment.id;
+    } else if (draftToAdopt) {
+      // Adota o rascunho automático: grava tracking e zera marcas de poll de quando estava sem rastreio
+      const { error: adoptError } = await supabase
+        .from('shipments')
+        .update({
+          tracking_code,
+          carrier: normalizedCarrier,
+          delivery_status: deliveryStatus,
+          last_status_at: new Date().toISOString(),
+          source,
+          source_id,
+          metadata: {
+            ...metadata,
+            adopted_from_draft: true,
+            carrier_inferred: carrierInferred,
+            carrier_conflict: carrierConflict,
+            original_carrier: carrierConflict ? originalCarrier : undefined,
+          },
+          poll_error_count: 0,
+          last_poll_error: null,
+          ...(deliveryStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
+        })
+        .eq('id', draftToAdopt.id);
+
+      if (adoptError) {
+        console.error("[shipment-ingest] Error adopting draft shipment:", adoptError);
+        throw adoptError;
+      }
+
+      shipmentId = draftToAdopt.id;
+      isNew = true; // contabiliza como "criação" no histórico do pedido
+      console.log(`[shipment-ingest] Adopted draft shipment ${shipmentId} for order ${order.order_number}`);
     } else {
       // Criar nova remessa
       const { data: newShipment, error: insertError } = await supabase
@@ -334,6 +383,23 @@ Deno.serve(async (req) => {
 
     if (deliveryStatus === 'delivered') {
       orderUpdate.delivered_at = new Date().toISOString();
+    }
+
+    // Emissão da etiqueta = pedido vai para "Despachado". Só promove quando o
+    // pedido ainda está em estado pré-despacho — não regride pedidos já enviados/
+    // entregues/cancelados.
+    const dispatchTriggerStatuses = new Set([
+      'label_created', 'posted', 'in_transit', 'out_for_delivery', 'delivered'
+    ]);
+    const preDispatchOrderStatuses = new Set([
+      'paid', 'processing', 'ready_to_invoice', 'pending', 'awaiting_shipment'
+    ]);
+    if (dispatchTriggerStatuses.has(deliveryStatus)
+        && preDispatchOrderStatuses.has((order as any).status as string)) {
+      orderUpdate.status = 'dispatched';
+      if (!orderUpdate.shipped_at) {
+        orderUpdate.shipped_at = new Date().toISOString();
+      }
     }
 
     const { error: orderUpdateError } = await supabase
