@@ -354,11 +354,15 @@ Deno.serve(async (req) => {
         });
 
         if (!nfeResult.success) {
-          await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-            reference_type: 'invoice', status: 'error',
-            error_message: `Falha na etapa NF: ${nfeErrMsg}`,
-          });
+          const errMsg = `Falha na etapa NF: ${nfeErrMsg}`;
+          if (claimRowId) {
+            await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: errMsg }).eq('id', claimRowId);
+          } else {
+            await supabase.from('wms_pratika_logs').insert({
+              tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+              reference_type: 'invoice', status: 'error', error_message: errMsg,
+            });
+          }
           return new Response(JSON.stringify({ success: false, stage: 'nfe', error: nfeErrMsg }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
