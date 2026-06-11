@@ -149,7 +149,7 @@ export function EmitInvoiceButton({ orderId, orderNumber }: EmitInvoiceButtonPro
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => window.open(existingInvoice.danfe_url!, '_blank')}
+            onClick={() => window.open(`/imprimir?source=danfe&id=${encodeURIComponent(existingInvoice.id)}`, '_blank', 'noopener,noreferrer')}
           >
             <Download className="h-4 w-4 mr-1" />
             DANFE
