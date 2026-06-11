@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Idempotência — chave estável é a NF (invoice_id). Compat com registros antigos por order_id.
+      // Idempotência rápida — chave é a NF (invoice_id). Compat com registros antigos por order_id.
       if (!force) {
         const orFilter = resolvedOrderId
           ? `reference_id.eq.${invoice.id},reference_id.eq.${resolvedOrderId}`
@@ -267,13 +267,38 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Reserva de trava — impede 2 chamadas simultâneas da mesma NF (índice único parcial
+      // uniq_wms_pratika_combined_inflight garante 1 linha pending/success por NF).
+      let claimRowId: string | null = null;
+      if (!force) {
+        const { data: claim, error: claimErr } = await supabase
+          .from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'pending',
+            request_payload: `claim · invoice: ${invoice.id}`,
+          }).select('id').single();
+        if (claimErr) {
+          if ((claimErr as any).code === '23505') {
+            console.log(`[wms-pratika] send_combined dedup-claim invoice=${invoice.id}`);
+            return new Response(JSON.stringify({ success: true, already_in_progress: true }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+          throw claimErr;
+        }
+        claimRowId = claim?.id || null;
+      }
+
       const chaveLimpa = String(invoice.chave_acesso || '').replace(/\D/g, '');
       if (chaveLimpa.length !== 44) {
         const msg = `Chave de acesso inválida (${chaveLimpa.length} dígitos)`;
-        await supabase.from('wms_pratika_logs').insert({
-          tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-          reference_type: 'invoice', status: 'error', error_message: msg,
-        });
+        if (claimRowId) {
+          await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: msg }).eq('id', claimRowId);
+        } else {
+          await supabase.from('wms_pratika_logs').insert({
+            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+            reference_type: 'invoice', status: 'error', error_message: msg,
+          });
+        }
         return new Response(JSON.stringify({ success: false, stage: 'validation', error: msg }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -329,11 +354,15 @@ Deno.serve(async (req) => {
         });
 
         if (!nfeResult.success) {
-          await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-            reference_type: 'invoice', status: 'error',
-            error_message: `Falha na etapa NF: ${nfeErrMsg}`,
-          });
+          const errMsg = `Falha na etapa NF: ${nfeErrMsg}`;
+          if (claimRowId) {
+            await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: errMsg }).eq('id', claimRowId);
+          } else {
+            await supabase.from('wms_pratika_logs').insert({
+              tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+              reference_type: 'invoice', status: 'error', error_message: errMsg,
+            });
+          }
           return new Response(JSON.stringify({ success: false, stage: 'nfe', error: nfeErrMsg }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
@@ -368,21 +397,31 @@ Deno.serve(async (req) => {
         });
 
         if (!trkResult.success) {
-          await supabase.from('wms_pratika_logs').insert({
-            tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-            reference_type: 'invoice', status: 'error',
-            error_message: `NF enviada, falha no rastreio: ${trkErrMsg}`,
-          });
+          const errMsg = `NF enviada, falha no rastreio: ${trkErrMsg}`;
+          if (claimRowId) {
+            await supabase.from('wms_pratika_logs').update({ status: 'error', error_message: errMsg }).eq('id', claimRowId);
+          } else {
+            await supabase.from('wms_pratika_logs').insert({
+              tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+              reference_type: 'invoice', status: 'error', error_message: errMsg,
+            });
+          }
           return new Response(JSON.stringify({ success: false, stage: 'tracking', error: trkErrMsg, nfe_sent: true }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
       }
 
-      await supabase.from('wms_pratika_logs').insert({
-        tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
-        reference_type: 'invoice', status: 'success',
-        request_payload: `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`,
-      });
+      const successPayload = `cnpj: ${cnpj}, invoice: ${invoice.id}, rastreio: ${shipment.tracking_code}`;
+      if (claimRowId) {
+        await supabase.from('wms_pratika_logs').update({
+          status: 'success', request_payload: successPayload, error_message: null,
+        }).eq('id', claimRowId);
+      } else {
+        await supabase.from('wms_pratika_logs').insert({
+          tenant_id: tenantId, operation: 'combined', reference_id: invoice.id,
+          reference_type: 'invoice', status: 'success', request_payload: successPayload,
+        });
+      }
 
       return new Response(JSON.stringify({
         success: true, combined: true, invoice_id: invoice.id, tracking_code: shipment.tracking_code
