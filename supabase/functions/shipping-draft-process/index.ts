@@ -18,13 +18,25 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({} as any))
     const limit = Math.min(Number(body?.limit) || 10, 25)
+    const sourcePedidoVendaId = typeof body?.source_pedido_venda_id === 'string' ? body.source_pedido_venda_id : null
+    const orderId = typeof body?.order_id === 'string' ? body.order_id : null
 
-    const { data: items, error } = await supabase
+    let itemsQuery = supabase
       .from('shipping_draft_queue')
       .select('id, tenant_id, order_id, source_pedido_venda_id, provider, attempts')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(limit)
+
+    if (sourcePedidoVendaId) {
+      itemsQuery = itemsQuery.eq('source_pedido_venda_id', sourcePedidoVendaId)
+    }
+
+    if (orderId) {
+      itemsQuery = itemsQuery.eq('order_id', orderId)
+    }
+
+    const { data: items, error } = await itemsQuery
 
     if (error) throw error
 

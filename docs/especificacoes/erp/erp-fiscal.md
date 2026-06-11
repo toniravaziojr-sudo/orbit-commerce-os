@@ -390,10 +390,13 @@ justificativa e mostra uma mensagem em destaque; (2) a edge function
    rascunho em `shipping_draft_queue` vinculado ao PV. Idempotente
    (respeita o unique parcial `shipping_draft_queue_pv_open_unique`),
    pula PVs roteados para gateway (Frenet) / marketplace e PVs em status
-   terminal. Fecha o ciclo de "reset em 1 clique": cancelar a NF errada
-   já devolve o PV pronto para emitir nova NF **e** com novo rascunho de
-   etiqueta esperando na fila. O resultado é registrado em
-   `fiscal_invoice_events` como `shipping_requeue_after_cancel`.
+   terminal. **Na mesma execução, o sistema também dispara o processador
+   sob demanda do rascunho logístico**, apontando para o PV recém-reaberto,
+   para que o objeto volte a aparecer em **Prontos para emitir** em segundos,
+   sem depender do cron de segurança. Fecha o ciclo de "reset em 1 clique":
+   cancelar a NF errada já devolve o PV pronto para emitir nova NF **e**
+   com novo rascunho de etiqueta visível quase imediatamente. O resultado é
+   registrado em `fiscal_invoice_events` como `shipping_requeue_after_cancel`.
 4. **FK `shipments.invoice_id` agora é `ON DELETE SET NULL`** — exclusões
    futuras da NF cancelada não esbarram em referência pendente.
 
