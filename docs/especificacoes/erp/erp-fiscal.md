@@ -523,6 +523,9 @@ Regras importantes:
    → 'authorized' mantém `emitida`
    → 'rejected' / 'denied' retornam a nota para `pendencia`, com o motivo salvo para correção
 6. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
+
+**Invariante crítico (v2026-06-11):** ao receber `autorizado` da Focus NFe, o `fiscal-emit` PRIMEIRO grava no banco `status='authorized'`, `chave_acesso`, `focus_ref`, `fiscal_stage='emitida'` e `authorized_at`. SÓ DEPOIS dispara os efeitos colaterais (vínculo com remessa, e-mail de NF, envio Pratika), cada um em try/catch isolado. Falha em qualquer side-effect é apenas logada — nunca reverte o estado fiscal. Quebrar essa ordem causa a regressão "NF autorizada na SEFAZ, mas banco mantém `draft`/`pronta_emitir`", bloqueando re-emissão. Constraint: `mem://constraints/fiscal-emit-persist-authorized-before-side-effects`.
+
 ```
 
 ### Mapeamento de Status NF-e (Sefaz → Interno)
