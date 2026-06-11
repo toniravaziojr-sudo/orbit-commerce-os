@@ -385,6 +385,23 @@ Deno.serve(async (req) => {
       orderUpdate.delivered_at = new Date().toISOString();
     }
 
+    // Emissão da etiqueta = pedido vai para "Despachado". Só promove quando o
+    // pedido ainda está em estado pré-despacho — não regride pedidos já enviados/
+    // entregues/cancelados.
+    const dispatchTriggerStatuses = new Set([
+      'label_created', 'posted', 'in_transit', 'out_for_delivery', 'delivered'
+    ]);
+    const preDispatchOrderStatuses = new Set([
+      'paid', 'processing', 'ready_to_invoice', 'pending', 'awaiting_shipment'
+    ]);
+    if (dispatchTriggerStatuses.has(deliveryStatus)
+        && preDispatchOrderStatuses.has((order as any).status as string)) {
+      orderUpdate.status = 'dispatched';
+      if (!orderUpdate.shipped_at) {
+        orderUpdate.shipped_at = new Date().toISOString();
+      }
+    }
+
     const { error: orderUpdateError } = await supabase
       .from('orders')
       .update(orderUpdate)
