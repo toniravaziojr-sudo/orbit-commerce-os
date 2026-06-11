@@ -214,6 +214,30 @@ Deno.serve(async (req) => {
         .eq('id', invoice.source_order_invoice_id)
         .eq('tenant_id', tenantId);
       await supabaseClient.rpc('recompute_pv_pedido_status', { p_pv_id: invoice.source_order_invoice_id });
+
+      // Fecha o ciclo de reset: enfileira novo rascunho logístico vinculado
+      // ao PV (idempotente, respeita roteamento gateway/marketplace e
+      // status terminal). Ver mem://constraints/nf-cancel-requeues-shipping-draft.
+      try {
+        const { data: requeueRes, error: requeueErr } = await supabaseClient.rpc(
+          'requeue_shipping_draft_for_pv',
+          { p_pv_id: invoice.source_order_invoice_id }
+        );
+        await supabaseClient.from('fiscal_invoice_events').insert({
+          invoice_id,
+          tenant_id: tenantId,
+          event_type: 'shipping_requeue_after_cancel',
+          event_data: { pv_id: invoice.source_order_invoice_id, result: requeueRes, error: requeueErr?.message ?? null },
+        });
+      } catch (e) {
+        // Não falhar o cancelamento por erro no requeue — apenas registrar
+        await supabaseClient.from('fiscal_invoice_events').insert({
+          invoice_id,
+          tenant_id: tenantId,
+          event_type: 'shipping_requeue_after_cancel_error',
+          event_data: { pv_id: invoice.source_order_invoice_id, error: String(e) },
+        });
+      }
     }
 
     if (invoice.order_id) {
