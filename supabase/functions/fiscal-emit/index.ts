@@ -563,17 +563,37 @@ Deno.serve(async (req) => {
       updateData.xml_url = statusData.caminho_xml_nota_fiscal ? `${baseUrl}${statusData.caminho_xml_nota_fiscal}` : null;
       updateData.danfe_url = statusData.caminho_danfe ? `${baseUrl}${statusData.caminho_danfe}` : null;
       updateData.authorized_at = new Date().toISOString();
+    }
 
+    // CRÍTICO: persistir status/chave ANTES de qualquer efeito colateral.
+    // Se a NF foi autorizada na SEFAZ, o banco DEVE refletir isso mesmo que
+    // os passos seguintes (link de remessa, email, WMS) falhem.
+    const { error: persistError } = await supabaseClient
+      .from('fiscal_invoices')
+      .update(updateData)
+      .eq('id', invoice_id);
+
+    if (persistError) {
+      console.error('[fiscal-emit] FALHA CRÍTICA ao persistir status autorizado:', persistError);
+      // Não relança — a NF está autorizada na SEFAZ; registrar e seguir para side-effects.
+    }
+
+    if (focusStatus === 'autorizado' && statusData?.chave_nfe) {
+      // Side-effects pós-persistência. Falhas aqui não revertem o estado autorizado.
       if (invoice.order_id) {
-        await linkNFeToShipment({
-          supabaseClient,
-          orderId: invoice.order_id,
-          invoiceId: invoice_id,
-          tenantId,
-          chaveAcesso: statusData.chave_nfe,
-          autoCreateShipment: !!settings.auto_create_shipment,
-          callerModule: 'fiscal-emit',
-        });
+        try {
+          await linkNFeToShipment({
+            supabaseClient,
+            orderId: invoice.order_id,
+            invoiceId: invoice_id,
+            tenantId,
+            chaveAcesso: statusData.chave_nfe,
+            autoCreateShipment: !!settings.auto_create_shipment,
+            callerModule: 'fiscal-emit',
+          });
+        } catch (linkErr) {
+          console.error('[fiscal-emit] linkNFeToShipment falhou (não bloqueia autorização):', linkErr);
+        }
       }
 
       if (settings.enviar_email_nfe !== false) {
@@ -597,11 +617,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ action: 'send_combined', invoice_id, tenant_id: tenantId }),
       }).catch(err => console.error('[fiscal-emit] WMS Pratika error:', err));
     }
-
-    await supabaseClient
-      .from('fiscal_invoices')
-      .update(updateData)
-      .eq('id', invoice_id);
 
     // Marca alta da SEFAZ: o cursor numero_nfe_atual nunca recua.
     // Garante que nenhum número já queimado lá fora seja reusado por rascunho.
