@@ -152,8 +152,10 @@ Deno.serve(async (req) => {
           throw new Error('Queue item has neither order_id nor source_pedido_venda_id')
         }
 
-        // Dedup
-        let dupQuery = supabase.from('shipments').select('id').limit(1)
+        // Dedup — só bloqueia se houver objeto ATIVO (não cancelado).
+        // Objetos cancelados são histórico (ex.: NF cancelada limpou o anterior)
+        // e não devem impedir a recriação de um novo rascunho.
+        let dupQuery = supabase.from('shipments').select('id').neq('delivery_status', 'canceled').limit(1)
         if (item.source_pedido_venda_id) dupQuery = dupQuery.eq('source_pedido_venda_id', item.source_pedido_venda_id)
         else if (item.order_id) dupQuery = dupQuery.eq('order_id', item.order_id)
         const { data: existing } = await dupQuery
