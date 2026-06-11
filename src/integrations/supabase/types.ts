@@ -26011,6 +26011,10 @@ export type Database = {
         }
         Returns: Json
       }
+      requeue_shipping_draft_for_pv: {
+        Args: { p_pv_id: string }
+        Returns: Json
+      }
       reserve_credits: {
         Args: {
           p_credits: number
