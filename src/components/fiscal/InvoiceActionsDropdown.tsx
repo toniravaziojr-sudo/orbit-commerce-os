@@ -150,24 +150,19 @@ export function InvoiceActionsDropdown({
     try { await downloadViaBackend('xml'); } finally { setIsDownloadingXml(false); }
   };
 
-  // Print DANFE (opens print dialog) — segue usando URL direta para preview.
-  // Guard `printed` evita que o evento 'load' (que em PDFs embeds pode disparar
-  // mais de uma vez em alguns navegadores) chame print() múltiplas vezes.
+  // Imprimir DANFE — abre o visualizador interno (/imprimir), que baixa o PDF
+  // pelo nosso backend e dispara o diálogo de impressão automaticamente.
+  // Antes abríamos a URL do provedor fiscal direto, o que era bloqueado por
+  // extensões e proxies corporativos (ERR_BLOCKED_BY_CLIENT) e dependia de
+  // domínio externo. Agora tudo passa pela nossa origem.
   const handlePrintDanfe = async () => {
     if (!invoice.danfe_url) {
       toast.error('DANFE não disponível para impressão');
       return;
     }
     try {
-      const printWindow = window.open(invoice.danfe_url, '_blank');
-      if (printWindow) {
-        let printed = false;
-        printWindow.addEventListener('load', () => {
-          if (printed) return;
-          printed = true;
-          printWindow.print();
-        });
-      }
+      const url = `/imprimir?source=danfe&id=${encodeURIComponent(invoice.id)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
       onPrint?.();
     } catch (error) {
       console.error('Error printing DANFE:', error);

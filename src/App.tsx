@@ -86,6 +86,7 @@ const Finance = lazy(() => import("@/pages/Finance"));
 const Fiscal = lazy(() => import("@/pages/Fiscal"));
 const FiscalSettings = lazy(() => import("@/pages/FiscalSettings"));
 const FiscalProductsConfig = lazy(() => import("@/pages/FiscalProductsConfig"));
+const PrintViewer = lazy(() => import("@/pages/PrintViewer"));
 const OperationNaturesSettings = lazy(() => import("@/pages/OperationNaturesSettings"));
 const Purchases = lazy(() => import("@/pages/Purchases"));
 const Suppliers = lazy(() => import("@/pages/Suppliers"));
@@ -404,6 +405,8 @@ const App = () => {
                   <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/page-templates/:templateId/builder" element={<TemplateBuilder />} />
                   <Route path="/blog/:postId/editor" element={<BlogPostEditor />} />
+                  {/* Visualizador interno de impressão (DANFE, etiqueta, etc.) — full-page sem sidebar */}
+                  <Route path="/imprimir" element={<PrintViewer />} />
                 </Route>
               )}
 

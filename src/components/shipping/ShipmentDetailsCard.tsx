@@ -97,38 +97,15 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
   const config = statusConfig[shipment.delivery_status] || statusConfig.unknown;
   const StatusIcon = config.icon;
 
-  // Obter etiqueta
+  // Obter etiqueta — agora abre o visualizador interno (/imprimir), que busca
+  // o PDF pelo nosso backend (signed URL do bucket interno) e dispara o
+  // diálogo de impressão automaticamente. Antes abríamos a URL direta numa
+  // nova aba, que em alguns ambientes corporativos era bloqueada.
   const printLabel = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('shipping-get-label', {
-        body: { 
-          tracking_code: shipment.tracking_code,
-          provider_shipment_id: (shipment as any).provider_shipment_id,
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao obter etiqueta');
-
-      return data;
-    },
-    onSuccess: (data) => {
-      if (data.label_url) {
-        window.open(data.label_url, '_blank');
-      } else if (data.label_base64) {
-        // Converter base64 para URL e abrir
-        const byteCharacters = atob(data.label_base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: data.label_type || 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-      } else {
-        toast.info('Etiqueta não disponível');
-      }
+      const url = `/imprimir?source=etiqueta&id=${encodeURIComponent(shipment.id)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return { success: true };
     },
     onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
   });

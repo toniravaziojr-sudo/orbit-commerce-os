@@ -643,33 +643,16 @@ export function ShipmentGenerator() {
   };
 
 
-  // Imprimir/Reimprimir etiqueta — sempre disponível.
-  // Chama a edge que devolve signed URL (se existir no bucket) ou baixa nos Correios e armazena.
+  // Imprimir/Reimprimir etiqueta — abre o visualizador interno (/imprimir),
+  // que baixa o PDF pelo nosso backend e dispara o diálogo de impressão.
+  // Antes abria a URL externa direto, sujeita a bloqueio por extensão/proxy.
   const handlePrintLabel = async (shipment: ShipmentRecord, forceRefresh = false) => {
     if (isPrinting(shipment.id, 'label')) return;
     setPrinting(shipment.id, 'label', true);
     try {
-      const { data, error } = await supabase.functions.invoke('shipping-get-label', {
-        body: { shipment_id: shipment.id, force_refresh: forceRefresh },
-      });
-      if (error) {
-        toast.error('Falha ao obter etiqueta');
-        return;
-      }
-      if (data?.success && data.label_url) {
-        window.open(data.label_url, '_blank');
-        return;
-      }
-      if (data?.success && data.label_base64) {
-        const bin = atob(data.label_base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        return;
-      }
-      toast.error(data?.error || 'Etiqueta não disponível');
+      const qs = forceRefresh ? '&refresh=1' : '';
+      const url = `/imprimir?source=etiqueta&id=${encodeURIComponent(shipment.id)}${qs}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao imprimir etiqueta');
     } finally {
@@ -677,28 +660,28 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Imprime apenas DANFE (NF-e). Não cai em DC.
+  // Imprime apenas DANFE (NF-e). Não cai em DC. Usa visualizador interno.
   const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
     if (isPrinting(shipment.id, 'nfe')) return false;
     setPrinting(shipment.id, 'nfe', true);
     try {
-      if (shipment.invoice?.danfe_url) {
-        window.open(shipment.invoice.danfe_url, '_blank');
-        return true;
-      }
-      if (shipment.invoice_id) {
+      let invoiceId: string | null = shipment.invoice_id ?? null;
+      let hasDanfe = !!shipment.invoice?.danfe_url;
+      if (!hasDanfe && invoiceId) {
         const { data } = await supabase
           .from('fiscal_invoices')
           .select('danfe_url')
-          .eq('id', shipment.invoice_id)
+          .eq('id', invoiceId)
           .single();
-        if (data?.danfe_url) {
-          window.open(data.danfe_url, '_blank');
-          return true;
-        }
+        hasDanfe = !!data?.danfe_url;
       }
-      toast.error('DANFE da NF-e não disponível para impressão');
-      return false;
+      if (!invoiceId || !hasDanfe) {
+        toast.error('DANFE da NF-e não disponível para impressão');
+        return false;
+      }
+      const url = `/imprimir?source=danfe&id=${encodeURIComponent(invoiceId)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return true;
     } finally {
       setPrinting(shipment.id, 'nfe', false);
     }
