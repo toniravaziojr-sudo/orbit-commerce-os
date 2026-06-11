@@ -296,7 +296,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.shipping-create-shipment]
-verify_jwt = true
+verify_jwt = false
 
 [functions.shipping-get-label]
 verify_jwt = true
