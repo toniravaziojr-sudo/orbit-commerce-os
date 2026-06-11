@@ -12,6 +12,7 @@ import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fi
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveCodigoProduto } from "../_shared/fiscal-codigo-produto.ts";
 
 const VERSION = 'v9.2.0';
 // v9.2.0 — CFOP via Natureza de Operação vinculada (Fase 2).
@@ -342,7 +343,7 @@ async function processTenanDrafts(
           .in('product_id', productIds),
         supabase
           .from('products')
-          .select('id, ncm, cest, origin_code, gtin, barcode, weight')
+          .select('id, sku, ncm, cest, origin_code, gtin, barcode, weight')
           .in('id', productIds),
       ]);
 
@@ -385,7 +386,7 @@ async function processTenanDrafts(
           numero_item: index + 1,
           order_item_id: item.id || null,
           product_id: item.product_id || null,
-          codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
+          codigo_produto: resolveCodigoProduto(item, productMap, index),
           descricao: item.product_name || 'Produto',
           ncm: fiscalProduct?.ncm || product?.ncm || '',
           cfop: fiscalProduct?.cfop_override || cfop,

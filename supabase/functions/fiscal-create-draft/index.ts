@@ -10,6 +10,7 @@ import { getNextFiscalNumber, insertFiscalInvoiceWithRetry } from "../_shared/fi
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveCodigoProduto } from "../_shared/fiscal-codigo-produto.ts";
 import { ensurePvContentDeclaration } from "../_shared/ensure-pv-content-declaration.ts";
 
 
@@ -226,7 +227,7 @@ Deno.serve(async (req) => {
     // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN + peso
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode, ncm, cest, origin_code, weight')
+      .select('id, sku, gtin, barcode, ncm, cest, origin_code, weight')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
@@ -273,7 +274,7 @@ Deno.serve(async (req) => {
         numero_item: index + 1,
         order_item_id: item.id || null,
         product_id: item.product_id || null,
-        codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
+        codigo_produto: resolveCodigoProduto(item, productMap, index),
         descricao: item.product_name || 'Produto',
         ncm: fiscalProduct?.ncm || productCatalog.ncm || '',
         cfop: fiscalProduct?.cfop_override || cfop,

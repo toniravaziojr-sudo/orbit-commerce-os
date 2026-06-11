@@ -319,7 +319,7 @@ export async function unbundleFiscalItems(
       output.push({
         // numero_item será reatribuído no final
         order_item_id: orig.order_item_id || null,
-        codigo_produto: prod.sku || prod.id?.substring(0, 8) || `COMP${ci + 1}`,
+        codigo_produto: (String(prod.sku ?? '').trim()) || `COMP-${ci + 1}`,
         descricao: prod.name || "Componente",
         ncm: fp.ncm || prod.ncm || "",
         cfop: fp.cfop_override || orig.cfop || cfopFallback,

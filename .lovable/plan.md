@@ -1,92 +1,85 @@
-# Auditoria do fluxo Pedido → PV → NF → Remessa — Plano REVISADO
+# Padronizar SKU do Cadastro como Fonte Única do Código do Produto
 
-## Revisão prévia (o que mudou em relação à primeira versão)
-Após reler as regras oficiais e conferir o banco, removi do plano itens que pareciam bug mas são comportamento normal do sistema. Isso evita regressão.
+## Problema confirmado
+- NFs 421 e 422 (pedidos #612 e #613, Respeite o Homem) saíram com código `8259065f` em vez do SKU real `0001` do Shampoo Calvície Zero.
+- Causa raiz: o item do pedido chega com SKU vazio (carrinho não persiste SKU), e o motor fiscal usa um fallback que pega os 8 primeiros caracteres do ID interno do produto.
+- O mesmo padrão de fallback ruim existe em 5 pontos do fluxo fiscal, então qualquer caminho (pedido pago, PV manual, edição de rascunho, desmembramento de kit, duplicação) pode reproduzir o erro.
 
-- **Tipo do documento fiscal vazio**: NÃO é bug. 302 de 304 notas históricas seguem o mesmo padrão; o tipo real é controlado por outro campo já preenchido corretamente. Removido do plano.
-- **Espelho de status PV ↔ Pedido**: o mecanismo JÁ existe e está ativo (gatilho `fiscal_invoices_sync_pv_status` + função `sync_pedido_status_for_order`). O nome citado na memória é antigo. Não vou recriar nada — apenas validar se está derivando o status certo no caso do #612.
-- **Evento "Pedido criado" ausente no #612**: o pedido foi criado em fluxo de teste, não pelo checkout. Não é bug, é o caminho usado. Removido.
-- **Vínculo da NF cancelada #415**: a desvinculação após cancelamento pode ser intencional (regra de reaproveitamento/auditoria). NÃO mexer sem confirmação — passa para "investigar antes de propor".
+## Princípio da correção
+**Quando o item tem produto cadastrado vinculado, o código que vai para a NF é SEMPRE o SKU do cadastro do produto.** O SKU do item do pedido vira fallback. O "prefixo do ID" some como fallback aceitável — quando não houver SKU nem produto vinculado, usa-se um código genérico explícito (`ITEM-1`, `ITEM-2`).
 
-## 1. Pontas soltas REAIS confirmadas
+Isso vale para tudo que nasce com produto cadastrado: pedidos da loja, vendas manuais via seletor de produto, duplicação de PV/NF, componentes de kit desmembrado e edição de rascunho.
 
-### 1.1 Pedido #612 ficou com status errado (CRÍTICO)
-- Histórico do pedido registra "Remessa emitida e despachada via Correios" às 03:45.
-- Mas o status do pedido continua "Em processamento", e a data de despacho não foi gravada.
-- **Causa provável** (técnico): a função que cria a remessa registra o evento no histórico mas o `UPDATE orders SET status='dispatched'` não persistiu na mesma transação.
-- **Sintoma cruzado**: o status do Pedido de Venda Fiscal #417 já mostra "Concluído" (o espelho calculou pelo histórico), enquanto o Pedido em si segue "Em processamento". Dois cards mostrando coisas diferentes para o mesmo pedido — fere a regra de paridade entre Pedidos e Fiscal.
+## Escopo da mudança (5 pontos)
 
-### 1.2 Ambiente fiscal divergente (CRÍTICO — viola "Fiscal Produção Universal")
-- Configuração do tenant: **Produção** ✅
-- Notas #415, #416 e PV #417 gravadas no banco como **Homologação** ❌
-- A chave da SEFAZ confirma emissão real em **Produção** (posição de ambiente = 1).
-- Existe gatilho que impede regredir a configuração, mas **não há gatilho equivalente impedindo gravar nota com ambiente errado**. Por isso a divergência passou.
+1. **Pedido de Venda automático** (pedido pago da loja vira PV)
+2. **Pedido de Venda gerado a partir de pedido existente** (chamada manual no módulo Fiscal)
+3. **Pedido de Venda 100% manual** (venda fora da loja, via seletor de produto)
+4. **Edição de rascunho de PV/NF**
+5. **Desmembramento de kit** (componentes herdam SKU do cadastro do componente — já faz, mas garantir o mesmo fallback explícito)
 
-### 1.3 Remessa em duplicidade no #612
-- Quando o Pedido de Venda foi criado, o sistema enfileirou automaticamente uma remessa-rascunho. Ela tentou rastrear, não achou nada e ficou em estado "Falha".
-- Depois, a remessa real foi criada manualmente e recebeu o rastreio AD558980543BR.
-- Resultado: 2 remessas para o mesmo pedido. Uma "Falha" (lixo na tela de Logística) e uma válida.
-- A regra correta é **uma única remessa por pedido**, criada uma vez e atualizada com o rastreio quando a etiqueta sai.
+Regra unificada em todos: `SKU do cadastro do produto → SKU enviado no item → "ITEM-N"`. Nunca mais prefixo de UUID.
 
-## 2. Plano de correção
+## Validação técnica obrigatória pós-deploy
+Sem isso a entrega não fecha:
 
-### Fase A — Correções estruturais
+- **Pedido novo de teste:** entrar um pedido com produto cadastrado, deixar virar PV automático, conferir que o código do item no PV é igual ao SKU do cadastro.
+- **PV manual via seletor:** criar um PV manual, conferir que o código gravado é o SKU do cadastro.
+- **Edição de rascunho:** abrir um PV em rascunho, salvar sem mudar nada, conferir que o código continua igual ao SKU do cadastro (e não vira o UUID).
+- **Kit desmembrado:** emitir NF de um kit com desmembramento ativo, conferir que cada componente sai com o SKU do próprio cadastro do componente.
+- **Pratika:** confirmar com você que a próxima NF chegou lá com o SKU correto.
 
-**A1. Status do pedido após despacho (resolve 1.1)**
-- Garantir que a emissão da etiqueta atualize o pedido para "Despachado" e grave a data de despacho de forma atômica.
-- Cobrir tanto o fluxo manual (botão "Emitir etiqueta" no Módulo de Remessas) quanto qualquer fluxo automático.
-- Critério de aceite: emitir etiqueta → pedido vai para "Despachado" → PV mostra "Despachado" → cards de Pedidos e Fiscal mostram o mesmo status.
+## Backfill controlado (sem desperdício de processamento)
+- **NFs já autorizadas (incluindo 421 e 422):** imutáveis na SEFAZ, não há o que fazer no documento fiscal. Permanecem como histórico.
+- **Pedidos de Venda e NFs em rascunho (qualquer tenant):** rodar uma única atualização que substitui o código pelo SKU do cadastro APENAS quando o item tem produto vinculado E o código atual é o prefixo de 8 caracteres do ID do produto. Operação idempotente, escopo restrito, sem tocar em documento emitido.
 
-**A2. Travar ambiente de produção também na escrita da nota (resolve 1.2)**
-- Estender a regra "produção universal": quando a configuração do tenant está em produção, qualquer nota gravada DEVE entrar como produção. Se vier diferente, o sistema corrige automaticamente e registra na auditoria.
-- Cobre passado e futuro: novos rascunhos nascem corretos; tentativas de gravar em homologação são bloqueadas.
+## Anti-regressão (proteção permanente)
+- Registrar a regra "SKU do cadastro é fonte única do código do produto na NF" como restrição formal do sistema, indexada na governança, para que nenhuma alteração futura reintroduza o fallback de UUID.
+- Atualizar a especificação do módulo Fiscal com essa regra explícita.
 
-**A3. Eliminar a remessa duplicada (resolve 1.3)**
-- Definir um único ponto de criação da remessa por pedido.
-- Quando o Pedido de Venda dispara o enfileiramento automático e já existe remessa válida para o pedido, reutilizar a existente em vez de criar outra.
-- Não criar shipment como "Falha" só porque o poll inicial de rastreio falhou (rastreio só existe depois da etiqueta).
+## O que muda na sua experiência
+- Você não vê nada diferente na tela.
+- Próximas notas (manuais ou automáticas) sairão com o SKU correto no XML, no DANFE e na Pratika.
+- Rascunhos que tinham o código errado serão corrigidos no mesmo deploy.
 
-### Fase B — Limpeza dos dados de teste (somente após Fase A aprovada e aplicada)
-Tudo restrito ao tenant Respeite o Homem e às 3 notas/2 remessas/1 pedido do teste de hoje:
-
-1. Corrigir ambiente das notas #415, #416 e PV #417 para "Produção" (alinha com a chave real da SEFAZ).
-2. Atualizar o pedido #612 para "Despachado" com a data correta do despacho (03:45 BRT).
-3. Remover a remessa em "Falha" do pedido #612 (mantém a remessa real com o rastreio).
-4. Recalcular o status do PV #417 (deve continuar "Despachado/Concluído" após Fase A, agora coerente com o Pedido).
-
-**O que NÃO vou mexer (precisa nova autorização):**
-- NF #415 cancelada: fica no histórico. Não vou tentar restaurar vínculo com o pedido sem antes confirmar a regra fiscal aplicável.
-- NF #416 autorizada: permanece como está; só corrige o campo "ambiente".
-- Nenhum outro tenant. Nenhuma outra nota/pedido fora do teste.
-
-### Fase C — Alinhamento documental
-Atualizar na mesma entrega:
-1. **Doc do módulo Logística / Remessas** — registrar: numerador único via função oficial (já corrigido), ponto único de criação da remessa por pedido, e transição automática do pedido para "Despachado" na emissão da etiqueta.
-2. **Doc do módulo Fiscal** — registrar o guarda de ambiente também na escrita da nota (não só na configuração).
-3. **Memória "Fiscal Produção Universal"** — acrescentar a camada de proteção na escrita da nota.
-4. **mapa-ui.md** — verificar se há mudança visível ao usuário; provavelmente não há mudança de UI, só correção de comportamento.
-
-### Fase D — Validação técnica (executada por mim antes de declarar concluído)
-1. Pedido #612 com status "Despachado" e data preenchida.
-2. Notas do teste com ambiente "Produção".
-3. Apenas 1 remessa válida no pedido #612, com rastreio e etiqueta.
-4. Cards de Pedidos e Fiscal mostrando o mesmo status para o #612.
-5. Teste de não-regressão: criar PV em outro pedido de rascunho (sem emitir etiqueta) e confirmar que NÃO nasce uma remessa-fantasma em "Falha".
-6. Conferir logs do Pratika para garantir que o envio anterior continua íntegro.
-
-O que depende de você: rodar um pedido real do início ao fim para confirmar que o status "Despachado" aparece automaticamente após emitir a etiqueta no fluxo de produção.
-
-## 3. Decisões técnicas que vou tomar sem perguntar
-Pelo seu critério (decisões técnicas/fluxo são minhas; mudanças de contexto/UI passam por você):
-- Forma de aplicar o guarda de ambiente na nota (gatilho no banco vs validação na borda) — vou pelo gatilho, é o mais seguro e cobre todos os caminhos de gravação.
-- Onde colocar a transição do pedido para "Despachado" — dentro da mesma transação que cria a remessa, com `RETURNING` validado. Sem isso, o evento de histórico pode ficar dessincronizado.
-- Não criar shipment com `delivery_status='failed'` como subproduto da criação do PV — passa a nascer em "Rascunho" (já é o estado correto pela regra "Shipping Management Flow").
-
-## 4. O que vou confirmar com você antes de executar
-- Início da Fase A (mudança estrutural).
-- Início da Fase B (limpeza dos dados de teste).
-- Texto final das atualizações dos docs e memória antes de salvar.
+## O que NÃO faz parte desta entrega
+- Corrigir o motivo do carrinho da loja não persistir o SKU no item do pedido. Isso é um problema separado (afeta relatórios e exportações) e merece tratamento próprio depois. A correção fiscal acima resolve o sintoma no documento fiscal independentemente disso.
+- Mexer em NFs já autorizadas.
 
 ---
 
-Confirma seguir? Posso começar pela Fase A, parar para sua validação técnica, e só então tocar nos dados (Fase B).
+## Detalhes técnicos (referência)
+
+**Arquivos com a mesma regra a ajustar:**
+- `supabase/functions/fiscal-auto-create-drafts/index.ts` — linha 388
+- `supabase/functions/fiscal-create-draft/index.ts` — linha 276
+- `supabase/functions/fiscal-create-manual/index.ts` — linha 368
+- `supabase/functions/fiscal-update-draft/index.ts` — linha 176
+- `supabase/functions/_shared/kit-unbundler-fiscal-items.ts` — linha 322 (revisão defensiva)
+
+**Lógica nova (mesma nos 5 pontos):**
+```
+resolveCodigoProduto(item, productMap):
+  const cadastro = item.product_id ? productMap.get(item.product_id) : null;
+  const skuCadastro = cadastro?.sku?.trim();
+  if (skuCadastro) return skuCadastro;
+  const skuItem = String(item.sku ?? item.codigo ?? item.codigo_produto ?? '').trim();
+  if (skuItem && !isUuidPrefix(skuItem, item.product_id)) return skuItem;
+  return `ITEM-${index + 1}`;
+```
+- `fiscal-update-draft` passa a aceitar `product_id` na linha e fazer o lookup em `products.sku` (hoje não faz lookup nenhum).
+- `kit-unbundler-fiscal-items` já usa `prod.sku` (linha 322); ajustar só o fallback pra `COMP-N` em vez de prefixo de UUID.
+
+**Backfill SQL (idempotente, escopo restrito):**
+```sql
+UPDATE fiscal_invoice_items fii
+SET codigo_produto = p.sku
+FROM fiscal_invoices fi, products p
+WHERE fii.invoice_id = fi.id
+  AND fii.product_id = p.id
+  AND p.sku IS NOT NULL AND length(trim(p.sku)) > 0
+  AND fi.status IN ('draft','rejected')  -- nunca authorized
+  AND fii.codigo_produto = substring(fii.product_id::text, 1, 8);
+```
+
+**Restrição formal a criar:** `mem://constraints/fiscal-item-codigo-produto-sku-cadastro-source-of-truth` + indexação no índice de memórias e nota em `docs/especificacoes/erp/erp-fiscal.md`.
