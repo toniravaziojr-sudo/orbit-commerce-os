@@ -51,6 +51,7 @@ import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleten
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
 import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
+import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type NodeId =
