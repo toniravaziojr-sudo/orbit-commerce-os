@@ -120,3 +120,57 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 
 ## O que NÃO foi feito (proposital)
 - Não publica campanha, não chama Meta para mutação, não consome crédito de criativo, não cria cron novo, não chama IA para "consertar" o plano atual, não migra plano antigo para válido.
+
+---
+
+# Onda G.2 — Exclusão obrigatória de clientes em público frio/prospecção (entregue 2026-06-12)
+
+## Status
+✅ Implementado em modo fail-closed. Aguardando validação operacional com nova análise no tenant Respeite o Homem.
+
+## Diagnóstico fechado
+- Havia mais de um caminho capaz de gravar `strategic_plan` fora do contrato canônico.
+- O Strategist já validava contrato, mas ainda faltava uma blindagem única com **status técnico não-aprovável** e fechamento explícito dos caminhos legados.
+- O plano real problemático ainda aparecia em formato legado (`campaign_type='TOF'`, `funnel_stage='tof'`, sem `audience_exclusions` estruturado).
+
+## O que foi entregue
+
+### G.2.1 — Guard canônico obrigatório
+- Nova função única de entrada: `normalizeAndValidateStrategicPlanForApproval(plan, preflight)`.
+- Ordem obrigatória: `Preflight → normalização canônica → validação de contrato → persistência`.
+- Resultado define `approval_status: pending_approval | incomplete`.
+
+### G.2.2 — Normalização de legado para payload canônico
+- Identifica frio/prospecção por `campaign_type`, `campaign_intent`, `funnel_stage`, labels legadas e sinais de audiência (`broad`, `lookalike`, `Homens 30-65, Brasil`, aquisição, novos clientes).
+- Converte `TOF`/legado para:
+  - `campaign_type='prospecting'`
+  - `campaign_intent='acquisition'`
+  - `funnel_stage='tof'`
+  - `affected_funnel='cold'`
+
+### G.2.3 — Exclusão obrigatória de clientes
+- Se o público de clientes existe no preflight, injeta `audience_exclusions.customers=true` + metadata do público.
+- Se não existe, injeta `pending_dependency='customer_audience_not_detected'` e marca o plano como `incomplete`.
+- Prospecção pura nunca segue aprovável sem exclusão ou pendência explícita.
+
+### G.2.4 — Fail-closed de aprovação
+- `ads-autopilot-execute-approved` recusa plano `incomplete` ou com `contract.ok=false`.
+- Não aprova, não gera filhas, não publica, não chama Meta.
+
+### G.2.5 — Fechamento dos caminhos legados
+- `ads-autopilot-strategist`: agora persiste plano como `pending_approval` ou `incomplete` conforme o guard.
+- `ads-chat-v2`: caminho legado de criação direta de plano agora salva sempre como `incomplete`.
+- `ads-chat` legado: mantido apenas como artefato observacional (`executed`), fora da fila aprovável.
+
+### G.2.6 — UI alinhada à fonte canônica
+- Card de aprovação mostra badge **Plano incompleto**.
+- Modal do plano continua bloqueando aprovação e agora também respeita `status='incomplete'`.
+- Resumo compacto, detalhe e conteúdo do plano passam a mostrar a mesma indicação canônica:
+  - **Exclui clientes/compradores**; ou
+  - **Pendência: público de clientes não detectado**.
+
+## Testes e validação técnica
+- Fixture de regressão adicionada para plano real legado `TOF + tof + Homens 30-65, Brasil + sem audience_exclusions`.
+- Coberto cenário com público de clientes detectado e cenário sem público de clientes.
+- Nenhuma publicação executada.
+- Nenhuma campanha real alterada.
