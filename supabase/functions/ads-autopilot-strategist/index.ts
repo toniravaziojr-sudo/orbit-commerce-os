@@ -1282,6 +1282,27 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     ...tenantMemoryObservation,
   }));
 
+  // Onda F — Aprendizados ATIVOS da IA do Gestor de Tráfego (somente status='active' entram no prompt).
+  let activeLearnings: Array<{ id: string; title: string; description: string | null; category: string; confidence: number; evidence_count: number }> = [];
+  try {
+    const { data: lrn } = await supabase
+      .from("ads_ai_learnings")
+      .select("id, title, description, category, confidence, evidence_count, last_used_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .order("confidence", { ascending: false })
+      .order("evidence_count", { ascending: false })
+      .limit(50);
+    activeLearnings = (lrn || []) as any;
+    // Marca uso (não bloqueia se falhar)
+    if (activeLearnings.length > 0) {
+      const ids = activeLearnings.map((l) => l.id);
+      supabase.from("ads_ai_learnings").update({ last_used_at: new Date().toISOString() }).in("id", ids).then(() => {}, () => {});
+    }
+  } catch (e) {
+    console.warn(`[ads-autopilot-strategist][${VERSION}] learnings fetch failed:`, e?.message);
+  }
+
   return {
     products,
     categories,
@@ -1319,6 +1340,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     metaProductionConfigsByAccount,
     // Etapa 7.mem — Subfase D: observação carregada uma vez por ciclo, NÃO influencia a IA.
     tenant_memory_observation: tenantMemoryObservation,
+    // Onda F — Aprendizados ATIVOS (entram no prompt).
+    activeLearnings,
   };
 }
 
