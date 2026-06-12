@@ -44,6 +44,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MetaAssetSelector, MetaAssetDisplay } from "./meta/MetaAssetSelector";
+import { MetaCatalogSyncStatus } from "./meta/MetaCatalogSyncStatus";
 
 // Import config sections
 import { MetaPixelSection } from "./meta/MetaPixelSection";
