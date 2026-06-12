@@ -408,6 +408,8 @@ async function executeSideEffects(
         }, { onConflict: "tenant_id" });
 
       console.log(`[meta-integrations-manage] CAPI side-effect: ${pixel.id} configured`);
+    }
+
     if (integrationId === "catalogos" && selectedAssets) {
       const catalogId =
         selectedAssets.catalog?.id ||
