@@ -7,6 +7,7 @@ import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts
 import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
 import { resolveCustomerAudienceForMetaAccount, buildCustomerExclusionMetadata, isColdFunnelStage } from "../_shared/ads-autopilot/customerAudience.ts";
+import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
 import {
   scoreProposal,
   applyLimits,
