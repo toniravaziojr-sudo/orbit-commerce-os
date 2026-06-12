@@ -1936,9 +1936,18 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
     return `• ${p.name} — R$${Number(p.price).toFixed(2)}${margin ? ` (margem ~${margin}%)` : ""}${p.stock_quantity != null ? ` [est:${p.stock_quantity}]` : ""} | ${p.brand || "-"} | ${url || "-"}${imgs.length ? ` | imgs: ${imgs.join(", ")}` : ""}`;
   }).join("\n");
 
+  // Onda F — Bloco de Aprendizados ATIVOS da IA (somente os que o usuário ativou).
+  const learningsBlock = (() => {
+    const ll = (context.activeLearnings || []) as any[];
+    if (!ll.length) return "";
+    const lines = ll.map((l, i) => `${i + 1}. [${l.category}] ${l.title}${l.description ? ` — ${l.description}` : ""} (confiança ${Math.round(Number(l.confidence) * 100)}%, ${l.evidence_count} evidências)`).join("\n");
+    return `\n## APRENDIZADOS ATIVOS DA IA (${ll.length}) — REGRAS APROVADAS PELO USUÁRIO, RESPEITE:\n${lines}\n`;
+  })();
+
   const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
 ${campaignHeaders}
 ${campaignRows}
+${learningsBlock}
 
 ## CONJUNTOS DE ANÚNCIOS (${filteredAdsets.length} exibidos de ${accountAdsets.length} total — ${activeAdsets.length} em campanhas ativas)
 ⚠️ Quando campanha não tem budget/dia, o orçamento está no nível do conjunto (ABO). Verifique antes de concluir falta de orçamento.
