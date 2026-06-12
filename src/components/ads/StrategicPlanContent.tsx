@@ -35,6 +35,27 @@ interface AdSetPlan {
   ads_count?: number;
 }
 
+// Onda G — campos novos opcionais no plano estratégico
+interface AudienceExclusions {
+  customers?: boolean;
+  reason?: string;
+  customer_audience_detected?: boolean;
+  pending_dependency?: "customer_audience_missing";
+}
+interface CatalogSetup {
+  product_catalog_id?: string;
+  product_catalog_name?: string;
+  product_set?: string;
+  audience_window?: string;
+  exclude_recent_buyers_days?: number;
+  creative_mode?: "dynamic" | "static";
+  pending_dependency?: "catalog_not_connected";
+}
+interface AudienceBudgetFit {
+  fit?: "under_funded" | "adequate" | "over_funded_small_audience" | "saturation_risk" | "insufficient_data";
+  recommended_action?: string;
+}
+
 interface StructuredAction {
   action_type?: string;
   campaign_type?: string;
@@ -43,7 +64,7 @@ interface StructuredAction {
   target_audience?: string;
   funnel_stage?: string;
   objective?: string;
-  bid_strategy?: string; // legacy — mapped to performance_goal
+  bid_strategy?: string;
   performance_goal?: string;
   conversion_location?: string;
   attribution_model?: string;
@@ -55,6 +76,17 @@ interface StructuredAction {
   expected_roas?: number;
   placements?: string;
   adsets?: AdSetPlan[];
+  // Onda G
+  campaign_intent?: "acquisition" | "retention" | "creative_test" | "offer_test" | "scale" | "reactivation";
+  funnel?: "cold" | "remarketing" | "tests" | "leads" | "unknown";
+  budget_delta_brl?: number;
+  references_release_from_action_index?: number;
+  audience_exclusions?: AudienceExclusions;
+  exclusion_override_reason?: string;
+  catalog_setup?: CatalogSetup;
+  product_identification_confidence?: "high" | "medium" | "low" | "unknown";
+  diagnosis_limitation?: string;
+  audience_budget_fit?: AudienceBudgetFit;
 }
 
 interface BudgetAllocation {
@@ -67,6 +99,20 @@ interface BudgetAllocation {
   test_brl?: number;
 }
 
+// Onda G.1 — estado determinístico do orçamento por funil
+interface FunnelBucket {
+  planned_pct?: number;
+  planned_cents?: number;
+  occupied_cents?: number;
+  free_cents?: number;
+  occupied_campaigns?: Array<{ id?: string; name?: string; budget_cents?: number }>;
+}
+interface FunnelBudgetStatePlan {
+  total_daily_cents?: number;
+  per_funnel?: Record<string, FunnelBucket>;
+  splits_source?: "user_config" | "defaults";
+}
+
 interface StrategicPlanContentProps {
   diagnosis?: string | null;
   plannedActions?: StructuredAction[] | string[] | string | null;
@@ -75,6 +121,7 @@ interface StrategicPlanContentProps {
   timeline?: string | null;
   reasoning?: string | null;
   budgetAllocation?: BudgetAllocation | null;
+  funnelBudgetState?: FunnelBudgetStatePlan | null;
   className?: string;
 }
 
