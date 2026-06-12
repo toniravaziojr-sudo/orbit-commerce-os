@@ -3886,8 +3886,32 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           }
 
           await attachObservationIfEligible(actionRecord, config, supabase);
+
+          // Onda F: vincula filhas ao plano-pai e à rodada de análise quando aplicável.
+          if (
+            (trigger === "implement_approved_plan" || trigger === "implement_campaigns") &&
+            tc.function.name !== "strategic_plan"
+          ) {
+            if (sourcePlanId && !actionRecord.parent_action_id) {
+              actionRecord.parent_action_id = sourcePlanId;
+              actionRecord.planned_action_index = totalPlanned;
+            }
+            if (planAnalysisRunId && !actionRecord.analysis_run_id) {
+              actionRecord.analysis_run_id = planAnalysisRunId;
+            }
+          } else if (tc.function.name === "strategic_plan" && (body?.analysis_run_id || null) && !actionRecord.analysis_run_id) {
+            actionRecord.analysis_run_id = body.analysis_run_id;
+          }
+
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
-          if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+          if (insertErr) {
+            // Dedup esperado: filhas já geradas para mesmo (parent_action_id, planned_action_index)
+            if (String((insertErr as any).code) === "23505") {
+              console.log(`[ads-autopilot-strategist][${VERSION}] Dedup: child already exists for plan=${sourcePlanId} index=${actionRecord.planned_action_index}`);
+            } else {
+              console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+            }
+          }
 
           // Collect tool result for the next round
           toolResults.push({
