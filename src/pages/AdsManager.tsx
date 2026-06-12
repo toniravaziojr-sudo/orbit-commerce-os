@@ -27,6 +27,7 @@ import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
 import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
+import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 import { ACTIVE_PENDING_STATUSES } from "@/hooks/useAdsPendingActions";
 
