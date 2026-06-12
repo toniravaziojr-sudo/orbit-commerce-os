@@ -195,19 +195,20 @@ function inferLegacyCampaignBucket(action: any): "cold" | "remarketing" | "tests
   const actionType = normValue(action?.action_type);
   const audienceText = getActionAudienceText(action);
 
-  if (TEST_ACTION_HINTS.has(campaignType) || TEST_ACTION_HINTS.has(intent) || stage === "test") return "tests";
-  if (WARM_ACTION_HINTS.has(campaignType) || WARM_ACTION_HINTS.has(funnel) || WARM_ACTION_HINTS.has(stage) || intent === "retention" || intent === "reactivation") {
-    return "remarketing";
-  }
+  if ((intent === "creative test" || intent === "offer test") && (TEST_ACTION_HINTS.has(campaignType) || stage === "test")) return "tests";
   if (COLD_ACTION_HINTS.has(campaignType) || COLD_ACTION_HINTS.has(funnel) || COLD_ACTION_HINTS.has(stage) || intent === "acquisition" || intent === "scale") {
     return "cold";
-  }
-  if (/catalog/i.test(String(action?.campaign_type || ""))) {
-    return /retarget|remarket|warm|mof|bof/i.test(`${campaignType} ${funnel} ${stage}`) ? "remarketing" : "cold";
   }
   if (actionType.includes("create") || actionType.includes("duplicate") || actionType.includes("duplicat")) {
     if (BROAD_AUDIENCE_HINTS.test(audienceText) || BRAZIL_AGE_AUDIENCE_HINTS.test(audienceText)) return "cold";
   }
+  if (WARM_ACTION_HINTS.has(campaignType) || WARM_ACTION_HINTS.has(funnel) || WARM_ACTION_HINTS.has(stage) || intent === "retention" || intent === "reactivation") {
+    return "remarketing";
+  }
+  if (/catalog/i.test(String(action?.campaign_type || ""))) {
+    return /retarget|remarket|warm|mof|bof/i.test(`${campaignType} ${funnel} ${stage}`) ? "remarketing" : "cold";
+  }
+  if (TEST_ACTION_HINTS.has(campaignType) || TEST_ACTION_HINTS.has(intent) || stage === "test") return "tests";
   return null;
 }
 
@@ -341,10 +342,13 @@ export function normalizeAndValidateStrategicPlanForApproval(
 
   const normalizedPlan = normalizeStrategicPlanCustomerExclusions(plan, preflight);
   const contract = validateStrategicPlanContract(normalizedPlan, preflight);
+  const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
+    isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)
+  );
   return {
     normalizedPlan,
     contract,
-    approvalStatus: contract.ok ? "pending_approval" : "incomplete",
+    approvalStatus: contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete",
   };
 }
 
@@ -414,10 +418,12 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       return;
     }
 
-      const campaignType = String(canonicalizeCampaignType(a) || "").toLowerCase();
+    const rawCampaignType = normValue(a.campaign_type);
+    const normalizedAction = normalizeStrategicPlanAction(a, preflight);
+    const campaignType = String(canonicalizeCampaignType(normalizedAction) || "").toLowerCase();
     if (!campaignType) {
       push({ code: "action_missing_campaign_type", severity: "blocker", message: "Ação sem `campaign_type`.", path });
-    } else if (LEGACY_CAMPAIGN_TYPES.has(campaignType)) {
+    } else if (LEGACY_CAMPAIGN_TYPES.has(rawCampaignType)) {
       push({
         code: "action_legacy_campaign_type",
         severity: "blocker",
@@ -433,7 +439,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       });
     }
 
-    const intent = String(canonicalizeCampaignIntent(a, campaignType) || "").toLowerCase();
+    const intent = String(canonicalizeCampaignIntent(normalizedAction, campaignType) || "").toLowerCase();
     if (!intent) {
       push({ code: "action_missing_campaign_intent", severity: "blocker", message: "Ação sem `campaign_intent`.", path: `${path}.campaign_intent` });
     } else if (!(CAMPAIGN_INTENT_VALUES as readonly string[]).includes(intent)) {
@@ -446,8 +452,8 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     // Exclusão de clientes em prospecção/aquisição
-    if (isProspectingLike(a)) {
-      const excl = a.audience_exclusions || {};
+    if (isProspectingLike(normalizedAction)) {
+      const excl = normalizedAction.audience_exclusions || {};
       const detected = preflight.customer_audience.customer_audience_detected;
       if (detected) {
         if (!excl.customers) {
@@ -472,6 +478,13 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
             code: "prospecting_missing_pending_dependency",
             severity: "blocker",
             message: "Campanha de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+            path: `${path}.audience_exclusions.pending_dependency`,
+          });
+        } else {
+          push({
+            code: "prospecting_customer_audience_pending_dependency",
+            severity: "blocker",
+            message: "Campanha de público frio/prospecção depende do público de clientes antes da aprovação; plano deve permanecer incompleto.",
             path: `${path}.audience_exclusions.pending_dependency`,
           });
         }
