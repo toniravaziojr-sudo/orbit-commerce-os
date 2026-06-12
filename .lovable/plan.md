@@ -1,55 +1,65 @@
-# Onda F — Pipeline de Produção do Gestor de Tráfego IA (entregue 2026-06-12)
+# Onda G — Qualidade Estratégica do Plano Inicial (entregue 2026-06-12)
 
 ## Status
-✅ Implementado e validado tecnicamente. Aguardando validação operacional do usuário.
+✅ Implementado e validado por testes. Aguardando validação operacional do usuário no tenant Respeite o Homem.
 
 ## O que foi entregue
 
-### 1. Hierarquia Plano Estratégico → Propostas filhas
-- Aprovar Plano marca o plano como aprovado (não publica nada).
-- Strategist é acionado com vínculo explícito ao plano e à rodada de análise.
-- Cada proposta filha gerada guarda: plano-pai, rodada de análise e índice da ação planejada de origem.
-- Segundo clique em Aprovar Plano **não duplica** filhas (dedup por índice único parcial no banco).
-- Recusar/Ajustar continuam funcionando; comentários úteis viram aprendizado sugerido.
+### G.1 — Modelo de Orçamento por Funil (determinístico)
+- Cálculo sem IA, antes do prompt, com **planejado / ocupado / livre** por funil (cold, remarketing, tests, leads).
+- Campanhas ativas viram orçamento ocupado (classificação por palavra-chave no nome).
+- Projeção sequencial: ação que cria/escala só pode usar `livre` corrente; para usar mais, precisa referenciar uma ação anterior de pausar/reduzir.
+- Bloco "ESTADO DO ORÇAMENTO POR FUNIL" injetado no prompt como **fonte de verdade**; IA é instruída a não recalcular.
+- Plano estratégico ganhou campo `funnel_budget_state`.
 
-### 2. UTM obrigatória no nível Anúncio/Criativo
-- Modelo interno fixo de produção (sem campo na UI):
-  - `utm_source=meta`, `utm_medium=paid_social`, `utm_campaign={campanha}`, `utm_content={anuncio}`, `utm_term={publico_ou_funil}`.
-- Aplicação automática ao montar a proposta:
-  - Preserva query params já existentes.
-  - **Não sobrescreve** UTMs já preenchidas — registra warning técnico.
-  - Completa apenas o que faltar.
-- Gate de UTM no modal de proposta: bloqueia aprovação do Anúncio sem UTM, aponta para o nó Criativo, mensagem amigável.
-- Não bloqueia a aprovação do Plano Estratégico em si.
+### G.2 — Identificação de Produto em campanhas existentes
+- Pré-processamento determinístico em 6 fontes: creative_product_id → URL slug → nome da campanha → nome do conjunto → nome do anúncio → copy.
+- Campos no plano: `product_identification_confidence` (high/medium/low/unknown), `diagnosis_limitation`.
+- Regra: confiança low/unknown **proíbe pausa automática como ação principal** — permitidos manter, reduzir com aviso ou pedir revisão.
 
-### 3. Aprendizados da IA editáveis
-- Nova área em **Gestor de Tráfego IA → Configurações Gerais → Aprendizados da IA**.
-- 4 abas: Todos · Sugeridos · Ativos · Pausados · Arquivados.
-- Categorias: produto, público, orçamento, funil, criativo, copy, oferta, performance, restrição, tracking, outro.
-- Ações: criar, editar, ativar, pausar, arquivar, remover.
-- Feedback do usuário (com motivo/observação útil) vira aprendizado **sugerido** automaticamente; nunca ativa sozinho.
-- Aprendizado criado manualmente nasce ativo.
-- **Somente aprendizados ativos** entram no contexto do Strategist e na expansão Plano → propostas.
-- Dedup: aprendizado parecido (mesma categoria + título normalizado) **reforça** evidência e confiança em vez de duplicar.
+### G.3 — Tipo de Campanha + Catálogo Dinâmico
+- Enum `campaign_type` ampliado: `prospecting | retargeting | catalog_prospecting | catalog_retargeting | testing` (compat com legado mantida).
+- Bloco `catalog_setup` obrigatório quando `campaign_type` começa com `catalog_`: catálogo, product set, janela, exclusão de compradores recentes, `creative_mode='dynamic'`.
+- Disponibilidade de catálogo Meta pré-calculada e injetada; sem catálogo → IA marca `pending_dependency='catalog_not_connected'` em vez de inventar IDs.
+
+### G.4 — Exclusão de Clientes explícita no Plano
+- Bloco `audience_exclusions` por ação (customers, reason, customer_audience_detected, pending_dependency).
+- Disponibilidade do público de Clientes pré-resolvida por conta de anúncios.
+- Sem público detectado → `pending_dependency='customer_audience_missing'`.
+- Quality Gate de proposta filha continua bloqueando frio sem exclusão (`cold_audience_requires_customer_exclusion`).
+
+### G.5 — campaign_intent + override para teste criativo
+- Enum `campaign_intent`: acquisition, retention, creative_test, offer_test, scale, reactivation.
+- Quality Gate v1.4.0: quando `campaign_intent='creative_test'` E `exclusion_override_reason` ≥ 12 chars, libera a inclusão de clientes em público frio. Auditoria fica em `details.exclusion_overridden_creative_test`.
+- Prospecção pura (acquisition/scale) continua sem direito a override.
+
+### G.6 — Audience Budget Fit (Lite)
+- Sem chamada à Meta. Usa apenas histórico 30d (impressões, alcance, frequência, CPM, CTR, conversões, CPA, ROAS, gasto).
+- 5 categorias: `under_funded`, `adequate`, `over_funded_small_audience`, `saturation_risk`, `insufficient_data`.
+- Heurísticas de saturação (frequência) e sub-financiamento (ROAS alto com gasto baixo).
+- Sugere faixa de orçamento quando aplicável. Nunca bloqueia o plano; é sinal estratégico.
+
+## UI (enriquecimento, sem tela nova)
+- Card de ação ganhou badges: "Exclui clientes/compradores", "Pendência: público de clientes não detectado", "Catálogo dinâmico", "Pendência: catálogo Meta não detectado", "Teste criativo", "Produto identificado com baixa confiança", "Fit: …".
+- Justificativa de override de teste criativo renderizada inline.
+- Detalhamento de catálogo (nome, product set, janela, exclusão de compradores) inline.
+- Nova seção "Orçamento por Funil" com planejado/ocupado/livre por funil + lista de campanhas ativas que ocupam cada bucket.
 
 ## Restrições respeitadas
-- Sem publicação, sem mutação Meta/Google/TikTok, sem criativo final automático, sem crédito sem aprovação.
-- Sem Google/TikTok operacional, sem cron mensal, sem admin avançado.
-- Sem campo de UTM na UI de Configurações Gerais.
-- Aprendizado sugerido nunca ativa sozinho.
-- Aprendizados pausados/arquivados/sugeridos não entram no prompt da IA.
-- Propostas filhas nunca nascem soltas (sempre vinculadas a plano e análise).
+- Sem chamada à Meta `delivery_estimate` / `reachestimate`.
+- Sem publicação, mutação Meta/Google/TikTok, criativo final automático, crédito sem aprovação.
+- Sem Google/TikTok operacional, sem cron mensal, sem nova integração.
+- Sem aprovar plano atual automaticamente, sem gerar propostas filhas automaticamente.
 
 ## Como validar no painel
-1. Rodar uma análise inicial em uma conta Meta com IA ativa.
-2. Conferir que o Plano Estratégico aparece como proposta única.
-3. Clicar em "Aprovar Plano" → conferir que aparecem propostas filhas na fila "Aguardando Ação".
-4. Clicar em "Aprovar Plano" de novo → conferir que **não** duplica.
-5. Em uma proposta filha de anúncio, conferir que o link de destino já tem UTMs aplicadas.
-6. Tentar aprovar uma proposta cujo anúncio tenha link sem UTM → conferir bloqueio com mensagem.
-7. Recusar uma proposta com motivo descritivo → ir em Configurações Gerais → Aprendizados da IA → conferir item sugerido.
-8. Ativar o aprendizado → próxima análise deve mencionar "considerou X aprendizados ativos".
+1. Abrir o Plano Estratégico atual no tenant Respeite o Homem.
+2. Conferir a nova seção "Orçamento por Funil" com planejado/ocupado/livre.
+3. Conferir badges nas ações: exclusão de clientes, intent, catálogo dinâmico, baixa confiança de produto, fit.
+4. Rodar nova análise inicial e conferir que o diagnóstico cita orçamento ocupado vs livre e identifica produto com confiança declarada.
+5. Em teste criativo com clientes incluídos, conferir a justificativa renderizada.
 
 ## Testes automatizados
-- `src/test/ads-utm.test.ts` — 5 testes (modelo, preservação, validação, slugify, URL inválida) ✅
-- `src/test/ads-gates-utm.test.ts` — 3 testes (passa/bloqueia/ignora sem URL) ✅
+- `src/test/ads-funnel-budget-model.test.ts` — 5 testes (split, ocupado, inferência, projeção sequencial, bloqueio).
+- `src/test/ads-product-identification.test.ts` — 5 testes (slug, nome, copy, unknown, gate destrutivo).
+- `src/test/ads-audience-budget-fit-lite.test.ts` — 5 testes (insufficient, saturation, over_funded_small, under_funded, adequate).
+- `src/test/ads-quality-gate-creative-test-override.test.ts` — 3 testes (bloqueia sem override, libera com override, exige justificativa).
