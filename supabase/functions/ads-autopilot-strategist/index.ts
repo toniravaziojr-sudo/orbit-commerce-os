@@ -2882,7 +2882,13 @@ async function executeToolCall(
               audience_name: customerAudienceResolution.audience_name,
             }
           : undefined,
+        // Onda G.5 — propaga intenção e justificativa para o gate decidir override em creative_test.
+        campaign_intent: (args as any).campaign_intent ?? null,
       };
+      // Propaga override_reason em args, se vier da proposta.
+      if ((args as any).exclusion_override_reason) {
+        (gateInput.args as any).exclusion_override_reason = (args as any).exclusion_override_reason;
+      }
       const gate = runCreateCampaignQualityGate(gateInput);
       if (!gate.ok) {
         console.warn(
