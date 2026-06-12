@@ -744,6 +744,7 @@ export function StrategicPlanContent({
   timeline,
   reasoning,
   budgetAllocation,
+  funnelBudgetState,
   className,
 }: StrategicPlanContentProps) {
   const diagnosisText = diagnosis || (reasoning && !plannedActions ? reasoning : null);
@@ -757,6 +758,14 @@ export function StrategicPlanContent({
     : "";
   const legacyCards = !structured ? parseLegacyActions(legacyText) : [];
   const hasActions = structured ? (plannedActions as StructuredAction[]).length > 0 : legacyCards.length > 0;
+
+  const FUNNEL_PT: Record<string, string> = {
+    cold: "Frio",
+    remarketing: "Remarketing",
+    tests: "Testes",
+    leads: "Leads",
+    unknown: "Sem funil identificado",
+  };
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -797,7 +806,50 @@ export function StrategicPlanContent({
         </Section>
       )}
 
-      {/* 3. ALOCAÇÃO DE ORÇAMENTO */}
+      {/* 3a. Onda G.1 — Orçamento por funil (planejado / ocupado / livre) */}
+      {funnelBudgetState && funnelBudgetState.per_funnel && (
+        <Section icon={<PieChart className="h-4 w-4" />} label="Orçamento por Funil" color="text-indigo-500">
+          <div className="space-y-2">
+            {funnelBudgetState.total_daily_cents != null && (
+              <p className="text-[12px] text-muted-foreground">
+                Total diário: <strong className="text-foreground">R$ {(funnelBudgetState.total_daily_cents / 100).toFixed(2)}</strong>
+                {funnelBudgetState.splits_source && ` · splits: ${funnelBudgetState.splits_source === "user_config" ? "configurados" : "default"}`}
+              </p>
+            )}
+            <div className="grid gap-2">
+              {Object.entries(funnelBudgetState.per_funnel).map(([key, b]) => {
+                if (!b) return null;
+                const planned = (b.planned_cents || 0) / 100;
+                const occupied = (b.occupied_cents || 0) / 100;
+                const free = (b.free_cents ?? (planned - occupied) * 100) / (b.free_cents != null ? 100 : 1);
+                const freeReais = (b.free_cents ?? Math.round((planned - occupied) * 100)) / 100;
+                if ((b.planned_cents || 0) === 0 && (b.occupied_cents || 0) === 0) return null;
+                return (
+                  <div key={key} className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[12px]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="font-semibold text-foreground">{FUNNEL_PT[key] || key} <span className="text-muted-foreground font-normal">({b.planned_pct ?? 0}%)</span></span>
+                      <span className={cn("font-semibold", freeReais < 0 ? "text-destructive" : "text-emerald-600")}>livre R$ {freeReais.toFixed(2)}</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      planejado R$ {planned.toFixed(2)} · ocupado R$ {occupied.toFixed(2)}
+                    </div>
+                    {b.occupied_campaigns && b.occupied_campaigns.length > 0 && (
+                      <div className="text-[11px] text-muted-foreground/80 mt-1">
+                        Ativas: {b.occupied_campaigns.map(c => `${c.name} (R$ ${((c.budget_cents || 0)/100).toFixed(2)})`).join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Campanha nova só usa orçamento maior depois que uma redução/pausa planejada liberar verba no mesmo funil.
+            </p>
+          </div>
+        </Section>
+      )}
+
+      {/* 3. ALOCAÇÃO DE ORÇAMENTO (compat legado) */}
       {budgetAllocation && budgetAllocation.total_daily_brl && (
         <Section icon={<PieChart className="h-4 w-4" />} label="Alocação de Orçamento" color="text-indigo-500">
           <BudgetAllocationSection budget={budgetAllocation} />
