@@ -2197,6 +2197,54 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
 
     ondaGBlock = lines.join("\n");
+
+    // Onda G (rev2) — montar Preflight estruturado e guardar no context para o
+    // handler do strategic_plan rodar o validador de contrato.
+    try {
+      const perfByCampaign: Record<string, any> = {};
+      for (const c of accountCampaigns) {
+        const cid = c.meta_campaign_id;
+        const p30 = context.perf30d?.[cid] || {};
+        const p7 = context.perf7d?.[cid] || {};
+        perfByCampaign[cid] = {
+          impressions_30d: p30.impressions || 0,
+          reach_30d: p30.reach || 0,
+          frequency_avg: p30.frequency || 0,
+          cpm_cents: p30.cpm ? Math.round(p30.cpm * 100) : 0,
+          ctr_pct: p30.ctr_pct || 0,
+          conversions_30d: p30.conversions || 0,
+          cpa_cents: p30.cpa_cents || 0,
+          roas_30d: p30.roas || null,
+          roas_7d: p7.roas || null,
+          spend_30d_cents: p30.spend || 0,
+          spend_7d_cents: p7.spend || 0,
+        };
+      }
+      const adsByCampaign: Record<string, any[]> = {};
+      const preflight: StrategicPlanPreflight = buildStrategicPlanPreflightContext({
+        ad_account_id: config.ad_account_id,
+        total_daily_cents: totalDailyCents,
+        funnel_splits: (funnelSplits as any) || null,
+        campaigns: campaignBudgetInputs,
+        perf_by_campaign: perfByCampaign,
+        adsets_by_campaign: adsetsByCampaign,
+        ads_by_campaign: adsByCampaign,
+        catalog_refs: catalogRefs,
+        customer_audience: customerAudienceAvailability,
+        catalog: catalogInfo
+          ? {
+              available: !!catalogInfo.available,
+              catalog_id: catalogInfo.catalog_id || null,
+              catalog_name: catalogInfo.catalog_name || null,
+              product_sets: (catalogInfo as any).product_sets || [],
+            }
+          : null,
+      });
+      (context as any).strategicPreflightByAccount ||= {};
+      (context as any).strategicPreflightByAccount[config.ad_account_id] = preflight;
+    } catch (e: any) {
+      console.warn(`[ads-autopilot-strategist][onda-g] preflight build failed (fail-open): ${e?.message}`);
+    }
   } catch (e: any) {
     console.warn(`[ads-autopilot-strategist][onda-g] context block failed (fail-open): ${e?.message}`);
   }
