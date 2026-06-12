@@ -33,7 +33,7 @@ function basePlan(overrides: any = {}) {
         audience_exclusions: { customers: true, reason: "prospecção pura" },
         audience_budget_fit: { fit: "insufficient_data" },
       },
-      { action_type: "maintain", target_campaign_id: "c1", campaign_type: "prospecting", campaign_intent: "acquisition", audience_exclusions: { customers: true } },
+      { action_type: "maintain", target_campaign_id: "c1", campaign_type: "prospecting", campaign_intent: "acquisition", audience_exclusions: { customers: true }, audience_budget_fit: { fit: "adequate" } },
     ],
     ...overrides,
   };
