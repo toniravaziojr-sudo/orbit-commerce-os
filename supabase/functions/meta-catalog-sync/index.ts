@@ -716,44 +716,51 @@ Deno.serve(async (req) => {
       const hasFatalFailure = totalActive > 0 && totalSent === 0 && totalErrors > 0;
       const partialFailure = totalErrors > 0 && totalSent > 0;
 
-      if (hasFatalFailure) {
-        await supabase.from("ai_critical_alerts").upsert({
-          tenant_id: tenantId,
-          category: "integracao_meta_catalogo",
-          status: "aberto",
-          title: "Catálogo Meta com falha total na sincronização",
-          description: `Nenhum produto foi enviado ao catálogo Meta (${totalErrors} erros). Verifique permissões/token ou se o catálogo escolhido ainda existe na Meta.`,
-          trigger_text: "meta-catalog-sync: total failure",
-          metadata: { catalog_id: catalogId, total: totalActive, errors: errorDetails.slice(0, 5) },
-          detected_at: new Date().toISOString(),
-        }, { onConflict: "tenant_id,category" }).then(() => {}, () => {});
-      } else {
-        // Resolve alerta aberto se sync teve sucesso
-        await supabase
+      const openOrInsertAlert = async (category: string, title: string, description: string, metadata: any) => {
+        const { data: existing } = await supabase
           .from("ai_critical_alerts")
-          .update({ status: "resolvido", resolved_at: new Date().toISOString(), resolution_notes: `Sincronizado ${totalSent}/${totalActive}` })
+          .select("id")
           .eq("tenant_id", tenantId)
-          .eq("category", "integracao_meta_catalogo")
-          .eq("status", "aberto");
-
-        if (partialFailure) {
-          await supabase.from("ai_critical_alerts").upsert({
-            tenant_id: tenantId,
-            category: "integracao_meta_catalogo_parcial",
-            status: "aberto",
-            title: "Catálogo Meta com produtos rejeitados",
-            description: `${totalErrors} de ${totalActive} produto(s) falharam ao subir para o catálogo Meta. Veja os detalhes em Integrações.`,
-            trigger_text: "meta-catalog-sync: partial failure",
-            metadata: { catalog_id: catalogId, total: totalActive, synced: totalSent, errors: errorDetails.slice(0, 5) },
-            detected_at: new Date().toISOString(),
-          }, { onConflict: "tenant_id,category" }).then(() => {}, () => {});
+          .eq("category", category)
+          .eq("status", "aberto")
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase.from("ai_critical_alerts").update({
+            title, description, metadata, detected_at: new Date().toISOString(),
+          }).eq("id", existing.id);
         } else {
-          await supabase
-            .from("ai_critical_alerts")
-            .update({ status: "resolvido", resolved_at: new Date().toISOString() })
-            .eq("tenant_id", tenantId)
-            .eq("category", "integracao_meta_catalogo_parcial")
-            .eq("status", "aberto");
+          await supabase.from("ai_critical_alerts").insert({
+            tenant_id: tenantId, category, status: "aberto",
+            title, description, trigger_text: `meta-catalog-sync:${category}`,
+            metadata, detected_at: new Date().toISOString(),
+          });
+        }
+      };
+
+      const resolveAlert = async (category: string, notes?: string) => {
+        await supabase.from("ai_critical_alerts").update({
+          status: "resolvido", resolved_at: new Date().toISOString(), resolution_notes: notes || null,
+        }).eq("tenant_id", tenantId).eq("category", category).eq("status", "aberto");
+      };
+
+      if (hasFatalFailure) {
+        await openOrInsertAlert(
+          "integracao_meta_catalogo",
+          "Catálogo Meta com falha total na sincronização",
+          `Nenhum produto foi enviado ao catálogo Meta (${totalErrors} erros). Verifique permissões/token ou se o catálogo escolhido ainda existe na Meta.`,
+          { catalog_id: catalogId, total: totalActive, errors: errorDetails.slice(0, 5) },
+        );
+      } else {
+        await resolveAlert("integracao_meta_catalogo", `Sincronizado ${totalSent}/${totalActive}`);
+        if (partialFailure) {
+          await openOrInsertAlert(
+            "integracao_meta_catalogo_parcial",
+            "Catálogo Meta com produtos rejeitados",
+            `${totalErrors} de ${totalActive} produto(s) falharam ao subir para o catálogo Meta. Veja os detalhes em Integrações.`,
+            { catalog_id: catalogId, total: totalActive, synced: totalSent, errors: errorDetails.slice(0, 5) },
+          );
+        } else {
+          await resolveAlert("integracao_meta_catalogo_parcial");
         }
       }
     } catch (alertErr) {
