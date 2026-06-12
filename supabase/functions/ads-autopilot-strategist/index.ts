@@ -14,7 +14,11 @@ import { identifyProductFromCampaign, type InferredProduct } from "../_shared/ad
 import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_shared/ads-autopilot/audienceBudgetFitLite.ts";
 // Onda G (rev2) — Preflight Builder + Contrato fail-closed do Plano Estratégico.
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
-import { validateStrategicPlanContract, CONTRACT_VERSION as PLAN_CONTRACT_VERSION } from "../_shared/ads-autopilot/strategicPlanContract.ts";
+import {
+  validateStrategicPlanContract,
+  normalizeStrategicPlanCustomerExclusions,
+  CONTRACT_VERSION as PLAN_CONTRACT_VERSION,
+} from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
   scoreProposal,
   applyLimits,
@@ -2500,11 +2504,15 @@ async function executeToolCall(
 
   if (toolName === "strategic_plan") {
     // Build preview text from structured actions
-    const actionsPreview = (args.planned_actions || []).map((a: any) => {
+    const normalizedPlanArgs = preflightSnapshot
+      ? normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot)
+      : args;
+
+    const actionsPreview = (normalizedPlanArgs.planned_actions || []).map((a: any) => {
       if (typeof a === "string") return `• ${a}`;
       return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
     }).join("\n");
-    const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
+    const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
 
     // Onda G (rev2) — Validar contrato do plano contra o Preflight determinístico.
     let contract: any = null;
@@ -2512,7 +2520,8 @@ async function executeToolCall(
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
       if (preflightSnapshot) {
-        contract = validateStrategicPlanContract(args, preflightSnapshot);
+        const normalized = normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot);
+        contract = validateStrategicPlanContract(normalized, preflightSnapshot);
         if (!contract.ok) {
           console.warn(
             `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
@@ -2545,14 +2554,14 @@ async function executeToolCall(
       data: {
         type: "strategic_plan",
         ad_account_id: config.ad_account_id,
-        diagnosis: args.diagnosis,
-        planned_actions: args.planned_actions,
-        expected_results: args.expected_results,
-        risk_assessment: args.risk_assessment,
-        timeline: args.timeline,
-        budget_allocation: args.budget_allocation,
-        funnel_budget_state: args.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
-        active_campaigns_summary: args.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
+          diagnosis: normalizedPlanArgs.diagnosis,
+          planned_actions: normalizedPlanArgs.planned_actions,
+          expected_results: normalizedPlanArgs.expected_results,
+          risk_assessment: normalizedPlanArgs.risk_assessment,
+          timeline: normalizedPlanArgs.timeline,
+          budget_allocation: normalizedPlanArgs.budget_allocation,
+          funnel_budget_state: normalizedPlanArgs.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
+          active_campaigns_summary: normalizedPlanArgs.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
         // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
         strategic_plan_preflight: preflightSnapshot,
         contract,
@@ -2562,7 +2571,7 @@ async function executeToolCall(
             ? "Plano Estratégico — INCOMPLETO (não aprovável)"
             : "Plano Estratégico — Motor Estrategista",
           copy_text: planBody,
-          targeting_summary: `${(args.planned_actions || []).length} ações planejadas`,
+            targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
         },
       },
     };
