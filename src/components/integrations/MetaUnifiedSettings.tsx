@@ -548,6 +548,11 @@ function MetaIntegrationToggleRow({
         />
       )}
 
+      {/* Catálogo: botão manual + indicador de último sync */}
+      {isActive && def.id === "catalogos" && hasSelectedAsset && !selectorOpen && (
+        <MetaCatalogSyncStatus selectedAssets={selectedAssets} />
+      )}
+
       {/* Asset selector — shown when activating or editing */}
       {selectorOpen && (
         <MetaAssetSelector
