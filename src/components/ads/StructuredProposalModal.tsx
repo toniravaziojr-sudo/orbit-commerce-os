@@ -512,6 +512,7 @@ function OverviewSection({
           timeline={(data as any).timeline ?? null}
           reasoning={reasoning}
           budgetAllocation={(data as any).budget_allocation ?? null}
+          funnelBudgetState={(data as any).funnel_budget_state ?? null}
         />
       ) : (
         <>
