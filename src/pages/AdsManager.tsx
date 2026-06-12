@@ -548,6 +548,11 @@ export default function AdsManager() {
             onToggleGlobal={(enabled) => autopilot.toggleChannel.mutate({ channel: "global", enabled })}
             isTogglingGlobal={autopilot.toggleChannel.isPending}
           />
+
+          {/* Aprendizados da IA — Onda F */}
+          <AdsAILearningsTab />
+
+          
           
           {/* Aguardando Aprovação (global - all channels) */}
           <Card className="border-amber-500/20">
