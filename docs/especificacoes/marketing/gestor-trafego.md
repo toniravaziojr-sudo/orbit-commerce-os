@@ -3751,6 +3751,8 @@ Para `catalog_*` o plano deve preencher `catalog_setup`: product_catalog, produc
 ### G.4 Exclusão de Clientes explícita
 Bloco `audience_exclusions` por ação. Disponibilidade do público de Clientes é pré-resolvida por conta de anúncios; sem público → `pending_dependency='customer_audience_missing'`. O Quality Gate continua bloqueando proposta filha de frio sem exclusão aplicada.
 
+Fail-safe adicional no Plano Estratégico: antes de persistir o plano gerado, o sistema normaliza qualquer ação classificada como Público Frio por `campaign_type`, `funnel` ou `funnel_stage` e força `audience_exclusions.customers=true` quando o público de Clientes existe na conta. Se o público não existir, força `pending_dependency='customer_audience_missing'`. A única exceção aceita continua sendo `campaign_intent='creative_test'` com justificativa explícita (`exclusion_override_reason`) suficiente.
+
 ### G.5 campaign_intent + override de teste criativo
 Enum `campaign_intent`: acquisition, retention, creative_test, offer_test, scale, reactivation. Em `creative_test`, com `exclusion_override_reason` (≥ 12 chars) o gate libera a inclusão de clientes em público frio e audita em `details.exclusion_overridden_creative_test`. Em qualquer outra intenção, a regra fria continua valendo.
 

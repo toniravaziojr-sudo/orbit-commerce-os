@@ -68,10 +68,41 @@ export interface ContractResult {
 
 const LEGACY_CAMPAIGN_TYPES = new Set(["tof", "mof", "bof", "remarketing", "teste", "test", "remarket", "topo", "meio", "fundo"]);
 
+const COLD_ACTION_HINTS = new Set([
+  "cold",
+  "tof",
+  "frio",
+  "prospecting",
+  "prospect",
+  "prospeccao",
+  "topo",
+  "topo de funil",
+  "catalog prospecting",
+]);
+
+function normValue(value: unknown): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasCreativeTestCustomerOverride(action: any): boolean {
+  const intent = normValue(action?.campaign_intent);
+  const overrideReason = String(action?.exclusion_override_reason || "").trim();
+  const explicitlyIncludesCustomers = action?.audience_exclusions?.customers === false || action?.audience_inclusion?.customers === true;
+  return intent === "creative test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
+}
+
 function isProspectingLike(action: any): boolean {
-  const t = String(action?.campaign_type || "").toLowerCase();
-  const i = String(action?.campaign_intent || "").toLowerCase();
-  if (t === "prospecting" || t === "catalog_prospecting") return true;
+  const t = normValue(action?.campaign_type);
+  const i = normValue(action?.campaign_intent);
+  const funnel = normValue(action?.funnel || action?.affected_funnel);
+  const stage = normValue(action?.funnel_stage);
+  if (COLD_ACTION_HINTS.has(t) || COLD_ACTION_HINTS.has(funnel) || COLD_ACTION_HINTS.has(stage)) return true;
   if (i === "acquisition" || i === "scale") return true;
   return false;
 }
@@ -83,6 +114,49 @@ function isCatalogType(t: string): boolean {
 function isBudgetAction(a: any): boolean {
   const at = String(a?.action_type || "").toLowerCase();
   return ["create_campaign", "scale", "scale_budget", "reduce_budget", "pause", "reallocate_budget", "maintain"].includes(at);
+}
+
+export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+  if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
+
+  const detected = preflight.customer_audience.customer_audience_detected;
+
+  return {
+    ...plan,
+    planned_actions: plan.planned_actions.map((action: any) => {
+      if (!action || typeof action !== "object") return action;
+      if (!isProspectingLike(action)) return action;
+      if (hasCreativeTestCustomerOverride(action)) return action;
+
+      const current = (action.audience_exclusions && typeof action.audience_exclusions === "object")
+        ? action.audience_exclusions
+        : {};
+
+      if (detected) {
+        const { pending_dependency: _pending, ...rest } = current;
+        return {
+          ...action,
+          audience_exclusions: {
+            ...rest,
+            customers: true,
+            reason: String(rest.reason || "").trim() || "Público frio deve excluir clientes existentes por padrão.",
+            customer_audience_detected: true,
+          },
+        };
+      }
+
+      const { customers: _customers, ...rest } = current;
+      return {
+        ...action,
+        audience_exclusions: {
+          ...rest,
+          reason: String(rest.reason || "").trim() || "Público de Clientes não detectado nesta conta.",
+          customer_audience_detected: false,
+          pending_dependency: "customer_audience_missing",
+        },
+      };
+    }),
+  };
 }
 
 export function validateStrategicPlanContract(plan: any, preflight: StrategicPlanPreflight): ContractResult {
