@@ -282,7 +282,15 @@ export function StructuredProposalModal({
   const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers, ...utmGate.blockers];
   const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings, ...utmGate.warnings];
   const approveBlockedByGates = isStrategyStage && allBlockers.length > 0;
-  const approveBlocked = approveBlockedByFit || approveBlockedByGates;
+
+  // Onda G (rev2) — Contrato fail-closed do Plano Estratégico.
+  const planContract: any = (data as any)?.contract || null;
+  const approveBlockedByContract = isStrategicPlan && planContract && planContract.ok === false;
+  const contractBlockerErrors: Array<{ code: string; message: string }> = approveBlockedByContract
+    ? (planContract.errors || []).filter((e: any) => e.severity === "blocker")
+    : [];
+
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract;
 
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
@@ -295,13 +303,17 @@ export function StructuredProposalModal({
     ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
-    : "Aprovar");
+    : approveBlockedByContract
+      ? "Plano incompleto — não aprovável"
+      : "Aprovar");
 
-  const approveBlockedReason = approveBlockedByFit
-    ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
-    : approveBlockedByGates
-      ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
-      : null;
+  const approveBlockedReason = approveBlockedByContract
+    ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
+    : approveBlockedByFit
+      ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+      : approveBlockedByGates
+        ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+        : null;
 
   return (
     <>
@@ -404,7 +416,23 @@ export function StructuredProposalModal({
           </div>
 
           <div className="border-t border-border/30 px-5 py-3 flex flex-col gap-2 shrink-0 bg-background">
-            {approveBlockedReason && (
+            {approveBlockedByContract && (
+              <div className="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <div className="flex items-center gap-2 font-medium">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  Plano incompleto — precisa ser regenerado ou ajustado
+                </div>
+                <ul className="ml-5 list-disc space-y-0.5">
+                  {contractBlockerErrors.slice(0, 8).map((e, i) => (
+                    <li key={i}>{e.message}</li>
+                  ))}
+                  {contractBlockerErrors.length > 8 && (
+                    <li>... e mais {contractBlockerErrors.length - 8} pendência(s).</li>
+                  )}
+                </ul>
+              </div>
+            )}
+            {approveBlockedReason && !approveBlockedByContract && (
               <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{approveBlockedReason}</span>

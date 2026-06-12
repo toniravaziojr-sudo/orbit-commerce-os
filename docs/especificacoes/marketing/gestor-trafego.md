@@ -3764,3 +3764,44 @@ A UI do Plano Estratégico ganhou:
 - Detalhamento inline de catálogo e justificativa de override.
 
 Nenhuma tela nova foi criada.
+
+---
+
+## Onda G.1 (rev2) — Strategy Preflight Builder + Contrato fail-closed (2026-06-12)
+
+### Strategy Preflight Builder
+Camada determinística, sem IA e sem rede, executada antes de chamar o Estrategista. Reúne em um único objeto por conta de anúncios:
+
+- **Orçamento por funil** (`funnel_budget_state`): planejado, ocupado, livre por `cold | remarketing | tests | leads | unknown`.
+- **Campanhas ativas relevantes** (`active_campaigns_summary`): tendência ROAS 7d vs 30d, gasto, nível de atenção e flag `must_be_addressed_in_plan` quando o plano não pode ignorar a campanha.
+- **Identificação de produto** por campanha (6 fontes determinísticas + confiança `high | medium | low | unknown`).
+- **Disponibilidade de público de Clientes** (com `pending_dependency='customer_audience_missing'` quando ausente).
+- **Disponibilidade de catálogo Meta** (com `pending_dependency='catalog_not_connected'` quando ausente).
+- **Audience Budget Fit Lite** por campanha (sem chamada à Meta).
+
+### Contrato obrigatório do Plano Estratégico
+Toda saída do tool `strategic_plan` passa por `validateStrategicPlanContract(plan, preflight)`. Se o contrato falhar:
+
+- o plano é salvo, mas com `action_data.contract.ok = false` e a lista de pendências;
+- o modal mostra "Plano incompleto — precisa ser regenerado ou ajustado" com a lista, e desabilita "Aprovar plano";
+- o executor de aprovação devolve erro amigável em PT-BR e **não** dispara geração de propostas filhas.
+
+### Valores canônicos
+- `campaign_type`: `prospecting | retargeting | catalog_prospecting | catalog_retargeting | testing` (formato textual antigo como TOF/Remarketing/Teste deixa o plano inválido).
+- `campaign_intent`: `acquisition | retention | creative_test | offer_test | scale | reactivation`.
+- `budget_source`: `free_now | released_by_previous_action | test_allocation | retained_existing_budget | reallocated_budget | insufficient_budget_pending_action`.
+
+### Regras de invalidação (fail-closed)
+- Plano sem `funnel_budget_state` ou `active_campaigns_summary` → inválido.
+- Ação sem `campaign_type`/`campaign_intent` canônicos → inválida.
+- Prospecção/aquisição sem exclusão de clientes (com público de Clientes detectado) → inválida.
+- Campanha de catálogo sem `creative_mode='dynamic'` + `product_catalog_id` + `product_set` → inválida.
+- Ação de orçamento sem `audience_budget_fit` → inválida.
+- Criar/escalar acima do orçamento livre sem `budget_source='released_by_previous_action'` → inválida.
+- Pause em campanha com produto identificado em confiança `low`/`unknown` → inválida.
+- Campanha ativa marcada `must_be_addressed_in_plan=true` sem ação correspondente nem justificativa explícita → inválida.
+
+### O que NÃO faz
+- Não chama Meta `delivery_estimate` / `reachestimate`.
+- Não publica campanha. Não cria cron novo. Não tenta corrigir plano antigo automaticamente.
+- Não aceita payload textual legado como plano válido.

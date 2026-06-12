@@ -12,6 +12,9 @@ import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
 import { computeFunnelBudgetState, formatFunnelBudgetStatePtBr, inferCampaignFunnel, type FunnelBudgetState } from "../_shared/ads-autopilot/funnelBudgetModel.ts";
 import { identifyProductFromCampaign, type InferredProduct } from "../_shared/ads-autopilot/productIdentification.ts";
 import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_shared/ads-autopilot/audienceBudgetFitLite.ts";
+// Onda G (rev2) — Preflight Builder + Contrato fail-closed do Plano Estratégico.
+import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
+import { validateStrategicPlanContract, CONTRACT_VERSION as PLAN_CONTRACT_VERSION } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
   scoreProposal,
   applyLimits,
@@ -2194,6 +2197,54 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
 
     ondaGBlock = lines.join("\n");
+
+    // Onda G (rev2) — montar Preflight estruturado e guardar no context para o
+    // handler do strategic_plan rodar o validador de contrato.
+    try {
+      const perfByCampaign: Record<string, any> = {};
+      for (const c of accountCampaigns) {
+        const cid = c.meta_campaign_id;
+        const p30 = context.perf30d?.[cid] || {};
+        const p7 = context.perf7d?.[cid] || {};
+        perfByCampaign[cid] = {
+          impressions_30d: p30.impressions || 0,
+          reach_30d: p30.reach || 0,
+          frequency_avg: p30.frequency || 0,
+          cpm_cents: p30.cpm ? Math.round(p30.cpm * 100) : 0,
+          ctr_pct: p30.ctr_pct || 0,
+          conversions_30d: p30.conversions || 0,
+          cpa_cents: p30.cpa_cents || 0,
+          roas_30d: p30.roas || null,
+          roas_7d: p7.roas || null,
+          spend_30d_cents: p30.spend || 0,
+          spend_7d_cents: p7.spend || 0,
+        };
+      }
+      const adsByCampaign: Record<string, any[]> = {};
+      const preflight: StrategicPlanPreflight = buildStrategicPlanPreflightContext({
+        ad_account_id: config.ad_account_id,
+        total_daily_cents: totalDailyCents,
+        funnel_splits: (funnelSplits as any) || null,
+        campaigns: campaignBudgetInputs,
+        perf_by_campaign: perfByCampaign,
+        adsets_by_campaign: adsetsByCampaign,
+        ads_by_campaign: adsByCampaign,
+        catalog_refs: catalogRefs,
+        customer_audience: customerAudienceAvailability,
+        catalog: catalogInfo
+          ? {
+              available: !!catalogInfo.available,
+              catalog_id: catalogInfo.catalog_id || null,
+              catalog_name: catalogInfo.catalog_name || null,
+              product_sets: (catalogInfo as any).product_sets || [],
+            }
+          : null,
+      });
+      (context as any).strategicPreflightByAccount ||= {};
+      (context as any).strategicPreflightByAccount[config.ad_account_id] = preflight;
+    } catch (e: any) {
+      console.warn(`[ads-autopilot-strategist][onda-g] preflight build failed (fail-open): ${e?.message}`);
+    }
   } catch (e: any) {
     console.warn(`[ads-autopilot-strategist][onda-g] context block failed (fail-open): ${e?.message}`);
   }
@@ -2454,7 +2505,41 @@ async function executeToolCall(
       return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
     }).join("\n");
     const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
-    
+
+    // Onda G (rev2) — Validar contrato do plano contra o Preflight determinístico.
+    let contract: any = null;
+    let preflightSnapshot: StrategicPlanPreflight | null = null;
+    try {
+      preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
+      if (preflightSnapshot) {
+        contract = validateStrategicPlanContract(args, preflightSnapshot);
+        if (!contract.ok) {
+          console.warn(
+            `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
+          );
+        } else {
+          console.log(`[ads-autopilot-strategist][plan-contract] OK v${PLAN_CONTRACT_VERSION}`);
+        }
+      } else {
+        contract = {
+          ok: false,
+          version: PLAN_CONTRACT_VERSION,
+          errors: [{ code: "preflight_unavailable", severity: "blocker", message: "Preflight determinístico indisponível — plano não pode ser validado." }],
+          blockers_count: 1,
+          warnings_count: 0,
+        };
+      }
+    } catch (e: any) {
+      console.error(`[ads-autopilot-strategist][plan-contract] validator threw:`, e?.message);
+      contract = {
+        ok: false,
+        version: PLAN_CONTRACT_VERSION,
+        errors: [{ code: "contract_validator_error", severity: "blocker", message: `Erro ao validar contrato: ${e?.message || "desconhecido"}` }],
+        blockers_count: 1,
+        warnings_count: 0,
+      };
+    }
+
     return {
       status: "pending_approval",
       data: {
@@ -2466,8 +2551,16 @@ async function executeToolCall(
         risk_assessment: args.risk_assessment,
         timeline: args.timeline,
         budget_allocation: args.budget_allocation,
+        funnel_budget_state: args.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
+        active_campaigns_summary: args.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
+        // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
+        strategic_plan_preflight: preflightSnapshot,
+        contract,
+        contract_version: PLAN_CONTRACT_VERSION,
         preview: {
-          headline: "Plano Estratégico — Motor Estrategista",
+          headline: contract && !contract.ok
+            ? "Plano Estratégico — INCOMPLETO (não aprovável)"
+            : "Plano Estratégico — Motor Estrategista",
           copy_text: planBody,
           targeting_summary: `${(args.planned_actions || []).length} ações planejadas`,
         },
