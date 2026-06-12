@@ -49,6 +49,7 @@ import {
 } from "@/lib/ads/normalizeCampaignStructure";
 import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleteness";
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
+import { runUtmGate } from "@/lib/ads/gates/utm";
 import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
@@ -273,9 +274,13 @@ export function StructuredProposalModal({
     () => (isStrategyStage ? runPlatformCompatibilityGate(structure, capability ?? null) : { passed: true, blockers: [], warnings: [], summary: null }),
     [isStrategyStage, structure, capability],
   );
+  const utmGate = useMemo(
+    () => (isStrategyStage ? runUtmGate(structure) : { passed: true, blockers: [], warnings: [], summary: null }),
+    [isStrategyStage, structure],
+  );
 
-  const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers];
-  const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings];
+  const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers, ...utmGate.blockers];
+  const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings, ...utmGate.warnings];
   const approveBlockedByGates = isStrategyStage && allBlockers.length > 0;
   const approveBlocked = approveBlockedByFit || approveBlockedByGates;
 

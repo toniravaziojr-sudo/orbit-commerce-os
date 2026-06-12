@@ -7,6 +7,7 @@ import { attachObservationFromActionRecordAsync } from "../_shared/ads-policy.ts
 import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_GATE_VERSION } from "../_shared/ads-autopilot/qualityGate.ts";
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
 import { resolveCustomerAudienceForMetaAccount, buildCustomerExclusionMetadata, isColdFunnelStage } from "../_shared/ads-autopilot/customerAudience.ts";
+import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
 import {
   scoreProposal,
   applyLimits,
@@ -1282,6 +1283,27 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     ...tenantMemoryObservation,
   }));
 
+  // Onda F — Aprendizados ATIVOS da IA do Gestor de Tráfego (somente status='active' entram no prompt).
+  let activeLearnings: Array<{ id: string; title: string; description: string | null; category: string; confidence: number; evidence_count: number }> = [];
+  try {
+    const { data: lrn } = await supabase
+      .from("ads_ai_learnings")
+      .select("id, title, description, category, confidence, evidence_count, last_used_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .order("confidence", { ascending: false })
+      .order("evidence_count", { ascending: false })
+      .limit(50);
+    activeLearnings = (lrn || []) as any;
+    // Marca uso (não bloqueia se falhar)
+    if (activeLearnings.length > 0) {
+      const ids = activeLearnings.map((l) => l.id);
+      supabase.from("ads_ai_learnings").update({ last_used_at: new Date().toISOString() }).in("id", ids).then(() => {}, () => {});
+    }
+  } catch (e) {
+    console.warn(`[ads-autopilot-strategist][${VERSION}] learnings fetch failed:`, e?.message);
+  }
+
   return {
     products,
     categories,
@@ -1319,6 +1341,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     metaProductionConfigsByAccount,
     // Etapa 7.mem — Subfase D: observação carregada uma vez por ciclo, NÃO influencia a IA.
     tenant_memory_observation: tenantMemoryObservation,
+    // Onda F — Aprendizados ATIVOS (entram no prompt).
+    activeLearnings,
   };
 }
 
@@ -1912,9 +1936,18 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
     return `• ${p.name} — R$${Number(p.price).toFixed(2)}${margin ? ` (margem ~${margin}%)` : ""}${p.stock_quantity != null ? ` [est:${p.stock_quantity}]` : ""} | ${p.brand || "-"} | ${url || "-"}${imgs.length ? ` | imgs: ${imgs.join(", ")}` : ""}`;
   }).join("\n");
 
+  // Onda F — Bloco de Aprendizados ATIVOS da IA (somente os que o usuário ativou).
+  const learningsBlock = (() => {
+    const ll = (context.activeLearnings || []) as any[];
+    if (!ll.length) return "";
+    const lines = ll.map((l, i) => `${i + 1}. [${l.category}] ${l.title}${l.description ? ` — ${l.description}` : ""} (confiança ${Math.round(Number(l.confidence) * 100)}%, ${l.evidence_count} evidências)`).join("\n");
+    return `\n## APRENDIZADOS ATIVOS DA IA (${ll.length}) — REGRAS APROVADAS PELO USUÁRIO, RESPEITE:\n${lines}\n`;
+  })();
+
   const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
 ${campaignHeaders}
 ${campaignRows}
+${learningsBlock}
 
 ## CONJUNTOS DE ANÚNCIOS (${filteredAdsets.length} exibidos de ${accountAdsets.length} total — ${activeAdsets.length} em campanhas ativas)
 ⚠️ Quando campanha não tem budget/dia, o orçamento está no nível do conjunto (ABO). Verifique antes de concluir falta de orçamento.
@@ -2659,8 +2692,30 @@ async function executeToolCall(
       console.error(`[ads-autopilot-strategist][${VERSION}] Quality Gate threw (fail-open):`, gateErr?.message);
     }
 
+    // Onda F — Aplica UTM padrão interno ao link final do anúncio (preserva existentes).
+    let utmAppliedWarnings: string[] = [];
+    try {
+      const adSlug = slugifyForUtm(args.ad_name || args.campaign_name);
+      const audSlug = slugifyForUtm(args.funnel_stage || args.targeting_description || "publico");
+      const campSlug = slugifyForUtm(args.campaign_name);
+      if (args.destination_url) {
+        const utmRes = applyUtm(String(args.destination_url), {
+          campaignSlug: campSlug, adSlug, audienceSlug: audSlug,
+        });
+        if (utmRes.url && utmRes.url !== args.destination_url) {
+          args.destination_url = utmRes.url;
+        }
+        utmAppliedWarnings = utmRes.warnings || [];
+        if (utmAppliedWarnings.length > 0) {
+          console.log(`[ads-autopilot-strategist][${VERSION}] UTM warnings: ${utmAppliedWarnings.join(",")}`);
+        }
+      }
+    } catch (utmErr: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] UTM apply failed (fail-open):`, utmErr?.message);
+    }
+
     return {
-      status: "pending_approval", 
+      status: "pending_approval",
       data: { 
         ...args, 
         ad_account_id: config.ad_account_id,
@@ -3186,12 +3241,16 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   let totalExecuted = 0;
   let totalRejected = 0;
 
+  // Onda F: vínculo de filhas com plano-pai e rodada de análise.
+  let sourcePlanId: string | null = body?.source_plan_id || null;
+  let planAnalysisRunId: string | null = body?.analysis_run_id || null;
+
   // If implementing approved plan OR campaigns phase, fetch the plan content
   let approvedPlanContent = "";
   if (trigger === "implement_approved_plan" || trigger === "implement_campaigns") {
     const { data: planActions } = await supabase
       .from("ads_autopilot_actions")
-      .select("action_data, reasoning")
+      .select("id, action_data, reasoning, analysis_run_id")
       .eq("tenant_id", tenantId)
       .eq("action_type", "strategic_plan")
       .in("status", ["approved", "executed"])
@@ -3199,12 +3258,15 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       .limit(1);
 
     if (planActions && planActions.length > 0) {
-      const plan = planActions[0].action_data || {};
+      const planRow = planActions[0];
+      if (!sourcePlanId) sourcePlanId = planRow.id;
+      if (!planAnalysisRunId) planAnalysisRunId = planRow.analysis_run_id || (planRow.action_data?.analysis_run_id ?? null);
+      const plan = planRow.action_data || {};
       const diagnosis = plan.diagnosis || "";
       const plannedActions = (plan.planned_actions || []).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n");
       const expectedResults = plan.expected_results || "";
       const budgetAllocation = plan.budget_allocation ? JSON.stringify(plan.budget_allocation, null, 2) : "";
-      
+
       approvedPlanContent = `### PLANO APROVADO PELO USUÁRIO (SEGUIR À RISCA):
 
 **Diagnóstico:**
@@ -3217,8 +3279,8 @@ ${plannedActions}
 ${expectedResults}
 
 ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`;
-      
-      console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions`);
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions, plan_id=${sourcePlanId}, analysis_run=${planAnalysisRunId}`);
     } else {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No approved plan found, falling back to general context`);
     }
@@ -3879,8 +3941,32 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           }
 
           await attachObservationIfEligible(actionRecord, config, supabase);
+
+          // Onda F: vincula filhas ao plano-pai e à rodada de análise quando aplicável.
+          if (
+            (trigger === "implement_approved_plan" || trigger === "implement_campaigns") &&
+            tc.function.name !== "strategic_plan"
+          ) {
+            if (sourcePlanId && !actionRecord.parent_action_id) {
+              actionRecord.parent_action_id = sourcePlanId;
+              actionRecord.planned_action_index = totalPlanned;
+            }
+            if (planAnalysisRunId && !actionRecord.analysis_run_id) {
+              actionRecord.analysis_run_id = planAnalysisRunId;
+            }
+          } else if (tc.function.name === "strategic_plan" && (body?.analysis_run_id || null) && !actionRecord.analysis_run_id) {
+            actionRecord.analysis_run_id = body.analysis_run_id;
+          }
+
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
-          if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+          if (insertErr) {
+            // Dedup esperado: filhas já geradas para mesmo (parent_action_id, planned_action_index)
+            if (String((insertErr as any).code) === "23505") {
+              console.log(`[ads-autopilot-strategist][${VERSION}] Dedup: child already exists for plan=${sourcePlanId} index=${actionRecord.planned_action_index}`);
+            } else {
+              console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+            }
+          }
 
           // Collect tool result for the next round
           toolResults.push({

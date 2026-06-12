@@ -146,12 +146,64 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Onda F — Cria aprendizado sugerido a partir do feedback quando há conteúdo útil.
+  // Não bloqueia o fluxo se falhar. NÃO ativa sozinho.
+  let learning_action: string | null = null;
+  try {
+    const observation = (input.observation || "").trim();
+    const reasonText = (input.reason_text || "").trim();
+    const candidate = [reasonText, observation].filter(Boolean).join(" — ").slice(0, 200);
+    const meaningful = candidate.length >= 12 || input.should_become_preference === true;
+    if (meaningful) {
+      const decisionToSource: Record<string, string> = {
+        approved: "approval",
+        edited_then_approved: "adjustment",
+        rejected: "rejection",
+        needs_revision: "adjustment",
+      };
+      const sourceType = decisionToSource[input.decision] || "system";
+      const categoryGuess = (() => {
+        const t = candidate.toLowerCase();
+        if (/(p[uú]blico|cold|frio|quente|interesses?|lookalike)/.test(t)) return "publico";
+        if (/(or[cç]amento|budget|cents?)/.test(t)) return "orcamento";
+        if (/(criativo|copy|texto|imagem|v[ií]deo)/.test(t)) return "criativo";
+        if (/(produto|kit|sku)/.test(t)) return "produto";
+        if (/(funil|tof|bof|mof|prospec)/.test(t)) return "funil";
+        if (/(roas|cpa|ctr|performance)/.test(t)) return "performance";
+        if (/(utm|tracking|pixel)/.test(t)) return "tracking";
+        if (/(oferta|desconto|promo)/.test(t)) return "oferta";
+        return "outro";
+      })();
+      const titleFromContext = candidate || `Preferência registrada pelo usuário (${input.decision})`;
+      service.functions
+        .invoke("ads-ai-learnings-write", {
+          body: {
+            tenant_id: input.tenant_id,
+            title: titleFromContext,
+            description: observation || reasonText || null,
+            category: categoryGuess,
+            source_type: sourceType,
+            source_action_id: input.action_id || null,
+            source_feedback_id: inserted.id,
+            metadata: {
+              decision: input.decision,
+              reason_codes: input.reason_codes,
+              ads_platform: input.ads_platform,
+            },
+          },
+        })
+        .then((r: any) => { learning_action = r?.data?.action || null; })
+        .catch((e: any) => console.warn("[ads-autopilot-feedback-record] learnings write failed:", e?.message));
+    }
+  } catch (lerr: any) {
+    console.warn("[ads-autopilot-feedback-record] learnings hook threw:", lerr?.message);
+  }
+
   return json(
     {
       success: true,
       feedback_id: inserted.id,
       decided_at: inserted.decided_at,
-      // Observabilidade: deixa explícito que nada foi executado.
       side_effects: {
         suggestion_status_changed: false,
         meta_api_called: false,
