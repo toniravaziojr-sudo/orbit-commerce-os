@@ -3186,12 +3186,16 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   let totalExecuted = 0;
   let totalRejected = 0;
 
+  // Onda F: vínculo de filhas com plano-pai e rodada de análise.
+  let sourcePlanId: string | null = body?.source_plan_id || null;
+  let planAnalysisRunId: string | null = body?.analysis_run_id || null;
+
   // If implementing approved plan OR campaigns phase, fetch the plan content
   let approvedPlanContent = "";
   if (trigger === "implement_approved_plan" || trigger === "implement_campaigns") {
     const { data: planActions } = await supabase
       .from("ads_autopilot_actions")
-      .select("action_data, reasoning")
+      .select("id, action_data, reasoning, analysis_run_id")
       .eq("tenant_id", tenantId)
       .eq("action_type", "strategic_plan")
       .in("status", ["approved", "executed"])
@@ -3199,12 +3203,15 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       .limit(1);
 
     if (planActions && planActions.length > 0) {
-      const plan = planActions[0].action_data || {};
+      const planRow = planActions[0];
+      if (!sourcePlanId) sourcePlanId = planRow.id;
+      if (!planAnalysisRunId) planAnalysisRunId = planRow.analysis_run_id || (planRow.action_data?.analysis_run_id ?? null);
+      const plan = planRow.action_data || {};
       const diagnosis = plan.diagnosis || "";
       const plannedActions = (plan.planned_actions || []).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n");
       const expectedResults = plan.expected_results || "";
       const budgetAllocation = plan.budget_allocation ? JSON.stringify(plan.budget_allocation, null, 2) : "";
-      
+
       approvedPlanContent = `### PLANO APROVADO PELO USUÁRIO (SEGUIR À RISCA):
 
 **Diagnóstico:**
@@ -3217,8 +3224,8 @@ ${plannedActions}
 ${expectedResults}
 
 ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`;
-      
-      console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions`);
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions, plan_id=${sourcePlanId}, analysis_run=${planAnalysisRunId}`);
     } else {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No approved plan found, falling back to general context`);
     }
