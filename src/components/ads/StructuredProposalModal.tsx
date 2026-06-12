@@ -375,8 +375,8 @@ export function StructuredProposalModal({
               </aside>
             )}
 
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="px-5 py-4">
+            <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]>div]:!block [&>[data-radix-scroll-area-viewport]>div]:!w-full">
+              <div className="px-5 py-4 min-w-0 w-full max-w-full break-words">
                 {(overviewOnly || selected === "overview") && (
                   <OverviewSection
                     action={action}
