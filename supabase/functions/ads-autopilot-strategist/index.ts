@@ -2683,8 +2683,30 @@ async function executeToolCall(
       console.error(`[ads-autopilot-strategist][${VERSION}] Quality Gate threw (fail-open):`, gateErr?.message);
     }
 
+    // Onda F — Aplica UTM padrão interno ao link final do anúncio (preserva existentes).
+    let utmAppliedWarnings: string[] = [];
+    try {
+      const adSlug = slugifyForUtm(args.ad_name || args.campaign_name);
+      const audSlug = slugifyForUtm(args.funnel_stage || args.targeting_description || "publico");
+      const campSlug = slugifyForUtm(args.campaign_name);
+      if (args.destination_url) {
+        const utmRes = applyUtm(String(args.destination_url), {
+          campaignSlug: campSlug, adSlug, audienceSlug: audSlug,
+        });
+        if (utmRes.url && utmRes.url !== args.destination_url) {
+          args.destination_url = utmRes.url;
+        }
+        utmAppliedWarnings = utmRes.warnings || [];
+        if (utmAppliedWarnings.length > 0) {
+          console.log(`[ads-autopilot-strategist][${VERSION}] UTM warnings: ${utmAppliedWarnings.join(",")}`);
+        }
+      }
+    } catch (utmErr: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] UTM apply failed (fail-open):`, utmErr?.message);
+    }
+
     return {
-      status: "pending_approval", 
+      status: "pending_approval",
       data: { 
         ...args, 
         ad_account_id: config.ad_account_id,
