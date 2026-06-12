@@ -427,6 +427,21 @@ Deno.serve(async (req) => {
 
     // ====== STRATEGIC PLAN APPROVAL ======
     if (action.action_type === "strategic_plan") {
+      // Onda G (rev2) — Fail-closed: plano inválido NUNCA é aprovado ou gera filhas.
+      const contract = (data as any)?.contract;
+      if (contract && contract.ok === false) {
+        const codes = (contract.errors || []).map((e: any) => e.code).slice(0, 8).join(",");
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] BLOCKED: strategic_plan contract invalid (${codes})`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "strategic_plan_contract_invalid",
+            error_pt: "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar.",
+            blockers: contract.errors || [],
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved, triggering implementation`);
 
       const planBody = data.diagnosis + "\n\n**Ações Planejadas:**\n" + (data.planned_actions || []).map((a: string) => `• ${a}`).join("\n");
