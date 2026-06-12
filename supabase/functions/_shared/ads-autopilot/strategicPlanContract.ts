@@ -77,7 +77,7 @@ const COLD_ACTION_HINTS = new Set([
   "prospeccao",
   "topo",
   "topo de funil",
-  "catalog_prospecting",
+  "catalog prospecting",
 ]);
 
 function normValue(value: unknown): string {
@@ -94,7 +94,7 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
   const intent = normValue(action?.campaign_intent);
   const overrideReason = String(action?.exclusion_override_reason || "").trim();
   const explicitlyIncludesCustomers = action?.audience_exclusions?.customers === false || action?.audience_inclusion?.customers === true;
-  return intent === "creative_test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
+  return intent === "creative test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
 }
 
 function isProspectingLike(action: any): boolean {
