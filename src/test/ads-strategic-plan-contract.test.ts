@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeStrategicPlanCustomerExclusions, validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
+import { normalizeAndValidateStrategicPlanForApproval, normalizeStrategicPlanCustomerExclusions, validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
 import { buildStrategicPlanPreflightContext } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanPreflight";
 
 const basePreflight = buildStrategicPlanPreflightContext({
@@ -77,6 +77,71 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
 
     expect(normalized.planned_actions[0].audience_exclusions.customers).toBe(true);
     expect(normalized.planned_actions[0].audience_exclusions.customer_audience_detected).toBe(true);
+  });
+
+  it("normaliza fixture real legado TOF para prospecting e injeta exclusão canônica", () => {
+    const legacyPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        target_audience: "Homens 30-65, Brasil",
+        daily_budget_brl: 50,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+      }, {
+        action_type: "maintain",
+        target_campaign_id: "c1",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        audience_exclusions: { customers: true },
+        audience_budget_fit: { fit: "adequate" },
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(legacyPlan, basePreflight);
+
+    expect(guarded.normalizedPlan.planned_actions[0].campaign_type).toBe("prospecting");
+    expect(guarded.normalizedPlan.planned_actions[0].campaign_intent).toBe("acquisition");
+    expect(guarded.normalizedPlan.planned_actions[0].audience_exclusions.customers).toBe(true);
+    expect(guarded.normalizedPlan.planned_actions[0].audience_exclusions.customer_audience_id).toBe("aud1");
+    expect(guarded.approvalStatus).toBe("pending_approval");
+  });
+
+  it("gera pendência canônica quando público de clientes não existe e mantém plano incompleto", () => {
+    const pf = buildStrategicPlanPreflightContext({
+      ad_account_id: "act_1",
+      total_daily_cents: 30000,
+      funnel_splits: { cold: 60, remarketing: 25, tests: 15, leads: 0 } as any,
+      campaigns: [],
+      customer_audience: { found: false },
+    });
+    const legacyPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: pf.funnel_budget_state,
+      active_campaigns_summary: pf.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        target_audience: "Homens 30-65, Brasil",
+        daily_budget_brl: 50,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(legacyPlan, pf);
+
+    expect(guarded.normalizedPlan.planned_actions[0].campaign_type).toBe("prospecting");
+    expect(guarded.normalizedPlan.planned_actions[0].audience_exclusions.pending_dependency).toBe("customer_audience_not_detected");
+    expect(guarded.approvalStatus).toBe("incomplete");
+    expect(guarded.contract.ok).toBe(false);
   });
 
   it("preserva exceção explícita de teste criativo com justificativa válida", () => {

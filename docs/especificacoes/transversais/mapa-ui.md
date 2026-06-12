@@ -681,5 +681,7 @@ Enriquecimento do mesmo card/modal já existente, **sem novas rotas**:
 Mesma tela, mesmo modal — **sem rotas novas**:
 - Quando o contrato do Plano Estratégico falha, o modal exibe um banner vermelho "Plano incompleto — precisa ser regenerado ou ajustado", com a lista de pendências em PT-BR (até 8 itens visíveis).
 - O botão "Aprovar plano" fica desabilitado e exibe o texto "Plano incompleto — não aprovável".
+- O card resumido também mostra badge **Plano incompleto** quando `status='incomplete'` ou `action_data.contract.ok=false`.
+- Em campanhas frias/prospecção dentro do card e do modal, a UI sempre mostra a mesma fonte canônica: **"Exclui clientes/compradores"** ou **"Pendência: público de clientes não detectado"**; nunca depende apenas do texto livre do público.
 - Recusar o plano e rodar nova análise inicial continuam sendo os caminhos válidos.
 - O servidor também bloqueia: tentativa direta de aprovar devolve mensagem amigável em PT-BR e não dispara geração de propostas filhas.

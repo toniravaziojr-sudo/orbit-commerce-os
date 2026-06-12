@@ -21,6 +21,7 @@ import { showErrorToast } from '@/lib/error-toast';
 export const TWO_STEP_FLOW_VERSION = "two_step_v1";
 export const ACTIVE_PENDING_STATUSES = [
   "pending_approval",
+  "incomplete",
   "creative_pending",
   "final_pending_approval",
 ] as const;
@@ -98,6 +99,9 @@ export function useAdsPendingActions(channelFilter?: string) {
       // Guard duplo: não permitir aprovar Etapa 1 two-step pelo botão final
       if (isTwoStepAction(current as any) && (current as any)?.status === "pending_approval") {
         throw new Error("Esta proposta precisa passar pela Etapa 1 (Aprovar e gerar criativos).");
+      }
+      if ((current as any)?.action_type === "strategic_plan" && ((current as any)?.status === "incomplete" || (current as any)?.action_data?.approval_status === "incomplete" || (current as any)?.action_data?.contract?.ok === false)) {
+        throw new Error("Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar.");
       }
 
       const humanAudit = {

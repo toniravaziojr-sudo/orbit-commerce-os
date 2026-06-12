@@ -40,7 +40,7 @@ interface AudienceExclusions {
   customers?: boolean;
   reason?: string;
   customer_audience_detected?: boolean;
-  pending_dependency?: "customer_audience_missing";
+  pending_dependency?: "customer_audience_missing" | "customer_audience_not_detected";
 }
 interface CatalogSetup {
   product_catalog_id?: string;
@@ -344,7 +344,7 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
                 Exclui clientes/compradores
               </span>
             )}
-            {action.audience_exclusions?.pending_dependency === "customer_audience_missing" && (
+            {(action.audience_exclusions?.pending_dependency === "customer_audience_missing" || action.audience_exclusions?.pending_dependency === "customer_audience_not_detected") && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30">
                 Pendência: público de clientes não detectado
               </span>

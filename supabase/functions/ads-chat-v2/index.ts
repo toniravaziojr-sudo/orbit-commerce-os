@@ -1027,19 +1027,31 @@ async function handleStrategicProposal(
       return JSON.stringify({ error: "Proposta vazia. Inclua pelo menos uma ação planejada." });
     }
 
-    // Create a strategic plan action in the approval pipeline (same as Strategist motor)
+    // Caminho legado do chat v2: nunca pode mais salvar plano aprovável fora do contrato canônico.
     const planAction = {
       tenant_id: tenantId,
       session_id: chatSessionId,
       channel: channel || "meta",
       action_type: "strategic_plan",
-      status: "pending_approval",
+      status: "incomplete",
       reasoning: diagnosis?.substring(0, 5000) || "Proposta gerada via Chat Estratégico",
       expected_impact: strategy_summary?.substring(0, 2000) || "",
       confidence: "medium",
       action_data: {
         source: "ads_chat_v2_strategic",
         strategy_run_id: strategyRunId,
+        approval_status: "incomplete",
+        contract: {
+          ok: false,
+          version: "chat-v2-legacy-blocked",
+          blockers_count: 1,
+          warnings_count: 0,
+          errors: [{
+            code: "legacy_chat_v2_strategic_plan_requires_canonical_guard",
+            severity: "blocker",
+            message: "Plano gerado por caminho legado do chat. Rode uma nova análise pelo fluxo canônico para tornar o plano aprovável.",
+          }],
+        },
         diagnosis: diagnosis?.substring(0, 10000),
         planned_actions: planned_actions.map((action: any) => ({
           action_type: action.action_type,
@@ -1084,10 +1096,10 @@ async function handleStrategicProposal(
     return JSON.stringify({
       success: true,
       proposal_id: inserted.id,
-      status: "pending_approval",
+      status: "incomplete",
       actions_count: planned_actions.length,
       total_daily_budget_brl,
-      message: `Proposta estratégica criada com ${planned_actions.length} ações. O lojista pode revisá-la e aprová-la na aba de aprovações.`,
+      message: `Proposta estratégica salva como incompleta. Ela fica visível para revisão, mas não pode ser aprovada até ser regenerada pelo fluxo canônico.`,
     });
   } catch (err: any) {
     console.error(`[ads-chat-v2][${VERSION}] Strategic proposal error:`, err);

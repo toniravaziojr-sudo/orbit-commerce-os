@@ -91,6 +91,28 @@ export function getCustomerExclusionLine(
   data: any,
   preview: any,
 ): { applied: boolean; label: string; missing?: boolean; hint?: string } | null {
+  const strategicActions = [
+    ...(Array.isArray(data?.planned_actions) ? data.planned_actions : []),
+    ...(Array.isArray(preview?.planned_actions) ? preview.planned_actions : []),
+  ];
+  const coldAction = strategicActions.find((action: any) => {
+    const campaignType = String(action?.campaign_type || "").toLowerCase();
+    const stage = String(action?.funnel_stage || "").toLowerCase();
+    return ["prospecting", "catalog_prospecting", "tof", "cold"].includes(campaignType) || ["tof", "cold"].includes(stage);
+  });
+  const coldExclusion = coldAction?.audience_exclusions;
+  if (coldExclusion?.customers) {
+    return { applied: true, label: "Exclui clientes/compradores" };
+  }
+  if (coldExclusion?.pending_dependency === "customer_audience_not_detected" || coldExclusion?.pending_dependency === "customer_audience_missing") {
+    return {
+      applied: false,
+      missing: true,
+      label: "Pendência: público de clientes não detectado",
+      hint: "Campanha de público frio/prospecção precisa desse público antes da aprovação.",
+    };
+  }
+
   const meta =
     (data && (data as any).customer_audience_exclusion) ||
     (preview && (preview as any).customer_audience_exclusion) ||

@@ -15,8 +15,7 @@ import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_sha
 // Onda G (rev2) — Preflight Builder + Contrato fail-closed do Plano Estratégico.
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 import {
-  validateStrategicPlanContract,
-  normalizeStrategicPlanCustomerExclusions,
+  normalizeAndValidateStrategicPlanForApproval,
   CONTRACT_VERSION as PLAN_CONTRACT_VERSION,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
@@ -2503,30 +2502,23 @@ async function executeToolCall(
   const isAutoMode = false;
 
   if (toolName === "strategic_plan") {
-    // Onda G (rev2) — Validar contrato do plano contra o Preflight determinístico.
+    // Onda G/F — Guard canônico obrigatório antes de qualquer persistência aprovável.
     let contract: any = null;
     let preflightSnapshot: StrategicPlanPreflight | null = null;
     let normalizedPlanArgs: any = args;
+    let approvalStatus: "pending_approval" | "incomplete" = "incomplete";
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
-      if (preflightSnapshot) {
-        normalizedPlanArgs = normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot);
-        contract = validateStrategicPlanContract(normalizedPlanArgs, preflightSnapshot);
-        if (!contract.ok) {
-          console.warn(
-            `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
-          );
-        } else {
-          console.log(`[ads-autopilot-strategist][plan-contract] OK v${PLAN_CONTRACT_VERSION}`);
-        }
+      const guard = normalizeAndValidateStrategicPlanForApproval(args, preflightSnapshot);
+      normalizedPlanArgs = guard.normalizedPlan;
+      contract = guard.contract;
+      approvalStatus = guard.approvalStatus;
+      if (!contract.ok) {
+        console.warn(
+          `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} status=${approvalStatus} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
+        );
       } else {
-        contract = {
-          ok: false,
-          version: PLAN_CONTRACT_VERSION,
-          errors: [{ code: "preflight_unavailable", severity: "blocker", message: "Preflight determinístico indisponível — plano não pode ser validado." }],
-          blockers_count: 1,
-          warnings_count: 0,
-        };
+        console.log(`[ads-autopilot-strategist][plan-contract] OK v${PLAN_CONTRACT_VERSION}`);
       }
     } catch (e: any) {
       console.error(`[ads-autopilot-strategist][plan-contract] validator threw:`, e?.message);
@@ -2537,6 +2529,7 @@ async function executeToolCall(
         blockers_count: 1,
         warnings_count: 0,
       };
+      approvalStatus = "incomplete";
     }
 
     const actionsPreview = (normalizedPlanArgs.planned_actions || []).map((a: any) => {
@@ -2546,7 +2539,7 @@ async function executeToolCall(
     const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
 
     return {
-      status: "pending_approval",
+      status: approvalStatus,
       data: {
         type: "strategic_plan",
         ad_account_id: config.ad_account_id,
@@ -2562,6 +2555,7 @@ async function executeToolCall(
         strategic_plan_preflight: preflightSnapshot,
         contract,
         contract_version: PLAN_CONTRACT_VERSION,
+        approval_status: approvalStatus,
         preview: {
           headline: contract && !contract.ok
             ? "Plano Estratégico — INCOMPLETO (não aprovável)"

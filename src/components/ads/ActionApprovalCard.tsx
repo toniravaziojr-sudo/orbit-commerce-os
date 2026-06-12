@@ -1482,6 +1482,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const preview = data.preview || {};
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
+  const strategicPlanBlocked = isStrategicPlan && (action.status === "incomplete" || data?.approval_status === "incomplete" || data?.contract?.ok === false);
 
   const creativeUrls = useAllCreativeUrls(action);
   const primaryCreativeUrl = creativeUrls[0] || null;
@@ -1611,6 +1612,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   title={fitData?.fit.user_message || ""}
                 >
                   {fitBadge.label}
+                </Badge>
+              )}
+              {strategicPlanBlocked && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-rose-500/10 text-rose-700 border-rose-500/20">
+                  Plano incompleto
                 </Badge>
               )}
             </div>
@@ -1782,15 +1788,16 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             <Button
               size="sm"
               onClick={() => onApprove(action.id)}
-              disabled={!!approvingId || !!rejectingId}
+                disabled={!!approvingId || !!rejectingId || strategicPlanBlocked}
               className="flex-1 h-8 text-xs gap-1.5"
+                title={strategicPlanBlocked ? "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar." : undefined}
             >
               {approvingId === action.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Check className="h-3.5 w-3.5" />
               )}
-              {approvingId === action.id ? "Aprovando..." : "Aprovar"}
+              {approvingId === action.id ? "Aprovando..." : strategicPlanBlocked ? "Plano incompleto" : "Aprovar"}
             </Button>
           )}
           <Button

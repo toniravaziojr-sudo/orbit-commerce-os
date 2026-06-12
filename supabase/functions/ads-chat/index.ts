@@ -1037,7 +1037,13 @@ async function triggerStrategicPlan(supabase: any, tenantId: string, args: any, 
       action_type: "strategic_plan",
       status: "executed",
       reasoning: `Plano estratégico gerado via Chat IA (gatilho: ${trigger})`,
-      action_data: { trigger, target_account_id: targetAccountId, plan_status: planStatus, actions_planned: actionsPlanned },
+      action_data: {
+        trigger,
+        target_account_id: targetAccountId,
+        plan_status: planStatus,
+        actions_planned: actionsPlanned,
+        source: "ads_chat_legacy_observability_only",
+      },
       executed_at: new Date().toISOString(),
     });
 
