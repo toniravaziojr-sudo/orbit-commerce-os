@@ -282,7 +282,15 @@ export function StructuredProposalModal({
   const allBlockers: GateIssue[] = [...completeness.blockers, ...compatibility.blockers, ...utmGate.blockers];
   const allWarnings: GateIssue[] = [...completeness.warnings, ...compatibility.warnings, ...utmGate.warnings];
   const approveBlockedByGates = isStrategyStage && allBlockers.length > 0;
-  const approveBlocked = approveBlockedByFit || approveBlockedByGates;
+
+  // Onda G (rev2) — Contrato fail-closed do Plano Estratégico.
+  const planContract: any = (data as any)?.contract || null;
+  const approveBlockedByContract = isStrategicPlan && planContract && planContract.ok === false;
+  const contractBlockerErrors: Array<{ code: string; message: string }> = approveBlockedByContract
+    ? (planContract.errors || []).filter((e: any) => e.severity === "blocker")
+    : [];
+
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract;
 
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
@@ -295,13 +303,17 @@ export function StructuredProposalModal({
     ? approveBlocked
       ? "Ajuste necessário antes de aprovar"
       : "Aprovar estratégia e gerar criativos"
-    : "Aprovar");
+    : approveBlockedByContract
+      ? "Plano incompleto — não aprovável"
+      : "Aprovar");
 
-  const approveBlockedReason = approveBlockedByFit
-    ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
-    : approveBlockedByGates
-      ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
-      : null;
+  const approveBlockedReason = approveBlockedByContract
+    ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
+    : approveBlockedByFit
+      ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+      : approveBlockedByGates
+        ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+        : null;
 
   return (
     <>
