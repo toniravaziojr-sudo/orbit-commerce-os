@@ -676,3 +676,10 @@ Enriquecimento do mesmo card/modal já existente, **sem novas rotas**:
 - Seção "Orçamento por Funil" com planejado/ocupado/livre.
 - Badges por ação: exclui clientes/compradores, pendência de público de clientes, pendência de catálogo Meta, catálogo dinâmico, teste criativo, produto identificado com baixa confiança, fit de público×orçamento.
 - Detalhamento inline de `catalog_setup` e justificativa de override.
+
+### Gestor de Tráfego IA — Estado "Plano incompleto" (Onda G.1 rev2)
+Mesma tela, mesmo modal — **sem rotas novas**:
+- Quando o contrato do Plano Estratégico falha, o modal exibe um banner vermelho "Plano incompleto — precisa ser regenerado ou ajustado", com a lista de pendências em PT-BR (até 8 itens visíveis).
+- O botão "Aprovar plano" fica desabilitado e exibe o texto "Plano incompleto — não aprovável".
+- Recusar o plano e rodar nova análise inicial continuam sendo os caminhos válidos.
+- O servidor também bloqueia: tentativa direta de aprovar devolve mensagem amigável em PT-BR e não dispara geração de propostas filhas.
