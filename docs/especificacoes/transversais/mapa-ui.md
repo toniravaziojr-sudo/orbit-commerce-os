@@ -400,7 +400,8 @@ Configurados em `src/config/module-status.ts`. Referência rápida:
 - **Proibido:** painéis operacionais (campanhas de ads, catálogos de shop, gerenciamento de conteúdo)
 - Painéis operacionais devem residir em seus respectivos módulos (Marketing, Marketplaces, Publicações)
 - **Botões válidos no card de conexão Meta:** `Reconectar` (OAuth com `auth_type=reauthorize`) e `Desconectar`. O antigo botão `Atualizar` foi removido em 2026-04-18 — apenas recarregava cache local React Query, sem comunicação real com a Meta. Renovação real é automática via cron `meta-token-refresh-daily` e detecção de invalidação via cron `meta-token-health-check-daily`.
-- Referência: memória `integration-hub-ui-standard`, memória `meta-token-lifecycle`
+- **Card "Catálogos" do Meta (rev 2026-06-12):** ao selecionar um catálogo, o sistema sincroniza os produtos imediatamente. Abaixo do catálogo escolhido aparece um indicador com `X sincronizado(s) · Último envio há Y` e o botão **"Atualizar agora"** para forçar nova sincronização manual. Cron diário às 05:00 UTC mantém o catálogo atualizado e falhas aparecem na Central de Execuções (categorias `integracao_meta_catalogo` e `integracao_meta_catalogo_parcial`). Detalhe em `docs/especificacoes/marketplaces/meta-catalogo.md`.
+- Referência: memória `integration-hub-ui-standard`, memória `meta-token-lifecycle`, memória `meta-catalog-canonical-id-and-autosync`
 
 ### 6.2 Sidebar: Sistema vs Utilitários
 
