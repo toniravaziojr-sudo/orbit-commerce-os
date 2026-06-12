@@ -650,3 +650,22 @@ Propostas legacy (sem `flow_version='two_step_v1'`) continuam usando o "Sugerir 
 - Histórico das análises é persistido em tabela própria (`ads_ai_analysis_runs`) para auditoria, com snapshot do contexto usado, diagnóstico, estratégia, limitações e IDs das propostas criadas.
 - Detalhe em `docs/especificacoes/marketing/gestor-trafego.md` seção "Onda E — Modo Piloto vs Modo Piloto Inicial".
 
+
+### `/ads` — Configurações Gerais → Aprendizados da IA (Onda F, 2026-06-12)
+
+Nova área dentro de **Gestor de Tráfego IA → Configurações Gerais**, abaixo do bloco de Regras Globais.
+
+- Lista os aprendizados específicos do Gestor de Tráfego com filtros por status (Todos · Sugeridos · Ativos · Pausados · Arquivados).
+- Cada item mostra: título, categoria, descrição, origem, data, quantidade de evidências e confiança.
+- Ações por item: Ativar / Pausar / Editar / Arquivar / Remover.
+- Botão "Novo aprendizado" abre diálogo para criação manual (já nasce ativo).
+- Aprendizados gerados a partir de feedback nascem como **Sugeridos** — usuário decide se ativa.
+- **Somente aprendizados Ativos entram nas próximas análises da IA.**
+- Esta área é exclusiva do Gestor de Tráfego e não compartilha dados com a área genérica "Memórias da IA" de outros agentes.
+- Detalhe em `docs/especificacoes/marketing/gestor-trafego.md` seção "F — Onda F".
+
+### `/ads` — Gate de UTM no nível Anúncio/Criativo (Onda F, 2026-06-12)
+
+- O modal de proposta detalhada passa a bloquear a aprovação do Anúncio quando o link final não contém UTMs obrigatórias (`utm_source`, `utm_medium`, `utm_campaign`).
+- A mensagem é amigável: "Este anúncio precisa de UTM no link final antes de ser aprovado." e aponta para o nó do Anúncio/Criativo (não para a Campanha).
+- O Strategist passa a aplicar automaticamente o modelo padrão interno de UTM ao gerar a proposta — não há campo configurável de UTM na UI nesta entrega.
