@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
+import { normalizeStrategicPlanCustomerExclusions, validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
 import { buildStrategicPlanPreflightContext } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanPreflight";
 
 const basePreflight = buildStrategicPlanPreflightContext({
@@ -64,6 +64,32 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     plan.planned_actions[0].audience_exclusions = {};
     const r = validateStrategicPlanContract(plan, basePreflight);
     expect(r.errors.some((e) => e.code === "prospecting_missing_customer_exclusion")).toBe(true);
+  });
+
+  it("normaliza automaticamente exclusão de clientes em ação fria antes de persistir o plano", () => {
+    const plan = basePlan();
+    plan.planned_actions[0].campaign_type = "testing";
+    plan.planned_actions[0].campaign_intent = "retention";
+    plan.planned_actions[0].funnel_stage = "tof";
+    plan.planned_actions[0].audience_exclusions = {};
+
+    const normalized = normalizeStrategicPlanCustomerExclusions(plan, basePreflight);
+
+    expect(normalized.planned_actions[0].audience_exclusions.customers).toBe(true);
+    expect(normalized.planned_actions[0].audience_exclusions.customer_audience_detected).toBe(true);
+  });
+
+  it("preserva exceção explícita de teste criativo com justificativa válida", () => {
+    const plan = basePlan();
+    plan.planned_actions[0].campaign_type = "testing";
+    plan.planned_actions[0].campaign_intent = "creative_test";
+    plan.planned_actions[0].funnel_stage = "tof";
+    plan.planned_actions[0].audience_exclusions = { customers: false };
+    plan.planned_actions[0].exclusion_override_reason = "Usuário pediu validar criativo com base compradora atual.";
+
+    const normalized = normalizeStrategicPlanCustomerExclusions(plan, basePreflight);
+
+    expect(normalized.planned_actions[0].audience_exclusions.customers).toBe(false);
   });
 
   it("rejeita ação de orçamento sem audience_budget_fit", () => {
