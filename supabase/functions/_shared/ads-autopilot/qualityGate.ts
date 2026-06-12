@@ -106,6 +106,13 @@ export interface QualityGateInput {
     meta_audience_id: string | null;
     audience_name?: string | null;
   } | null;
+  /**
+   * Onda G.5 — Intenção da campanha. Quando `creative_test` E houver
+   * `exclusion_override_reason` na args, o gate libera a exclusão de
+   * clientes em público frio (com auditoria nos `details`). Para qualquer
+   * outra intenção a regra fria continua valendo.
+   */
+  campaign_intent?: "acquisition" | "retention" | "creative_test" | "offer_test" | "scale" | "reactivation" | null;
 }
 
 export interface QualityGateResult {
