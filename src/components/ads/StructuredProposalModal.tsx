@@ -49,6 +49,7 @@ import {
 } from "@/lib/ads/normalizeCampaignStructure";
 import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleteness";
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
+import { runUtmGate } from "@/lib/ads/gates/utm";
 import type { GateIssue } from "@/lib/ads/gates/types";
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
