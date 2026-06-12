@@ -443,18 +443,27 @@ Deno.serve(async (req) => {
         status: "open",
       });
 
+      // Onda F: marca o plano como APROVADO (não publica; filhas são geradas pelo strategist).
       await supabase.from("ads_autopilot_actions")
-        .update({ status: "executed", executed_at: new Date().toISOString() })
+        .update({ status: "approved", approved_at: new Date().toISOString() })
         .eq("id", action_id);
 
+      // Recupera analysis_run_id do plano para propagação às filhas.
+      const planAnalysisRunId = action.analysis_run_id || data?.analysis_run_id || null;
+
       const { error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
-        body: { tenant_id, trigger: "implement_approved_plan" },
+        body: {
+          tenant_id,
+          trigger: "implement_approved_plan",
+          source_plan_id: action_id,
+          analysis_run_id: planAnalysisRunId,
+        },
       });
 
       if (stratErr) console.error(`[ads-autopilot-execute-approved][${VERSION}] Strategist trigger error:`, stratErr.message);
 
       return new Response(
-        JSON.stringify({ success: true, data: { type: "strategic_plan_approved" } }),
+        JSON.stringify({ success: true, data: { type: "strategic_plan_approved", source_plan_id: action_id } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
