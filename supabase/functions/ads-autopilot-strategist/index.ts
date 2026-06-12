@@ -444,6 +444,18 @@ const STRATEGIST_TOOLS = [
           expected_results: { type: "string", description: "Projeção QUANTITATIVA de resultados: ROAS esperado por campanha, CPA alvo, conversões estimadas, receita projetada. Usar dados históricos como base." },
           risk_assessment: { type: "string", description: "Riscos específicos com probabilidade e mitigação para cada um" },
           timeline: { type: "string", description: "Cronograma detalhado: Dia 1 (o quê), Dia 2-3 (o quê), Semana 1 (review), etc." },
+          funnel_budget_state: {
+            type: "object",
+            description: "Onda G.1 — Estado do orçamento por funil. Copie EXATAMENTE do bloco determinístico injetado no contexto. NÃO INVENTE valores.",
+            properties: {
+              total_daily_cents: { type: "number" },
+              per_funnel: {
+                type: "object",
+                description: "Mapa funil → { planned_cents, occupied_cents, free_cents }",
+              },
+              splits_source: { type: "string", enum: ["user_config", "defaults"] },
+            },
+          },
         },
         required: ["diagnosis", "planned_actions", "budget_allocation", "expected_results", "risk_assessment", "timeline"],
         additionalProperties: false,
