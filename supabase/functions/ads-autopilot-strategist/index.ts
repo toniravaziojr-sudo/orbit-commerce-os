@@ -2503,25 +2503,15 @@ async function executeToolCall(
   const isAutoMode = false;
 
   if (toolName === "strategic_plan") {
-    // Build preview text from structured actions
-    const normalizedPlanArgs = preflightSnapshot
-      ? normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot)
-      : args;
-
-    const actionsPreview = (normalizedPlanArgs.planned_actions || []).map((a: any) => {
-      if (typeof a === "string") return `• ${a}`;
-      return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
-    }).join("\n");
-    const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
-
     // Onda G (rev2) — Validar contrato do plano contra o Preflight determinístico.
     let contract: any = null;
     let preflightSnapshot: StrategicPlanPreflight | null = null;
+    let normalizedPlanArgs: any = args;
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
       if (preflightSnapshot) {
-        const normalized = normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot);
-        contract = validateStrategicPlanContract(normalized, preflightSnapshot);
+        normalizedPlanArgs = normalizeStrategicPlanCustomerExclusions(args, preflightSnapshot);
+        contract = validateStrategicPlanContract(normalizedPlanArgs, preflightSnapshot);
         if (!contract.ok) {
           console.warn(
             `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
@@ -2549,19 +2539,25 @@ async function executeToolCall(
       };
     }
 
+    const actionsPreview = (normalizedPlanArgs.planned_actions || []).map((a: any) => {
+      if (typeof a === "string") return `• ${a}`;
+      return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
+    }).join("\n");
+    const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
+
     return {
       status: "pending_approval",
       data: {
         type: "strategic_plan",
         ad_account_id: config.ad_account_id,
-          diagnosis: normalizedPlanArgs.diagnosis,
-          planned_actions: normalizedPlanArgs.planned_actions,
-          expected_results: normalizedPlanArgs.expected_results,
-          risk_assessment: normalizedPlanArgs.risk_assessment,
-          timeline: normalizedPlanArgs.timeline,
-          budget_allocation: normalizedPlanArgs.budget_allocation,
-          funnel_budget_state: normalizedPlanArgs.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
-          active_campaigns_summary: normalizedPlanArgs.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
+        diagnosis: normalizedPlanArgs.diagnosis,
+        planned_actions: normalizedPlanArgs.planned_actions,
+        expected_results: normalizedPlanArgs.expected_results,
+        risk_assessment: normalizedPlanArgs.risk_assessment,
+        timeline: normalizedPlanArgs.timeline,
+        budget_allocation: normalizedPlanArgs.budget_allocation,
+        funnel_budget_state: normalizedPlanArgs.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
+        active_campaigns_summary: normalizedPlanArgs.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
         // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
         strategic_plan_preflight: preflightSnapshot,
         contract,
