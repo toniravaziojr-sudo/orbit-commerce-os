@@ -670,3 +670,9 @@ Nova área dentro de **Gestor de Tráfego IA → Configurações Gerais**, abaix
 - O modal de proposta detalhada passa a bloquear a aprovação do Anúncio quando o link final não contém UTMs obrigatórias (`utm_source`, `utm_medium`, `utm_campaign`).
 - A mensagem é amigável: "Este anúncio precisa de UTM no link final antes de ser aprovado." e aponta para o nó do Anúncio/Criativo (não para a Campanha).
 - O Strategist passa a aplicar automaticamente o modelo padrão interno de UTM ao gerar a proposta — não há campo configurável de UTM na UI nesta entrega.
+
+### Gestor de Tráfego IA — Plano Estratégico (Onda G)
+Enriquecimento do mesmo card/modal já existente, **sem novas rotas**:
+- Seção "Orçamento por Funil" com planejado/ocupado/livre.
+- Badges por ação: exclui clientes/compradores, pendência de público de clientes, pendência de catálogo Meta, catálogo dinâmico, teste criativo, produto identificado com baixa confiança, fit de público×orçamento.
+- Detalhamento inline de `catalog_setup` e justificativa de override.

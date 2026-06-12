@@ -35,6 +35,27 @@ interface AdSetPlan {
   ads_count?: number;
 }
 
+// Onda G — campos novos opcionais no plano estratégico
+interface AudienceExclusions {
+  customers?: boolean;
+  reason?: string;
+  customer_audience_detected?: boolean;
+  pending_dependency?: "customer_audience_missing";
+}
+interface CatalogSetup {
+  product_catalog_id?: string;
+  product_catalog_name?: string;
+  product_set?: string;
+  audience_window?: string;
+  exclude_recent_buyers_days?: number;
+  creative_mode?: "dynamic" | "static";
+  pending_dependency?: "catalog_not_connected";
+}
+interface AudienceBudgetFit {
+  fit?: "under_funded" | "adequate" | "over_funded_small_audience" | "saturation_risk" | "insufficient_data";
+  recommended_action?: string;
+}
+
 interface StructuredAction {
   action_type?: string;
   campaign_type?: string;
@@ -43,7 +64,7 @@ interface StructuredAction {
   target_audience?: string;
   funnel_stage?: string;
   objective?: string;
-  bid_strategy?: string; // legacy — mapped to performance_goal
+  bid_strategy?: string;
   performance_goal?: string;
   conversion_location?: string;
   attribution_model?: string;
@@ -55,6 +76,17 @@ interface StructuredAction {
   expected_roas?: number;
   placements?: string;
   adsets?: AdSetPlan[];
+  // Onda G
+  campaign_intent?: "acquisition" | "retention" | "creative_test" | "offer_test" | "scale" | "reactivation";
+  funnel?: "cold" | "remarketing" | "tests" | "leads" | "unknown";
+  budget_delta_brl?: number;
+  references_release_from_action_index?: number;
+  audience_exclusions?: AudienceExclusions;
+  exclusion_override_reason?: string;
+  catalog_setup?: CatalogSetup;
+  product_identification_confidence?: "high" | "medium" | "low" | "unknown";
+  diagnosis_limitation?: string;
+  audience_budget_fit?: AudienceBudgetFit;
 }
 
 interface BudgetAllocation {
@@ -67,6 +99,20 @@ interface BudgetAllocation {
   test_brl?: number;
 }
 
+// Onda G.1 — estado determinístico do orçamento por funil
+interface FunnelBucket {
+  planned_pct?: number;
+  planned_cents?: number;
+  occupied_cents?: number;
+  free_cents?: number;
+  occupied_campaigns?: Array<{ id?: string; name?: string; budget_cents?: number }>;
+}
+interface FunnelBudgetStatePlan {
+  total_daily_cents?: number;
+  per_funnel?: Record<string, FunnelBucket>;
+  splits_source?: "user_config" | "defaults";
+}
+
 interface StrategicPlanContentProps {
   diagnosis?: string | null;
   plannedActions?: StructuredAction[] | string[] | string | null;
@@ -75,6 +121,7 @@ interface StrategicPlanContentProps {
   timeline?: string | null;
   reasoning?: string | null;
   budgetAllocation?: BudgetAllocation | null;
+  funnelBudgetState?: FunnelBudgetStatePlan | null;
   className?: string;
 }
 
@@ -281,10 +328,62 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
             <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", campaignTypeBadgeColor)}>
               {campaignTypeLabel}
             </span>
+            {/* Onda G — Badges de qualidade estratégica */}
+            {action.campaign_intent === "creative_test" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-950/30">
+                Teste criativo
+              </span>
+            )}
+            {(action.product_identification_confidence === "low" || action.product_identification_confidence === "unknown") && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30" title={action.diagnosis_limitation || ""}>
+                {action.product_identification_confidence === "low" ? "Produto identificado com baixa confiança" : "Produto não identificado com clareza"}
+              </span>
+            )}
+            {action.audience_exclusions?.customers && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                Exclui clientes/compradores
+              </span>
+            )}
+            {action.audience_exclusions?.pending_dependency === "customer_audience_missing" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                Pendência: público de clientes não detectado
+              </span>
+            )}
+            {action.catalog_setup?.pending_dependency === "catalog_not_connected" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                Pendência: catálogo Meta não detectado
+              </span>
+            )}
+            {action.catalog_setup?.creative_mode === "dynamic" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30">
+                Catálogo dinâmico
+              </span>
+            )}
+            {action.audience_budget_fit?.fit && action.audience_budget_fit.fit !== "adequate" && action.audience_budget_fit.fit !== "insufficient_data" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-blue-700 bg-blue-50 dark:bg-blue-950/30" title={action.audience_budget_fit.recommended_action || ""}>
+                Fit: {action.audience_budget_fit.fit.replace(/_/g, " ")}
+              </span>
+            )}
           </div>
           <h4 className="text-sm font-semibold text-foreground leading-snug">
             {action.product_name || action.rationale?.substring(0, 80) || "Ação planejada"}
           </h4>
+          {/* Onda G.5 — justificativa de override quando teste criativo inclui clientes */}
+          {action.exclusion_override_reason && (
+            <p className="text-[11px] text-foreground/70 mt-1">
+              <span className="font-semibold text-foreground">Justificativa (teste criativo inclui clientes):</span> {action.exclusion_override_reason}
+            </p>
+          )}
+          {/* Onda G.3 — detalhamento de catálogo dinâmico */}
+          {action.catalog_setup && (action.catalog_setup.product_catalog_id || action.catalog_setup.product_set || action.catalog_setup.audience_window) && (
+            <p className="text-[11px] text-foreground/70 mt-1">
+              <span className="font-semibold text-foreground">Catálogo:</span>{" "}
+              {action.catalog_setup.product_catalog_name || action.catalog_setup.product_catalog_id || "—"}
+              {action.catalog_setup.product_set ? ` · set: ${action.catalog_setup.product_set}` : ""}
+              {action.catalog_setup.audience_window ? ` · janela: ${action.catalog_setup.audience_window}` : ""}
+              {action.catalog_setup.exclude_recent_buyers_days ? ` · exclui compradores ${action.catalog_setup.exclude_recent_buyers_days}d` : ""}
+            </p>
+          )}
         </div>
       </div>
 
@@ -645,6 +744,7 @@ export function StrategicPlanContent({
   timeline,
   reasoning,
   budgetAllocation,
+  funnelBudgetState,
   className,
 }: StrategicPlanContentProps) {
   const diagnosisText = diagnosis || (reasoning && !plannedActions ? reasoning : null);
@@ -658,6 +758,14 @@ export function StrategicPlanContent({
     : "";
   const legacyCards = !structured ? parseLegacyActions(legacyText) : [];
   const hasActions = structured ? (plannedActions as StructuredAction[]).length > 0 : legacyCards.length > 0;
+
+  const FUNNEL_PT: Record<string, string> = {
+    cold: "Frio",
+    remarketing: "Remarketing",
+    tests: "Testes",
+    leads: "Leads",
+    unknown: "Sem funil identificado",
+  };
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -698,7 +806,50 @@ export function StrategicPlanContent({
         </Section>
       )}
 
-      {/* 3. ALOCAÇÃO DE ORÇAMENTO */}
+      {/* 3a. Onda G.1 — Orçamento por funil (planejado / ocupado / livre) */}
+      {funnelBudgetState && funnelBudgetState.per_funnel && (
+        <Section icon={<PieChart className="h-4 w-4" />} label="Orçamento por Funil" color="text-indigo-500">
+          <div className="space-y-2">
+            {funnelBudgetState.total_daily_cents != null && (
+              <p className="text-[12px] text-muted-foreground">
+                Total diário: <strong className="text-foreground">R$ {(funnelBudgetState.total_daily_cents / 100).toFixed(2)}</strong>
+                {funnelBudgetState.splits_source && ` · splits: ${funnelBudgetState.splits_source === "user_config" ? "configurados" : "default"}`}
+              </p>
+            )}
+            <div className="grid gap-2">
+              {Object.entries(funnelBudgetState.per_funnel).map(([key, b]) => {
+                if (!b) return null;
+                const planned = (b.planned_cents || 0) / 100;
+                const occupied = (b.occupied_cents || 0) / 100;
+                const free = (b.free_cents ?? (planned - occupied) * 100) / (b.free_cents != null ? 100 : 1);
+                const freeReais = (b.free_cents ?? Math.round((planned - occupied) * 100)) / 100;
+                if ((b.planned_cents || 0) === 0 && (b.occupied_cents || 0) === 0) return null;
+                return (
+                  <div key={key} className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[12px]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="font-semibold text-foreground">{FUNNEL_PT[key] || key} <span className="text-muted-foreground font-normal">({b.planned_pct ?? 0}%)</span></span>
+                      <span className={cn("font-semibold", freeReais < 0 ? "text-destructive" : "text-emerald-600")}>livre R$ {freeReais.toFixed(2)}</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      planejado R$ {planned.toFixed(2)} · ocupado R$ {occupied.toFixed(2)}
+                    </div>
+                    {b.occupied_campaigns && b.occupied_campaigns.length > 0 && (
+                      <div className="text-[11px] text-muted-foreground/80 mt-1">
+                        Ativas: {b.occupied_campaigns.map(c => `${c.name} (R$ ${((c.budget_cents || 0)/100).toFixed(2)})`).join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Campanha nova só usa orçamento maior depois que uma redução/pausa planejada liberar verba no mesmo funil.
+            </p>
+          </div>
+        </Section>
+      )}
+
+      {/* 3. ALOCAÇÃO DE ORÇAMENTO (compat legado) */}
       {budgetAllocation && budgetAllocation.total_daily_brl && (
         <Section icon={<PieChart className="h-4 w-4" />} label="Alocação de Orçamento" color="text-indigo-500">
           <BudgetAllocationSection budget={budgetAllocation} />

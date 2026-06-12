@@ -24,7 +24,7 @@
 //   - cold_audience_requires_customer_exclusion   (Frente 1 — Fase A)
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.3.0";
+export const QUALITY_GATE_VERSION = "1.4.0";
 
 // CTAs aceitos pela Meta para campanhas de vendas/conversão.
 // Mantemos uma lista permissiva — basta haver algum CTA não vazio para
@@ -106,6 +106,13 @@ export interface QualityGateInput {
     meta_audience_id: string | null;
     audience_name?: string | null;
   } | null;
+  /**
+   * Onda G.5 — Intenção da campanha. Quando `creative_test` E houver
+   * `exclusion_override_reason` na args, o gate libera a exclusão de
+   * clientes em público frio (com auditoria nos `details`). Para qualquer
+   * outra intenção a regra fria continua valendo.
+   */
+  campaign_intent?: "acquisition" | "retention" | "creative_test" | "offer_test" | "scale" | "reactivation" | null;
 }
 
 export interface QualityGateResult {
@@ -348,7 +355,20 @@ export function runCreateCampaignQualityGate(
   //    (preserva compatibilidade com callers antigos), mas registra detalhe.
   if (isCold(args)) {
     const ca = input.customerAudience;
-    if (ca === undefined || ca === null) {
+    // Onda G.5 — Override de teste criativo: intenção declarada + justificativa.
+    const overrideReasonRaw = (args as any).exclusion_override_reason;
+    const overrideReason = typeof overrideReasonRaw === "string" ? overrideReasonRaw.trim() : "";
+    const isCreativeTestOverride =
+      input.campaign_intent === "creative_test" && overrideReason.length >= 12;
+
+    if (isCreativeTestOverride) {
+      details.customer_audience_status = "exclusion_overridden_creative_test";
+      details.exclusion_override_reason = overrideReason;
+      if (ca && ca.found && ca.meta_audience_id) {
+        details.customer_audience_id = ca.meta_audience_id;
+        details.customer_audience_name = ca.audience_name || null;
+      }
+    } else if (ca === undefined || ca === null) {
       details.customer_audience_check = "skipped_no_resolver_input";
     } else if (!ca.found || !ca.meta_audience_id) {
       reason_codes.push("cold_audience_requires_customer_exclusion");

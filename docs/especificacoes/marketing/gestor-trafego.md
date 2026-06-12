@@ -3715,3 +3715,52 @@ Vai para `strategy_summary` (parent) e `account_snapshot_summary.per_account[].c
 - Aprendizado `suggested`, `paused` ou `archived` não entra no prompt da IA.
 - Nenhuma publicação, mutação Meta/Google/TikTok ou criativo final é gerado em qualquer ponto desta Onda.
 - Sem cron mensal, sem admin avançado, sem Google/TikTok operacional.
+
+## Onda G — Qualidade Estratégica do Plano Inicial (2026-06-12)
+
+Esta onda corrige falhas de qualidade do Plano Inicial gerado pelo Modo Piloto, sem alterar UI estrutural nem chamar Meta. Toda a lógica nova é determinística e roda antes do prompt da IA, servindo como fonte de verdade numérica.
+
+### G.1 Modelo de Orçamento por Funil
+Cálculo automático de **planejado / ocupado / livre** por funil (cold / remarketing / tests / leads):
+- planejado = split% × orçamento total diário;
+- ocupado = soma do orçamento diário das campanhas ACTIVE classificadas naquele funil (por palavra-chave no nome);
+- livre = planejado − ocupado.
+
+Projeção sequencial: uma ação só pode criar/escalar usando o `livre` atual; para usar mais, deve referenciar uma ação anterior de pausar/reduzir no mesmo funil via `references_release_from_action_index`.
+
+Regra de negócio: **campanha nova nunca consome orçamento futuro antes da liberação real**.
+
+### G.2 Identificação de Produto em campanhas existentes
+Pré-processamento por 6 fontes (em ordem de confiança):
+1. creative_product_id → high
+2. URL slug → high
+3. Nome da campanha → high/medium
+4. Nome do conjunto → medium
+5. Nome do anúncio → medium
+6. Copy/headline → low
+
+Saídas: `inferred_product_id`, `inferred_product_name`, `inferred_product_source`, `product_identification_confidence`, `diagnosis_limitation`.
+
+Confiança low/unknown bloqueia pausa automática como ação principal.
+
+### G.3 Tipo de Campanha + Catálogo Dinâmico
+`campaign_type` aceita: `prospecting`, `retargeting`, `catalog_prospecting`, `catalog_retargeting`, `testing` (mais os rótulos legados).
+
+Para `catalog_*` o plano deve preencher `catalog_setup`: product_catalog, product_set, audience_window, exclude_recent_buyers_days, creative_mode='dynamic'. Sem catálogo detectado → `pending_dependency='catalog_not_connected'`.
+
+### G.4 Exclusão de Clientes explícita
+Bloco `audience_exclusions` por ação. Disponibilidade do público de Clientes é pré-resolvida por conta de anúncios; sem público → `pending_dependency='customer_audience_missing'`. O Quality Gate continua bloqueando proposta filha de frio sem exclusão aplicada.
+
+### G.5 campaign_intent + override de teste criativo
+Enum `campaign_intent`: acquisition, retention, creative_test, offer_test, scale, reactivation. Em `creative_test`, com `exclusion_override_reason` (≥ 12 chars) o gate libera a inclusão de clientes em público frio e audita em `details.exclusion_overridden_creative_test`. Em qualquer outra intenção, a regra fria continua valendo.
+
+### G.6 Audience Budget Fit (Lite)
+Sem chamada à Meta `delivery_estimate` / `reachestimate`. Usa só histórico 30d. Categorias: `under_funded`, `adequate`, `over_funded_small_audience`, `saturation_risk`, `insufficient_data`. Sugere faixa de orçamento quando aplicável. **Não bloqueia o plano**.
+
+### Renderização
+A UI do Plano Estratégico ganhou:
+- Seção "Orçamento por Funil" (planejado/ocupado/livre + campanhas ativas por bucket).
+- Badges por ação: exclusão de clientes, pendência de público/catálogo, catálogo dinâmico, teste criativo, baixa confiança de produto, fit.
+- Detalhamento inline de catálogo e justificativa de override.
+
+Nenhuma tela nova foi criada.

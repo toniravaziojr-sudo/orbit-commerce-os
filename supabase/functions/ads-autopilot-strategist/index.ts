@@ -8,6 +8,10 @@ import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_G
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
 import { resolveCustomerAudienceForMetaAccount, buildCustomerExclusionMetadata, isColdFunnelStage } from "../_shared/ads-autopilot/customerAudience.ts";
 import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
+// Onda G — Modelos determinísticos para qualidade estratégica do Plano Inicial.
+import { computeFunnelBudgetState, formatFunnelBudgetStatePtBr, inferCampaignFunnel, type FunnelBudgetState } from "../_shared/ads-autopilot/funnelBudgetModel.ts";
+import { identifyProductFromCampaign, type InferredProduct } from "../_shared/ads-autopilot/productIdentification.ts";
+import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_shared/ads-autopilot/audienceBudgetFitLite.ts";
 import {
   scoreProposal,
   applyLimits,
@@ -337,7 +341,45 @@ const STRATEGIST_TOOLS = [
               type: "object",
               properties: {
                 action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "test", "scale", "duplicate", "optimize"], description: "Tipo da ação" },
-                campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação"], description: "Tipo de campanha" },
+                campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação", "prospecting", "retargeting", "catalog_prospecting", "catalog_retargeting", "testing"], description: "Tipo de campanha. Para catálogo dinâmico use 'catalog_prospecting' ou 'catalog_retargeting'." },
+                campaign_intent: { type: "string", enum: ["acquisition", "retention", "creative_test", "offer_test", "scale", "reactivation"], description: "Onda G.5 — Intenção da campanha. Em creative_test, clientes podem ser incluídos com justificativa (exclusion_override_reason)." },
+                funnel: { type: "string", enum: ["cold", "remarketing", "tests", "leads", "unknown"], description: "Onda G.1 — Funil canônico ao qual essa ação pertence. Deve bater com funnel_budget_state." },
+                budget_delta_brl: { type: "number", description: "Onda G.1 — Variação de orçamento desta ação em R$ (+ para criar/escalar, − para reduzir/pausar)." },
+                references_release_from_action_index: { type: "number", description: "Onda G.1 — Índice (zero-based) de uma ação anterior nesta lista cuja redução/pausa libera o orçamento usado aqui. Use somente se a ação atual depende de verba liberada antes." },
+                audience_exclusions: {
+                  type: "object",
+                  description: "Onda G.4 — Exclusões de público explícitas. Obrigatório em ações de público frio/prospecção.",
+                  properties: {
+                    customers: { type: "boolean", description: "Excluir clientes/compradores." },
+                    reason: { type: "string", description: "Justificativa curta." },
+                    customer_audience_detected: { type: "boolean", description: "true se o público de Clientes existe na conta Meta." },
+                    pending_dependency: { type: "string", enum: ["customer_audience_missing"], description: "Marca pendência quando o público de Clientes não foi detectado." },
+                  },
+                },
+                exclusion_override_reason: { type: "string", description: "Onda G.5 — Justificativa OBRIGATÓRIA quando creative_test inclui clientes no frio." },
+                catalog_setup: {
+                  type: "object",
+                  description: "Onda G.3 — Obrigatório quando campaign_type começa com 'catalog_'. Use pending_dependency='catalog_not_connected' se não houver catálogo detectado.",
+                  properties: {
+                    product_catalog_id: { type: "string" },
+                    product_catalog_name: { type: "string" },
+                    product_set: { type: "string", description: "Descrição lógica do product set (ex.: 'Todos os produtos da categoria X')." },
+                    audience_window: { type: "string", description: "Janela de público (ex.: '14d viewers', '30d ATC')." },
+                    exclude_recent_buyers_days: { type: "number", description: "Dias para excluir compradores recentes." },
+                    creative_mode: { type: "string", enum: ["dynamic", "static"], description: "Catálogo dinâmico = 'dynamic'." },
+                    pending_dependency: { type: "string", enum: ["catalog_not_connected"] },
+                  },
+                },
+                product_identification_confidence: { type: "string", enum: ["high", "medium", "low", "unknown"], description: "Onda G.2 — Confiança da identificação do produto da campanha existente. Copie do bloco determinístico." },
+                diagnosis_limitation: { type: "string", description: "Onda G.2 — Limitação declarada quando a identificação for low/unknown." },
+                audience_budget_fit: {
+                  type: "object",
+                  description: "Onda G.6 — Sinal histórico de compatibilidade entre público, orçamento e objetivo. Copie do bloco determinístico quando disponível.",
+                  properties: {
+                    fit: { type: "string", enum: ["under_funded", "adequate", "over_funded_small_audience", "saturation_risk", "insufficient_data"] },
+                    recommended_action: { type: "string" },
+                  },
+                },
                 product_name: { type: "string", description: "Nome EXATO do produto do catálogo" },
                 daily_budget_brl: { type: "number", description: "Orçamento diário TOTAL da campanha em R$" },
                 target_audience: { type: "string", description: "Resumo do público-alvo principal (ex: Homens 30-65, Brasil)" },
@@ -402,6 +444,18 @@ const STRATEGIST_TOOLS = [
           expected_results: { type: "string", description: "Projeção QUANTITATIVA de resultados: ROAS esperado por campanha, CPA alvo, conversões estimadas, receita projetada. Usar dados históricos como base." },
           risk_assessment: { type: "string", description: "Riscos específicos com probabilidade e mitigação para cada um" },
           timeline: { type: "string", description: "Cronograma detalhado: Dia 1 (o quê), Dia 2-3 (o quê), Semana 1 (review), etc." },
+          funnel_budget_state: {
+            type: "object",
+            description: "Onda G.1 — Estado do orçamento por funil. Copie EXATAMENTE do bloco determinístico injetado no contexto. NÃO INVENTE valores.",
+            properties: {
+              total_daily_cents: { type: "number" },
+              per_funnel: {
+                type: "object",
+                description: "Mapa funil → { planned_cents, occupied_cents, free_cents }",
+              },
+              splits_source: { type: "string", enum: ["user_config", "defaults"] },
+            },
+          },
         },
         required: ["diagnosis", "planned_actions", "budget_allocation", "expected_results", "risk_assessment", "timeline"],
         additionalProperties: false,
@@ -1304,6 +1358,45 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     console.warn(`[ads-autopilot-strategist][${VERSION}] learnings fetch failed:`, e?.message);
   }
 
+  // ============ Onda G — Pré-computações por conta de anúncios (Meta) ============
+  // Disponibilidade do público de Clientes e disponibilidade de catálogo Meta.
+  // Tudo lido localmente; sem chamada à Meta.
+  const adAccountIds = Array.from(new Set(campaigns.map((c: any) => c.ad_account_id).filter(Boolean)));
+  const customerAudienceByAccount: Record<string, { found: boolean; meta_audience_id: string | null; audience_name: string | null }> = {};
+  for (const acctId of adAccountIds) {
+    try {
+      const res = await resolveCustomerAudienceForMetaAccount(supabase, tenantId, acctId);
+      customerAudienceByAccount[acctId] = {
+        found: !!res?.found,
+        meta_audience_id: res?.meta_audience_id || null,
+        audience_name: res?.audience_name || null,
+      };
+    } catch (_) {
+      customerAudienceByAccount[acctId] = { found: false, meta_audience_id: null, audience_name: null };
+    }
+  }
+  const catalogAvailabilityByAccount: Record<string, { available: boolean; catalog_id: string | null; catalog_name: string | null }> = {};
+  try {
+    const { data: metaInts } = await supabase
+      .from("tenant_meta_integrations")
+      .select("integration_key, status, selected_assets")
+      .eq("tenant_id", tenantId)
+      .in("integration_key", ["catalogos", "catalogo_meta"])
+      .eq("status", "active");
+    const catalogsRow = (metaInts || []).find((r: any) => r.integration_key === "catalogos") || (metaInts || [])[0];
+    const selected = catalogsRow?.selected_assets || {};
+    const cats: any[] = selected?.catalogs || (selected?.catalog ? [selected.catalog] : []);
+    for (const acctId of adAccountIds) {
+      // Catálogo é por tenant, não por conta de anúncios; reusa para todas.
+      const first = cats[0];
+      catalogAvailabilityByAccount[acctId] = {
+        available: !!first,
+        catalog_id: first?.id || null,
+        catalog_name: first?.name || null,
+      };
+    }
+  } catch (_) { /* fail-open */ }
+
   return {
     products,
     categories,
@@ -1343,6 +1436,9 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     tenant_memory_observation: tenantMemoryObservation,
     // Onda F — Aprendizados ATIVOS (entram no prompt).
     activeLearnings,
+    // Onda G — disponibilidade por conta (cliente exclusão fria + catálogo Meta).
+    customerAudienceByAccount,
+    catalogAvailabilityByAccount,
   };
 }
 
@@ -1976,7 +2072,133 @@ ${context.experiments.filter((e: any) => e.status === "active").length > 0 ? JSO
 
 Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, depois as tools operacionais.`;
 
-  return { system, user };
+  // ============ Onda G — Blocos determinísticos anexados ao prompt ============
+  // Calculados sem IA, sem rede. Servem como FONTE DE VERDADE numérica para
+  // a IA não inventar orçamento ocupado, identificação de produto, fit etc.
+  let ondaGBlock = "";
+  try {
+    const totalDailyCents = Number(config.budget_cents || 0);
+    const funnelSplits = (config.funnel_splits as any) || null;
+    const campaignBudgetInputs = accountCampaigns.map((c: any) => ({
+      id: c.meta_campaign_id,
+      name: c.name || c.meta_campaign_id,
+      status: (c.status || c.effective_status || "").toUpperCase(),
+      daily_budget_cents: Number(c.daily_budget_cents || 0),
+      objective: c.objective || null,
+    }));
+    const funnelBudgetState: FunnelBudgetState = computeFunnelBudgetState({
+      totalDailyCents,
+      funnelSplits,
+      campaigns: campaignBudgetInputs,
+    });
+
+    // Identificação determinística de produto por campanha existente.
+    const catalogRefs = (context.products || []).map((p: any) => ({ id: p.id, name: p.name, slug: p.slug || null }));
+    const adsetsByCampaign: Record<string, any[]> = {};
+    for (const as of accountAdsets) {
+      const cid = as.meta_campaign_id;
+      if (!cid) continue;
+      (adsetsByCampaign[cid] ||= []).push(as);
+    }
+    const productIdentifications: Array<{ campaign_id: string; campaign_name: string } & InferredProduct> = [];
+    for (const c of accountCampaigns) {
+      const cid = c.meta_campaign_id;
+      const sets = adsetsByCampaign[cid] || [];
+      const inf = identifyProductFromCampaign(
+        {
+          id: cid,
+          name: c.name,
+          adset_names: sets.map((s: any) => s.name).filter(Boolean),
+          ad_names: [],
+          destination_urls: [],
+          copy_texts: [],
+          creative_product_ids: [],
+        },
+        catalogRefs,
+      );
+      productIdentifications.push({ campaign_id: cid, campaign_name: c.name || cid, ...inf });
+    }
+
+    // Audience Budget Fit Lite por campanha (a partir do perf 30d).
+    const fits: Array<{ campaign_id: string; campaign_name: string } & AudienceBudgetFitResult> = [];
+    for (const c of accountCampaigns) {
+      const p30 = context.perf30d[c.meta_campaign_id] || {};
+      const fit = evaluateAudienceBudgetFit({
+        current_daily_budget_cents: Number(c.daily_budget_cents || 0),
+        impressions_30d: p30.impressions || 0,
+        reach_30d: p30.reach || 0,
+        frequency_avg: p30.frequency || 0,
+        cpm_cents: p30.cpm ? Math.round(p30.cpm * 100) : 0,
+        ctr_pct: p30.ctr_pct || 0,
+        conversions_30d: p30.conversions || 0,
+        cpa_cents: p30.cpa_cents || 0,
+        roas: p30.roas || 0,
+        spend_30d_cents: p30.spend || 0,
+      });
+      fits.push({ campaign_id: c.meta_campaign_id, campaign_name: c.name || c.meta_campaign_id, ...fit });
+    }
+
+    // Disponibilidade de catálogo Meta — pré-computada no contexto.
+    const catalogInfo = (context.catalogAvailabilityByAccount || {})[config.ad_account_id]
+      || { available: false, catalog_id: null, catalog_name: null };
+    const catalogAvailability = catalogInfo.available
+      ? `conectado (${catalogInfo.catalog_name || catalogInfo.catalog_id})`
+      : "não detectado";
+
+    // Disponibilidade do público de Clientes — pré-computada no contexto.
+    const customerAudienceAvailability = (context.customerAudienceByAccount || {})[config.ad_account_id]
+      || { found: false, meta_audience_id: null, audience_name: null };
+
+    const lines: string[] = [];
+    lines.push("\n\n## ONDA G — DADOS DETERMINÍSTICOS (FONTE DE VERDADE, NÃO INVENTAR)");
+    lines.push("Use EXATAMENTE os números abaixo no diagnóstico e em planned_actions. Não recalcule.");
+    lines.push("");
+    lines.push("### ESTADO DO ORÇAMENTO POR FUNIL (planejado / ocupado / livre)");
+    lines.push(formatFunnelBudgetStatePtBr(funnelBudgetState));
+    lines.push("");
+    lines.push("### REGRA SEQUENCIAL DE ORÇAMENTO");
+    lines.push("- Criar/escalar só pode usar orçamento `livre` do funil naquele momento.");
+    lines.push("- Para usar mais que o `livre`, declare antes uma ação de pausar/reduzir no MESMO funil e referencie-a no campo `references_release_from_action_index`.");
+    lines.push("- NUNCA trate orçamento futuro como livre antes da liberação sequencial.");
+    lines.push("- Espelhe os números em `funnel_budget_state` no strategic_plan.");
+    lines.push("");
+    lines.push("### IDENTIFICAÇÃO DE PRODUTO POR CAMPANHA EXISTENTE");
+    if (productIdentifications.length === 0) {
+      lines.push("(nenhuma campanha existente)");
+    } else {
+      for (const pi of productIdentifications.slice(0, 30)) {
+        lines.push(`- ${pi.campaign_name} → ${pi.inferred_product_name || "—"} (confiança=${pi.product_identification_confidence}, fonte=${pi.inferred_product_source || "—"})${pi.diagnosis_limitation ? " | LIMITAÇÃO: " + pi.diagnosis_limitation : ""}`);
+      }
+    }
+    lines.push("");
+    lines.push("- Se confiança = low ou unknown: declare a limitação no diagnóstico e NÃO sugira pausa como ação principal. Permitidas: manter, reduzir com aviso, ou solicitar revisão do usuário.");
+    lines.push("");
+    lines.push("### AUDIENCE BUDGET FIT (histórico 30d — Lite, sem delivery_estimate)");
+    if (fits.length === 0) {
+      lines.push("(sem dados)");
+    } else {
+      for (const f of fits.slice(0, 30)) {
+        lines.push(`- ${f.campaign_name} → fit=${f.fit}${f.suggested_budget_range_cents ? ` | sugestão R$ ${(f.suggested_budget_range_cents.min_cents/100).toFixed(2)}–${(f.suggested_budget_range_cents.max_cents/100).toFixed(2)}/dia` : ""} | ${f.explanation}`);
+      }
+    }
+    lines.push("");
+    lines.push(`### CATÁLOGO META: ${catalogAvailability}`);
+    lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
+    lines.push("");
+    lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
+    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions.customers=true` e `audience_exclusions.reason`.");
+    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_missing'`.");
+    lines.push("- Para campanha de catálogo, use `campaign_type` começando com `catalog_` e preencha `catalog_setup` (catálogo + product_set + janela + exclude_recent_buyers_days + creative_mode='dynamic'). Se o catálogo não foi detectado, marque `catalog_setup.pending_dependency='catalog_not_connected'` em vez de inventar IDs.");
+    lines.push("- Para teste criativo, defina `campaign_intent='creative_test'`. Se incluir clientes, preencha `exclusion_override_reason` com justificativa.");
+    lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
+    lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
+
+    ondaGBlock = lines.join("\n");
+  } catch (e: any) {
+    console.warn(`[ads-autopilot-strategist][onda-g] context block failed (fail-open): ${e?.message}`);
+  }
+
+  return { system: system + ondaGBlock, user };
 }
 
 // ============ BUILD TIKTOK STRATEGIST PROMPT ============
@@ -2660,7 +2882,13 @@ async function executeToolCall(
               audience_name: customerAudienceResolution.audience_name,
             }
           : undefined,
+        // Onda G.5 — propaga intenção e justificativa para o gate decidir override em creative_test.
+        campaign_intent: (args as any).campaign_intent ?? null,
       };
+      // Propaga override_reason em args, se vier da proposta.
+      if ((args as any).exclusion_override_reason) {
+        (gateInput.args as any).exclusion_override_reason = (args as any).exclusion_override_reason;
+      }
       const gate = runCreateCampaignQualityGate(gateInput);
       if (!gate.ok) {
         console.warn(
