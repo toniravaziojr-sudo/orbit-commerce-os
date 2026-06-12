@@ -710,6 +710,56 @@ Deno.serve(async (req) => {
     const skipped = imageErrors.length;
     console.log(`[meta-catalog-sync] Done: ${totalSent} synced, ${totalErrors} errors, ${skipped} skipped (image validation) of ${products.length} total`);
 
+    // ── Alerta para Central de Execuções ──
+    try {
+      const totalActive = products.length;
+      const hasFatalFailure = totalActive > 0 && totalSent === 0 && totalErrors > 0;
+      const partialFailure = totalErrors > 0 && totalSent > 0;
+
+      if (hasFatalFailure) {
+        await supabase.from("ai_critical_alerts").upsert({
+          tenant_id: tenantId,
+          category: "integracao_meta_catalogo",
+          status: "aberto",
+          title: "Catálogo Meta com falha total na sincronização",
+          description: `Nenhum produto foi enviado ao catálogo Meta (${totalErrors} erros). Verifique permissões/token ou se o catálogo escolhido ainda existe na Meta.`,
+          trigger_text: "meta-catalog-sync: total failure",
+          metadata: { catalog_id: catalogId, total: totalActive, errors: errorDetails.slice(0, 5) },
+          detected_at: new Date().toISOString(),
+        }, { onConflict: "tenant_id,category" }).then(() => {}, () => {});
+      } else {
+        // Resolve alerta aberto se sync teve sucesso
+        await supabase
+          .from("ai_critical_alerts")
+          .update({ status: "resolvido", resolved_at: new Date().toISOString(), resolution_notes: `Sincronizado ${totalSent}/${totalActive}` })
+          .eq("tenant_id", tenantId)
+          .eq("category", "integracao_meta_catalogo")
+          .eq("status", "aberto");
+
+        if (partialFailure) {
+          await supabase.from("ai_critical_alerts").upsert({
+            tenant_id: tenantId,
+            category: "integracao_meta_catalogo_parcial",
+            status: "aberto",
+            title: "Catálogo Meta com produtos rejeitados",
+            description: `${totalErrors} de ${totalActive} produto(s) falharam ao subir para o catálogo Meta. Veja os detalhes em Integrações.`,
+            trigger_text: "meta-catalog-sync: partial failure",
+            metadata: { catalog_id: catalogId, total: totalActive, synced: totalSent, errors: errorDetails.slice(0, 5) },
+            detected_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,category" }).then(() => {}, () => {});
+        } else {
+          await supabase
+            .from("ai_critical_alerts")
+            .update({ status: "resolvido", resolved_at: new Date().toISOString() })
+            .eq("tenant_id", tenantId)
+            .eq("category", "integracao_meta_catalogo_parcial")
+            .eq("status", "aberto");
+        }
+      }
+    } catch (alertErr) {
+      console.warn("[meta-catalog-sync] Alert write failed:", alertErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
