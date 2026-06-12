@@ -12,6 +12,9 @@ import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
 import { computeFunnelBudgetState, formatFunnelBudgetStatePtBr, inferCampaignFunnel, type FunnelBudgetState } from "../_shared/ads-autopilot/funnelBudgetModel.ts";
 import { identifyProductFromCampaign, type InferredProduct } from "../_shared/ads-autopilot/productIdentification.ts";
 import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_shared/ads-autopilot/audienceBudgetFitLite.ts";
+// Onda G (rev2) — Preflight Builder + Contrato fail-closed do Plano Estratégico.
+import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
+import { validateStrategicPlanContract, CONTRACT_VERSION as PLAN_CONTRACT_VERSION } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
   scoreProposal,
   applyLimits,
