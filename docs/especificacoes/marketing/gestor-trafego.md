@@ -856,7 +856,77 @@ A partir de v6.13.0, todas as propostas de planejamento e criação passam a usa
 
 **Anti-processamento (custo IA):** Abrir / navegar entre abas / recusar / iniciar ajuste **não disparam nenhuma chamada de IA**. Só `Aprovar e gerar criativos` (Etapa 1 two-step) consome créditos, e ainda assim **não publica a campanha**.
 
-**Gates de bloqueio de aprovação** continuam ativos no modal: completude estrutural, compatibilidade da plataforma e adequação produto × público (apenas em Etapa 1 do fluxo two-step). Plano Estratégico **não passa por esses gates** (não tem hierarquia de campanha).
+**Gates de bloqueio de aprovação** continuam ativos no modal: completude estrutural, compatibilidade da plataforma e adequação produto × público (apenas em Etapa 1 do fluxo two-step). Plano Estratégico **não passa por esses gates**, mas passa obrigatoriamente pelo **guard canônico do contrato estratégico**. Se o plano estiver com `status='incomplete'` ou `action_data.contract.ok=false`, o modal mostra banner de pendências, o card mostra badge **Plano incompleto** e o botão **Aprovar plano** fica desabilitado no cliente e no servidor.
+
+### Guard canônico obrigatório do Plano Estratégico (rev 2026-06-12)
+
+#### Pontos de entrada mapeados
+
+| Entrada | Arquivo | Situação após correção |
+|---|---|---|
+| Modo Piloto Inicial / análise manual por conta | `supabase/functions/ads-ai-initial-analysis/index.ts` → `ads-autopilot-strategist` | **Canônico** — passa por preflight + guard antes de persistir `strategic_plan` |
+| Análise global | `supabase/functions/ads-ai-initial-analysis/index.ts` → `ads-autopilot-strategist` | **Canônico** — cada conta passa pelo mesmo guard |
+| Aprovação do plano | `supabase/functions/ads-autopilot-execute-approved/index.ts` | **Fail-closed** — plano `incomplete`/contrato inválido não aprova e não gera filhas |
+| Geração de filhas do plano aprovado | `supabase/functions/ads-autopilot-strategist/index.ts` (`implement_approved_plan`) | **Fechado** — só roda depois da aprovação do plano canônico |
+| Chat IA v2 criando plano direto | `supabase/functions/ads-chat-v2/index.ts` | **Legado bloqueado** — salva como `incomplete`, visível para revisão, nunca aprovável |
+| Chat IA legado observacional | `supabase/functions/ads-chat/index.ts` | **Somente observabilidade** — registra artefato executado, não entra como plano aprovável |
+
+#### Ordem obrigatória
+
+Todo plano que possa virar aprovável deve passar por:
+
+`Preflight determinístico → normalizeAndValidateStrategicPlanForApproval(plan, preflight) → persistência`
+
+#### O que o guard faz
+
+- normaliza formatos legados (`TOF`, `Topo de Funil`, `Remarketing`, `Teste`) para o payload canônico;
+- converte frio/prospecção para `campaign_type='prospecting'`, `campaign_intent='acquisition'`, `funnel_stage='tof'`, `affected_funnel='cold'`;
+- identifica frio/prospecção também por sinais legados: `funnel_stage=tof/cold`, `campaign_intent=acquisition`, audiência broad/lookalike/aquisição, descrições como `Homens 30-65, Brasil`;
+- **força** `audience_exclusions` canônico quando o público de clientes existe;
+- **cria pendência** `pending_dependency='customer_audience_not_detected'` quando o público não existe;
+- retorna `approval_status='incomplete'` quando o contrato ficar incompleto;
+- anexa `action_data.contract` e `action_data.approval_status` para UI + servidor lerem a mesma fonte.
+
+#### Regra obrigatória de exclusão de clientes em frio/prospecção
+
+Quando o público de clientes/compradores existe no preflight, toda ação de aquisição/prospecção passa a carregar:
+
+```json
+"audience_exclusions": {
+  "customers": true,
+  "customer_audience_detected": true,
+  "customer_audience_id": "<id>",
+  "customer_audience_name": "<nome>",
+  "reason": "Campanha de aquisição/prospecção deve excluir clientes/compradores atuais."
+}
+```
+
+Quando o público não existe:
+
+```json
+"audience_exclusions": {
+  "customers": false,
+  "customer_audience_detected": false,
+  "pending_dependency": "customer_audience_not_detected",
+  "reason": "Campanha de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação."
+}
+```
+
+#### Fail-closed
+
+- plano `incomplete` ou `contract.ok=false` **não aprova**;
+- **não gera propostas filhas**;
+- **não habilita** o botão `Aprovar plano`;
+- planos antigos/legados continuam visíveis para recusa/arquivo, mas não ficam válidos por migração automática.
+
+#### Renderização obrigatória no card e no modal
+
+Card compacto, modal estruturado e conteúdo do plano leem a mesma fonte canônica e mostram, para ações frias/prospecção:
+
+- **Exclui clientes/compradores**; ou
+- **Pendência: público de clientes não detectado**.
+
+Essa indicação não depende mais de texto livre em `target_audience`.
 
 **Componentes:**
 - `StructuredProposalModal.tsx` — modal único, aceita `overviewOnly`, `titleOverride`, `approveLabelOverride`.
