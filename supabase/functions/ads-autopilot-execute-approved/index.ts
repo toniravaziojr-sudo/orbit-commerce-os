@@ -429,6 +429,17 @@ Deno.serve(async (req) => {
     if (action.action_type === "strategic_plan") {
       // Onda G (rev2) — Fail-closed: plano inválido NUNCA é aprovado ou gera filhas.
       const contract = (data as any)?.contract;
+      if (action.status === "incomplete" || (data as any)?.approval_status === "incomplete") {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "strategic_plan_incomplete",
+            error_pt: "Plano incompleto — Campanha de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+            blockers: contract?.errors || [],
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       if (contract && contract.ok === false) {
         const codes = (contract.errors || []).map((e: any) => e.code).slice(0, 8).join(",");
         console.warn(`[ads-autopilot-execute-approved][${VERSION}] BLOCKED: strategic_plan contract invalid (${codes})`);
