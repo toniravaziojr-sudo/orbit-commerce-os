@@ -328,10 +328,62 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
             <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", campaignTypeBadgeColor)}>
               {campaignTypeLabel}
             </span>
+            {/* Onda G — Badges de qualidade estratégica */}
+            {action.campaign_intent === "creative_test" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-950/30">
+                Teste criativo
+              </span>
+            )}
+            {(action.product_identification_confidence === "low" || action.product_identification_confidence === "unknown") && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30" title={action.diagnosis_limitation || ""}>
+                {action.product_identification_confidence === "low" ? "Produto identificado com baixa confiança" : "Produto não identificado com clareza"}
+              </span>
+            )}
+            {action.audience_exclusions?.customers && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                Exclui clientes/compradores
+              </span>
+            )}
+            {action.audience_exclusions?.pending_dependency === "customer_audience_missing" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                Pendência: público de clientes não detectado
+              </span>
+            )}
+            {action.catalog_setup?.pending_dependency === "catalog_not_connected" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                Pendência: catálogo Meta não detectado
+              </span>
+            )}
+            {action.catalog_setup?.creative_mode === "dynamic" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30">
+                Catálogo dinâmico
+              </span>
+            )}
+            {action.audience_budget_fit?.fit && action.audience_budget_fit.fit !== "adequate" && action.audience_budget_fit.fit !== "insufficient_data" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-blue-700 bg-blue-50 dark:bg-blue-950/30" title={action.audience_budget_fit.recommended_action || ""}>
+                Fit: {action.audience_budget_fit.fit.replace(/_/g, " ")}
+              </span>
+            )}
           </div>
           <h4 className="text-sm font-semibold text-foreground leading-snug">
             {action.product_name || action.rationale?.substring(0, 80) || "Ação planejada"}
           </h4>
+          {/* Onda G.5 — justificativa de override quando teste criativo inclui clientes */}
+          {action.exclusion_override_reason && (
+            <p className="text-[11px] text-foreground/70 mt-1">
+              <span className="font-semibold text-foreground">Justificativa (teste criativo inclui clientes):</span> {action.exclusion_override_reason}
+            </p>
+          )}
+          {/* Onda G.3 — detalhamento de catálogo dinâmico */}
+          {action.catalog_setup && (action.catalog_setup.product_catalog_id || action.catalog_setup.product_set || action.catalog_setup.audience_window) && (
+            <p className="text-[11px] text-foreground/70 mt-1">
+              <span className="font-semibold text-foreground">Catálogo:</span>{" "}
+              {action.catalog_setup.product_catalog_name || action.catalog_setup.product_catalog_id || "—"}
+              {action.catalog_setup.product_set ? ` · set: ${action.catalog_setup.product_set}` : ""}
+              {action.catalog_setup.audience_window ? ` · janela: ${action.catalog_setup.audience_window}` : ""}
+              {action.catalog_setup.exclude_recent_buyers_days ? ` · exclui compradores ${action.catalog_setup.exclude_recent_buyers_days}d` : ""}
+            </p>
+          )}
         </div>
       </div>
 
