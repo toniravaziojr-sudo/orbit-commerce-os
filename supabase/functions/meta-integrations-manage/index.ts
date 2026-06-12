@@ -409,6 +409,25 @@ async function executeSideEffects(
 
       console.log(`[meta-integrations-manage] CAPI side-effect: ${pixel.id} configured`);
     }
+
+    if (integrationId === "catalogos" && selectedAssets) {
+      const catalogId =
+        selectedAssets.catalog?.id ||
+        selectedAssets.catalog_id ||
+        selectedAssets.catalogs?.[0]?.id ||
+        null;
+      if (catalogId) {
+        // Auto-sync fire-and-forget logo após o usuário escolher/trocar o catálogo.
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        fetch(`${supabaseUrl}/functions/v1/meta-catalog-sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({ tenantId, catalogId, reason: "manage-side-effect" }),
+        }).catch((e) => console.warn("[meta-integrations-manage] catalog auto-sync dispatch failed:", String(e)));
+        console.log(`[meta-integrations-manage] Catalog side-effect: auto-sync disparado para ${catalogId}`);
+      }
+    }
   } catch (err) {
     console.warn(`[meta-integrations-manage] Side-effect error for ${integrationId}:`, err);
   }

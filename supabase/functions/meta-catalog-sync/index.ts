@@ -710,6 +710,63 @@ Deno.serve(async (req) => {
     const skipped = imageErrors.length;
     console.log(`[meta-catalog-sync] Done: ${totalSent} synced, ${totalErrors} errors, ${skipped} skipped (image validation) of ${products.length} total`);
 
+    // ── Alerta para Central de Execuções ──
+    try {
+      const totalActive = products.length;
+      const hasFatalFailure = totalActive > 0 && totalSent === 0 && totalErrors > 0;
+      const partialFailure = totalErrors > 0 && totalSent > 0;
+
+      const openOrInsertAlert = async (category: string, title: string, description: string, metadata: any) => {
+        const { data: existing } = await supabase
+          .from("ai_critical_alerts")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("category", category)
+          .eq("status", "aberto")
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase.from("ai_critical_alerts").update({
+            title, description, metadata, detected_at: new Date().toISOString(),
+          }).eq("id", existing.id);
+        } else {
+          await supabase.from("ai_critical_alerts").insert({
+            tenant_id: tenantId, category, status: "aberto",
+            title, description, trigger_text: `meta-catalog-sync:${category}`,
+            metadata, detected_at: new Date().toISOString(),
+          });
+        }
+      };
+
+      const resolveAlert = async (category: string, notes?: string) => {
+        await supabase.from("ai_critical_alerts").update({
+          status: "resolvido", resolved_at: new Date().toISOString(), resolution_notes: notes || null,
+        }).eq("tenant_id", tenantId).eq("category", category).eq("status", "aberto");
+      };
+
+      if (hasFatalFailure) {
+        await openOrInsertAlert(
+          "integracao_meta_catalogo",
+          "Catálogo Meta com falha total na sincronização",
+          `Nenhum produto foi enviado ao catálogo Meta (${totalErrors} erros). Verifique permissões/token ou se o catálogo escolhido ainda existe na Meta.`,
+          { catalog_id: catalogId, total: totalActive, errors: errorDetails.slice(0, 5) },
+        );
+      } else {
+        await resolveAlert("integracao_meta_catalogo", `Sincronizado ${totalSent}/${totalActive}`);
+        if (partialFailure) {
+          await openOrInsertAlert(
+            "integracao_meta_catalogo_parcial",
+            "Catálogo Meta com produtos rejeitados",
+            `${totalErrors} de ${totalActive} produto(s) falharam ao subir para o catálogo Meta. Veja os detalhes em Integrações.`,
+            { catalog_id: catalogId, total: totalActive, synced: totalSent, errors: errorDetails.slice(0, 5) },
+          );
+        } else {
+          await resolveAlert("integracao_meta_catalogo_parcial");
+        }
+      }
+    } catch (alertErr) {
+      console.warn("[meta-catalog-sync] Alert write failed:", alertErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

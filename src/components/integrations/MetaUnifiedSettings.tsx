@@ -44,6 +44,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MetaAssetSelector, MetaAssetDisplay } from "./meta/MetaAssetSelector";
+import { MetaCatalogSyncStatus } from "./meta/MetaCatalogSyncStatus";
 
 // Import config sections
 import { MetaPixelSection } from "./meta/MetaPixelSection";
@@ -546,6 +547,11 @@ function MetaIntegrationToggleRow({
           onEdit={handleAssetEdit}
           onRemove={handleAssetRemove}
         />
+      )}
+
+      {/* Catálogo: botão manual + indicador de último sync */}
+      {isActive && def.id === "catalogos" && hasSelectedAsset && !selectorOpen && (
+        <MetaCatalogSyncStatus selectedAssets={selectedAssets} />
       )}
 
       {/* Asset selector — shown when activating or editing */}

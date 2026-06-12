@@ -172,44 +172,10 @@ Deno.serve(async (req) => {
       activationResults.whatsapp = "skipped";
     }
 
-    if (oauthAccessToken) {
-      try {
-        const { data: existingCatInteg } = await supabase
-          .from("tenant_meta_integrations")
-          .select("selected_assets")
-          .eq("tenant_id", tenantId)
-          .eq("integration_id", "catalogo_meta")
-          .maybeSingle();
-
-        const existingCatalogId = existingCatInteg?.selected_assets?.catalog_id || null;
-        const selectedBusinessId = selectedAssets.business_id || null;
-
-        const catalogResult = await createOrReuseCatalog(
-          supabase, tenantId, oauthAccessToken, selectedBusinessId, existingCatalogId
-        );
-        activationResults.catalog = catalogResult.success ? "active" : "error";
-        if (catalogResult.catalogId && activeGrant) {
-          await supabase
-            .from("tenant_meta_integrations")
-            .upsert({
-              tenant_id: tenantId,
-              integration_id: "catalogos",
-              auth_grant_id: activeGrant.id,
-              status: "active",
-              selected_assets: {
-                catalog_id: catalogResult.catalogId,
-                catalogs: [{ id: catalogResult.catalogId, name: catalogResult.catalogName || "Catálogo da Loja" }],
-              },
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "tenant_id,integration_id" });
-        }
-      } catch (catEx) {
-        console.warn("[meta-save-selected-assets] Exceção ao criar catálogo:", catEx);
-        activationResults.catalog = "error";
-      }
-    } else {
-      activationResults.catalog = "skipped";
-    }
+    // Catálogo: NÃO auto-criar mais aqui. A seleção/criação acontece no card
+    // de Integrações Meta (id canônico 'catalogos'), e o side-effect do
+    // meta-integrations-manage dispara meta-catalog-sync na hora.
+    activationResults.catalog = "skipped";
 
     let storefrontSync = null;
     try {

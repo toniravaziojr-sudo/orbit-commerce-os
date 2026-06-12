@@ -41,11 +41,11 @@ Deno.serve(async (req) => {
     const tenantsToSync: Array<{ tenantId: string; catalogId: string; source: string }> = [];
     const seenTenants = new Set<string>();
 
-    // ── V4: Find tenants with active catalog integration ──
+    // ── Lê a chave canônica da UI: 'catalogos'. Fallback para legado 'catalogo_meta'. ──
     let v4Query = supabase
       .from("tenant_meta_integrations")
-      .select("tenant_id, selected_assets, auth_grant_id")
-      .eq("integration_id", "catalogo_meta")
+      .select("tenant_id, integration_id, selected_assets, auth_grant_id")
+      .in("integration_id", ["catalogos", "catalogo_meta"])
       .eq("status", "active");
 
     if (targetTenantId) {
@@ -54,12 +54,20 @@ Deno.serve(async (req) => {
 
     const { data: v4Integrations } = await v4Query;
 
+    // Prefere 'catalogos' (UI canônico) sobre 'catalogo_meta' (legado) por tenant.
+    const byTenant: Record<string, { catalogId: string; source: string }> = {};
     for (const integ of v4Integrations || []) {
-      const catalogId = integ.selected_assets?.catalog_id || integ.selected_assets?.catalogs?.[0]?.id;
-      if (catalogId) {
-        tenantsToSync.push({ tenantId: integ.tenant_id, catalogId, source: "v4" });
-        seenTenants.add(integ.tenant_id);
+      const sa = integ.selected_assets || {};
+      const catalogId = sa.catalog?.id || sa.catalog_id || sa.catalogs?.[0]?.id || null;
+      if (!catalogId) continue;
+      const prev = byTenant[integ.tenant_id];
+      if (!prev || integ.integration_id === "catalogos") {
+        byTenant[integ.tenant_id] = { catalogId, source: integ.integration_id };
       }
+    }
+    for (const [tenantId, info] of Object.entries(byTenant)) {
+      tenantsToSync.push({ tenantId, catalogId: info.catalogId, source: info.source });
+      seenTenants.add(tenantId);
     }
 
     console.log(`[meta-catalog-daily-sync][${VERSION}] Found ${tenantsToSync.length} tenants to sync`);
