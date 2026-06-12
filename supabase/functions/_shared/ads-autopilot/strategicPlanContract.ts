@@ -242,11 +242,10 @@ function canonicalizeFunnelStage(action: any, campaignType: string): string {
   const stage = normValue(action?.funnel_stage);
   if (["tof", "mof", "bof", "test", "leads"].includes(stage)) {
     if (campaignType === "prospecting" || campaignType === "catalog_prospecting") return "tof";
-    if (campaignType === "testing") return "test";
     return stage;
   }
   if (campaignType === "prospecting" || campaignType === "catalog_prospecting") return "tof";
-  if (campaignType === "testing") return "test";
+  if (campaignType === "testing") return stage || "test";
   return stage || "bof";
 }
 
@@ -254,9 +253,10 @@ function canonicalizeAffectedFunnel(action: any, campaignType: string): string {
   const funnel = normValue(action?.affected_funnel || action?.funnel);
   if (["cold", "remarketing", "tests", "leads"].includes(funnel)) {
     if (campaignType === "prospecting" || campaignType === "catalog_prospecting") return "cold";
-    if (campaignType === "testing") return "tests";
     return funnel;
   }
+  const explicitStage = normValue(action?.funnel_stage);
+  if (explicitStage === "tof" || explicitStage === "cold") return "cold";
   if (campaignType === "prospecting" || campaignType === "catalog_prospecting") return "cold";
   if (campaignType === "testing") return "tests";
   return "remarketing";
@@ -419,6 +419,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     const rawCampaignType = normValue(a.campaign_type);
+    const rawExcl = a.audience_exclusions || {};
     const normalizedAction = normalizeStrategicPlanAction(a, preflight);
     const campaignType = String(canonicalizeCampaignType(normalizedAction) || "").toLowerCase();
     if (!campaignType) {
@@ -452,18 +453,19 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     // Exclusão de clientes em prospecção/aquisição
+    if (isProspectingLike(a) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
+      push({
+        code: "prospecting_missing_customer_exclusion",
+        severity: "blocker",
+        message: "Campanha de prospecção/aquisição precisa excluir o público de Clientes.",
+        path: `${path}.audience_exclusions.customers`,
+      });
+    }
+
     if (isProspectingLike(normalizedAction)) {
       const excl = normalizedAction.audience_exclusions || {};
       const detected = preflight.customer_audience.customer_audience_detected;
       if (detected) {
-        if (!excl.customers) {
-          push({
-            code: "prospecting_missing_customer_exclusion",
-            severity: "blocker",
-            message: "Campanha de prospecção/aquisição precisa excluir o público de Clientes.",
-            path: `${path}.audience_exclusions.customers`,
-          });
-        }
         if (!excl.customer_audience_id || !excl.customer_audience_name) {
           push({
             code: "prospecting_missing_customer_audience_metadata",
