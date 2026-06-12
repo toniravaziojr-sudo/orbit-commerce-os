@@ -2088,25 +2088,16 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
       fits.push({ campaign_id: c.meta_campaign_id, campaign_name: c.name || c.meta_campaign_id, ...fit });
     }
 
-    // Disponibilidade de catálogo Meta para a conta.
-    let catalogAvailability = "desconhecido";
-    try {
-      const catalogIntegrations = (context.metaIntegrationsAssets || []) as any[];
-      const accountCatalog = catalogIntegrations.find((a: any) => a.ad_account_id === config.ad_account_id);
-      if (accountCatalog?.catalog_id || accountCatalog?.has_catalog) catalogAvailability = "conectado";
-      else catalogAvailability = "não detectado";
-    } catch (_) { /* fail-open */ }
+    // Disponibilidade de catálogo Meta — pré-computada no contexto.
+    const catalogInfo = (context.catalogAvailabilityByAccount || {})[config.ad_account_id]
+      || { available: false, catalog_id: null, catalog_name: null };
+    const catalogAvailability = catalogInfo.available
+      ? `conectado (${catalogInfo.catalog_name || catalogInfo.catalog_id})`
+      : "não detectado";
 
-    // Disponibilidade do público de Clientes (sem chamar Meta — leitura local).
-    let customerAudienceAvailability: { found: boolean; meta_audience_id: string | null } = { found: false, meta_audience_id: null };
-    try {
-      const caRes = await resolveCustomerAudienceForMetaAccount(
-        (context as any).__supabase || (globalThis as any).__supabase, // pode estar indisponível aqui — fail-open
-        config.tenant_id || tenant?.id || "",
-        config.ad_account_id,
-      );
-      customerAudienceAvailability = { found: !!caRes?.found, meta_audience_id: caRes?.meta_audience_id || null };
-    } catch (_) { /* fail-open: render generic */ }
+    // Disponibilidade do público de Clientes — pré-computada no contexto.
+    const customerAudienceAvailability = (context.customerAudienceByAccount || {})[config.ad_account_id]
+      || { found: false, meta_audience_id: null, audience_name: null };
 
     const lines: string[] = [];
     lines.push("\n\n## ONDA G — DADOS DETERMINÍSTICOS (FONTE DE VERDADE, NÃO INVENTAR)");
