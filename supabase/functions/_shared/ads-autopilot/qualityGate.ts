@@ -24,7 +24,7 @@
 //   - cold_audience_requires_customer_exclusion   (Frente 1 — Fase A)
 // =====================================================================
 
-export const QUALITY_GATE_VERSION = "1.3.0";
+export const QUALITY_GATE_VERSION = "1.4.0";
 
 // CTAs aceitos pela Meta para campanhas de vendas/conversão.
 // Mantemos uma lista permissiva — basta haver algum CTA não vazio para
