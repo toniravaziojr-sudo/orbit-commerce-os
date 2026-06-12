@@ -1386,6 +1386,9 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     tenant_memory_observation: tenantMemoryObservation,
     // Onda F — Aprendizados ATIVOS (entram no prompt).
     activeLearnings,
+    // Onda G — disponibilidade por conta (cliente exclusão fria + catálogo Meta).
+    customerAudienceByAccount,
+    catalogAvailabilityByAccount,
   };
 }
 
