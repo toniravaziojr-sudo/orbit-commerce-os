@@ -285,7 +285,8 @@ export function StructuredProposalModal({
 
   // Onda G (rev2) — Contrato fail-closed do Plano Estratégico.
   const planContract: any = (data as any)?.contract || null;
-  const approveBlockedByContract = isStrategicPlan && planContract && planContract.ok === false;
+  const planIncomplete = isStrategicPlan && (action.status === "incomplete" || (data as any)?.approval_status === "incomplete");
+  const approveBlockedByContract = isStrategicPlan && (planIncomplete || (planContract && planContract.ok === false));
   const contractBlockerErrors: Array<{ code: string; message: string }> = approveBlockedByContract
     ? (planContract.errors || []).filter((e: any) => e.severity === "blocker")
     : [];
