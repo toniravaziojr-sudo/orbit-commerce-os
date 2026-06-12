@@ -2505,7 +2505,41 @@ async function executeToolCall(
       return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
     }).join("\n");
     const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
-    
+
+    // Onda G (rev2) — Validar contrato do plano contra o Preflight determinístico.
+    let contract: any = null;
+    let preflightSnapshot: StrategicPlanPreflight | null = null;
+    try {
+      preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
+      if (preflightSnapshot) {
+        contract = validateStrategicPlanContract(args, preflightSnapshot);
+        if (!contract.ok) {
+          console.warn(
+            `[ads-autopilot-strategist][plan-contract] INVALID v${PLAN_CONTRACT_VERSION} blockers=${contract.blockers_count} codes=${contract.errors.map((e: any) => e.code).join(",")}`,
+          );
+        } else {
+          console.log(`[ads-autopilot-strategist][plan-contract] OK v${PLAN_CONTRACT_VERSION}`);
+        }
+      } else {
+        contract = {
+          ok: false,
+          version: PLAN_CONTRACT_VERSION,
+          errors: [{ code: "preflight_unavailable", severity: "blocker", message: "Preflight determinístico indisponível — plano não pode ser validado." }],
+          blockers_count: 1,
+          warnings_count: 0,
+        };
+      }
+    } catch (e: any) {
+      console.error(`[ads-autopilot-strategist][plan-contract] validator threw:`, e?.message);
+      contract = {
+        ok: false,
+        version: PLAN_CONTRACT_VERSION,
+        errors: [{ code: "contract_validator_error", severity: "blocker", message: `Erro ao validar contrato: ${e?.message || "desconhecido"}` }],
+        blockers_count: 1,
+        warnings_count: 0,
+      };
+    }
+
     return {
       status: "pending_approval",
       data: {
@@ -2517,8 +2551,16 @@ async function executeToolCall(
         risk_assessment: args.risk_assessment,
         timeline: args.timeline,
         budget_allocation: args.budget_allocation,
+        funnel_budget_state: args.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
+        active_campaigns_summary: args.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
+        // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
+        strategic_plan_preflight: preflightSnapshot,
+        contract,
+        contract_version: PLAN_CONTRACT_VERSION,
         preview: {
-          headline: "Plano Estratégico — Motor Estrategista",
+          headline: contract && !contract.ok
+            ? "Plano Estratégico — INCOMPLETO (não aprovável)"
+            : "Plano Estratégico — Motor Estrategista",
           copy_text: planBody,
           targeting_summary: `${(args.planned_actions || []).length} ações planejadas`,
         },
