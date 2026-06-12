@@ -1308,6 +1308,45 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     console.warn(`[ads-autopilot-strategist][${VERSION}] learnings fetch failed:`, e?.message);
   }
 
+  // ============ Onda G — Pré-computações por conta de anúncios (Meta) ============
+  // Disponibilidade do público de Clientes e disponibilidade de catálogo Meta.
+  // Tudo lido localmente; sem chamada à Meta.
+  const adAccountIds = Array.from(new Set(campaigns.map((c: any) => c.ad_account_id).filter(Boolean)));
+  const customerAudienceByAccount: Record<string, { found: boolean; meta_audience_id: string | null; audience_name: string | null }> = {};
+  for (const acctId of adAccountIds) {
+    try {
+      const res = await resolveCustomerAudienceForMetaAccount(supabase, tenantId, acctId);
+      customerAudienceByAccount[acctId] = {
+        found: !!res?.found,
+        meta_audience_id: res?.meta_audience_id || null,
+        audience_name: res?.audience_name || null,
+      };
+    } catch (_) {
+      customerAudienceByAccount[acctId] = { found: false, meta_audience_id: null, audience_name: null };
+    }
+  }
+  const catalogAvailabilityByAccount: Record<string, { available: boolean; catalog_id: string | null; catalog_name: string | null }> = {};
+  try {
+    const { data: metaInts } = await supabase
+      .from("tenant_meta_integrations")
+      .select("integration_key, status, selected_assets")
+      .eq("tenant_id", tenantId)
+      .in("integration_key", ["catalogos", "catalogo_meta"])
+      .eq("status", "active");
+    const catalogsRow = (metaInts || []).find((r: any) => r.integration_key === "catalogos") || (metaInts || [])[0];
+    const selected = catalogsRow?.selected_assets || {};
+    const cats: any[] = selected?.catalogs || (selected?.catalog ? [selected.catalog] : []);
+    for (const acctId of adAccountIds) {
+      // Catálogo é por tenant, não por conta de anúncios; reusa para todas.
+      const first = cats[0];
+      catalogAvailabilityByAccount[acctId] = {
+        available: !!first,
+        catalog_id: first?.id || null,
+        catalog_name: first?.name || null,
+      };
+    }
+  } catch (_) { /* fail-open */ }
+
   return {
     products,
     categories,
