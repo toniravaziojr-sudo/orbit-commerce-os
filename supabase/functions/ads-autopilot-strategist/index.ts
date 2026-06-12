@@ -1980,7 +1980,142 @@ ${context.experiments.filter((e: any) => e.status === "active").length > 0 ? JSO
 
 Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, depois as tools operacionais.`;
 
-  return { system, user };
+  // ============ Onda G — Blocos determinísticos anexados ao prompt ============
+  // Calculados sem IA, sem rede. Servem como FONTE DE VERDADE numérica para
+  // a IA não inventar orçamento ocupado, identificação de produto, fit etc.
+  let ondaGBlock = "";
+  try {
+    const totalDailyCents = Number(config.budget_cents || 0);
+    const funnelSplits = (config.funnel_splits as any) || null;
+    const campaignBudgetInputs = accountCampaigns.map((c: any) => ({
+      id: c.meta_campaign_id,
+      name: c.name || c.meta_campaign_id,
+      status: (c.status || c.effective_status || "").toUpperCase(),
+      daily_budget_cents: Number(c.daily_budget_cents || 0),
+      objective: c.objective || null,
+    }));
+    const funnelBudgetState: FunnelBudgetState = computeFunnelBudgetState({
+      totalDailyCents,
+      funnelSplits,
+      campaigns: campaignBudgetInputs,
+    });
+
+    // Identificação determinística de produto por campanha existente.
+    const catalogRefs = (context.products || []).map((p: any) => ({ id: p.id, name: p.name, slug: p.slug || null }));
+    const adsetsByCampaign: Record<string, any[]> = {};
+    for (const as of accountAdsets) {
+      const cid = as.meta_campaign_id;
+      if (!cid) continue;
+      (adsetsByCampaign[cid] ||= []).push(as);
+    }
+    const productIdentifications: Array<{ campaign_id: string; campaign_name: string } & InferredProduct> = [];
+    for (const c of accountCampaigns) {
+      const cid = c.meta_campaign_id;
+      const sets = adsetsByCampaign[cid] || [];
+      const inf = identifyProductFromCampaign(
+        {
+          id: cid,
+          name: c.name,
+          adset_names: sets.map((s: any) => s.name).filter(Boolean),
+          ad_names: [],
+          destination_urls: [],
+          copy_texts: [],
+          creative_product_ids: [],
+        },
+        catalogRefs,
+      );
+      productIdentifications.push({ campaign_id: cid, campaign_name: c.name || cid, ...inf });
+    }
+
+    // Audience Budget Fit Lite por campanha (a partir do perf 30d).
+    const fits: Array<{ campaign_id: string; campaign_name: string } & AudienceBudgetFitResult> = [];
+    for (const c of accountCampaigns) {
+      const p30 = context.perf30d[c.meta_campaign_id] || {};
+      const fit = evaluateAudienceBudgetFit({
+        current_daily_budget_cents: Number(c.daily_budget_cents || 0),
+        impressions_30d: p30.impressions || 0,
+        reach_30d: p30.reach || 0,
+        frequency_avg: p30.frequency || 0,
+        cpm_cents: p30.cpm ? Math.round(p30.cpm * 100) : 0,
+        ctr_pct: p30.ctr_pct || 0,
+        conversions_30d: p30.conversions || 0,
+        cpa_cents: p30.cpa_cents || 0,
+        roas: p30.roas || 0,
+        spend_30d_cents: p30.spend || 0,
+      });
+      fits.push({ campaign_id: c.meta_campaign_id, campaign_name: c.name || c.meta_campaign_id, ...fit });
+    }
+
+    // Disponibilidade de catálogo Meta para a conta.
+    let catalogAvailability = "desconhecido";
+    try {
+      const catalogIntegrations = (context.metaIntegrationsAssets || []) as any[];
+      const accountCatalog = catalogIntegrations.find((a: any) => a.ad_account_id === config.ad_account_id);
+      if (accountCatalog?.catalog_id || accountCatalog?.has_catalog) catalogAvailability = "conectado";
+      else catalogAvailability = "não detectado";
+    } catch (_) { /* fail-open */ }
+
+    // Disponibilidade do público de Clientes (sem chamar Meta — leitura local).
+    let customerAudienceAvailability: { found: boolean; meta_audience_id: string | null } = { found: false, meta_audience_id: null };
+    try {
+      const caRes = await resolveCustomerAudienceForMetaAccount(
+        (context as any).__supabase || (globalThis as any).__supabase, // pode estar indisponível aqui — fail-open
+        config.tenant_id || tenant?.id || "",
+        config.ad_account_id,
+      );
+      customerAudienceAvailability = { found: !!caRes?.found, meta_audience_id: caRes?.meta_audience_id || null };
+    } catch (_) { /* fail-open: render generic */ }
+
+    const lines: string[] = [];
+    lines.push("\n\n## ONDA G — DADOS DETERMINÍSTICOS (FONTE DE VERDADE, NÃO INVENTAR)");
+    lines.push("Use EXATAMENTE os números abaixo no diagnóstico e em planned_actions. Não recalcule.");
+    lines.push("");
+    lines.push("### ESTADO DO ORÇAMENTO POR FUNIL (planejado / ocupado / livre)");
+    lines.push(formatFunnelBudgetStatePtBr(funnelBudgetState));
+    lines.push("");
+    lines.push("### REGRA SEQUENCIAL DE ORÇAMENTO");
+    lines.push("- Criar/escalar só pode usar orçamento `livre` do funil naquele momento.");
+    lines.push("- Para usar mais que o `livre`, declare antes uma ação de pausar/reduzir no MESMO funil e referencie-a no campo `references_release_from_action_index`.");
+    lines.push("- NUNCA trate orçamento futuro como livre antes da liberação sequencial.");
+    lines.push("- Espelhe os números em `funnel_budget_state` no strategic_plan.");
+    lines.push("");
+    lines.push("### IDENTIFICAÇÃO DE PRODUTO POR CAMPANHA EXISTENTE");
+    if (productIdentifications.length === 0) {
+      lines.push("(nenhuma campanha existente)");
+    } else {
+      for (const pi of productIdentifications.slice(0, 30)) {
+        lines.push(`- ${pi.campaign_name} → ${pi.inferred_product_name || "—"} (confiança=${pi.product_identification_confidence}, fonte=${pi.inferred_product_source || "—"})${pi.diagnosis_limitation ? " | LIMITAÇÃO: " + pi.diagnosis_limitation : ""}`);
+      }
+    }
+    lines.push("");
+    lines.push("- Se confiança = low ou unknown: declare a limitação no diagnóstico e NÃO sugira pausa como ação principal. Permitidas: manter, reduzir com aviso, ou solicitar revisão do usuário.");
+    lines.push("");
+    lines.push("### AUDIENCE BUDGET FIT (histórico 30d — Lite, sem delivery_estimate)");
+    if (fits.length === 0) {
+      lines.push("(sem dados)");
+    } else {
+      for (const f of fits.slice(0, 30)) {
+        lines.push(`- ${f.campaign_name} → fit=${f.fit}${f.suggested_budget_range_cents ? ` | sugestão R$ ${(f.suggested_budget_range_cents.min_cents/100).toFixed(2)}–${(f.suggested_budget_range_cents.max_cents/100).toFixed(2)}/dia` : ""} | ${f.explanation}`);
+      }
+    }
+    lines.push("");
+    lines.push(`### CATÁLOGO META: ${catalogAvailability}`);
+    lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
+    lines.push("");
+    lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
+    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions.customers=true` e `audience_exclusions.reason`.");
+    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_missing'`.");
+    lines.push("- Para campanha de catálogo, use `campaign_type` começando com `catalog_` e preencha `catalog_setup` (catálogo + product_set + janela + exclude_recent_buyers_days + creative_mode='dynamic'). Se o catálogo não foi detectado, marque `catalog_setup.pending_dependency='catalog_not_connected'` em vez de inventar IDs.");
+    lines.push("- Para teste criativo, defina `campaign_intent='creative_test'`. Se incluir clientes, preencha `exclusion_override_reason` com justificativa.");
+    lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
+    lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
+
+    ondaGBlock = lines.join("\n");
+  } catch (e: any) {
+    console.warn(`[ads-autopilot-strategist][onda-g] context block failed (fail-open): ${e?.message}`);
+  }
+
+  return { system: system + ondaGBlock, user };
 }
 
 // ============ BUILD TIKTOK STRATEGIST PROMPT ============
