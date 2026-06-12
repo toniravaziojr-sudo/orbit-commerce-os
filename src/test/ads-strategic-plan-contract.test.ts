@@ -93,6 +93,13 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
         daily_budget_brl: 50,
         budget_source: "free_now",
         audience_budget_fit: { fit: "insufficient_data" },
+      }, {
+        action_type: "maintain",
+        target_campaign_id: "c1",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        audience_exclusions: { customers: true },
+        audience_budget_fit: { fit: "adequate" },
       }],
     };
 
