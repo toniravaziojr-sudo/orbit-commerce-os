@@ -8,6 +8,10 @@ import { runCreateCampaignQualityGate, runGenerateCreativeQualityGate, QUALITY_G
 import { resolveProduct, selectReadyCreative, describeResolverDecision } from "../_shared/ads-autopilot/creativeResolver.ts";
 import { resolveCustomerAudienceForMetaAccount, buildCustomerExclusionMetadata, isColdFunnelStage } from "../_shared/ads-autopilot/customerAudience.ts";
 import { applyUtm, slugifyForUtm } from "../_shared/ads/utm.ts";
+// Onda G — Modelos determinísticos para qualidade estratégica do Plano Inicial.
+import { computeFunnelBudgetState, formatFunnelBudgetStatePtBr, inferCampaignFunnel, type FunnelBudgetState } from "../_shared/ads-autopilot/funnelBudgetModel.ts";
+import { identifyProductFromCampaign, type InferredProduct } from "../_shared/ads-autopilot/productIdentification.ts";
+import { evaluateAudienceBudgetFit, type AudienceBudgetFitResult } from "../_shared/ads-autopilot/audienceBudgetFitLite.ts";
 import {
   scoreProposal,
   applyLimits,
