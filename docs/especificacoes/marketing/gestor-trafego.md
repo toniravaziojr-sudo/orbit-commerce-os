@@ -3666,3 +3666,52 @@ Vai para `strategy_summary` (parent) e `account_snapshot_summary.per_account[].c
 - Não publica campanha, não muta Meta/Google/TikTok, não gera criativo final, não consome crédito sem aprovação.
 - Google/TikTok continuam não operacionais nesta etapa.
 
+
+---
+
+## F — Onda F: Pipeline de Produção (Plano → Filhas, UTM obrigatória, Aprendizados)
+
+### F.1 — Plano Estratégico → Propostas filhas
+- Aprovar Plano marca o plano como `approved` e dispara o Strategist com `trigger=implement_approved_plan`, passando `source_plan_id` e `analysis_run_id`.
+- Cada proposta filha gerada recebe:
+  - `parent_action_id` = id do plano-pai
+  - `analysis_run_id` = rodada de análise que originou o plano
+  - `planned_action_index` = posição da ação planejada na lista do plano
+- Dedup: índice único parcial em `(parent_action_id, planned_action_index)` impede gerar duas filhas para a mesma ação planejada (segundo clique em Aprovar Plano não duplica).
+- Aprovar Plano **não publica nada**, **não cria criativo final**, **não chama Meta**.
+- Recusar Plano: marca como rejeitado, não cria filhas; comentário do usuário pode virar aprendizado sugerido.
+- Ajustar Plano: passa pelo fluxo existente de revisão (preserva histórico via `superseded_by_action_id`).
+
+### F.2 — UTM obrigatória (modelo interno fixo)
+- Modelo padrão de produção (não exposto na UI):
+  ```
+  utm_source=meta
+  utm_medium=paid_social
+  utm_campaign={campaign_slug}
+  utm_content={ad_slug}
+  utm_term={audience_or_funnel_slug}
+  ```
+- Aplicação automática no Strategist ao montar a proposta de `create_campaign`:
+  - Preserva query params existentes.
+  - Não sobrescreve `utm_*` já preenchidas — registra warning técnico `utm_conflict:{key}:kept_existing`.
+  - Completa apenas o que faltar.
+- Gate de UTM (`runUtmGate`): bloqueia a aprovação da proposta detalhada de anúncio quando faltar `utm_source`, `utm_medium` ou `utm_campaign` no link final. Aponta para o nó `creative`/`ad`. **Não bloqueia** a aprovação do Plano Estratégico em si.
+
+### F.3 — Aprendizados da IA (área editável)
+- Localização: **Gestor de Tráfego IA → Configurações Gerais → Aprendizados da IA**.
+- Tabela `ads_ai_learnings` por tenant, com status `suggested | active | paused | archived`.
+- Categorias: produto, público, orçamento, funil, criativo, copy, oferta, performance, restrição, tracking, outro.
+- Origem: `approval | rejection | adjustment | manual | system`.
+- Regras de ativação:
+  - Aprendizado criado a partir de feedback nasce como `suggested` — usuário ativa.
+  - Aprendizado criado manualmente nasce como `active`.
+  - Apenas aprendizados com status `active` entram no contexto do Strategist e na expansão Plano → propostas.
+- Dedup: índice único parcial por `(tenant_id, category, normalized_title)` ignorando `archived`. Aprendizado duplicado **reforça** evidência e confiança em vez de criar novo.
+- Feedback → aprendizado sugerido: `ads-autopilot-feedback-record` invoca `ads-ai-learnings-write` quando o feedback tem conteúdo útil (motivo/observação ≥ 12 caracteres ou `should_become_preference=true`). Feedback vazio não cria aprendizado.
+
+### F.4 — Restrições
+- Sem campo de UTM na UI de Configurações Gerais nesta entrega.
+- Aprendizado sugerido nunca ativa sozinho.
+- Aprendizado `suggested`, `paused` ou `archived` não entra no prompt da IA.
+- Nenhuma publicação, mutação Meta/Google/TikTok ou criativo final é gerado em qualquer ponto desta Onda.
+- Sem cron mensal, sem admin avançado, sem Google/TikTok operacional.
