@@ -416,7 +416,23 @@ export function StructuredProposalModal({
           </div>
 
           <div className="border-t border-border/30 px-5 py-3 flex flex-col gap-2 shrink-0 bg-background">
-            {approveBlockedReason && (
+            {approveBlockedByContract && (
+              <div className="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <div className="flex items-center gap-2 font-medium">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  Plano incompleto — precisa ser regenerado ou ajustado
+                </div>
+                <ul className="ml-5 list-disc space-y-0.5">
+                  {contractBlockerErrors.slice(0, 8).map((e, i) => (
+                    <li key={i}>{e.message}</li>
+                  ))}
+                  {contractBlockerErrors.length > 8 && (
+                    <li>... e mais {contractBlockerErrors.length - 8} pendência(s).</li>
+                  )}
+                </ul>
+              </div>
+            )}
+            {approveBlockedReason && !approveBlockedByContract && (
               <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{approveBlockedReason}</span>
