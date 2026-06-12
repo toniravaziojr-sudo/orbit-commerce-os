@@ -139,6 +139,108 @@ export type Database = {
         }
         Relationships: []
       }
+      ads_ai_learnings: {
+        Row: {
+          archived_at: string | null
+          category: string
+          confidence: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          evidence_count: number
+          id: string
+          last_used_at: string | null
+          metadata: Json
+          source_action_id: string | null
+          source_analysis_run_id: string | null
+          source_feedback_id: string | null
+          source_plan_id: string | null
+          source_type: string
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          category?: string
+          confidence?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evidence_count?: number
+          id?: string
+          last_used_at?: string | null
+          metadata?: Json
+          source_action_id?: string | null
+          source_analysis_run_id?: string | null
+          source_feedback_id?: string | null
+          source_plan_id?: string | null
+          source_type?: string
+          status?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          category?: string
+          confidence?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evidence_count?: number
+          id?: string
+          last_used_at?: string | null
+          metadata?: Json
+          source_action_id?: string | null
+          source_analysis_run_id?: string | null
+          source_feedback_id?: string | null
+          source_plan_id?: string | null
+          source_type?: string
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_ai_learnings_source_action_id_fkey"
+            columns: ["source_action_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_ai_learnings_source_analysis_run_id_fkey"
+            columns: ["source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "ads_ai_analysis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_ai_learnings_source_feedback_id_fkey"
+            columns: ["source_feedback_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_feedback"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_ai_learnings_source_plan_id_fkey"
+            columns: ["source_plan_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_ai_learnings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_autopilot_account_configs: {
         Row: {
           ad_account_id: string
@@ -235,6 +337,7 @@ export type Database = {
           action_day: string | null
           action_hash: string | null
           action_type: string
+          analysis_run_id: string | null
           approval_expires_at: string | null
           approved_at: string | null
           approved_by_user_id: string | null
@@ -251,6 +354,7 @@ export type Database = {
           idempotency_key: string | null
           metric_trigger: string | null
           parent_action_id: string | null
+          planned_action_index: number | null
           policy_check_result: Json | null
           policy_engine_version: string | null
           reasoning: string | null
@@ -268,6 +372,7 @@ export type Database = {
           action_day?: string | null
           action_hash?: string | null
           action_type: string
+          analysis_run_id?: string | null
           approval_expires_at?: string | null
           approved_at?: string | null
           approved_by_user_id?: string | null
@@ -284,6 +389,7 @@ export type Database = {
           idempotency_key?: string | null
           metric_trigger?: string | null
           parent_action_id?: string | null
+          planned_action_index?: number | null
           policy_check_result?: Json | null
           policy_engine_version?: string | null
           reasoning?: string | null
@@ -301,6 +407,7 @@ export type Database = {
           action_day?: string | null
           action_hash?: string | null
           action_type?: string
+          analysis_run_id?: string | null
           approval_expires_at?: string | null
           approved_at?: string | null
           approved_by_user_id?: string | null
@@ -317,6 +424,7 @@ export type Database = {
           idempotency_key?: string | null
           metric_trigger?: string | null
           parent_action_id?: string | null
+          planned_action_index?: number | null
           policy_check_result?: Json | null
           policy_engine_version?: string | null
           reasoning?: string | null
@@ -329,6 +437,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_actions_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "ads_ai_analysis_runs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ads_autopilot_actions_parent_action_id_fkey"
             columns: ["parent_action_id"]
@@ -25135,6 +25250,7 @@ export type Database = {
           total_sell_usd: number
         }[]
       }
+      ads_ai_learnings_norm_title: { Args: { t: string }; Returns: string }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
       allocate_remessa_numero: {
         Args: { p_tenant_id: string }
