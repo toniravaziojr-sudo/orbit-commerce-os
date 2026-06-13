@@ -2221,8 +2221,9 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
     lines.push("");
     lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
-    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions.customers=true` e `audience_exclusions.reason`.");
-    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_missing'`.");
+    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions` no nível da ação e também em CADA item de `adsets[]`.");
+    lines.push("- Em cada adset frio/prospecção, preencha `audience_exclusions.customers=true`, `excluded_audience_ids` e `targeting.excluded_custom_audiences` com o público de Clientes detectado.");
+    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_not_detected'` em cada adset frio/prospecção.");
     lines.push("- Para campanha de catálogo, use `campaign_type` começando com `catalog_` e preencha `catalog_setup` (catálogo + product_set + janela + exclude_recent_buyers_days + creative_mode='dynamic'). Se o catálogo não foi detectado, marque `catalog_setup.pending_dependency='catalog_not_connected'` em vez de inventar IDs.");
     lines.push("- Para teste criativo, defina `campaign_intent='creative_test'`. Se incluir clientes, preencha `exclusion_override_reason` com justificativa.");
     lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
