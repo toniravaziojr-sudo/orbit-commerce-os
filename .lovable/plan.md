@@ -172,5 +172,9 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 ## Testes e validação técnica
 - Fixture de regressão adicionada para plano real legado `TOF + tof + Homens 30-65, Brasil + sem audience_exclusions`.
 - Coberto cenário com público de clientes detectado e cenário sem público de clientes.
+- Guard adicional no nível do adset: ação fria/prospecção só é aprovável quando cada conjunto carrega a exclusão canônica (`audience_exclusions` + `excluded_audience_ids` + `targeting.excluded_custom_audiences`) ou pendência explícita `customer_audience_not_detected`.
+- Aprovação two-step agora lê a fonte canônica (`audience_exclusions` / `excluded_audience_ids`) além do metadata legado, impedindo falso negativo ou falso positivo por campo legado isolado.
+- Implementação de plano aprovado preserva `planned_actions` estruturadas e não reduz mais objetos a `[object Object]`, mantendo contexto suficiente para herdar exclusões nas filhas.
+- `create_adset` também injeta metadata/exclusão de clientes quando o conjunto é frio, alinhando ação pai e filha com a mesma regra operacional.
 - Nenhuma publicação executada.
 - Nenhuma campanha real alterada.
