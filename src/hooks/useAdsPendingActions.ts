@@ -92,7 +92,7 @@ export function useAdsPendingActions(channelFilter?: string) {
 
       const { data: current } = await supabase
         .from("ads_autopilot_actions" as any)
-        .select("policy_check_result, status, action_data")
+        .select("policy_check_result, status, action_data, action_type")
         .eq("id", actionId)
         .maybeSingle();
 
