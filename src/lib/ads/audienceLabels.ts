@@ -91,6 +91,27 @@ export function getCustomerExclusionLine(
   data: any,
   preview: any,
 ): { applied: boolean; label: string; missing?: boolean; hint?: string } | null {
+  const allStrategicActions = [
+    ...(Array.isArray(data?.planned_actions) ? data.planned_actions : []),
+    ...(Array.isArray(preview?.planned_actions) ? preview.planned_actions : []),
+  ];
+  for (const action of allStrategicActions) {
+    const adsets = Array.isArray(action?.adsets) ? action.adsets : [];
+    for (const adset of adsets) {
+      if (adset?.audience_exclusions?.customers) {
+        return { applied: true, label: "Exclui clientes/compradores" };
+      }
+      if (adset?.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || adset?.audience_exclusions?.pending_dependency === "customer_audience_missing") {
+        return {
+          applied: false,
+          missing: true,
+          label: "Pendência: público de clientes não detectado",
+          hint: "Conjunto de público frio/prospecção precisa desse público antes da aprovação.",
+        };
+      }
+    }
+  }
+
   const strategicActions = [
     ...(Array.isArray(data?.planned_actions) ? data.planned_actions : []),
     ...(Array.isArray(preview?.planned_actions) ? preview.planned_actions : []),

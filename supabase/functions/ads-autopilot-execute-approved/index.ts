@@ -15,6 +15,12 @@ import {
   resolveCustomerAudienceForMetaAccount,
   isColdFunnelStage,
 } from "../_shared/ads-autopilot/customerAudience.ts";
+import {
+  normalizeAndValidateStrategicPlanForApproval,
+  getAllowedActionsForCampaignStatus,
+  type StrategicPlanGuardOptions,
+} from "../_shared/ads-autopilot/strategicPlanContract.ts";
+import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 
 // ===== VERSION =====
 const VERSION = "v4.1.0"; // Frente 1: revalidação de exclusão de Clientes em fria
@@ -49,6 +55,94 @@ function getSchedulingParams(): { status: string; start_time?: string } {
   return {
     status: "ACTIVE",
     start_time: nextPublish.toISOString(),
+  };
+}
+
+async function buildStrategicPlanApprovalContext(
+  supabase: any,
+  tenantId: string,
+  adAccountId: string,
+  options?: { analysisRunId?: string | null; sourceFlow?: string | null },
+): Promise<{ preflight: StrategicPlanPreflight; guardOptions: StrategicPlanGuardOptions }> {
+  const [campaignsRes, adsetsRes, audienceRes, mappingsRes] = await Promise.all([
+    supabase
+      .from("meta_ad_campaigns")
+      .select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("meta_ad_adsets")
+      .select("meta_campaign_id, name, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("meta_ad_audiences")
+      .select("meta_audience_id, name, ad_account_id, synced_at")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("audience_sync_mappings")
+      .select("platform_audience_id, audience_name, last_synced_at, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("platform", "meta")
+      .eq("ad_account_id", adAccountId)
+      .eq("status", "active"),
+  ]);
+
+  const campaigns = (campaignsRes.data || []).map((c: any) => ({
+    id: c.meta_campaign_id,
+    name: c.name,
+    status: String(c.status || c.effective_status || "").toUpperCase(),
+    daily_budget_cents: Number(c.daily_budget_cents || 0),
+    objective: c.objective || null,
+  }));
+  const adsetsByCampaign: Record<string, any[]> = {};
+  for (const row of adsetsRes.data || []) {
+    const campaignId = row.meta_campaign_id;
+    if (!campaignId) continue;
+    (adsetsByCampaign[campaignId] ||= []).push({ name: row.name || null });
+  }
+
+  const customerAudienceResolution = await resolveCustomerAudienceForMetaAccount(supabase, tenantId, adAccountId);
+  const preflight = buildStrategicPlanPreflightContext({
+    ad_account_id: adAccountId,
+    total_daily_cents: campaigns.reduce((sum: number, c: any) => sum + Number(c.daily_budget_cents || 0), 0),
+    funnel_splits: null,
+    campaigns,
+    adsets_by_campaign: adsetsByCampaign,
+    ads_by_campaign: {},
+    customer_audience: {
+      found: customerAudienceResolution.found,
+      meta_audience_id: customerAudienceResolution.meta_audience_id,
+      audience_name: customerAudienceResolution.audience_name,
+      source_table: customerAudienceResolution.source_table,
+      last_synced_at: customerAudienceResolution.last_synced_at,
+      reason_if_missing: customerAudienceResolution.reason_if_missing,
+    },
+  });
+
+  const campaignAccountSnapshot = (campaignsRes.data || []).map((c: any) => ({
+    campaign_id: c.meta_campaign_id,
+    campaign_name: c.name || null,
+    status: c.status || null,
+    effective_status: c.effective_status || null,
+    configured_status: c.status || null,
+    is_active_for_planning: String(c.status || c.effective_status || "").toUpperCase() === "ACTIVE",
+    is_paused: String(c.status || c.effective_status || "").toUpperCase() === "PAUSED",
+    current_daily_budget_brl: Number(c.daily_budget_cents || 0) / 100,
+    metrics_7d: null,
+    metrics_30d: null,
+    funnel_stage: null,
+    allowed_actions: getAllowedActionsForCampaignStatus(c.status, c.effective_status),
+  }));
+
+  return {
+    preflight,
+    guardOptions: {
+      source_flow: options?.sourceFlow || "approval_endpoint",
+      analysis_run_id: options?.analysisRunId || null,
+      campaign_account_snapshot: campaignAccountSnapshot,
+    },
   };
 }
 
@@ -358,6 +452,32 @@ Deno.serve(async (req) => {
     const data = action.action_data || {};
     const preview = data.preview || {};
 
+    if ((action.action_type === "pause_campaign" || action.action_type === "pause") && action.channel === "meta") {
+      const campaignId = data.campaign_id || data.meta_campaign_id || data.existing_campaign_id || null;
+      if (campaignId) {
+        const { data: currentCampaign } = await supabase
+          .from("meta_ad_campaigns")
+          .select("status, effective_status, name")
+          .eq("tenant_id", tenant_id)
+          .or(`meta_campaign_id.eq.${campaignId},id.eq.${campaignId}`)
+          .maybeSingle();
+
+        const statusNow = String(currentCampaign?.effective_status || currentCampaign?.status || "").toUpperCase();
+        if (statusNow === "PAUSED") {
+          await supabase.from("ads_autopilot_actions").update({
+            status: "failed",
+            error_message: "Campanha já está pausada. Plano precisa ser refeito com ação compatível ao estado atual.",
+          }).eq("id", action_id);
+
+          return new Response(JSON.stringify({
+            success: false,
+            error: "campaign_already_paused",
+            error_pt: "Campanha já está pausada. O plano precisa ser refeito com uma ação compatível ao estado atual.",
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+    }
+
 
     // ====== BUDGET REVALIDATION (create_campaign only) ======
     if (action.action_type === "create_campaign" && action.channel === "meta") {
@@ -427,9 +547,32 @@ Deno.serve(async (req) => {
 
     // ====== STRATEGIC PLAN APPROVAL ======
     if (action.action_type === "strategic_plan") {
-      // Onda G (rev2) — Fail-closed: plano inválido NUNCA é aprovado ou gera filhas.
-      const contract = (data as any)?.contract;
-      if (action.status === "incomplete" || (data as any)?.approval_status === "incomplete") {
+      const adAccountId = data.ad_account_id || data?.metadata?.campaign_account_snapshot?.[0]?.ad_account_id || null;
+      if (!adAccountId) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "strategic_plan_missing_account_context",
+            error_pt: "Plano incompleto — contexto da conta de anúncios não foi encontrado para revalidação.",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { preflight, guardOptions } = await buildStrategicPlanApprovalContext(supabase, tenant_id, adAccountId, {
+        analysisRunId: action.analysis_run_id || data?.metadata?.analysis_run_id || data?.analysis_run_id || null,
+        sourceFlow: "approval_endpoint",
+      });
+      const revalidated = normalizeAndValidateStrategicPlanForApproval(data, preflight, guardOptions);
+      const revalidatedPlan = revalidated.normalizedPlan;
+      const contract = revalidated.contract;
+
+      await supabase.from("ads_autopilot_actions").update({
+        action_data: revalidatedPlan,
+        status: revalidated.approvalStatus,
+      }).eq("id", action_id);
+
+      if (revalidated.approvalStatus === "incomplete" || revalidatedPlan?.metadata?.validation_status !== "valid" || revalidatedPlan?.metadata?.is_approvable !== true) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -455,12 +598,12 @@ Deno.serve(async (req) => {
       }
       console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved, triggering implementation`);
 
-      const planBody = data.diagnosis + "\n\n**Ações Planejadas:**\n" + (data.planned_actions || []).map((a: string) => `• ${a}`).join("\n");
+      const planBody = revalidatedPlan.diagnosis + "\n\n**Ações Planejadas:**\n" + (revalidatedPlan.planned_actions || []).map((a: any) => `• ${typeof a === "string" ? a : a.rationale || a.action_type || "ação"}`).join("\n");
 
       await supabase.from("ads_autopilot_insights").insert({
         tenant_id,
         channel: action.channel || "global",
-        ad_account_id: data.ad_account_id || null,
+          ad_account_id: adAccountId,
         title: "✅ Plano Estratégico Aprovado",
         body: planBody,
         category: "strategy",
@@ -471,11 +614,11 @@ Deno.serve(async (req) => {
 
       // Onda F: marca o plano como APROVADO (não publica; filhas são geradas pelo strategist).
       await supabase.from("ads_autopilot_actions")
-        .update({ status: "approved", approved_at: new Date().toISOString() })
+        .update({ status: "approved", approved_at: new Date().toISOString(), action_data: revalidatedPlan })
         .eq("id", action_id);
 
       // Recupera analysis_run_id do plano para propagação às filhas.
-      const planAnalysisRunId = action.analysis_run_id || data?.analysis_run_id || null;
+      const planAnalysisRunId = action.analysis_run_id || revalidatedPlan?.metadata?.analysis_run_id || revalidatedPlan?.analysis_run_id || null;
 
       const { error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
         body: {
@@ -935,6 +1078,37 @@ Deno.serve(async (req) => {
     if (action.action_type === "create_adset" && action.channel === "meta") {
       const adAccountId = data.ad_account_id;
       const adsetName = data.adset_name || data.name || "Conjunto IA";
+
+      const isColdAdset = isColdFunnelStage(data.funnel_stage || preview.funnel_stage)
+        || ["broad", "lookalike"].includes(String(data.audience_type || preview.audience_type || "").toLowerCase())
+        || /broad|amplo|lal|tof|aquisi|prospect/i.test(`${data.adset_name || ""} ${data.audience_description || ""}`);
+      if (isColdAdset) {
+        const customerAudience = await resolveCustomerAudienceForMetaAccount(supabase, tenant_id, adAccountId);
+        if (!customerAudience.found || !customerAudience.meta_audience_id) {
+          await supabase.from("ads_autopilot_actions").update({
+            status: "failed",
+            error_message: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
+          }).eq("id", action_id);
+          return new Response(JSON.stringify({
+            success: false,
+            error: "cold_adset_requires_customer_audience",
+            error_pt: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const existingExcluded = Array.isArray(data.excluded_audience_ids) ? data.excluded_audience_ids.map((entry: any) => String(entry?.id || entry)) : [];
+        if (!existingExcluded.includes(String(customerAudience.meta_audience_id))) {
+          data.excluded_audience_ids = [...existingExcluded, customerAudience.meta_audience_id];
+        }
+        data.audience_exclusions = {
+          ...(data.audience_exclusions || {}),
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: customerAudience.meta_audience_id,
+          customer_audience_name: customerAudience.audience_name,
+          reason: (data.audience_exclusions?.reason || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais."),
+        };
+      }
 
       // v2.2.0: Primary lookup by campaign_id (Meta campaign ID) from action_data
       // Fallback to name-based lookup for backward compatibility

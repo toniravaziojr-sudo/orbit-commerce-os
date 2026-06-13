@@ -856,7 +856,7 @@ A partir de v6.13.0, todas as propostas de planejamento e criação passam a usa
 
 **Anti-processamento (custo IA):** Abrir / navegar entre abas / recusar / iniciar ajuste **não disparam nenhuma chamada de IA**. Só `Aprovar e gerar criativos` (Etapa 1 two-step) consome créditos, e ainda assim **não publica a campanha**.
 
-**Gates de bloqueio de aprovação** continuam ativos no modal: completude estrutural, compatibilidade da plataforma e adequação produto × público (apenas em Etapa 1 do fluxo two-step). Plano Estratégico **não passa por esses gates**, mas passa obrigatoriamente pelo **guard canônico do contrato estratégico**. Se o plano estiver com `status='incomplete'` ou `action_data.contract.ok=false`, o modal mostra banner de pendências, o card mostra badge **Plano incompleto** e o botão **Aprovar plano** fica desabilitado no cliente e no servidor.
+**Gates de bloqueio de aprovação** continuam ativos no modal: completude estrutural, compatibilidade da plataforma e adequação produto × público (apenas em Etapa 1 do fluxo two-step). Plano Estratégico **não passa por esses gates**, mas passa obrigatoriamente pelo **guard canônico do contrato estratégico**. Se o plano estiver com `status='incomplete'`, `action_data.contract.ok=false`, `action_data.metadata.validation_status!='valid'` ou `action_data.metadata.is_approvable!=true`, o modal mostra banner de pendências, o card mostra badge **Plano incompleto** e o botão **Aprovar plano** fica desabilitado no cliente e no servidor.
 
 ### Guard canônico obrigatório do Plano Estratégico (rev 2026-06-12)
 
@@ -883,13 +883,61 @@ Todo plano que possa virar aprovável deve passar por:
 - converte frio/prospecção para `campaign_type='prospecting'`, `campaign_intent='acquisition'`, `funnel_stage='tof'`, `affected_funnel='cold'`;
 - identifica frio/prospecção também por sinais legados: `funnel_stage=tof/cold`, `campaign_intent=acquisition`, audiência broad/lookalike/aquisição, descrições como `Homens 30-65, Brasil`;
 - **força** `audience_exclusions` canônico quando o público de clientes existe;
+- **força** a exclusão também por **adset** (`audience_exclusions`, `excluded_audience_ids`, `targeting.excluded_custom_audiences`) em todo conjunto frio/prospecção;
 - **cria pendência** `pending_dependency='customer_audience_not_detected'` quando o público não existe;
 - retorna `approval_status='incomplete'` quando o contrato ficar incompleto;
-- anexa `action_data.contract` e `action_data.approval_status` para UI + servidor lerem a mesma fonte.
+- anexa `action_data.contract`, `action_data.approval_status` e `action_data.metadata` para UI + servidor lerem a mesma fonte;
+- anexa `campaign_account_snapshot` com status real/effective_status/allowed_actions por campanha existente.
+
+#### Metadata obrigatória do plano salvo
+
+Todo novo Plano Estratégico salvo pelo fluxo canônico carrega em `action_data.metadata`:
+
+```json
+{
+  "source_flow": "strategist_start | strategist_monthly | strategist_weekly | approval_endpoint",
+  "schema_version": "strategic_plan_v2",
+  "preflight_version": "g.1-rev2",
+  "validator_version": "1.2.0",
+  "guard_version": "1.2.0",
+  "normalized_at": "<iso>",
+  "validated_at": "<iso>",
+  "validation_status": "valid | invalid",
+  "validation_errors": [],
+  "is_approvable": true,
+  "analysis_run_id": "<uuid|null>"
+}
+```
+
+Se qualquer um desses campos estiver ausente, o plano é tratado como **legado/incompleto** e não pode ser aprovado.
+
+#### Campaign Account Snapshot (fonte de verdade para status real)
+
+O plano salvo carrega um snapshot por campanha existente da conta para impedir ação incompatível com o estado real. Cada item contém:
+
+- `campaign_id`
+- `campaign_name`
+- `status`
+- `effective_status`
+- `configured_status`
+- `is_active_for_planning`
+- `is_paused`
+- `current_daily_budget_brl`
+- `metrics_7d`
+- `metrics_30d`
+- `funnel_stage`
+- `allowed_actions[]`
+
+Regras do snapshot:
+
+- campanha já pausada **não pode** receber `pause_campaign`;
+- campanha pausada só aceita `keep_paused`, `use_as_reference`, `reactivate`, `monitor_historical` ou `request_review`;
+- campanha ativa aceita `maintain`, `reduce_budget`, `pause_campaign`, `monitor` ou `request_review`;
+- status desconhecido só aceita `request_review`.
 
 #### Regra obrigatória de exclusão de clientes em frio/prospecção
 
-Quando o público de clientes/compradores existe no preflight, toda ação de aquisição/prospecção passa a carregar:
+Quando o público de clientes/compradores existe no preflight, toda ação de aquisição/prospecção passa a carregar no nível da ação **e de cada adset frio/prospecção**:
 
 ```json
 "audience_exclusions": {
@@ -901,7 +949,7 @@ Quando o público de clientes/compradores existe no preflight, toda ação de aq
 }
 ```
 
-Quando o público não existe:
+Quando o público não existe, a ação e cada adset frio/prospecção ficam com pendência explícita:
 
 ```json
 "audience_exclusions": {
@@ -915,9 +963,30 @@ Quando o público não existe:
 #### Fail-closed
 
 - plano `incomplete` ou `contract.ok=false` **não aprova**;
+- plano sem metadata obrigatória de versionamento/validação **não aprova**;
+- plano com ação operacional contendo `N/A` em produto/público **não aprova**;
+- plano que tenta pausar campanha já pausada **não aprova**;
 - **não gera propostas filhas**;
 - **não habilita** o botão `Aprovar plano`;
 - planos antigos/legados continuam visíveis para recusa/arquivo, mas não ficam válidos por migração automática.
+
+#### Approval endpoint (revalidação obrigatória)
+
+Antes de aprovar um plano, `ads-autopilot-execute-approved`:
+
+1. recarrega o plano salvo do banco;
+2. recompõe o preflight mínimo da conta;
+3. reexecuta `normalizeAndValidateStrategicPlanForApproval` sobre o payload persistido;
+4. atualiza o plano salvo com o resultado revalidado;
+5. só então permite marcar como aprovado e disparar `implement_approved_plan`.
+
+Se o contrato continuar inválido, o endpoint responde com erro em PT-BR e não gera propostas filhas.
+
+#### Preservação da exclusão nas filhas
+
+- A aprovação do plano só avança quando a exclusão canônica por adset estiver preservada no payload validado.
+- Na execução de `create_adset`, o executor Meta revalida público frio e injeta/bloqueia a exclusão de clientes antes da chamada externa.
+- Se o público de clientes não existir naquele momento, o conjunto falha em modo seguro e a ação não é executada.
 
 #### Renderização obrigatória no card e no modal
 

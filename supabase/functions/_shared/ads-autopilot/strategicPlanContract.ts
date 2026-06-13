@@ -10,7 +10,8 @@
 
 import type { StrategicPlanPreflight } from "./strategicPlanPreflight.ts";
 
-export const CONTRACT_VERSION = "1.1.0";
+export const CONTRACT_VERSION = "1.2.0";
+export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
 
@@ -72,6 +73,12 @@ export interface StrategicPlanApprovalGuardResult {
   normalizedPlan: any;
   contract: ContractResult;
   approvalStatus: "pending_approval" | "incomplete";
+}
+
+export interface StrategicPlanGuardOptions {
+  source_flow?: string | null;
+  campaign_account_snapshot?: any[] | null;
+  analysis_run_id?: string | null;
 }
 
 const LEGACY_CAMPAIGN_TYPES = new Set([
@@ -154,6 +161,97 @@ function isCanonicalCampaignIntent(value: string): value is CampaignIntent {
 function hasCustomerAudiencePendingDependency(value: unknown): boolean {
   const normalized = normValue(value);
   return normalized === normValue(CUSTOMER_AUDIENCE_PENDING_DEPENDENCY) || normalized === normValue(LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY);
+}
+
+function isPausedLikeStatus(value: unknown): boolean {
+  const status = normValue(value).replace(/\s+/g, "_");
+  return ["paused", "pause", "with_issues", "campaign_paused"].includes(status);
+}
+
+function isActiveLikeStatus(value: unknown): boolean {
+  const status = normValue(value).replace(/\s+/g, "_");
+  return ["active", "pending_review", "preapproved", "in_process"].includes(status);
+}
+
+export function getAllowedActionsForCampaignStatus(status: unknown, effectiveStatus?: unknown): string[] {
+  const candidate = isPausedLikeStatus(effectiveStatus) ? effectiveStatus : status;
+  if (isPausedLikeStatus(candidate)) {
+    return ["keep_paused", "use_as_reference", "reactivate", "monitor_historical", "request_review"];
+  }
+  if (isActiveLikeStatus(candidate)) {
+    return ["maintain", "reduce_budget", "pause_campaign", "monitor", "request_review"];
+  }
+  return ["request_review"];
+}
+
+export function hasRequiredStrategicPlanMetadata(plan: any): boolean {
+  const metadata = plan?.metadata;
+  return !!(
+    metadata &&
+    metadata.schema_version &&
+    metadata.preflight_version &&
+    metadata.validator_version &&
+    metadata.guard_version &&
+    metadata.validation_status &&
+    typeof metadata.is_approvable === "boolean"
+  );
+}
+
+function getCampaignSnapshotEntries(plan: any): any[] {
+  return Array.isArray(plan?.campaign_account_snapshot)
+    ? plan.campaign_account_snapshot
+    : Array.isArray(plan?.metadata?.campaign_account_snapshot)
+      ? plan.metadata.campaign_account_snapshot
+      : [];
+}
+
+function getReferencedCampaignId(action: any): string | null {
+  return String(
+    action?.existing_campaign_id ||
+    action?.target_campaign_id ||
+    action?.campaign_id ||
+    action?.affected_campaign_id ||
+    "",
+  ).trim() || null;
+}
+
+function getReferencedCampaignSnapshot(plan: any, action: any): any | null {
+  const referencedId = getReferencedCampaignId(action);
+  const referencedName = String(action?.existing_campaign_name || action?.campaign_name || "").trim().toLowerCase();
+  const snapshotEntries = getCampaignSnapshotEntries(plan);
+  if (referencedId) {
+    const byId = snapshotEntries.find((entry: any) => String(entry?.campaign_id || "") === referencedId);
+    if (byId) return byId;
+  }
+  if (referencedName) {
+    return snapshotEntries.find((entry: any) => String(entry?.campaign_name || "").trim().toLowerCase() === referencedName) || null;
+  }
+  return null;
+}
+
+function buildPlanMetadata(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  contract: ContractResult,
+  approvalStatus: "pending_approval" | "incomplete",
+  options?: StrategicPlanGuardOptions,
+) {
+  const nowIso = new Date().toISOString();
+  return {
+    ...(plan?.metadata && typeof plan.metadata === "object" ? plan.metadata : {}),
+    source_flow: options?.source_flow || plan?.metadata?.source_flow || "unknown",
+    schema_version: PLAN_SCHEMA_VERSION,
+    preflight_version: preflight.version,
+    validator_version: CONTRACT_VERSION,
+    guard_version: CONTRACT_VERSION,
+    normalized_at: nowIso,
+    validated_at: nowIso,
+    validation_status: contract.ok && approvalStatus === "pending_approval" ? "valid" : "invalid",
+    validation_errors: contract.errors,
+    is_approvable: contract.ok && approvalStatus === "pending_approval",
+    analysis_run_id: options?.analysis_run_id || plan?.metadata?.analysis_run_id || null,
+    campaign_account_snapshot: Array.isArray(options?.campaign_account_snapshot) ? options?.campaign_account_snapshot : (plan?.metadata?.campaign_account_snapshot || []),
+  };
 }
 
 function buildMissingPreflightContract(): ContractResult {
@@ -423,18 +521,39 @@ export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: S
 export function normalizeAndValidateStrategicPlanForApproval(
   plan: any,
   preflight: StrategicPlanPreflight | null,
+  options?: StrategicPlanGuardOptions,
 ): StrategicPlanApprovalGuardResult {
   if (!preflight) {
+    const missingContract = buildMissingPreflightContract();
     return {
-      normalizedPlan: plan,
-      contract: buildMissingPreflightContract(),
+      normalizedPlan: {
+        ...(plan && typeof plan === "object" ? plan : {}),
+        contract: missingContract,
+        contract_version: CONTRACT_VERSION,
+        approval_status: "incomplete",
+        metadata: {
+          ...((plan && typeof plan === "object" && plan.metadata && typeof plan.metadata === "object") ? plan.metadata : {}),
+          source_flow: options?.source_flow || plan?.metadata?.source_flow || "unknown",
+          schema_version: PLAN_SCHEMA_VERSION,
+          preflight_version: null,
+          validator_version: CONTRACT_VERSION,
+          guard_version: CONTRACT_VERSION,
+          normalized_at: new Date().toISOString(),
+          validated_at: new Date().toISOString(),
+          validation_status: "invalid",
+          validation_errors: missingContract.errors,
+          is_approvable: false,
+          analysis_run_id: options?.analysis_run_id || plan?.metadata?.analysis_run_id || null,
+          campaign_account_snapshot: Array.isArray(options?.campaign_account_snapshot) ? options?.campaign_account_snapshot : [],
+        },
+      },
+      contract: missingContract,
       approvalStatus: "incomplete",
     };
   }
 
-  const normalizedPlan = normalizeStrategicPlanCustomerExclusions(plan, preflight);
-  const contract = validateStrategicPlanContract(normalizedPlan, preflight);
-  const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
+  const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
+  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) =>
     (
       (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
       ensureArray<any>(action?.adsets).some((adset: any) =>
@@ -442,10 +561,35 @@ export function normalizeAndValidateStrategicPlanForApproval(
       )
     )
   );
+  const provisionalContract: ContractResult = {
+    ok: true,
+    version: CONTRACT_VERSION,
+    errors: [],
+    blockers_count: 0,
+    warnings_count: 0,
+  };
+  const provisionalStatus = hasCustomerAudiencePending ? "incomplete" : "pending_approval";
+  const metadata = buildPlanMetadata(normalizedPlanBase, preflight, provisionalContract, provisionalStatus, options);
+  const normalizedPlan: any = {
+    ...normalizedPlanBase,
+    contract: provisionalContract,
+    contract_version: CONTRACT_VERSION,
+    approval_status: provisionalStatus,
+    metadata,
+    campaign_account_snapshot: metadata.campaign_account_snapshot,
+    source_flow: metadata.source_flow,
+    analysis_run_id: metadata.analysis_run_id,
+  };
+  const contract = validateStrategicPlanContract(normalizedPlan, preflight);
+  const approvalStatus = contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete";
+  normalizedPlan.contract = contract;
+  normalizedPlan.contract_version = CONTRACT_VERSION;
+  normalizedPlan.approval_status = approvalStatus;
+  normalizedPlan.metadata = buildPlanMetadata(normalizedPlan, preflight, contract, approvalStatus, options);
   return {
     normalizedPlan,
     contract,
-    approvalStatus: contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete",
+    approvalStatus,
   };
 }
 
@@ -466,6 +610,14 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
 
   if (!plan.diagnosis || String(plan.diagnosis).trim().length < 10) {
     push({ code: "plan_missing_diagnosis", severity: "blocker", message: "Diagnóstico está ausente ou muito curto.", path: "diagnosis" });
+  }
+  if (!hasRequiredStrategicPlanMetadata(plan)) {
+    push({
+      code: "plan_missing_required_metadata",
+      severity: "blocker",
+      message: "Plano legado ou incompleto: metadados obrigatórios de validação e versionamento estão ausentes.",
+      path: "metadata",
+    });
   }
   if (!plan.risk_assessment) {
     push({ code: "plan_missing_risk_assessment", severity: "blocker", message: "Avaliação de risco está ausente.", path: "risk_assessment" });
@@ -515,9 +667,9 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       return;
     }
 
-    const rawCampaignType = normValue(a.campaign_type);
-    const rawExcl = a.audience_exclusions || {};
     const normalizedAction = normalizeStrategicPlanAction(a, preflight);
+    const rawCampaignType = normValue(a.campaign_type);
+    const rawExcl = normalizedAction?.audience_exclusions || a.audience_exclusions || {};
     const campaignType = String(canonicalizeCampaignType(normalizedAction) || "").toLowerCase();
     if (!campaignType) {
       push({ code: "action_missing_campaign_type", severity: "blocker", message: "Ação sem `campaign_type`.", path });
@@ -550,7 +702,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     // Exclusão de clientes em prospecção/aquisição
-    if (isProspectingLike(a) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
+    if (isProspectingLike(normalizedAction) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
       push({
         code: "prospecting_missing_customer_exclusion",
         severity: "blocker",
@@ -693,6 +845,65 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       }
     }
 
+    const referencedCampaign = getReferencedCampaignSnapshot(plan, normalizedAction);
+    const actionType = String(normalizedAction.action_type || "").toLowerCase();
+    if (referencedCampaign) {
+      const allowedActions = getAllowedActionsForCampaignStatus(referencedCampaign.status, referencedCampaign.effective_status);
+      const effectiveStatus = referencedCampaign.effective_status || referencedCampaign.status || null;
+      const isPauseRequest = ["pause", "pause_campaign"].includes(actionType);
+      const actionRequiresExistingCampaign = ["pause", "pause_campaign", "reduce_budget", "maintain", "monitor", "reactivate", "keep_paused", "use_as_reference", "monitor_historical", "request_review"].includes(actionType);
+
+      if (isPauseRequest && isPausedLikeStatus(effectiveStatus)) {
+        push({
+          code: "paused_campaign_cannot_receive_pause",
+          severity: "blocker",
+          message: `Campanha já pausada não pode receber ação de pausa. Use manter pausada, referência histórica, reativar, monitorar histórico ou solicitar revisão.`,
+          path: `${path}.action_type`,
+        });
+      }
+
+      if (actionRequiresExistingCampaign && !allowedActions.includes(actionType)) {
+        push({
+          code: "campaign_action_not_allowed_for_status",
+          severity: "blocker",
+          message: `Ação selecionada não é permitida para o status atual da campanha. Ações permitidas: ${allowedActions.join(", ")}.`,
+          path: `${path}.action_type`,
+        });
+      }
+    }
+
+    if (["pause", "pause_campaign"].includes(actionType) || ["reduce_budget", "maintain", "monitor", "request_review"].includes(actionType)) {
+      if (!getReferencedCampaignId(normalizedAction)) {
+        push({
+          code: "existing_campaign_required",
+          severity: "blocker",
+          message: "Ação operacional sobre campanha existente exige identificar qual campanha será usada.",
+          path: `${path}.existing_campaign_id`,
+        });
+      }
+    }
+
+    if (["pause", "pause_campaign", "reduce_budget", "maintain", "monitor", "request_review", "create_campaign"].includes(actionType)) {
+      const productName = String(normalizedAction.product_name || "").trim();
+      const audienceValue = String(normalizedAction.target_audience || "").trim();
+      if (!productName || /^n\/?a$/i.test(productName)) {
+        push({
+          code: "action_missing_product_name",
+          severity: "blocker",
+          message: "Ação operacional não pode ficar com produto indefinido.",
+          path: `${path}.product_name`,
+        });
+      }
+      if (!audienceValue || /^n\/?a$/i.test(audienceValue)) {
+        push({
+          code: "action_missing_target_audience",
+          severity: "blocker",
+          message: "Ação operacional não pode ficar com público indefinido.",
+          path: `${path}.target_audience`,
+        });
+      }
+    }
+
     // Orçamento sequencial: criar/escalar não pode exceder o livre sem liberação
     const at = String(a.action_type || "").toLowerCase();
     const isCreateOrScale = at === "create_campaign" || at === "scale" || at === "scale_budget";
@@ -724,15 +935,19 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
         }
       }
     }
-    if (at === "pause" || at === "reduce_budget") {
+    if (at === "pause" || at === "pause_campaign" || at === "reduce_budget") {
       const funnel = String(a.affected_funnel || a.funnel || "").toLowerCase();
-      const released = Math.abs(Number(a.budget_released_brl || a.daily_budget_brl || 0)) * 100;
-      freeByFunnel[funnel] = (freeByFunnel[funnel] ?? 0) + released;
+      const referencedCampaign = getReferencedCampaignSnapshot(plan, normalizedAction);
+      const effectiveStatus = referencedCampaign?.effective_status || referencedCampaign?.status || null;
+      if (isActiveLikeStatus(effectiveStatus)) {
+        const released = Math.abs(Number(a.budget_released_brl || a.daily_budget_brl || 0)) * 100;
+        freeByFunnel[funnel] = (freeByFunnel[funnel] ?? 0) + released;
+      }
     }
 
     // Produto baixa confiança não permite pause como ação principal
     const refId = a?.target_campaign_id || a?.campaign_id || a?.affected_campaign_id;
-    if (refId && at === "pause") {
+    if (refId && (at === "pause" || at === "pause_campaign")) {
       const pi = preflight.product_identifications.find((p) => p.campaign_id === refId);
       if (pi && (pi.product_identification_confidence === "low" || pi.product_identification_confidence === "unknown")) {
         push({
