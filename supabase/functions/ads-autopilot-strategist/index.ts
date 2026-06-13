@@ -2591,20 +2591,20 @@ async function executeToolCall(
     }).join("\n");
     const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
 
+    // Onda G.4 — PERSISTÊNCIA CANÔNICA OBRIGATÓRIA:
+    // Espalhar o plano normalizado COMPLETO (que já inclui metadata, contract,
+    // campaign_account_snapshot, source_flow, analysis_run_id, planned_actions
+    // com audience_exclusions/excluded_audience_ids/targeting.excluded_custom_audiences
+    // por adset frio). Os campos abaixo só REFORÇAM/garantem presença; nunca
+    // substituem ou achatam o payload canônico devolvido pelo guard.
     return {
       status: approvalStatus,
       data: {
+        ...normalizedPlanArgs,
         type: "strategic_plan",
         ad_account_id: config.ad_account_id,
-        diagnosis: normalizedPlanArgs.diagnosis,
-        planned_actions: normalizedPlanArgs.planned_actions,
-        expected_results: normalizedPlanArgs.expected_results,
-        risk_assessment: normalizedPlanArgs.risk_assessment,
-        timeline: normalizedPlanArgs.timeline,
-        budget_allocation: normalizedPlanArgs.budget_allocation,
         funnel_budget_state: normalizedPlanArgs.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
         active_campaigns_summary: normalizedPlanArgs.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
-        // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
         strategic_plan_preflight: preflightSnapshot,
         contract,
         contract_version: PLAN_CONTRACT_VERSION,
@@ -2614,7 +2614,7 @@ async function executeToolCall(
             ? "Plano Estratégico — INCOMPLETO (não aprovável)"
             : "Plano Estratégico — Motor Estrategista",
           copy_text: planBody,
-            targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
+          targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
         },
       },
     };
