@@ -91,11 +91,11 @@ export function getCustomerExclusionLine(
   data: any,
   preview: any,
 ): { applied: boolean; label: string; missing?: boolean; hint?: string } | null {
-  const strategicActions = [
+  const allStrategicActions = [
     ...(Array.isArray(data?.planned_actions) ? data.planned_actions : []),
     ...(Array.isArray(preview?.planned_actions) ? preview.planned_actions : []),
   ];
-  for (const action of strategicActions) {
+  for (const action of allStrategicActions) {
     const adsets = Array.isArray(action?.adsets) ? action.adsets : [];
     for (const adset of adsets) {
       if (adset?.audience_exclusions?.customers) {
