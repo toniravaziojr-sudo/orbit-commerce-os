@@ -507,6 +507,66 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
   };
 }
 
+function inferBudgetSourcesForPlan(plan: any, preflight: StrategicPlanPreflight): any {
+  if (!plan || !Array.isArray(plan.planned_actions)) return plan;
+  const freeByFunnel: Record<string, number> = {};
+  const fbs = preflight?.funnel_budget_state?.per_funnel || ({} as any);
+  for (const k of Object.keys(fbs)) freeByFunnel[k] = (fbs as any)[k]?.free_cents || 0;
+  const priorReleaseByFunnel: Record<string, boolean> = {};
+
+  const next = plan.planned_actions.map((a: any) => {
+    if (!a || typeof a !== "object") return a;
+    const at = String(a.action_type || "").toLowerCase();
+    const funnel = String(a.affected_funnel || a.funnel || "").toLowerCase();
+
+    // Pause/reduce on an active campaign releases budget into the same funnel
+    if (at === "pause" || at === "pause_campaign" || at === "reduce_budget") {
+      const referenced = getReferencedCampaignSnapshot(plan, a);
+      const effective = referenced?.effective_status || referenced?.status || null;
+      if (isActiveLikeStatus(effective)) {
+        const released = Math.abs(Number(a.budget_released_brl || a.daily_budget_brl || 0)) * 100;
+        if (released > 0) {
+          freeByFunnel[funnel] = (freeByFunnel[funnel] ?? 0) + released;
+          priorReleaseByFunnel[funnel] = true;
+        }
+      }
+      return a;
+    }
+
+    const isCreateOrScale = at === "create_campaign" || at === "scale" || at === "scale_budget";
+    if (!isCreateOrScale) return a;
+
+    const currentSource = String(a.budget_source || "").toLowerCase();
+    if ((BUDGET_SOURCE_VALUES as readonly string[]).includes(currentSource)) {
+      // Trust LLM but still debit projection for downstream inference
+      const delta = Number(a.daily_budget_brl || 0) * 100;
+      if (currentSource === "free_now" || currentSource === "test_allocation" || currentSource === "reallocated_budget") {
+        freeByFunnel[funnel] = Math.max(0, (freeByFunnel[funnel] ?? 0) - delta);
+      }
+      return a;
+    }
+
+    const delta = Number(a.daily_budget_brl || 0) * 100;
+    const free = freeByFunnel[funnel] ?? 0;
+    let inferred: string;
+    if (free + 1 >= delta && delta > 0) {
+      inferred = "free_now";
+      freeByFunnel[funnel] = Math.max(0, free - delta);
+    } else if (priorReleaseByFunnel[funnel]) {
+      inferred = "released_by_previous_action";
+    } else {
+      inferred = "insufficient_budget_pending_action";
+    }
+    return {
+      ...a,
+      budget_source: inferred,
+      budget_source_inferred: true,
+    };
+  });
+
+  return { ...plan, planned_actions: next };
+}
+
 export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
@@ -515,7 +575,8 @@ export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: S
     planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight)),
   };
 
-  return enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
+  const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
+  return inferBudgetSourcesForPlan(withExclusions, preflight);
 }
 
 export function normalizeAndValidateStrategicPlanForApproval(
