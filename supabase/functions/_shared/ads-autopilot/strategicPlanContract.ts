@@ -10,7 +10,8 @@
 
 import type { StrategicPlanPreflight } from "./strategicPlanPreflight.ts";
 
-export const CONTRACT_VERSION = "1.1.0";
+export const CONTRACT_VERSION = "1.2.0";
+export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
 
@@ -72,6 +73,12 @@ export interface StrategicPlanApprovalGuardResult {
   normalizedPlan: any;
   contract: ContractResult;
   approvalStatus: "pending_approval" | "incomplete";
+}
+
+export interface StrategicPlanGuardOptions {
+  source_flow?: string | null;
+  campaign_account_snapshot?: any[] | null;
+  analysis_run_id?: string | null;
 }
 
 const LEGACY_CAMPAIGN_TYPES = new Set([
@@ -154,6 +161,97 @@ function isCanonicalCampaignIntent(value: string): value is CampaignIntent {
 function hasCustomerAudiencePendingDependency(value: unknown): boolean {
   const normalized = normValue(value);
   return normalized === normValue(CUSTOMER_AUDIENCE_PENDING_DEPENDENCY) || normalized === normValue(LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY);
+}
+
+function isPausedLikeStatus(value: unknown): boolean {
+  const status = normValue(value).replace(/\s+/g, "_");
+  return ["paused", "pause", "with_issues", "campaign_paused"].includes(status);
+}
+
+function isActiveLikeStatus(value: unknown): boolean {
+  const status = normValue(value).replace(/\s+/g, "_");
+  return ["active", "pending_review", "preapproved", "in_process"].includes(status);
+}
+
+export function getAllowedActionsForCampaignStatus(status: unknown, effectiveStatus?: unknown): string[] {
+  const candidate = isPausedLikeStatus(effectiveStatus) ? effectiveStatus : status;
+  if (isPausedLikeStatus(candidate)) {
+    return ["keep_paused", "use_as_reference", "reactivate", "monitor_historical", "request_review"];
+  }
+  if (isActiveLikeStatus(candidate)) {
+    return ["maintain", "reduce_budget", "pause_campaign", "monitor", "request_review"];
+  }
+  return ["request_review"];
+}
+
+export function hasRequiredStrategicPlanMetadata(plan: any): boolean {
+  const metadata = plan?.metadata;
+  return !!(
+    metadata &&
+    metadata.schema_version &&
+    metadata.preflight_version &&
+    metadata.validator_version &&
+    metadata.guard_version &&
+    metadata.validation_status &&
+    typeof metadata.is_approvable === "boolean"
+  );
+}
+
+function getCampaignSnapshotEntries(plan: any): any[] {
+  return Array.isArray(plan?.campaign_account_snapshot)
+    ? plan.campaign_account_snapshot
+    : Array.isArray(plan?.metadata?.campaign_account_snapshot)
+      ? plan.metadata.campaign_account_snapshot
+      : [];
+}
+
+function getReferencedCampaignId(action: any): string | null {
+  return String(
+    action?.existing_campaign_id ||
+    action?.target_campaign_id ||
+    action?.campaign_id ||
+    action?.affected_campaign_id ||
+    "",
+  ).trim() || null;
+}
+
+function getReferencedCampaignSnapshot(plan: any, action: any): any | null {
+  const referencedId = getReferencedCampaignId(action);
+  const referencedName = String(action?.existing_campaign_name || action?.campaign_name || "").trim().toLowerCase();
+  const snapshotEntries = getCampaignSnapshotEntries(plan);
+  if (referencedId) {
+    const byId = snapshotEntries.find((entry: any) => String(entry?.campaign_id || "") === referencedId);
+    if (byId) return byId;
+  }
+  if (referencedName) {
+    return snapshotEntries.find((entry: any) => String(entry?.campaign_name || "").trim().toLowerCase() === referencedName) || null;
+  }
+  return null;
+}
+
+function buildPlanMetadata(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  contract: ContractResult,
+  approvalStatus: "pending_approval" | "incomplete",
+  options?: StrategicPlanGuardOptions,
+) {
+  const nowIso = new Date().toISOString();
+  return {
+    ...(plan?.metadata && typeof plan.metadata === "object" ? plan.metadata : {}),
+    source_flow: options?.source_flow || plan?.metadata?.source_flow || "unknown",
+    schema_version: PLAN_SCHEMA_VERSION,
+    preflight_version: preflight.version,
+    validator_version: CONTRACT_VERSION,
+    guard_version: CONTRACT_VERSION,
+    normalized_at: nowIso,
+    validated_at: nowIso,
+    validation_status: contract.ok && approvalStatus === "pending_approval" ? "valid" : "invalid",
+    validation_errors: contract.errors,
+    is_approvable: contract.ok && approvalStatus === "pending_approval",
+    analysis_run_id: options?.analysis_run_id || plan?.metadata?.analysis_run_id || null,
+    campaign_account_snapshot: Array.isArray(options?.campaign_account_snapshot) ? options?.campaign_account_snapshot : (plan?.metadata?.campaign_account_snapshot || []),
+  };
 }
 
 function buildMissingPreflightContract(): ContractResult {
