@@ -40,6 +40,141 @@ function basePlan(overrides: any = {}) {
 }
 
 describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
+  it("fixture real problemática falha no contrato quando a action fria tem adsets sem exclusão por conjunto", () => {
+    const realProblematicPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          {
+            audience_type: "broad",
+            audience_description: "Público amplo (Homens 30-65, Brasil)",
+          },
+          {
+            audience_type: "lookalike",
+            audience_description: "Lookalike 1% Compra 180D",
+          },
+        ],
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(realProblematicPlan, basePreflight);
+
+    expect(guarded.contract.ok).toBe(false);
+  });
+
+  it("teste vermelho: normalização canônica injeta exclusão de clientes em cada adset frio", () => {
+    const realProblematicPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          {
+            adset_name: "[AI] CJ - Broad | TOF - Shampoo",
+            audience_type: "broad",
+            audience_description: "Público amplo (Homens 30-65, Brasil)",
+          },
+          {
+            adset_name: "[AI] CJ - LAL 1% Compra 180D | TOF - Shampoo",
+            audience_type: "lookalike",
+            audience_description: "Lookalike 1% Compra 180D",
+          },
+        ],
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(realProblematicPlan, basePreflight);
+
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[0].audience_exclusions.customers).toBe(true);
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[0].excluded_audience_ids).toContain("aud1");
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[0].targeting.excluded_custom_audiences).toEqual(
+      expect.arrayContaining([{ id: "aud1", name: "Clientes" }]),
+    );
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[1].audience_exclusions.customers).toBe(true);
+  });
+
+  it("teste vermelho: validator reprova action fria quando só a action tem exclusão e os adsets não têm", () => {
+    const plan = basePlan({
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        funnel_stage: "tof",
+        target_audience: "Homens 30-65, Brasil",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_exclusions: { customers: true, customer_audience_detected: true, customer_audience_id: "aud1", customer_audience_name: "Clientes" },
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          { adset_name: "Broad", audience_type: "broad", audience_description: "Público amplo (Homens 30-65, Brasil)" },
+          { adset_name: "LAL", audience_type: "lookalike", audience_description: "Lookalike 1% Compra 180D" },
+        ],
+      }],
+    });
+
+    const result = validateStrategicPlanContract(plan, basePreflight);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.code === "prospecting_adset_missing_customer_exclusion")).toBe(true);
+  });
+
+  it("gera pendência por adset frio quando público de clientes não existe", () => {
+    const pf = buildStrategicPlanPreflightContext({
+      ad_account_id: "act_1",
+      total_daily_cents: 30000,
+      funnel_splits: { cold: 60, remarketing: 25, tests: 15, leads: 0 } as any,
+      campaigns: [],
+      customer_audience: { found: false },
+    });
+
+    const plan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: pf.funnel_budget_state,
+      active_campaigns_summary: pf.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          { adset_name: "Broad", audience_type: "broad", audience_description: "Público amplo (Homens 30-65, Brasil)" },
+        ],
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, pf);
+
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[0].audience_exclusions.pending_dependency).toBe("customer_audience_not_detected");
+    expect(guarded.approvalStatus).toBe("incomplete");
+  });
+
   it("aprova plano completo e bem-formado", () => {
     const r = validateStrategicPlanContract(basePlan(), basePreflight);
     expect(r.ok).toBe(true);

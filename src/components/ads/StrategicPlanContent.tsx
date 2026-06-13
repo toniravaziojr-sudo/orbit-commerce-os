@@ -33,6 +33,12 @@ interface AdSetPlan {
   audience_description?: string;
   budget_brl?: number;
   ads_count?: number;
+  audience_exclusions?: AudienceExclusions;
+  excluded_audience_ids?: string[];
+  targeting?: {
+    excluded_custom_audiences?: Array<{ id?: string; name?: string }>;
+  };
+  exclusion_override_reason?: string;
 }
 
 // Onda G — campos novos opcionais no plano estratégico
@@ -313,6 +319,15 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
     retargeting: "Remarketing",
   };
 
+  const getAdsetExclusionLabel = (adset: AdSetPlan): string | null => {
+    if (adset.audience_exclusions?.customers) return "Exclui clientes/compradores";
+    if (adset.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || adset.audience_exclusions?.pending_dependency === "customer_audience_missing") {
+      return "Pendência: público de clientes não detectado";
+    }
+    if (adset.exclusion_override_reason) return `Teste criativo: ${adset.exclusion_override_reason}`;
+    return null;
+  };
+
   return (
     <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3 hover:border-border/60 transition-colors">
       <div className="flex items-start gap-3">
@@ -435,6 +450,11 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
                   {adset.audience_description && (
                     <p className="text-[11px] text-muted-foreground/70 leading-snug mt-0.5 truncate">
                       {adset.audience_description}
+                    </p>
+                  )}
+                  {getAdsetExclusionLabel(adset) && (
+                    <p className="text-[11px] leading-snug mt-0.5 text-foreground/75">
+                      {getAdsetExclusionLabel(adset)}
                     </p>
                   )}
                 </div>

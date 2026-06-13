@@ -347,7 +347,7 @@ const STRATEGIST_TOOLS = [
               type: "object",
               properties: {
                 action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "test", "scale", "duplicate", "optimize"], description: "Tipo da ação" },
-                campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação", "prospecting", "retargeting", "catalog_prospecting", "catalog_retargeting", "testing"], description: "Tipo de campanha. Para catálogo dinâmico use 'catalog_prospecting' ou 'catalog_retargeting'." },
+                campaign_type: { type: "string", enum: ["prospecting", "retargeting", "catalog_prospecting", "catalog_retargeting", "testing"], description: "Tipo de campanha canônico. Use somente os valores canônicos internos; rótulos como TOF/BOF são apenas visuais." },
                 campaign_intent: { type: "string", enum: ["acquisition", "retention", "creative_test", "offer_test", "scale", "reactivation"], description: "Onda G.5 — Intenção da campanha. Em creative_test, clientes podem ser incluídos com justificativa (exclusion_override_reason)." },
                 funnel: { type: "string", enum: ["cold", "remarketing", "tests", "leads", "unknown"], description: "Onda G.1 — Funil canônico ao qual essa ação pertence. Deve bater com funnel_budget_state." },
                 budget_delta_brl: { type: "number", description: "Onda G.1 — Variação de orçamento desta ação em R$ (+ para criar/escalar, − para reduzir/pausar)." },
@@ -359,7 +359,7 @@ const STRATEGIST_TOOLS = [
                     customers: { type: "boolean", description: "Excluir clientes/compradores." },
                     reason: { type: "string", description: "Justificativa curta." },
                     customer_audience_detected: { type: "boolean", description: "true se o público de Clientes existe na conta Meta." },
-                    pending_dependency: { type: "string", enum: ["customer_audience_missing"], description: "Marca pendência quando o público de Clientes não foi detectado." },
+                    pending_dependency: { type: "string", enum: ["customer_audience_not_detected"], description: "Marca pendência quando o público de Clientes não foi detectado." },
                   },
                 },
                 exclusion_override_reason: { type: "string", description: "Onda G.5 — Justificativa OBRIGATÓRIA quando creative_test inclui clientes no frio." },
@@ -408,6 +408,35 @@ const STRATEGIST_TOOLS = [
                       adset_name: { type: "string", description: "Nome do conjunto (ex: CJ1 - Broad | TOF)" },
                       audience_type: { type: "string", enum: ["broad", "interest", "lookalike", "custom", "retargeting"], description: "Tipo de audiência deste conjunto" },
                       audience_description: { type: "string", description: "Descrição textual do público deste conjunto" },
+                       audience_exclusions: {
+                         type: "object",
+                         description: "Obrigatório em conjuntos frios/prospecção. A fonte operacional da exclusão é o adset.",
+                         properties: {
+                           customers: { type: "boolean" },
+                           customer_audience_detected: { type: "boolean" },
+                           customer_audience_id: { type: "string" },
+                           customer_audience_name: { type: "string" },
+                           pending_dependency: { type: "string", enum: ["customer_audience_not_detected"] },
+                           reason: { type: "string" },
+                         },
+                       },
+                       excluded_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos excluídos neste conjunto." },
+                       targeting: {
+                         type: "object",
+                         properties: {
+                           excluded_custom_audiences: {
+                             type: "array",
+                             items: {
+                               type: "object",
+                               properties: {
+                                 id: { type: "string" },
+                                 name: { type: "string" },
+                               },
+                             },
+                           },
+                         },
+                       },
+                       exclusion_override_reason: { type: "string", description: "Obrigatório apenas para creative_test com inclusão de clientes neste conjunto." },
                       // --- Targeting estruturado por conjunto (obrigatório no contrato canônico v2) ---
                       location: { type: "string", description: "Região/país do conjunto (ex.: 'BR', 'São Paulo, BR'). Default seguro: BR." },
                       age_min: { type: "number", description: "Idade mínima. Default: 18." },
@@ -2192,8 +2221,9 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
     lines.push("");
     lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
-    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions.customers=true` e `audience_exclusions.reason`.");
-    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_missing'`.");
+    lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions` no nível da ação e também em CADA item de `adsets[]`.");
+    lines.push("- Em cada adset frio/prospecção, preencha `audience_exclusions.customers=true`, `excluded_audience_ids` e `targeting.excluded_custom_audiences` com o público de Clientes detectado.");
+    lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_not_detected'` em cada adset frio/prospecção.");
     lines.push("- Para campanha de catálogo, use `campaign_type` começando com `catalog_` e preencha `catalog_setup` (catálogo + product_set + janela + exclude_recent_buyers_days + creative_mode='dynamic'). Se o catálogo não foi detectado, marque `catalog_setup.pending_dependency='catalog_not_connected'` em vez de inventar IDs.");
     lines.push("- Para teste criativo, defina `campaign_intent='creative_test'`. Se incluir clientes, preencha `exclusion_override_reason` com justificativa.");
     lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
@@ -3116,11 +3146,37 @@ async function executeToolCall(
   if (toolName === "create_adset") {
     // v1.8.0: ALWAYS require approval for adset creation
     console.log(`[ads-autopilot-strategist][${VERSION}] create_adset → pending_approval (always)`);
+    let customerAudienceResolution: any = null;
+    let customerExclusionMetadata: Record<string, unknown> | null = null;
+    try {
+      if (config.channel === "meta" && isColdFunnelStage(args.funnel_stage || args.targeting_type || args.targeting_description)) {
+        customerAudienceResolution = await resolveCustomerAudienceForMetaAccount(
+          supabase,
+          tenantId,
+          config.ad_account_id,
+        );
+        const applied = customerAudienceResolution.found && !!customerAudienceResolution.meta_audience_id;
+        if (applied) {
+          const current: Array<any> = Array.isArray(args.excluded_audience_ids) ? args.excluded_audience_ids : [];
+          const currentIds = current.map((e: any) => String(e?.id ?? e));
+          if (!currentIds.includes(String(customerAudienceResolution.meta_audience_id))) {
+            args.excluded_audience_ids = [
+              ...current,
+              { id: customerAudienceResolution.meta_audience_id, name: customerAudienceResolution.audience_name },
+            ];
+          }
+        }
+        customerExclusionMetadata = buildCustomerExclusionMetadata(customerAudienceResolution, applied);
+      }
+    } catch (caErr: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] create_adset customer-audience resolver failed (fail-open):`, caErr?.message);
+    }
     return { 
       status: "pending_approval", 
       data: { 
         ...args, 
         ad_account_id: config.ad_account_id,
+        customer_audience_exclusion: customerExclusionMetadata,
         preview: {
           adset_name: args.adset_name,
           targeting_type: args.targeting_type,
@@ -3141,6 +3197,7 @@ async function executeToolCall(
           behaviors: args.behaviors || [],
           custom_audience_ids: args.custom_audience_ids || [],
           excluded_audience_ids: args.excluded_audience_ids || [],
+          customer_audience_exclusion: customerExclusionMetadata,
           lookalike_spec: args.lookalike_spec || null,
           publisher_platforms: args.publisher_platforms || null,
           position_types: args.position_types || null,
@@ -3584,7 +3641,10 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       if (!planAnalysisRunId) planAnalysisRunId = planRow.analysis_run_id || (planRow.action_data?.analysis_run_id ?? null);
       const plan = planRow.action_data || {};
       const diagnosis = plan.diagnosis || "";
-      const plannedActions = (plan.planned_actions || []).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n");
+      const plannedActions = (plan.planned_actions || []).map((a: any, i: number) => {
+        if (typeof a === "string") return `${i + 1}. ${a}`;
+        return `${i + 1}. ${JSON.stringify(a)}`;
+      }).join("\n");
       const expectedResults = plan.expected_results || "";
       const budgetAllocation = plan.budget_allocation ? JSON.stringify(plan.budget_allocation, null, 2) : "";
 
@@ -4090,8 +4150,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             channel: config.channel,
             action_type: tc.function.name,
             action_data: { 
-              ...args, 
-              ...(result.data || {}), 
+              ...result.data,
               ad_account_id: config.ad_account_id, 
               campaign_name: campaignName,
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),

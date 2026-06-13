@@ -98,7 +98,12 @@ Deno.serve(async (req) => {
   const funnelStage = brief.funnel_stage || data.funnel_stage || null;
 
   // 2. Quality Gate da Etapa 2
-  const exclusionApplied = !!data.customer_audience_exclusion?.enabled;
+  const exclusionApplied =
+    !!data.customer_audience_exclusion?.enabled ||
+    !!data.customer_audience_exclusion?.customer_audience_exclusion_enabled ||
+    !!data.audience_exclusions?.customers ||
+    Array.isArray(data.excluded_audience_ids) && data.excluded_audience_ids.length > 0 ||
+    Array.isArray(data.preview?.excluded_audience_ids) && data.preview.excluded_audience_ids.length > 0;
   const gate = runTwoStepCreativeGate({
     action,
     qualityGatePassed: action.policy_check_result?.ok !== false,

@@ -187,6 +187,96 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
   return intent === "creative test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
 }
 
+function ensureArray<T = any>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+function isProspectingLikeAdset(action: any, adset: any): boolean {
+  if (isProspectingLike(action)) return true;
+  const audienceType = normValue(adset?.audience_type);
+  const name = normValue(adset?.adset_name || adset?.name);
+  const audienceDescription = normValue(adset?.audience_description);
+  if (["broad", "lookalike"].includes(audienceType)) return true;
+  if (/(^|\s)(tof|broad|amplo|lal)(\s|$)/i.test(name)) return true;
+  if (/(publico amplo|lookalike|homens 30 65 brasil|sem segmentacao|compra 180d|viewcontent)/i.test(audienceDescription)) return true;
+  return false;
+}
+
+function normalizeProspectingAdsetCustomerExclusion(adset: any, preflight: StrategicPlanPreflight): any {
+  const currentExclusion = adset?.audience_exclusions && typeof adset.audience_exclusions === "object"
+    ? adset.audience_exclusions
+    : {};
+  const currentExcludedIds = ensureArray<any>(adset?.excluded_audience_ids);
+  const currentTargeting = adset?.targeting && typeof adset.targeting === "object" ? adset.targeting : {};
+  const currentExcludedCustomAudiences = ensureArray<any>(currentTargeting?.excluded_custom_audiences);
+  const detected = preflight.customer_audience.customer_audience_detected;
+  const customerId = preflight.customer_audience.customer_audience_id;
+  const customerName = preflight.customer_audience.customer_audience_name;
+
+  if (detected && customerId) {
+    const excludedIds = currentExcludedIds.map((entry: any) => String(entry?.id ?? entry));
+    const normalizedExcludedIds = excludedIds.includes(String(customerId))
+      ? currentExcludedIds
+      : [...currentExcludedIds, customerId];
+
+    const normalizedExcludedCustomAudiences = currentExcludedCustomAudiences.some(
+      (entry: any) => String(entry?.id ?? entry) === String(customerId),
+    )
+      ? currentExcludedCustomAudiences
+      : [...currentExcludedCustomAudiences, { id: customerId, name: customerName || "Clientes" }];
+
+    return {
+      ...adset,
+      audience_exclusions: {
+        ...currentExclusion,
+        customers: true,
+        customer_audience_detected: true,
+        customer_audience_id: customerId,
+        customer_audience_name: customerName,
+        reason: String(currentExclusion?.reason || "").trim() || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais.",
+      },
+      excluded_audience_ids: normalizedExcludedIds,
+      targeting: {
+        ...currentTargeting,
+        excluded_custom_audiences: normalizedExcludedCustomAudiences,
+      },
+    };
+  }
+
+  return {
+    ...adset,
+    audience_exclusions: {
+      ...currentExclusion,
+      customers: false,
+      customer_audience_detected: false,
+      pending_dependency: CUSTOMER_AUDIENCE_PENDING_DEPENDENCY,
+      reason: String(currentExclusion?.reason || "").trim() || "Conjunto de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação.",
+    },
+  };
+}
+
+export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+  if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
+
+  return {
+    ...plan,
+    planned_actions: plan.planned_actions.map((action: any) => {
+      if (!action || typeof action !== "object" || !Array.isArray(action.adsets)) return action;
+      if (hasCreativeTestCustomerOverride(action)) return action;
+
+      const normalizedAdsets = action.adsets.map((adset: any) => {
+        if (!isProspectingLikeAdset(action, adset)) return adset;
+        return normalizeProspectingAdsetCustomerExclusion(adset, preflight);
+      });
+
+      return {
+        ...action,
+        adsets: normalizedAdsets,
+      };
+    }),
+  };
+}
+
 function inferLegacyCampaignBucket(action: any): "cold" | "remarketing" | "tests" | null {
   const campaignType = normValue(action?.campaign_type);
   const funnel = normValue(action?.funnel || action?.affected_funnel);
@@ -322,10 +412,12 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
 export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
-  return {
+  const normalizedPlan = {
     ...plan,
     planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight)),
   };
+
+  return enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
 }
 
 export function normalizeAndValidateStrategicPlanForApproval(
@@ -343,7 +435,12 @@ export function normalizeAndValidateStrategicPlanForApproval(
   const normalizedPlan = normalizeStrategicPlanCustomerExclusions(plan, preflight);
   const contract = validateStrategicPlanContract(normalizedPlan, preflight);
   const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
-    isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)
+    (
+      (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
+      ensureArray<any>(action?.adsets).some((adset: any) =>
+        isProspectingLikeAdset(action, adset) && hasCustomerAudiencePendingDependency(adset?.audience_exclusions?.pending_dependency),
+      )
+    )
   );
   return {
     normalizedPlan,
@@ -492,6 +589,41 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
         }
       }
     }
+
+    const adsets = ensureArray<any>(normalizedAction?.adsets);
+    adsets.forEach((adset: any, adsetIndex: number) => {
+      if (!isProspectingLikeAdset(normalizedAction, adset)) return;
+
+      const adsetPath = `${path}.adsets[${adsetIndex}]`;
+      const adsetExclusion = adset?.audience_exclusions || {};
+      const adsetExcludedIds = ensureArray<any>(adset?.excluded_audience_ids).map((entry: any) => String(entry?.id ?? entry));
+      const adsetExcludedCustomAudiences = ensureArray<any>(adset?.targeting?.excluded_custom_audiences).map((entry: any) => String(entry?.id ?? entry));
+      const detected = preflight.customer_audience.customer_audience_detected;
+      const customerId = preflight.customer_audience.customer_audience_id;
+
+      if (detected && customerId) {
+        const hasConditionA =
+          adsetExclusion?.customers === true &&
+          adsetExcludedIds.includes(String(customerId)) &&
+          adsetExcludedCustomAudiences.includes(String(customerId));
+
+        if (!hasConditionA) {
+          push({
+            code: "prospecting_adset_missing_customer_exclusion",
+            severity: "blocker",
+            message: "Conjunto de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+            path: `${adsetPath}.audience_exclusions`,
+          });
+        }
+      } else if (!hasCustomerAudiencePendingDependency(adsetExclusion?.pending_dependency)) {
+        push({
+          code: "prospecting_adset_missing_pending_dependency",
+          severity: "blocker",
+          message: "Conjunto de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+          path: `${adsetPath}.audience_exclusions.pending_dependency`,
+        });
+      }
+    });
 
     // Catálogo dinâmico
     if (isCatalogType(campaignType)) {

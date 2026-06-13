@@ -3688,6 +3688,18 @@ O modal de proposta usa `strategy` — assim, "evento de conversão pendente" de
 - Zero chamada Meta para criar campanha.
 - Sem cron, sem admin avançado, sem Google/TikTok operacional, sem regeneração automática de propostas.
 
+### Regra canônica — exclusão obrigatória no nível do adset (rev 2026-06-13)
+
+- Em campanha fria/prospecção, **action-level não é suficiente**. A exclusão de clientes/compradores precisa existir também no nível operacional de cada conjunto (`adset`).
+- O payload canônico exigido por conjunto é:
+  - `audience_exclusions.customers=true`
+  - `excluded_audience_ids[]` contendo o público de clientes
+  - `targeting.excluded_custom_audiences[]` contendo o mesmo público
+- Se o público de clientes não estiver disponível para a conta Meta conectada, o plano deve ficar **fail-closed** com `audience_exclusions.pending_dependency='customer_audience_not_detected'` em cada adset frio/prospecção.
+- A única exceção continua sendo `campaign_intent='creative_test'` com `exclusion_override_reason` explícita e auditável.
+- O endpoint de aprovação da estratégia revalida a regra usando a fonte canônica e não depende apenas do campo legado `customer_audience_exclusion`.
+- Plano inválido não aprova, não gera propostas filhas e não altera campanha real.
+
 
 ## Onda E — Modo Piloto vs Modo Piloto Inicial (10/06/2026)
 
