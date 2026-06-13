@@ -418,6 +418,7 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
 
   it("rejeita plano legado sem metadata obrigatória", () => {
     const legacyPlan = basePlan();
+    delete (legacyPlan as any).metadata;
     const r = validateStrategicPlanContract(legacyPlan, basePreflight);
     expect(r.errors.some((e) => e.code === "plan_missing_required_metadata")).toBe(true);
   });
