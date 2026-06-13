@@ -178,3 +178,29 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 - `create_adset` também injeta metadata/exclusão de clientes quando o conjunto é frio, alinhando ação pai e filha com a mesma regra operacional.
 - Nenhuma publicação executada.
 - Nenhuma campanha real alterada.
+
+## Onda G.3 — Auditoria real do Plano Estratégico + fail-closed canônico (2026-06-13)
+
+### Diagnóstico fechado
+- O último plano real salvo no tenant estava em payload legado, sem metadata de validação, sem versionamento e sem exclusão de clientes por adset, apesar do contrato canônico já existir.
+- A análise inicial do painel passa por um orquestrador próprio e depois dispara o estrategista no gatilho `start`; o problema não era só teste insuficiente, mas falta de blindagem no plano persistido e na aprovação real.
+- Havia também risco de ação inválida sobre campanha já pausada, porque o plano não carregava snapshot canônico de status/ações permitidas no payload final aprovado.
+
+### Ajustes aplicados
+- O contrato do plano agora anexa metadata obrigatória de auditoria e versionamento: origem do fluxo, versão do schema, versão do preflight, versão do validator, versão do guard, timestamps de normalização/validação, erros e flag canônica de aprovabilidade.
+- O plano estratégico passa a carregar também o snapshot canônico da conta para as campanhas existentes, incluindo status real, status efetivo e ações permitidas por campanha.
+- A validação fail-closed agora reprova plano legado sem metadata, plano com ação operacional incompleta (`N/A`), plano que tenta pausar campanha já pausada e plano com ação incompatível com o status real da campanha.
+- O endpoint de aprovação do plano agora recarrega o plano salvo, recompõe o contexto determinístico, revalida o contrato e só então permite aprovar e gerar filhas. Se o plano estiver incompleto, ele é travado no servidor mesmo que a UI falhe.
+- A execução de conjuntos filhos Meta ganhou reforço para excluir automaticamente clientes em público frio e bloquear aprovação se o público de clientes não existir.
+
+### Evidência da auditoria real
+- Último plano auditado: `83cddf94-6422-4cd5-828a-1388f4c89f3c`.
+- O payload salvo vinha sem `contract`, sem `approval_status`, sem `strategic_plan_preflight`, sem `schema_version` e sem metadata canônica — por isso o painel ainda mostrava um plano operacional em formato legado.
+- Os adsets frios do plano real (`Broad` e `LAL`) estavam sem `audience_exclusions`, sem `excluded_audience_ids` e sem `targeting.excluded_custom_audiences`.
+
+### Critério de aceite técnico desta onda
+- Plano novo salvo com metadata canônica obrigatória.
+- Plano legado ou incompleto não fica aprovável.
+- Pausa em campanha já pausada é invalidada pelo snapshot real.
+- Público frio/prospecção sem exclusão por adset fica bloqueado ou com pendência técnica explícita.
+- Aprovação server-side revalida sempre; não confia só no front.
