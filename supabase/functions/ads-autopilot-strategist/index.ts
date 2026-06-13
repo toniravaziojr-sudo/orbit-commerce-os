@@ -4120,8 +4120,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             channel: config.channel,
             action_type: tc.function.name,
             action_data: { 
-              ...args, 
-              ...(result.data || {}), 
+              ...result.data,
               ad_account_id: config.ad_account_id, 
               campaign_name: campaignName,
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),
