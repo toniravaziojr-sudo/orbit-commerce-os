@@ -1495,7 +1495,13 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const preview = data.preview || {};
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
-  const strategicPlanBlocked = isStrategicPlan && (action.status === "incomplete" || data?.approval_status === "incomplete" || data?.contract?.ok === false);
+  const strategicPlanBlocked = isStrategicPlan && (
+    action.status === "incomplete"
+    || data?.approval_status === "incomplete"
+    || data?.contract?.ok === false
+    || data?.metadata?.validation_status !== "valid"
+    || data?.metadata?.is_approvable !== true
+  );
 
   const creativeUrls = useAllCreativeUrls(action);
   const primaryCreativeUrl = creativeUrls[0] || null;
