@@ -2586,6 +2586,7 @@ async function executeToolCall(
           console.warn(`[ads-autopilot-strategist][plan-contract] preflight fallback failed: ${pfErr?.message}`);
         }
       }
+      const accountCampaignSnapshot = (context?.campaigns || [])
         .filter((c: any) => c?.ad_account_id === config.ad_account_id)
         .map((c: any) => ({
           campaign_id: c.meta_campaign_id,
