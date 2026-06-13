@@ -320,7 +320,10 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
   };
 
   const getAdsetExclusionLabel = (adset: AdSetPlan): string | null => {
-    if (adset.audience_exclusions?.customers) return "Exclui clientes/compradores";
+    if (adset.audience_exclusions?.customers) {
+      const name = (adset.audience_exclusions as any)?.customer_audience_name;
+      return name ? `Exclui: ${name}` : "Exclui clientes/compradores";
+    }
     if (adset.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || adset.audience_exclusions?.pending_dependency === "customer_audience_missing") {
       return "Pendência: público de clientes não detectado";
     }
@@ -356,7 +359,9 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
             )}
             {action.audience_exclusions?.customers && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
-                Exclui clientes/compradores
+                {(action.audience_exclusions as any)?.customer_audience_name
+                  ? `Exclui: ${(action.audience_exclusions as any).customer_audience_name}`
+                  : "Exclui clientes/compradores"}
               </span>
             )}
             {(action.audience_exclusions?.pending_dependency === "customer_audience_missing" || action.audience_exclusions?.pending_dependency === "customer_audience_not_detected") && (

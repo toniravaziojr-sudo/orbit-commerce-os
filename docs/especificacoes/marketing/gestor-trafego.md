@@ -3990,3 +3990,16 @@ Na Central de Execuções (card de Ads), aparece o contador "Plano estratégico 
 
 ### Saneamento histórico
 Em 2026-06-13 foram canceladas todas as propostas pendentes do tenant Respeite o Homem (2 campanhas geradas pelo cron + 1 plano estratégico anterior) para zerar a fila antes da nova regra entrar em vigor.
+
+## Onda J — Inferência determinística de `budget_source` + tarja de exclusão por público (2026-06-13)
+
+### Problema observado
+Mesmo com a persistência canônica funcionando (Onda I), planos novos nasciam marcados como "Plano incompleto" porque a LLM omitia o campo `budget_source` em todas as ações de criar/escalar. O validador exigia o campo como blocker e o botão "Aprovar plano" ficava permanentemente desabilitado. Em paralelo, a UI mostrava a tarja genérica "Exclui clientes/compradores" no card externo da fila (fora de contexto) e no modal sem identificar o nome do público.
+
+### Correção aplicada
+1. **Inferência determinística no normalizador** (`inferBudgetSourcesForPlan`): quando `budget_source` vem vazio/inválido, o normalizador percorre as ações na ordem do plano usando o mesmo modelo do validador (verba livre por funil a partir do preflight, débito por criar/escalar, crédito por pausar/reduzir ativa). Regra: se há verba livre suficiente → `free_now`; se há pause/reduce anterior para o mesmo funil → `released_by_previous_action`; senão → `insufficient_budget_pending_action`. Marca `budget_source_inferred=true` para rastreio. O validador continua bloqueando quando a verba real não comporta.
+2. **UI — nome do público na tarja de exclusão**: badge no topo da ação e resumo de cada conjunto agora exibem `Exclui: <nome>` (ex.: `Exclui: Compradores 180d`). Fallback ao texto genérico só quando o nome não estiver no contrato.
+3. **UI — remoção da tarja redundante no card externo**: o card da fila "Aguardando Ação" não exibe mais a tarja "Exclui clientes/compradores" para tipo `strategic_plan`. A informação correta — por conjunto, com nome — fica dentro do modal.
+
+### Saneamento adicional
+13/06/2026 (após o fix de inferência) foram descartadas as 2 propostas pendentes do Respeite o Homem geradas durante o ciclo de teste, para que o usuário rode "Nova análise" e valide o plano nascendo aprovável.
