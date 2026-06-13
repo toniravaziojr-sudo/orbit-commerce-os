@@ -3891,3 +3891,18 @@ A IA propunha pausar campanhas que já estavam pausadas e ajustar verba de campa
 - Mudanças manuais no Meta feitas até 10 min antes da análise são refletidas.
 - Propostas redundantes (pausar pausada / ajustar verba de campanha parada) deixam de ser geradas.
 - Sem custo de IA adicional. Custo Meta API adicional: até 1 chamada por conta por análise, com throttle de 10 min.
+
+## Bloqueio do cron semanal quando há plano estratégico pendente
+**Implementado em 2026-06-13.**
+
+### Regra
+Enquanto houver um Plano Estratégico aguardando aprovação do usuário, o cron semanal/mensal do estrategista NÃO gera novas propostas (campanhas, criativos, ajustes de verba, públicos). O cron registra `skipped: true` com motivo `pending_strategic_plan_blocks_cron` e encerra sem produzir ações.
+
+### Motivo
+Evitar duas estratégias paralelas competindo pela fila "Aguardando Ação" e confundindo o lojista. O plano pendente é a fonte de verdade enquanto não for aprovado ou descartado.
+
+### Aviso ao usuário
+Na Central de Execuções (card de Ads), aparece o contador "Plano estratégico aguardando aprovação" com link direto para a aba de aprovação. Atualiza a cada 60s.
+
+### Saneamento histórico
+Em 2026-06-13 foram canceladas todas as propostas pendentes do tenant Respeite o Homem (2 campanhas geradas pelo cron + 1 plano estratégico anterior) para zerar a fila antes da nova regra entrar em vigor.
