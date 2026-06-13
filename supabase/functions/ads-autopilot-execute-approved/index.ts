@@ -1079,6 +1079,37 @@ Deno.serve(async (req) => {
       const adAccountId = data.ad_account_id;
       const adsetName = data.adset_name || data.name || "Conjunto IA";
 
+      const isColdAdset = isColdFunnelStage(data.funnel_stage || preview.funnel_stage)
+        || ["broad", "lookalike"].includes(String(data.audience_type || preview.audience_type || "").toLowerCase())
+        || /broad|amplo|lal|tof|aquisi|prospect/i.test(`${data.adset_name || ""} ${data.audience_description || ""}`);
+      if (isColdAdset) {
+        const customerAudience = await resolveCustomerAudienceForMetaAccount(supabase, tenant_id, adAccountId);
+        if (!customerAudience.found || !customerAudience.meta_audience_id) {
+          await supabase.from("ads_autopilot_actions").update({
+            status: "failed",
+            error_message: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
+          }).eq("id", action_id);
+          return new Response(JSON.stringify({
+            success: false,
+            error: "cold_adset_requires_customer_audience",
+            error_pt: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const existingExcluded = Array.isArray(data.excluded_audience_ids) ? data.excluded_audience_ids.map((entry: any) => String(entry?.id || entry)) : [];
+        if (!existingExcluded.includes(String(customerAudience.meta_audience_id))) {
+          data.excluded_audience_ids = [...existingExcluded, customerAudience.meta_audience_id];
+        }
+        data.audience_exclusions = {
+          ...(data.audience_exclusions || {}),
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: customerAudience.meta_audience_id,
+          customer_audience_name: customerAudience.audience_name,
+          reason: (data.audience_exclusions?.reason || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais."),
+        };
+      }
+
       // v2.2.0: Primary lookup by campaign_id (Meta campaign ID) from action_data
       // Fallback to name-based lookup for backward compatibility
       let metaCampaignId: string | null = data.campaign_id || null;
