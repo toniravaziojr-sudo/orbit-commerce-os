@@ -3877,3 +3877,17 @@ Toda saída do tool `strategic_plan` passa por `validateStrategicPlanContract(pl
 - Não chama Meta `delivery_estimate` / `reachestimate`.
 - Não publica campanha. Não cria cron novo. Não tenta corrigir plano antigo automaticamente.
 - Não aceita payload textual legado como plano válido.
+
+## Onda H — Frescor do espelho Meta antes da análise (2026-06-13)
+
+### Problema observado
+A IA propunha pausar campanhas que já estavam pausadas e ajustar verba de campanhas paradas. Causa raiz: o Strategist lê o espelho local (`meta_ad_campaigns`) atualizado por cron de 6h em 6h. Mudanças manuais na Meta entre crons (ex.: usuário pausou campanha 5 min antes de rodar a análise) ficavam invisíveis.
+
+### Correção aplicada
+1. **Sync condicional pré-análise:** antes do Strategist, o fluxo de análise inicial verifica o `synced_at` mais recente das campanhas da conta. Se for mais antigo que 10 min (ou inexistente), dispara um sync leve só de campanhas dessa conta. Custo: ~1 chamada Graph por conta, no máximo a cada 10 min. Falha silenciosa: se a Meta não responder, a análise segue com o último estado conhecido e registra uma limitação amigável.
+2. **Regra dura no prompt:** o Strategist agora trata a coluna `status` da lista de CAMPANHAS como fonte de verdade do estado atual. É proibido propor `pause_campaign` para campanhas já `PAUSED` ou `adjust_budget` para campanhas paradas. Reativação só com justificativa explícita.
+
+### Resultado
+- Mudanças manuais no Meta feitas até 10 min antes da análise são refletidas.
+- Propostas redundantes (pausar pausada / ajustar verba de campanha parada) deixam de ser geradas.
+- Sem custo de IA adicional. Custo Meta API adicional: até 1 chamada por conta por análise, com throttle de 10 min.
