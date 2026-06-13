@@ -360,7 +360,11 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
                 {action.product_identification_confidence === "low" ? "Produto identificado com baixa confiança" : "Produto não identificado com clareza"}
               </span>
             )}
-            {action.audience_exclusions?.customers && (
+            {(action.audience_exclusions as any)?.exclusion_skipped_reason === "test_for_new_or_launch_product" ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 dark:bg-sky-950/30" title="Em teste de produto novo/lançamento, manter a base de clientes ajuda a validar a atratividade. Carro-chefe continua excluindo clientes.">
+                Mantém clientes (produto novo/lançamento em teste)
+              </span>
+            ) : action.audience_exclusions?.customers && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
                 {(action.audience_exclusions as any)?.customer_audience_name
                   ? `Exclui: ${(action.audience_exclusions as any).customer_audience_name}`
