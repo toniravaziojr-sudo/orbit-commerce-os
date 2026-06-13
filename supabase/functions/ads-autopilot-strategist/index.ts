@@ -4492,6 +4492,28 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Gate: bloqueia weekly/monthly enquanto houver Plano Estratégico aguardando aprovação humana.
+      // Evita "duas estratégias disputando a fila": cron só roda depois que o usuário decidir o plano pendente.
+      if (trigger === "weekly" || trigger === "monthly") {
+        const { count: pendingPlanCount } = await supabase
+          .from("ads_autopilot_actions")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("action_type", "strategic_plan")
+          .eq("status", "pending_approval");
+
+        if ((pendingPlanCount ?? 0) > 0) {
+          console.warn(`[ads-autopilot-strategist][${VERSION}] blocked: ${pendingPlanCount} pending strategic_plan(s) for tenant ${tenantId}`);
+          return ok({
+            skipped: true,
+            reason: "pending_strategic_plan_blocks_cron",
+            pending_strategic_plans: pendingPlanCount,
+            trigger,
+            cadence_policy_version: CADENCE_POLICY_VERSION,
+          });
+        }
+      }
+
       // Gate de fila pending_approval ≥5 — bloqueia geração estrutural.
       if (trigger === "implement_campaigns" || trigger === "weekly" || trigger === "monthly") {
         const { count: pendingCount } = await supabase
