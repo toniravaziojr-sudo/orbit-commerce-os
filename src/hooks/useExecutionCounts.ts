@@ -485,13 +485,14 @@ export function useExecutionCounts() {
   };
 
 
-  // Anúncios: contas sem saldo
+  // Anúncios: contas sem saldo + plano estratégico aguardando aprovação
   const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
   const ads: ExecutionCategory = {
     stats: [
       zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
+      pendingStrategicPlans ? { count: pendingStrategicPlans, label: "Plano estratégico aguardando aprovação", navigateTo: "/ads?tab=pending-approval", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: zeroBalanceCount,
+    totalPending: zeroBalanceCount + pendingStrategicPlans,
   };
 
   // Avaliações: pendentes de aprovação
