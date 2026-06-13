@@ -2647,11 +2647,7 @@ async function executeToolCall(
       approvalStatus = "incomplete";
     }
 
-    const actionsPreview = (normalizedPlanArgs.planned_actions || []).map((a: any) => {
-      if (typeof a === "string") return `• ${a}`;
-      return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
-    }).join("\n");
-    const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
+    const preview = buildStrategicPlanPreview(normalizedPlanArgs, contract);
 
     // Onda G.4 — PERSISTÊNCIA CANÔNICA OBRIGATÓRIA:
     // Espalhar o plano normalizado COMPLETO (que já inclui metadata, contract,
@@ -2671,13 +2667,7 @@ async function executeToolCall(
         contract,
         contract_version: PLAN_CONTRACT_VERSION,
         approval_status: approvalStatus,
-        preview: {
-          headline: contract && !contract.ok
-            ? "Plano Estratégico — INCOMPLETO (não aprovável)"
-            : "Plano Estratégico — Motor Estrategista",
-          copy_text: planBody,
-          targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
-        },
+        preview,
       },
     };
   }
