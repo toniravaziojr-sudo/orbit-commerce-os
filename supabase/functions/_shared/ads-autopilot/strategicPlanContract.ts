@@ -293,6 +293,45 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
   return intent === "creative test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
 }
 
+/**
+ * Detecta se a ação é um TESTE (creative_test/offer_test) para produto novo ou em lançamento.
+ * Nesse cenário, manter a base de clientes no público é desejável para validar atratividade
+ * do produto novo — então a exclusão automática NÃO se aplica.
+ * Sinais carro-chefe vencem (sempre exclui).
+ */
+export function isTestForNewOrLaunchProduct(action: any): boolean {
+  if (!action || typeof action !== "object") return false;
+  const intent = normValue(action?.campaign_intent);
+  const campaignType = normValue(action?.campaign_type);
+  const stage = normValue(action?.funnel_stage);
+  const isTest =
+    intent === "creative test" ||
+    intent === "offer test" ||
+    campaignType === "testing" ||
+    stage === "test";
+  if (!isTest) return false;
+
+  const lifecycle = normValue(action?.product_lifecycle || action?.product_stage);
+  if (ESTABLISHED_LIFECYCLE_VALUES.has(lifecycle)) return false;
+
+  const textPool = [
+    action?.product_name,
+    action?.product_label,
+    action?.product_tag,
+    action?.rationale,
+    ...(Array.isArray(action?.product_tags) ? action.product_tags : []),
+  ]
+    .filter(Boolean)
+    .map((s: any) => String(s))
+    .join(" | ");
+
+  if (BESTSELLER_PRODUCT_TOKENS.test(textPool)) return false;
+
+  if (NEW_LAUNCH_LIFECYCLE_VALUES.has(lifecycle)) return true;
+  if (NEW_LAUNCH_PRODUCT_TOKENS.test(textPool)) return true;
+  return false;
+}
+
 function ensureArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
 }
