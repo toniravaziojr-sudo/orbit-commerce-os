@@ -17,6 +17,7 @@ import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from 
 import {
   normalizeAndValidateStrategicPlanForApproval,
   CONTRACT_VERSION as PLAN_CONTRACT_VERSION,
+  getAllowedActionsForCampaignStatus,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
   scoreProposal,
@@ -2540,7 +2541,25 @@ async function executeToolCall(
     let approvalStatus: "pending_approval" | "incomplete" = "incomplete";
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
-      const guard = normalizeAndValidateStrategicPlanForApproval(args, preflightSnapshot);
+      const campaignAccountSnapshot = (accountCampaigns || []).map((c: any) => ({
+        campaign_id: c.meta_campaign_id,
+        campaign_name: c.name || null,
+        status: c.status || null,
+        effective_status: c.effective_status || null,
+        configured_status: c.status || null,
+        is_active_for_planning: String(c.status || c.effective_status || "").toUpperCase() === "ACTIVE",
+        is_paused: String(c.status || c.effective_status || "").toUpperCase() === "PAUSED",
+        current_daily_budget_brl: Number(c.daily_budget_cents || 0) / 100,
+        metrics_7d: context.perf7d?.[c.meta_campaign_id] || null,
+        metrics_30d: context.perf30d?.[c.meta_campaign_id] || null,
+        funnel_stage: (c as any).inferred_funnel || null,
+        allowed_actions: getAllowedActionsForCampaignStatus(c.status, c.effective_status),
+      }));
+      const guard = normalizeAndValidateStrategicPlanForApproval(args, preflightSnapshot, {
+        source_flow: `strategist_${trigger}`,
+        campaign_account_snapshot: campaignAccountSnapshot,
+        analysis_run_id: body?.analysis_run_id || null,
+      });
       normalizedPlanArgs = guard.normalizedPlan;
       contract = guard.contract;
       approvalStatus = guard.approvalStatus;
