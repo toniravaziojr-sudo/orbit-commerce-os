@@ -2542,7 +2542,50 @@ async function executeToolCall(
     let approvalStatus: "pending_approval" | "incomplete" = "incomplete";
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
-      const accountCampaignSnapshot = (context?.campaigns || [])
+      // Onda G.4 — Fallback determinístico: se o preflight ainda não estiver
+      // pré-montado para esta conta (falha silenciosa do bloco Onda G no
+      // prompt), reconstruir aqui com resolver real do público de clientes
+      // para garantir que a normalização de exclusão por adset funcione e que
+      // o plano salvo nunca chegue ao painel sem metadata canônica.
+      if (!preflightSnapshot) {
+        try {
+          const customerAud = await resolveCustomerAudienceForMetaAccount(
+            supabase,
+            tenantId,
+            config.ad_account_id,
+          );
+          const accountCamps = (context?.campaigns || []).filter((c: any) => c?.ad_account_id === config.ad_account_id);
+          const totalDailyCentsFallback = accountCamps.reduce(
+            (s: number, c: any) => s + Number(c.daily_budget_cents || 0),
+            0,
+          );
+          preflightSnapshot = buildStrategicPlanPreflightContext({
+            ad_account_id: config.ad_account_id,
+            total_daily_cents: totalDailyCentsFallback,
+            funnel_splits: (config as any)?.funnel_splits || null,
+            campaigns: accountCamps.map((c: any) => ({
+              id: c.meta_campaign_id,
+              name: c.name || c.meta_campaign_id,
+              status: String(c.status || c.effective_status || "").toUpperCase(),
+              daily_budget_cents: Number(c.daily_budget_cents || 0),
+              objective: c.objective || null,
+            })),
+            customer_audience: {
+              found: customerAud.found,
+              meta_audience_id: customerAud.meta_audience_id,
+              audience_name: customerAud.audience_name,
+              source_table: customerAud.source_table,
+              last_synced_at: customerAud.last_synced_at,
+              reason_if_missing: customerAud.reason_if_missing,
+            },
+          });
+          (context as any).strategicPreflightByAccount ||= {};
+          (context as any).strategicPreflightByAccount[config.ad_account_id] = preflightSnapshot;
+          console.log(`[ads-autopilot-strategist][plan-contract] preflight fallback rebuilt for ${config.ad_account_id}`);
+        } catch (pfErr: any) {
+          console.warn(`[ads-autopilot-strategist][plan-contract] preflight fallback failed: ${pfErr?.message}`);
+        }
+      }
         .filter((c: any) => c?.ad_account_id === config.ad_account_id)
         .map((c: any) => ({
           campaign_id: c.meta_campaign_id,
