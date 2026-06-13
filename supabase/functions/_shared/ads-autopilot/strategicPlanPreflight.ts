@@ -55,7 +55,10 @@ export interface CustomerAudienceAvailability {
   customer_audience_detected: boolean;
   customer_audience_id: string | null;
   customer_audience_name: string | null;
+  source_table?: string | null;
+  last_synced_at?: string | null;
   pending_dependency: "customer_audience_missing" | null;
+  reason_if_missing?: string | null;
 }
 
 export interface CatalogAvailability {
@@ -109,7 +112,7 @@ export interface PreflightInput {
   adsets_by_campaign?: Record<string, Array<{ name?: string | null }>>;
   ads_by_campaign?: Record<string, Array<{ name?: string | null; copy_texts?: string[]; destination_urls?: string[]; creative_product_ids?: string[] }>>;
   catalog_refs?: ProductRef[];
-  customer_audience?: { found: boolean; meta_audience_id?: string | null; audience_name?: string | null } | null;
+  customer_audience?: { found: boolean; meta_audience_id?: string | null; audience_name?: string | null; source_table?: string | null; last_synced_at?: string | null; reason_if_missing?: string | null } | null;
   catalog?: {
     available: boolean;
     catalog_id?: string | null;
@@ -265,14 +268,20 @@ export function buildStrategicPlanPreflightContext(input: PreflightInput): Strat
         customer_audience_detected: true,
         customer_audience_id: ca.meta_audience_id,
         customer_audience_name: ca.audience_name || "Clientes",
+        source_table: ca.source_table || null,
+        last_synced_at: ca.last_synced_at || null,
         pending_dependency: null,
+        reason_if_missing: null,
       };
     }
     return {
       customer_audience_detected: false,
       customer_audience_id: null,
       customer_audience_name: null,
+      source_table: ca?.source_table || null,
+      last_synced_at: ca?.last_synced_at || null,
       pending_dependency: "customer_audience_missing",
+      reason_if_missing: ca?.reason_if_missing || "customer_audience_missing",
     };
   })();
 
