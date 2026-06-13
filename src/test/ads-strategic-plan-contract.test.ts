@@ -140,6 +140,41 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     expect(result.errors.some((e) => e.code === "prospecting_adset_missing_customer_exclusion")).toBe(true);
   });
 
+  it("gera pendência por adset frio quando público de clientes não existe", () => {
+    const pf = buildStrategicPlanPreflightContext({
+      ad_account_id: "act_1",
+      total_daily_cents: 30000,
+      funnel_splits: { cold: 60, remarketing: 25, tests: 15, leads: 0 } as any,
+      campaigns: [],
+      customer_audience: { found: false },
+    });
+
+    const plan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: pf.funnel_budget_state,
+      active_campaigns_summary: pf.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          { adset_name: "Broad", audience_type: "broad", audience_description: "Público amplo (Homens 30-65, Brasil)" },
+        ],
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, pf);
+
+    expect(guarded.normalizedPlan.planned_actions[0].adsets[0].audience_exclusions.pending_dependency).toBe("customer_audience_not_detected");
+    expect(guarded.approvalStatus).toBe("incomplete");
+  });
+
   it("aprova plano completo e bem-formado", () => {
     const r = validateStrategicPlanContract(basePlan(), basePreflight);
     expect(r.ok).toBe(true);
