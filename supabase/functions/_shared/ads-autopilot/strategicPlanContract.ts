@@ -1027,17 +1027,21 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     // Teste criativo com inclusão de clientes precisa de justificativa
-    if (intent === "creative_test") {
+    // (exceção: produto novo/lançamento — exclusion_skipped_reason determinístico)
+    if (intent === "creative_test" && !testForNewLaunch) {
       const includesCustomers = a.audience_exclusions?.customers === false || a.audience_inclusion?.customers === true;
       if (includesCustomers) {
-        const reason = String(a.exclusion_override_reason || "").trim();
-        if (reason.length < 12) {
-          push({
-            code: "creative_test_missing_override_reason",
-            severity: "blocker",
-            message: "Teste criativo com inclusão de clientes exige `exclusion_override_reason` (≥ 12 caracteres).",
-            path: `${path}.exclusion_override_reason`,
-          });
+        const skipReason = String(a.audience_exclusions?.exclusion_skipped_reason || "").trim();
+        if (skipReason !== TEST_NEW_LAUNCH_SKIP_REASON) {
+          const reason = String(a.exclusion_override_reason || "").trim();
+          if (reason.length < 12) {
+            push({
+              code: "creative_test_missing_override_reason",
+              severity: "blocker",
+              message: "Teste criativo com inclusão de clientes exige `exclusion_override_reason` (≥ 12 caracteres).",
+              path: `${path}.exclusion_override_reason`,
+            });
+          }
         }
       }
     }
