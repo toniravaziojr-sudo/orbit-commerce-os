@@ -229,6 +229,7 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 
 ### Como validar no painel
 1. Rodar **Nova análise inicial** na conta Meta do tenant Respeite o Homem.
-2. No novo Plano Estratégico, abrir o modal e conferir que cada conjunto de TOF/frio/prospecção exibe **“Exclui clientes/compradores”** (ou **“Pendência: público de clientes não detectado”** se for outra conta sem público sincronizado).
-3. Confirmar que nenhuma campanha já pausada aparece com sugestão de “Pausar campanha”.
-4. Confirmar que o botão **“Aprovar plano”** só fica habilitado quando o plano carrega metadata canônica válida; planos legados/incompletos exibem o banner “Plano incompleto” com o botão desabilitado.
+2. No novo Plano Estratégico, abrir o modal e conferir que cada conjunto de TOF/frio/prospecção exibe a exclusão de clientes com nome do público (ou pendência explícita quando o público não existir).
+3. Confirmar que nenhuma ação de orçamento ficou marcada como incompleta apenas por ausência de sinal de fit; quando a IA omitir esse campo, o plano deve nascer com fallback determinístico reaproveitado do preflight.
+4. Confirmar que nenhuma campanha já pausada aparece com sugestão de “Pausar campanha”.
+5. Confirmar que o botão **“Aprovar plano”** só fica habilitado quando o plano carrega metadata canônica válida; planos legados/incompletos exibem o banner “Plano incompleto” com o botão desabilitado.

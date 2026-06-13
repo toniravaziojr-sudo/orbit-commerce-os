@@ -343,6 +343,37 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     expect(r.errors.some((e) => e.code === "budget_action_missing_audience_budget_fit")).toBe(true);
   });
 
+  it("infere audience_budget_fit quando a IA omite o campo em ação de orçamento", () => {
+    const plan = basePlan({
+      planned_actions: [
+        {
+          action_type: "maintain",
+          target_campaign_id: "c1",
+          existing_campaign_name: "Frio Broad",
+          campaign_type: "prospecting",
+          campaign_intent: "acquisition",
+          affected_funnel: "cold",
+          product_name: "Shampoo Calvície Zero",
+          target_audience: "Homens 30-65, Brasil",
+          audience_exclusions: {
+            customers: true,
+            customer_audience_detected: true,
+            customer_audience_id: "aud1",
+            customer_audience_name: "Clientes",
+          },
+        },
+      ],
+    });
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight);
+    const expectedFit = basePreflight.audience_budget_fits.find((entry) => entry.campaign_id === "c1")?.fit;
+
+    expect(guarded.approvalStatus).toBe("pending_approval");
+    expect(guarded.contract.ok).toBe(true);
+    expect(guarded.normalizedPlan.planned_actions[0].audience_budget_fit?.fit).toBe(expectedFit);
+    expect(guarded.normalizedPlan.planned_actions[0].audience_budget_fit_inferred).toBe(true);
+  });
+
   it("rejeita catalog_retargeting sem catalog_setup completo", () => {
     const plan = basePlan();
     plan.planned_actions[0].campaign_type = "catalog_retargeting";
