@@ -908,8 +908,10 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       });
     }
 
-    // Exclusão de clientes em prospecção/aquisição
-    if (isProspectingLike(normalizedAction) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
+    const testForNewLaunch = isTestForNewOrLaunchProduct(normalizedAction);
+
+    // Exclusão de clientes em prospecção/aquisição (pulada em teste de produto novo/lançamento)
+    if (!testForNewLaunch && isProspectingLike(normalizedAction) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
       push({
         code: "prospecting_missing_customer_exclusion",
         severity: "blocker",
@@ -918,7 +920,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       });
     }
 
-    if (isProspectingLike(normalizedAction)) {
+    if (!testForNewLaunch && isProspectingLike(normalizedAction)) {
       const excl = normalizedAction.audience_exclusions || {};
       const detected = preflight.customer_audience.customer_audience_detected;
       if (detected) {
@@ -952,6 +954,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     const adsets = ensureArray<any>(normalizedAction?.adsets);
     adsets.forEach((adset: any, adsetIndex: number) => {
       if (!isProspectingLikeAdset(normalizedAction, adset)) return;
+      if (testForNewLaunch) return;
 
       const adsetPath = `${path}.adsets[${adsetIndex}]`;
       const adsetExclusion = adset?.audience_exclusions || {};
