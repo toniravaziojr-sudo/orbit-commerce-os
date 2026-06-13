@@ -261,6 +261,7 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
         campaign_type: "TOF",
         funnel_stage: "tof",
         target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
         daily_budget_brl: 50,
         budget_source: "free_now",
         audience_budget_fit: { fit: "insufficient_data" },
@@ -269,7 +270,14 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
         target_campaign_id: "c1",
         campaign_type: "prospecting",
         campaign_intent: "acquisition",
-        audience_exclusions: { customers: true },
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+        },
         audience_budget_fit: { fit: "adequate" },
       }],
     };
