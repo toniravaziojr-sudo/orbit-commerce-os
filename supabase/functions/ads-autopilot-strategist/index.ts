@@ -4239,6 +4239,68 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
             action_hash: `${sessionId}_${tc.function.name}_${config.ad_account_id}_${totalPlanned}`,
           };
 
+          if (tc.function.name === "strategic_plan") {
+            const rawActionData = actionRecord.action_data && typeof actionRecord.action_data === "object"
+              ? actionRecord.action_data
+              : {};
+            const existingPreflight = rawActionData.strategic_plan_preflight || ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
+            const existingSnapshot = Array.isArray(rawActionData.campaign_account_snapshot)
+              ? rawActionData.campaign_account_snapshot
+              : Array.isArray(rawActionData?.metadata?.campaign_account_snapshot)
+                ? rawActionData.metadata.campaign_account_snapshot
+                : (context?.campaigns || [])
+                    .filter((c: any) => c?.ad_account_id === config.ad_account_id)
+                    .map((c: any) => ({
+                      campaign_id: c.meta_campaign_id,
+                      campaign_name: c.name || null,
+                      status: c.status || null,
+                      effective_status: c.effective_status || null,
+                      configured_status: c.status || null,
+                      is_active_for_planning: String(c.status || c.effective_status || "").toUpperCase() === "ACTIVE",
+                      is_paused: String(c.status || c.effective_status || "").toUpperCase() === "PAUSED",
+                      current_daily_budget_brl: Number(c.daily_budget_cents || 0) / 100,
+                      metrics_7d: context?.perf7d?.[c.meta_campaign_id] || null,
+                      metrics_30d: context?.perf30d?.[c.meta_campaign_id] || null,
+                      funnel_stage: (c as any).inferred_funnel || null,
+                      allowed_actions: getAllowedActionsForCampaignStatus(c.status, c.effective_status),
+                    }));
+
+            let canonicalPlanPayload = rawActionData;
+            let canonicalStatus = actionRecord.status === "pending_approval" ? "pending_approval" : "incomplete";
+
+            if (existingPreflight) {
+              try {
+                const revalidated = normalizeAndValidateStrategicPlanForApproval(rawActionData, existingPreflight, {
+                  source_flow: rawActionData?.source_flow || rawActionData?.metadata?.source_flow || `strategist_${trigger || "unknown"}`,
+                  campaign_account_snapshot: existingSnapshot,
+                  analysis_run_id: actionRecord.analysis_run_id || rawActionData?.analysis_run_id || rawActionData?.metadata?.analysis_run_id || body?.analysis_run_id || null,
+                });
+                canonicalPlanPayload = {
+                  ...revalidated.normalizedPlan,
+                  type: "strategic_plan",
+                  ad_account_id: config.ad_account_id,
+                  funnel_budget_state: revalidated.normalizedPlan?.funnel_budget_state || existingPreflight?.funnel_budget_state || null,
+                  active_campaigns_summary: revalidated.normalizedPlan?.active_campaigns_summary || existingPreflight?.active_campaigns_summary || null,
+                  strategic_plan_preflight: existingPreflight,
+                  contract: revalidated.contract,
+                  contract_version: PLAN_CONTRACT_VERSION,
+                  approval_status: revalidated.approvalStatus,
+                  preview: buildStrategicPlanPreview(revalidated.normalizedPlan, revalidated.contract),
+                };
+                canonicalStatus = revalidated.approvalStatus;
+              } catch (revalidateErr: any) {
+                console.error(`[ads-autopilot-strategist][${VERSION}] strategic_plan canonical insert guard failed:`, revalidateErr?.message);
+              }
+            }
+
+            actionRecord.action_data = {
+              ...canonicalPlanPayload,
+              ad_account_id: config.ad_account_id,
+              campaign_name: campaignName,
+            };
+            actionRecord.status = canonicalStatus;
+          }
+
           if (result.status === "executed" || result.status === "scheduled") {
             actionRecord.executed_at = new Date().toISOString();
             if (tc.function.name === "adjust_budget") {
