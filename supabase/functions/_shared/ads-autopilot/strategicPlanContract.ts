@@ -14,6 +14,14 @@ export const CONTRACT_VERSION = "1.2.0";
 export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
+export const TEST_NEW_LAUNCH_SKIP_REASON = "test_for_new_or_launch_product" as const;
+
+// Sinais de produto em lançamento/novo (não-carro-chefe). Aplicados a product_name,
+// product_lifecycle e tags do action quando disponíveis. Sinais carro-chefe vencem.
+const NEW_LAUNCH_PRODUCT_TOKENS = /(lan[cç]amento|novidade|nova f[oó]rmula|rec[eé]m[\s-]?lan[cç]ad[oa]|pr[eé][\s-]?venda|prelan[cç]amento|launch|new product|beta|piloto)/i;
+const BESTSELLER_PRODUCT_TOKENS = /(carro[\s-]?chefe|best[\s-]?seller|produto principal|principal|top de vendas|mais vendid[oa])/i;
+const NEW_LAUNCH_LIFECYCLE_VALUES = new Set(["new", "launch", "novo", "lancamento", "lançamento", "pre_launch", "pre-launch", "prelaunch"]);
+const ESTABLISHED_LIFECYCLE_VALUES = new Set(["established", "bestseller", "carro_chefe", "carro-chefe", "consolidado", "mature"]);
 
 export const CAMPAIGN_TYPE_VALUES = [
   "prospecting",
