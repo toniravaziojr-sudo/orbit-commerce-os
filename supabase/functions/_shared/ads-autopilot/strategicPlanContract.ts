@@ -604,7 +604,8 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     : {};
 
   let audienceExclusions = current;
-  if (isCold && !hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent })) {
+  const isTestNewLaunch = isTestForNewOrLaunchProduct({ ...action, campaign_type: campaignType, campaign_intent: campaignIntent, funnel_stage: funnelStage, affected_funnel: affectedFunnel });
+  if (isCold && !hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent }) && !isTestNewLaunch) {
     if (detected) {
       const { pending_dependency: _pending, ...rest } = current;
       audienceExclusions = {
@@ -625,6 +626,15 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
         reason: String(rest.reason || "").trim() || "Campanha de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação.",
       };
     }
+  } else if (isTestNewLaunch) {
+    audienceExclusions = {
+      ...current,
+      customers: false,
+      exclusion_skipped_reason: TEST_NEW_LAUNCH_SKIP_REASON,
+      reason:
+        String(current?.reason || "").trim() ||
+        "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
+    };
   }
 
   return {
