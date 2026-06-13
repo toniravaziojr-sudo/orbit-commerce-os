@@ -14,6 +14,14 @@ export const CONTRACT_VERSION = "1.2.0";
 export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
+export const TEST_NEW_LAUNCH_SKIP_REASON = "test_for_new_or_launch_product" as const;
+
+// Sinais de produto em lançamento/novo (não-carro-chefe). Aplicados a product_name,
+// product_lifecycle e tags do action quando disponíveis. Sinais carro-chefe vencem.
+const NEW_LAUNCH_PRODUCT_TOKENS = /(lan[cç]amento|novidade|nova f[oó]rmula|rec[eé]m[\s-]?lan[cç]ad[oa]|pr[eé][\s-]?venda|prelan[cç]amento|launch|new product|beta|piloto)/i;
+const BESTSELLER_PRODUCT_TOKENS = /(carro[\s-]?chefe|best[\s-]?seller|produto principal|principal|top de vendas|mais vendid[oa])/i;
+const NEW_LAUNCH_LIFECYCLE_VALUES = new Set(["new", "launch", "novo", "lancamento", "lançamento", "pre_launch", "pre-launch", "prelaunch"]);
+const ESTABLISHED_LIFECYCLE_VALUES = new Set(["established", "bestseller", "carro_chefe", "carro-chefe", "consolidado", "mature"]);
 
 export const CAMPAIGN_TYPE_VALUES = [
   "prospecting",
@@ -285,6 +293,45 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
   return intent === "creative test" && explicitlyIncludesCustomers && overrideReason.length >= 12;
 }
 
+/**
+ * Detecta se a ação é um TESTE (creative_test/offer_test) para produto novo ou em lançamento.
+ * Nesse cenário, manter a base de clientes no público é desejável para validar atratividade
+ * do produto novo — então a exclusão automática NÃO se aplica.
+ * Sinais carro-chefe vencem (sempre exclui).
+ */
+export function isTestForNewOrLaunchProduct(action: any): boolean {
+  if (!action || typeof action !== "object") return false;
+  const intent = normValue(action?.campaign_intent);
+  const campaignType = normValue(action?.campaign_type);
+  const stage = normValue(action?.funnel_stage);
+  const isTest =
+    intent === "creative test" ||
+    intent === "offer test" ||
+    campaignType === "testing" ||
+    stage === "test";
+  if (!isTest) return false;
+
+  const lifecycle = normValue(action?.product_lifecycle || action?.product_stage);
+  if (ESTABLISHED_LIFECYCLE_VALUES.has(lifecycle)) return false;
+
+  const textPool = [
+    action?.product_name,
+    action?.product_label,
+    action?.product_tag,
+    action?.rationale,
+    ...(Array.isArray(action?.product_tags) ? action.product_tags : []),
+  ]
+    .filter(Boolean)
+    .map((s: any) => String(s))
+    .join(" | ");
+
+  if (BESTSELLER_PRODUCT_TOKENS.test(textPool)) return false;
+
+  if (NEW_LAUNCH_LIFECYCLE_VALUES.has(lifecycle)) return true;
+  if (NEW_LAUNCH_PRODUCT_TOKENS.test(textPool)) return true;
+  return false;
+}
+
 function ensureArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
 }
@@ -361,6 +408,26 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
     planned_actions: plan.planned_actions.map((action: any) => {
       if (!action || typeof action !== "object" || !Array.isArray(action.adsets)) return action;
       if (hasCreativeTestCustomerOverride(action)) return action;
+      if (isTestForNewOrLaunchProduct(action)) {
+        // Teste de produto novo/lançamento: marca exceção determinística nos adsets,
+        // mas não força exclusão. Validador respeita o motivo.
+        const normalizedAdsets = action.adsets.map((adset: any) => {
+          if (!isProspectingLikeAdset(action, adset)) return adset;
+          const currentExclusion = adset?.audience_exclusions && typeof adset.audience_exclusions === "object" ? adset.audience_exclusions : {};
+          return {
+            ...adset,
+            audience_exclusions: {
+              ...currentExclusion,
+              customers: false,
+              exclusion_skipped_reason: TEST_NEW_LAUNCH_SKIP_REASON,
+              reason:
+                String(currentExclusion?.reason || "").trim() ||
+                "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
+            },
+          };
+        });
+        return { ...action, adsets: normalizedAdsets };
+      }
 
       const normalizedAdsets = action.adsets.map((adset: any) => {
         if (!isProspectingLikeAdset(action, adset)) return adset;
@@ -537,7 +604,8 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     : {};
 
   let audienceExclusions = current;
-  if (isCold && !hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent })) {
+  const isTestNewLaunch = isTestForNewOrLaunchProduct({ ...action, campaign_type: campaignType, campaign_intent: campaignIntent, funnel_stage: funnelStage, affected_funnel: affectedFunnel });
+  if (isCold && !hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent }) && !isTestNewLaunch) {
     if (detected) {
       const { pending_dependency: _pending, ...rest } = current;
       audienceExclusions = {
@@ -558,6 +626,15 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
         reason: String(rest.reason || "").trim() || "Campanha de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação.",
       };
     }
+  } else if (isTestNewLaunch) {
+    audienceExclusions = {
+      ...current,
+      customers: false,
+      exclusion_skipped_reason: TEST_NEW_LAUNCH_SKIP_REASON,
+      reason:
+        String(current?.reason || "").trim() ||
+        "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
+    };
   }
 
   return {
@@ -679,14 +756,15 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
-  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) =>
-    (
+  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
+    if (isTestForNewOrLaunchProduct(action)) return false;
+    return (
       (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
       ensureArray<any>(action?.adsets).some((adset: any) =>
         isProspectingLikeAdset(action, adset) && hasCustomerAudiencePendingDependency(adset?.audience_exclusions?.pending_dependency),
       )
-    )
-  );
+    );
+  });
   const provisionalContract: ContractResult = {
     ok: true,
     version: CONTRACT_VERSION,
@@ -830,8 +908,10 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       });
     }
 
-    // Exclusão de clientes em prospecção/aquisição
-    if (isProspectingLike(normalizedAction) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
+    const testForNewLaunch = isTestForNewOrLaunchProduct(normalizedAction);
+
+    // Exclusão de clientes em prospecção/aquisição (pulada em teste de produto novo/lançamento)
+    if (!testForNewLaunch && isProspectingLike(normalizedAction) && preflight.customer_audience.customer_audience_detected && !rawExcl.customers) {
       push({
         code: "prospecting_missing_customer_exclusion",
         severity: "blocker",
@@ -840,7 +920,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       });
     }
 
-    if (isProspectingLike(normalizedAction)) {
+    if (!testForNewLaunch && isProspectingLike(normalizedAction)) {
       const excl = normalizedAction.audience_exclusions || {};
       const detected = preflight.customer_audience.customer_audience_detected;
       if (detected) {
@@ -874,6 +954,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     const adsets = ensureArray<any>(normalizedAction?.adsets);
     adsets.forEach((adset: any, adsetIndex: number) => {
       if (!isProspectingLikeAdset(normalizedAction, adset)) return;
+      if (testForNewLaunch) return;
 
       const adsetPath = `${path}.adsets[${adsetIndex}]`;
       const adsetExclusion = adset?.audience_exclusions || {};
@@ -946,17 +1027,21 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
     }
 
     // Teste criativo com inclusão de clientes precisa de justificativa
-    if (intent === "creative_test") {
+    // (exceção: produto novo/lançamento — exclusion_skipped_reason determinístico)
+    if (intent === "creative_test" && !testForNewLaunch) {
       const includesCustomers = a.audience_exclusions?.customers === false || a.audience_inclusion?.customers === true;
       if (includesCustomers) {
-        const reason = String(a.exclusion_override_reason || "").trim();
-        if (reason.length < 12) {
-          push({
-            code: "creative_test_missing_override_reason",
-            severity: "blocker",
-            message: "Teste criativo com inclusão de clientes exige `exclusion_override_reason` (≥ 12 caracteres).",
-            path: `${path}.exclusion_override_reason`,
-          });
+        const skipReason = String(a.audience_exclusions?.exclusion_skipped_reason || "").trim();
+        if (skipReason !== TEST_NEW_LAUNCH_SKIP_REASON) {
+          const reason = String(a.exclusion_override_reason || "").trim();
+          if (reason.length < 12) {
+            push({
+              code: "creative_test_missing_override_reason",
+              severity: "blocker",
+              message: "Teste criativo com inclusão de clientes exige `exclusion_override_reason` (≥ 12 caracteres).",
+              path: `${path}.exclusion_override_reason`,
+            });
+          }
         }
       }
     }
