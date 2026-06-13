@@ -459,6 +459,70 @@ function isBudgetAction(a: any): boolean {
   return ["create_campaign", "scale", "scale_budget", "reduce_budget", "pause", "pause_campaign", "reallocate_budget", "maintain", "duplicate"].includes(at);
 }
 
+function inferAudienceBudgetFitsForPlan(plan: any, preflight: StrategicPlanPreflight): any {
+  if (!plan || !Array.isArray(plan.planned_actions)) return plan;
+
+  const fitsByCampaignId = new Map<string, any>();
+  const fitsByCampaignName = new Map<string, any>();
+
+  for (const fitEntry of ensureArray<any>(preflight?.audience_budget_fits)) {
+    const campaignId = String(fitEntry?.campaign_id || "").trim();
+    const campaignName = normValue(fitEntry?.campaign_name);
+    if (campaignId) fitsByCampaignId.set(campaignId, fitEntry);
+    if (campaignName) fitsByCampaignName.set(campaignName, fitEntry);
+  }
+
+  const next = plan.planned_actions.map((a: any) => {
+    if (!a || typeof a !== "object" || !isBudgetAction(a)) return a;
+    if (a.audience_budget_fit && typeof a.audience_budget_fit === "object" && a.audience_budget_fit.fit) return a;
+
+    const referencedCampaignId = String(
+      a?.existing_campaign_id ||
+      a?.target_campaign_id ||
+      a?.campaign_id ||
+      a?.affected_campaign_id ||
+      "",
+    ).trim();
+    const referencedCampaignName = normValue(
+      a?.existing_campaign_name ||
+      a?.campaign_name ||
+      a?.target_campaign_name ||
+      a?.affected_campaign_name ||
+      "",
+    );
+
+    const matchedFit = (referencedCampaignId && fitsByCampaignId.get(referencedCampaignId))
+      || (referencedCampaignName && fitsByCampaignName.get(referencedCampaignName))
+      || null;
+
+    const inferredFit = matchedFit
+      ? {
+          fit: matchedFit.fit,
+          saturation_score: matchedFit.saturation_score ?? null,
+          under_funding_score: matchedFit.under_funding_score ?? null,
+          recommended_action: matchedFit.recommended_action || "Manter orçamento atual e monitorar.",
+          suggested_budget_range_cents: matchedFit.suggested_budget_range_cents ?? null,
+          explanation: matchedFit.explanation || "Fit reaproveitado do preflight determinístico.",
+        }
+      : {
+          fit: "insufficient_data",
+          saturation_score: null,
+          under_funding_score: null,
+          recommended_action: "Aguardar acúmulo de dados antes de ajustar orçamento.",
+          suggested_budget_range_cents: null,
+          explanation: "Fit inferido como insufficient_data por ausência de histórico determinístico correspondente no preflight.",
+        };
+
+    return {
+      ...a,
+      audience_budget_fit: inferredFit,
+      audience_budget_fit_inferred: true,
+    };
+  });
+
+  return { ...plan, planned_actions: next };
+}
+
 function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPreflight): any {
   if (!action || typeof action !== "object") return action;
 
@@ -576,7 +640,8 @@ export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: S
   };
 
   const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
-  return inferBudgetSourcesForPlan(withExclusions, preflight);
+  const withBudgetSources = inferBudgetSourcesForPlan(withExclusions, preflight);
+  return inferAudienceBudgetFitsForPlan(withBudgetSources, preflight);
 }
 
 export function normalizeAndValidateStrategicPlanForApproval(
