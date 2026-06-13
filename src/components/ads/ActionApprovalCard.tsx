@@ -402,6 +402,7 @@ function AdSetsSection({ adsets }: { adsets: PendingAction[] }) {
             const prev = ad.preview || {};
             const targeting = prev.targeting_summary || ad.targeting_summary || null;
             const customAudiences = ad.custom_audiences || prev.custom_audiences || null;
+            const customerExclusion = ad.customer_audience_exclusion || prev.customer_audience_exclusion || null;
             return (
               <div key={adset.id} className="p-2.5 space-y-1.5">
                 <div className="flex items-center gap-2">
@@ -421,6 +422,18 @@ function AdSetsSection({ adsets }: { adsets: PendingAction[] }) {
                         {typeof aud === "string" ? aud : aud.name || aud.id}
                       </Badge>
                     ))}
+                  </div>
+                )}
+                {customerExclusion?.customer_audience_exclusion_enabled && (
+                  <div className="flex items-start gap-1.5 text-[11px] text-emerald-700">
+                    <Users className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>Exclui clientes/compradores</span>
+                  </div>
+                )}
+                {customerExclusion?.customer_audience_missing && (
+                  <div className="flex items-start gap-1.5 text-[11px] text-amber-700">
+                    <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>Pendência: público de clientes não detectado</span>
                   </div>
                 )}
               </div>
