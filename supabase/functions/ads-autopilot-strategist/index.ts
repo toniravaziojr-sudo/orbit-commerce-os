@@ -79,6 +79,24 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function buildStrategicPlanPreview(planData: any, contract: any) {
+  const normalized = planData && typeof planData === "object" ? planData : {};
+  const plannedActions = Array.isArray(normalized.planned_actions) ? normalized.planned_actions : [];
+  const actionsPreview = plannedActions.map((a: any) => {
+    if (typeof a === "string") return `• ${a}`;
+    return `• [${a?.campaign_type || "Ação"}] ${a?.product_name || ""} — R$ ${a?.daily_budget_brl || "?"}/dia — ${a?.target_audience || ""} (${a?.rationale || ""})`;
+  }).join("\n");
+  const planBody = `${normalized.diagnosis || ""}\n\n**Ações Planejadas:**\n${actionsPreview}\n\n**Resultados Esperados:** ${normalized.expected_results || ""}\n\n**Riscos:** ${normalized.risk_assessment || ""}`;
+
+  return {
+    headline: contract && !contract.ok
+      ? "Plano Estratégico — INCOMPLETO (não aprovável)"
+      : "Plano Estratégico — Motor Estrategista",
+    copy_text: planBody,
+    targeting_summary: `${plannedActions.length} ações planejadas`,
+  };
+}
+
 // ============ TYPES ============
 
 interface AccountConfig {
