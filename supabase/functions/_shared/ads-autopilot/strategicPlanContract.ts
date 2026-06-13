@@ -550,8 +550,8 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
-  const contract = validateStrategicPlanContract(normalizedPlan, preflight);
-  const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
+  const contract = validateStrategicPlanContract(normalizedPlanBase, preflight);
+  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) =>
     (
       (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
       ensureArray<any>(action?.adsets).some((adset: any) =>
