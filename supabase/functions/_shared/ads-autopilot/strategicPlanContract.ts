@@ -756,14 +756,15 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
-  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) =>
-    (
+  const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
+    if (isTestForNewOrLaunchProduct(action)) return false;
+    return (
       (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
       ensureArray<any>(action?.adsets).some((adset: any) =>
         isProspectingLikeAdset(action, adset) && hasCustomerAudiencePendingDependency(adset?.audience_exclusions?.pending_dependency),
       )
-    )
-  );
+    );
+  });
   const provisionalContract: ContractResult = {
     ok: true,
     version: CONTRACT_VERSION,
