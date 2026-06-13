@@ -424,6 +424,23 @@ export function useExecutionCounts() {
   // Ads
   const adsBalance = useAdsBalanceMonitor();
 
+  // Ads: plano estratégico aguardando aprovação
+  const { data: pendingStrategicPlans = 0 } = useQuery({
+    queryKey: ["execution-ads-pending-strategic-plan", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("action_type", "strategic_plan")
+        .eq("status", "pending_approval");
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 60000,
+  });
+
   // New modules
   const { data: lowStock = 0 } = useLowStockCount();
   const { data: pendingReviews = 0 } = usePendingReviewsCount();
@@ -468,13 +485,14 @@ export function useExecutionCounts() {
   };
 
 
-  // Anúncios: contas sem saldo
+  // Anúncios: contas sem saldo + plano estratégico aguardando aprovação
   const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
   const ads: ExecutionCategory = {
     stats: [
       zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
+      pendingStrategicPlans ? { count: pendingStrategicPlans, label: "Plano estratégico aguardando aprovação", navigateTo: "/ads?tab=pending-approval", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: zeroBalanceCount,
+    totalPending: zeroBalanceCount + pendingStrategicPlans,
   };
 
   // Avaliações: pendentes de aprovação
