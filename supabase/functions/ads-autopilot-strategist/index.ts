@@ -4092,7 +4092,10 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           totalPlanned++;
 
           // Execute the tool
-          const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
+          const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context, {
+            trigger,
+            analysisRunId: planAnalysisRunId || body?.analysis_run_id || null,
+          });
 
           // Track creative URLs/briefs from generate_creative results
           if (tc.function.name === "generate_creative" && result.status === "executed") {
