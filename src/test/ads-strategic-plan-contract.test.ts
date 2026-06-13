@@ -22,6 +22,20 @@ function basePlan(overrides: any = {}) {
     risk_assessment: "Riscos mapeados.",
     funnel_budget_state: basePreflight.funnel_budget_state,
     active_campaigns_summary: basePreflight.active_campaigns_summary,
+    metadata: {
+      source_flow: "strategist_start",
+      schema_version: "strategic_plan_v2",
+      preflight_version: basePreflight.version,
+      validator_version: "1.2.0",
+      guard_version: "1.2.0",
+      normalized_at: new Date().toISOString(),
+      validated_at: new Date().toISOString(),
+      validation_status: "valid",
+      validation_errors: [],
+      is_approvable: true,
+      analysis_run_id: "run_1",
+      campaign_account_snapshot: [{ campaign_id: "c1", campaign_name: "Frio Broad", status: "ACTIVE", effective_status: "ACTIVE", allowed_actions: ["maintain", "reduce_budget", "pause_campaign"] }],
+    },
     planned_actions: [
       {
         action_type: "create_campaign",
