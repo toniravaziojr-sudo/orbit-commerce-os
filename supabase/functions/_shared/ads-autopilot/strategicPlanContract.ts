@@ -408,6 +408,26 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
     planned_actions: plan.planned_actions.map((action: any) => {
       if (!action || typeof action !== "object" || !Array.isArray(action.adsets)) return action;
       if (hasCreativeTestCustomerOverride(action)) return action;
+      if (isTestForNewOrLaunchProduct(action)) {
+        // Teste de produto novo/lançamento: marca exceção determinística nos adsets,
+        // mas não força exclusão. Validador respeita o motivo.
+        const normalizedAdsets = action.adsets.map((adset: any) => {
+          if (!isProspectingLikeAdset(action, adset)) return adset;
+          const currentExclusion = adset?.audience_exclusions && typeof adset.audience_exclusions === "object" ? adset.audience_exclusions : {};
+          return {
+            ...adset,
+            audience_exclusions: {
+              ...currentExclusion,
+              customers: false,
+              exclusion_skipped_reason: TEST_NEW_LAUNCH_SKIP_REASON,
+              reason:
+                String(currentExclusion?.reason || "").trim() ||
+                "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
+            },
+          };
+        });
+        return { ...action, adsets: normalizedAdsets };
+      }
 
       const normalizedAdsets = action.adsets.map((adset: any) => {
         if (!isProspectingLikeAdset(action, adset)) return adset;
