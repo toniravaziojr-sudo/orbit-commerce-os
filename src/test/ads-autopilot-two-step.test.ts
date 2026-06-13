@@ -85,6 +85,18 @@ describe("Frente 4 — Quality Gate antes de gerar criativos (Etapa 2)", () => {
     expect(r.reason_codes).toContain("cold_audience_requires_customer_exclusion");
   });
 
+  it("aceita exclusão canônica vinda de audience_exclusions/excluded_audience_ids na aprovação", () => {
+    const action = baseAction({
+      action_data: {
+        customer_audience_exclusion: null,
+        audience_exclusions: { customers: true },
+        excluded_audience_ids: ["cust-1"],
+      },
+    });
+    const r = runTwoStepCreativeGate({ ...baseGateInput, action, customerExclusionApplied: true });
+    expect(r.ok).toBe(true);
+  });
+
   it("bloqueia quando creative_brief está ausente", () => {
     const action = baseAction({ action_data: { creative_brief: null } });
     const r = runTwoStepCreativeGate({ ...baseGateInput, action });
