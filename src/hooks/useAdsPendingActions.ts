@@ -100,7 +100,13 @@ export function useAdsPendingActions(channelFilter?: string) {
       if (isTwoStepAction(current as any) && (current as any)?.status === "pending_approval") {
         throw new Error("Esta proposta precisa passar pela Etapa 1 (Aprovar e gerar criativos).");
       }
-      if ((current as any)?.action_type === "strategic_plan" && ((current as any)?.status === "incomplete" || (current as any)?.action_data?.approval_status === "incomplete" || (current as any)?.action_data?.contract?.ok === false)) {
+      if ((current as any)?.action_type === "strategic_plan" && (
+        (current as any)?.status === "incomplete"
+        || (current as any)?.action_data?.approval_status === "incomplete"
+        || (current as any)?.action_data?.contract?.ok === false
+        || (current as any)?.action_data?.metadata?.validation_status !== "valid"
+        || (current as any)?.action_data?.metadata?.is_approvable !== true
+      )) {
         throw new Error("Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar.");
       }
 
