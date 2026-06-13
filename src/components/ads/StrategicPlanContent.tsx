@@ -320,6 +320,9 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
   };
 
   const getAdsetExclusionLabel = (adset: AdSetPlan): string | null => {
+    if ((adset.audience_exclusions as any)?.exclusion_skipped_reason === "test_for_new_or_launch_product") {
+      return "Mantém clientes (produto novo/lançamento em teste)";
+    }
     if (adset.audience_exclusions?.customers) {
       const name = (adset.audience_exclusions as any)?.customer_audience_name;
       return name ? `Exclui: ${name}` : "Exclui clientes/compradores";
