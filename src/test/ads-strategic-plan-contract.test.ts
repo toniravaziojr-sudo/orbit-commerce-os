@@ -356,4 +356,79 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     const r = validateStrategicPlanContract(plan, basePreflight);
     expect(r.errors.some((e) => e.code === "creative_test_missing_override_reason")).toBe(true);
   });
+
+  it("anexa metadados obrigatórios de versionamento e aprovação ao plano normalizado", () => {
+    const guarded = normalizeAndValidateStrategicPlanForApproval(basePlan(), basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: [{ campaign_id: "c1", campaign_name: "Frio Broad", status: "ACTIVE", effective_status: "ACTIVE", allowed_actions: ["maintain", "reduce_budget", "pause_campaign"] }],
+      analysis_run_id: "run_1",
+    });
+
+    expect(guarded.normalizedPlan.metadata.schema_version).toBe("strategic_plan_v2");
+    expect(guarded.normalizedPlan.metadata.validator_version).toBeTruthy();
+    expect(guarded.normalizedPlan.metadata.guard_version).toBeTruthy();
+    expect(guarded.normalizedPlan.metadata.validation_status).toBe("valid");
+    expect(guarded.normalizedPlan.metadata.is_approvable).toBe(true);
+    expect(guarded.normalizedPlan.metadata.source_flow).toBe("strategist_start");
+  });
+
+  it("rejeita plano legado sem metadata obrigatória", () => {
+    const legacyPlan = basePlan();
+    const r = validateStrategicPlanContract(legacyPlan, basePreflight);
+    expect(r.errors.some((e) => e.code === "plan_missing_required_metadata")).toBe(true);
+  });
+
+  it("rejeita pausar campanha já pausada pelo snapshot canônico", () => {
+    const guarded = normalizeAndValidateStrategicPlanForApproval({
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "pause_campaign",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        target_campaign_id: "c1",
+        existing_campaign_id: "c1",
+        existing_campaign_name: "Frio Broad",
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: { customers: true },
+        audience_budget_fit: { fit: "adequate" },
+      }],
+    }, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: [{ campaign_id: "c1", campaign_name: "Frio Broad", status: "PAUSED", effective_status: "PAUSED", allowed_actions: ["keep_paused", "use_as_reference", "reactivate", "monitor_historical", "request_review"] }],
+    });
+
+    expect(guarded.contract.errors.some((e) => e.code === "paused_campaign_cannot_receive_pause")).toBe(true);
+  });
+
+  it("rejeita ação operacional com N/A em produto e público", () => {
+    const guarded = normalizeAndValidateStrategicPlanForApproval({
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "pause_campaign",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        target_campaign_id: "c1",
+        existing_campaign_id: "c1",
+        existing_campaign_name: "Frio Broad",
+        product_name: "N/A",
+        target_audience: "N/A",
+        audience_exclusions: { customers: true },
+        audience_budget_fit: { fit: "adequate" },
+      }],
+    }, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: [{ campaign_id: "c1", campaign_name: "Frio Broad", status: "ACTIVE", effective_status: "ACTIVE", allowed_actions: ["maintain", "reduce_budget", "pause_campaign"] }],
+    });
+
+    expect(guarded.contract.errors.some((e) => e.code === "action_missing_product_name")).toBe(true);
+    expect(guarded.contract.errors.some((e) => e.code === "action_missing_target_audience")).toBe(true);
+    expect(guarded.approvalStatus).toBe("incomplete");
+  });
 });
