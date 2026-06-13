@@ -528,6 +528,9 @@ export function normalizeAndValidateStrategicPlanForApproval(
     return {
       normalizedPlan: {
         ...(plan && typeof plan === "object" ? plan : {}),
+        contract: missingContract,
+        contract_version: CONTRACT_VERSION,
+        approval_status: "incomplete",
         metadata: {
           ...((plan && typeof plan === "object" && plan.metadata && typeof plan.metadata === "object") ? plan.metadata : {}),
           source_flow: options?.source_flow || plan?.metadata?.source_flow || "unknown",
@@ -569,6 +572,9 @@ export function normalizeAndValidateStrategicPlanForApproval(
   const metadata = buildPlanMetadata(normalizedPlanBase, preflight, provisionalContract, provisionalStatus, options);
   const normalizedPlan = {
     ...normalizedPlanBase,
+    contract,
+    contract_version: CONTRACT_VERSION,
+    approval_status: approvalStatus,
     metadata,
     campaign_account_snapshot: metadata.campaign_account_snapshot,
     source_flow: metadata.source_flow,
@@ -576,6 +582,9 @@ export function normalizeAndValidateStrategicPlanForApproval(
   };
   const contract = validateStrategicPlanContract(normalizedPlan, preflight);
   const approvalStatus = contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete";
+  normalizedPlan.contract = contract;
+  normalizedPlan.contract_version = CONTRACT_VERSION;
+  normalizedPlan.approval_status = approvalStatus;
   normalizedPlan.metadata = buildPlanMetadata(normalizedPlan, preflight, contract, approvalStatus, options);
   return {
     normalizedPlan,
