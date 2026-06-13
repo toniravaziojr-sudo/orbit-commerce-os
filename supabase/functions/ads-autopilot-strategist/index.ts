@@ -2542,6 +2542,50 @@ async function executeToolCall(
     let approvalStatus: "pending_approval" | "incomplete" = "incomplete";
     try {
       preflightSnapshot = ((context as any)?.strategicPreflightByAccount || {})[config.ad_account_id] || null;
+      // Onda G.4 — Fallback determinístico: se o preflight ainda não estiver
+      // pré-montado para esta conta (falha silenciosa do bloco Onda G no
+      // prompt), reconstruir aqui com resolver real do público de clientes
+      // para garantir que a normalização de exclusão por adset funcione e que
+      // o plano salvo nunca chegue ao painel sem metadata canônica.
+      if (!preflightSnapshot) {
+        try {
+          const customerAud = await resolveCustomerAudienceForMetaAccount(
+            supabase,
+            tenantId,
+            config.ad_account_id,
+          );
+          const accountCamps = (context?.campaigns || []).filter((c: any) => c?.ad_account_id === config.ad_account_id);
+          const totalDailyCentsFallback = accountCamps.reduce(
+            (s: number, c: any) => s + Number(c.daily_budget_cents || 0),
+            0,
+          );
+          preflightSnapshot = buildStrategicPlanPreflightContext({
+            ad_account_id: config.ad_account_id,
+            total_daily_cents: totalDailyCentsFallback,
+            funnel_splits: (config as any)?.funnel_splits || null,
+            campaigns: accountCamps.map((c: any) => ({
+              id: c.meta_campaign_id,
+              name: c.name || c.meta_campaign_id,
+              status: String(c.status || c.effective_status || "").toUpperCase(),
+              daily_budget_cents: Number(c.daily_budget_cents || 0),
+              objective: c.objective || null,
+            })),
+            customer_audience: {
+              found: customerAud.found,
+              meta_audience_id: customerAud.meta_audience_id,
+              audience_name: customerAud.audience_name,
+              source_table: customerAud.source_table,
+              last_synced_at: customerAud.last_synced_at,
+              reason_if_missing: customerAud.reason_if_missing,
+            },
+          });
+          (context as any).strategicPreflightByAccount ||= {};
+          (context as any).strategicPreflightByAccount[config.ad_account_id] = preflightSnapshot;
+          console.log(`[ads-autopilot-strategist][plan-contract] preflight fallback rebuilt for ${config.ad_account_id}`);
+        } catch (pfErr: any) {
+          console.warn(`[ads-autopilot-strategist][plan-contract] preflight fallback failed: ${pfErr?.message}`);
+        }
+      }
       const accountCampaignSnapshot = (context?.campaigns || [])
         .filter((c: any) => c?.ad_account_id === config.ad_account_id)
         .map((c: any) => ({
@@ -2591,20 +2635,20 @@ async function executeToolCall(
     }).join("\n");
     const planBody = normalizedPlanArgs.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (normalizedPlanArgs.expected_results || "") + "\n\n**Riscos:** " + (normalizedPlanArgs.risk_assessment || "");
 
+    // Onda G.4 — PERSISTÊNCIA CANÔNICA OBRIGATÓRIA:
+    // Espalhar o plano normalizado COMPLETO (que já inclui metadata, contract,
+    // campaign_account_snapshot, source_flow, analysis_run_id, planned_actions
+    // com audience_exclusions/excluded_audience_ids/targeting.excluded_custom_audiences
+    // por adset frio). Os campos abaixo só REFORÇAM/garantem presença; nunca
+    // substituem ou achatam o payload canônico devolvido pelo guard.
     return {
       status: approvalStatus,
       data: {
+        ...normalizedPlanArgs,
         type: "strategic_plan",
         ad_account_id: config.ad_account_id,
-        diagnosis: normalizedPlanArgs.diagnosis,
-        planned_actions: normalizedPlanArgs.planned_actions,
-        expected_results: normalizedPlanArgs.expected_results,
-        risk_assessment: normalizedPlanArgs.risk_assessment,
-        timeline: normalizedPlanArgs.timeline,
-        budget_allocation: normalizedPlanArgs.budget_allocation,
         funnel_budget_state: normalizedPlanArgs.funnel_budget_state || preflightSnapshot?.funnel_budget_state || null,
         active_campaigns_summary: normalizedPlanArgs.active_campaigns_summary || preflightSnapshot?.active_campaigns_summary || null,
-        // Snapshot do Preflight + resultado do contrato (UI bloqueia aprovação se contract.ok === false)
         strategic_plan_preflight: preflightSnapshot,
         contract,
         contract_version: PLAN_CONTRACT_VERSION,
@@ -2614,7 +2658,7 @@ async function executeToolCall(
             ? "Plano Estratégico — INCOMPLETO (não aprovável)"
             : "Plano Estratégico — Motor Estrategista",
           copy_text: planBody,
-            targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
+          targeting_summary: `${(normalizedPlanArgs.planned_actions || []).length} ações planejadas`,
         },
       },
     };

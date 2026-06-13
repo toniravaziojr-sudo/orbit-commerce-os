@@ -204,3 +204,29 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 - Pausa em campanha já pausada é invalidada pelo snapshot real.
 - Público frio/prospecção sem exclusão por adset fica bloqueado ou com pendência técnica explícita.
 - Aprovação server-side revalida sempre; não confia só no front.
+
+---
+
+## Onda G.4 — Persistência canônica obrigatória do Plano Estratégico (2026-06-13)
+
+### Diagnóstico fechado (auditoria end-to-end no tenant Respeite o Homem, conta `act_251893833881780`)
+- **Plano real auditado:** `94b75318-3b48-4ddd-a186-f228c01697b9` (status na fila: `pending_approval`).
+- O guard canônico e o validador eram chamados em memória, mas o payload final retornado ao caminho de persistência **descartava** metadata, contract, campaign_account_snapshot, source_flow, analysis_run_id e o enriquecimento de exclusão por adset, porque o handler do `strategic_plan` montava um objeto manual com apenas alguns campos do plano normalizado.
+- Resultado: o banco recebia um plano sem versionamento, sem `is_approvable`, sem `validation_status`, sem `audience_exclusions`/`excluded_audience_ids`/`targeting.excluded_custom_audiences` por adset — exatamente o sintoma reportado no painel.
+- **Público de clientes:** confirmado existente, ativo e vinculado à conta (`120244679266150057` — `Clientes - Atualizado 07/06/2026`). Não era falta de acesso ao público; era perda do enriquecimento no caminho de persistência.
+
+### Ajustes aplicados
+- O handler do `strategic_plan` no estrategista agora persiste o plano canônico **completo** (espalhando todo o `normalizedPlan` devolvido pelo guard), preservando metadata, contract, snapshot da conta, fluxo de origem, identificador da rodada de análise e o enriquecimento de exclusão por adset.
+- Adicionado **fallback determinístico do preflight** no momento da resposta: se o preflight pré-montado para a conta não estiver disponível, o handler reconstrói o preflight usando o resolver real do público de clientes antes de validar, garantindo que nenhum plano salvo escape do guard.
+- Reforçada a regra: quando o público de clientes existe, todo conjunto frio/prospecção é salvo com `audience_exclusions.customers=true` + `excluded_audience_ids` + `targeting.excluded_custom_audiences`. Quando o público não existe, é salvo com `pending_dependency='customer_audience_not_detected'` e o plano fica `incomplete`/não aprovável.
+- Campanha já pausada continua bloqueada de receber ação de pausa pelo Campaign Account Snapshot, e ação operacional com produto/público `N/A` continua invalidando o plano (regras da Onda G.3, agora alcançando efetivamente o registro persistido).
+
+### Validação técnica
+- Suíte de regressão do plano estratégico: **53 testes verdes** (contrato, preflight, normalização canônica, fluxo two-step).
+- Nenhuma publicação executada. Nenhuma campanha real alterada. Nenhuma proposta filha gerada automaticamente.
+
+### Como validar no painel
+1. Rodar **Nova análise inicial** na conta Meta do tenant Respeite o Homem.
+2. No novo Plano Estratégico, abrir o modal e conferir que cada conjunto de TOF/frio/prospecção exibe **“Exclui clientes/compradores”** (ou **“Pendência: público de clientes não detectado”** se for outra conta sem público sincronizado).
+3. Confirmar que nenhuma campanha já pausada aparece com sugestão de “Pausar campanha”.
+4. Confirmar que o botão **“Aprovar plano”** só fica habilitado quando o plano carrega metadata canônica válida; planos legados/incompletos exibem o banner “Plano incompleto” com o botão desabilitado.
