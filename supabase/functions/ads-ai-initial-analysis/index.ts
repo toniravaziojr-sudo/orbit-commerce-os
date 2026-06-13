@@ -19,8 +19,55 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VERSION = "ads-ai-initial-analysis@1.1.0";
+const VERSION = "ads-ai-initial-analysis@1.2.0";
 const RECENT_HOURS = 24;
+// Onda H — Frescor da espelhagem Meta. Se o último sync de campanhas dessa conta
+// for mais antigo que esse intervalo, dispara um sync leve antes da análise para
+// evitar que a IA proponha pausa/ajuste em campanha já alterada manualmente.
+const META_MIRROR_FRESHNESS_MS = 10 * 60 * 1000;
+
+/**
+ * Garante que o espelho local de campanhas Meta está fresco para a conta.
+ * Lê o MAX(synced_at) em meta_ad_campaigns; se estiver ausente ou >10 min,
+ * dispara meta-ads-campaigns action=sync apenas para essa conta. Falha silenciosa
+ * (registra limitação amigável) para nunca derrubar a análise.
+ */
+async function ensureMetaCampaignMirrorFresh(
+  supabase: any,
+  tenantId: string,
+  platform: string,
+  adAccountId: string,
+  limitations: string[],
+): Promise<{ synced: boolean; reason: string }> {
+  if (platform !== "meta") return { synced: false, reason: "not_meta" };
+  try {
+    const { data: row } = await supabase
+      .from("meta_ad_campaigns")
+      .select("synced_at")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId)
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastSync = row?.synced_at ? new Date(row.synced_at).getTime() : 0;
+    const ageMs = Date.now() - lastSync;
+    if (lastSync && ageMs < META_MIRROR_FRESHNESS_MS) {
+      return { synced: false, reason: "fresh" };
+    }
+    const { data: syncResp, error: syncErr } = await supabase.functions.invoke(
+      "meta-ads-campaigns",
+      { body: { action: "sync", tenant_id: tenantId, ad_account_id: adAccountId } },
+    );
+    if (syncErr || syncResp?.success === false) {
+      limitations.push("Não foi possível atualizar o status das campanhas com a Meta agora — análise usou o último estado conhecido.");
+      return { synced: false, reason: "sync_failed" };
+    }
+    return { synced: true, reason: "synced" };
+  } catch (_e) {
+    limitations.push("Não foi possível atualizar o status das campanhas com a Meta agora — análise usou o último estado conhecido.");
+    return { synced: false, reason: "exception" };
+  }
+}
 
 function ok(data: unknown) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -235,6 +282,11 @@ async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> 
     };
   }
   const runId = inserted!.id;
+
+  // 4.5) Onda H — força frescor da espelhagem de campanhas Meta antes do strategist.
+  // Evita propostas redundantes (pausar campanha já pausada / ajustar verba de
+  // campanha já parada) quando o usuário muda algo na Meta entre crons.
+  await ensureMetaCampaignMirrorFresh(supabase, tenantId, platform, adAccountId, limitations);
 
   // 5) Invoca o Strategist
   let strategistResult: any = null;
