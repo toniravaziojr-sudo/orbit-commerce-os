@@ -452,6 +452,32 @@ Deno.serve(async (req) => {
     const data = action.action_data || {};
     const preview = data.preview || {};
 
+    if ((action.action_type === "pause_campaign" || action.action_type === "pause") && action.channel === "meta") {
+      const campaignId = data.campaign_id || data.meta_campaign_id || data.existing_campaign_id || null;
+      if (campaignId) {
+        const { data: currentCampaign } = await supabase
+          .from("meta_ad_campaigns")
+          .select("status, effective_status, name")
+          .eq("tenant_id", tenant_id)
+          .or(`meta_campaign_id.eq.${campaignId},id.eq.${campaignId}`)
+          .maybeSingle();
+
+        const statusNow = String(currentCampaign?.effective_status || currentCampaign?.status || "").toUpperCase();
+        if (statusNow === "PAUSED") {
+          await supabase.from("ads_autopilot_actions").update({
+            status: "failed",
+            error_message: "Campanha já está pausada. Plano precisa ser refeito com ação compatível ao estado atual.",
+          }).eq("id", action_id);
+
+          return new Response(JSON.stringify({
+            success: false,
+            error: "campaign_already_paused",
+            error_pt: "Campanha já está pausada. O plano precisa ser refeito com uma ação compatível ao estado atual.",
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+    }
+
 
     // ====== BUDGET REVALIDATION (create_campaign only) ======
     if (action.action_type === "create_campaign" && action.channel === "meta") {
