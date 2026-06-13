@@ -3146,11 +3146,37 @@ async function executeToolCall(
   if (toolName === "create_adset") {
     // v1.8.0: ALWAYS require approval for adset creation
     console.log(`[ads-autopilot-strategist][${VERSION}] create_adset → pending_approval (always)`);
+    let customerAudienceResolution: any = null;
+    let customerExclusionMetadata: Record<string, unknown> | null = null;
+    try {
+      if (config.channel === "meta" && isColdFunnelStage(args.funnel_stage || args.targeting_type || args.targeting_description)) {
+        customerAudienceResolution = await resolveCustomerAudienceForMetaAccount(
+          supabase,
+          tenantId,
+          config.ad_account_id,
+        );
+        const applied = customerAudienceResolution.found && !!customerAudienceResolution.meta_audience_id;
+        if (applied) {
+          const current: Array<any> = Array.isArray(args.excluded_audience_ids) ? args.excluded_audience_ids : [];
+          const currentIds = current.map((e: any) => String(e?.id ?? e));
+          if (!currentIds.includes(String(customerAudienceResolution.meta_audience_id))) {
+            args.excluded_audience_ids = [
+              ...current,
+              { id: customerAudienceResolution.meta_audience_id, name: customerAudienceResolution.audience_name },
+            ];
+          }
+        }
+        customerExclusionMetadata = buildCustomerExclusionMetadata(customerAudienceResolution, applied);
+      }
+    } catch (caErr: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] create_adset customer-audience resolver failed (fail-open):`, caErr?.message);
+    }
     return { 
       status: "pending_approval", 
       data: { 
         ...args, 
         ad_account_id: config.ad_account_id,
+        customer_audience_exclusion: customerExclusionMetadata,
         preview: {
           adset_name: args.adset_name,
           targeting_type: args.targeting_type,
@@ -3171,6 +3197,7 @@ async function executeToolCall(
           behaviors: args.behaviors || [],
           custom_audience_ids: args.custom_audience_ids || [],
           excluded_audience_ids: args.excluded_audience_ids || [],
+          customer_audience_exclusion: customerExclusionMetadata,
           lookalike_spec: args.lookalike_spec || null,
           publisher_platforms: args.publisher_platforms || null,
           position_types: args.position_types || null,
