@@ -966,6 +966,7 @@ Quando o público não existe, a ação e cada adset frio/prospecção ficam com
 - plano sem metadata obrigatória de versionamento/validação **não aprova**;
 - plano com ação operacional contendo `N/A` em produto/público **não aprova**;
 - plano que tenta pausar campanha já pausada **não aprova**;
+- o registro salvo do plano estratégico passa por uma blindagem final no momento da gravação: se o retorno intermediário vier legado/achatado, o sistema revalida e reimpõe o payload canônico antes de entrar na fila;
 - **não gera propostas filhas**;
 - **não habilita** o botão `Aprovar plano`;
 - planos antigos/legados continuam visíveis para recusa/arquivo, mas não ficam válidos por migração automática.
@@ -3938,6 +3939,8 @@ Toda saída do tool `strategic_plan` passa por `validateStrategicPlanContract(pl
 - o plano é salvo, mas com `action_data.contract.ok = false` e a lista de pendências;
 - o modal mostra "Plano incompleto — precisa ser regenerado ou ajustado" com a lista, e desabilita "Aprovar plano";
 - o executor de aprovação devolve erro amigável em PT-BR e **não** dispara geração de propostas filhas.
+
+Além disso, imediatamente antes do `INSERT` na fila operacional, o payload final do plano é revalidado e reformatado em shape canônico. Essa segunda barreira existe para impedir regressão em que o guard roda corretamente em memória, mas algum retorno intermediário ou versão antiga do handler ainda tenta salvar um plano achatado sem metadata, sem preflight e sem exclusão por adset.
 
 ### Valores canônicos
 - `campaign_type`: `prospecting | retargeting | catalog_prospecting | catalog_retargeting | testing` (formato textual antigo como TOF/Remarketing/Teste deixa o plano inválido).

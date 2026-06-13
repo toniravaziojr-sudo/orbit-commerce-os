@@ -476,4 +476,77 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     expect(guarded.contract.errors.some((e) => e.code === "action_missing_target_audience")).toBe(true);
     expect(guarded.approvalStatus).toBe("incomplete");
   });
+
+  it("payload persistido de plano legado bloqueado preserva metadata, preflight, contract e exclusão por adset", () => {
+    const legacyPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      expected_results: "Resultados esperados.",
+      budget_allocation: { tof_brl: 180, bof_brl: 45, test_brl: 75, total_daily_brl: 300 },
+      timeline: "Dia 1: lançar. Dia 3: revisar.",
+      planned_actions: [{
+        action_type: "duplicate",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
+        daily_budget_brl: 60,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          { adset_name: "[AI] CJ - Broad | TOF", audience_type: "broad", audience_description: "Homens 30-65 BR sem segmentação de interesses" },
+          { adset_name: "[AI] CJ - LAL 1% Compradores 180D | TOF", audience_type: "lookalike", audience_description: "Lookalike 1% de compradores nos últimos 180 dias" },
+        ],
+      }, {
+        action_type: "maintain",
+        target_campaign_id: "c1",
+        existing_campaign_id: "c1",
+        existing_campaign_name: "Frio Broad",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+        },
+        audience_budget_fit: { fit: "adequate" },
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(legacyPlan, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: [{ campaign_id: "c1", campaign_name: "Frio Broad", status: "ACTIVE", effective_status: "ACTIVE", allowed_actions: ["maintain", "reduce_budget", "pause_campaign"] }],
+      analysis_run_id: "run_1",
+    });
+
+    const persistedPayload = {
+      ...guarded.normalizedPlan,
+      type: "strategic_plan",
+      ad_account_id: "act_1",
+      strategic_plan_preflight: basePreflight,
+      contract: guarded.contract,
+      approval_status: guarded.approvalStatus,
+      preview: {
+        headline: guarded.contract.ok ? "Plano Estratégico — Motor Estrategista" : "Plano Estratégico — INCOMPLETO (não aprovável)",
+        copy_text: "preview",
+        targeting_summary: "1 ações planejadas",
+      },
+    };
+
+    expect(persistedPayload.metadata?.schema_version).toBe("strategic_plan_v2");
+    expect(persistedPayload.metadata?.is_approvable).toBe(false);
+    expect(persistedPayload.metadata?.validation_status).toBe("invalid");
+    expect(persistedPayload.contract?.ok).toBe(false);
+    expect(persistedPayload.approval_status).toBe("incomplete");
+    expect(persistedPayload.strategic_plan_preflight?.customer_audience?.customer_audience_id).toBe("aud1");
+    expect(persistedPayload.planned_actions[0].adsets[0].audience_exclusions.customers).toBe(true);
+    expect(persistedPayload.planned_actions[0].adsets[0].excluded_audience_ids).toContain("aud1");
+    expect(persistedPayload.planned_actions[0].adsets[0].targeting.excluded_custom_audiences).toEqual(
+      expect.arrayContaining([{ id: "aud1", name: "Clientes" }]),
+    );
+  });
 });

@@ -220,6 +220,8 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 - Adicionado **fallback determinístico do preflight** no momento da resposta: se o preflight pré-montado para a conta não estiver disponível, o handler reconstrói o preflight usando o resolver real do público de clientes antes de validar, garantindo que nenhum plano salvo escape do guard.
 - Reforçada a regra: quando o público de clientes existe, todo conjunto frio/prospecção é salvo com `audience_exclusions.customers=true` + `excluded_audience_ids` + `targeting.excluded_custom_audiences`. Quando o público não existe, é salvo com `pending_dependency='customer_audience_not_detected'` e o plano fica `incomplete`/não aprovável.
 - Campanha já pausada continua bloqueada de receber ação de pausa pelo Campaign Account Snapshot, e ação operacional com produto/público `N/A` continua invalidando o plano (regras da Onda G.3, agora alcançando efetivamente o registro persistido).
+- Blindagem adicional no momento do `INSERT`: antes de gravar `strategic_plan`, o fluxo agora revalida o `action_data` final e reimpõe o payload canônico (metadata + contract + preflight + snapshot + exclusão por adset). Assim, mesmo que algum retorno intermediário ainda venha achatado, o registro salvo não entra mais na fila como plano legado mascarado de novo plano.
+- Teste de persistência lógica adicionado para simular exatamente o shape salvo na fila e garantir que o objeto final continua carregando metadados obrigatórios e exclusão por conjunto frio.
 
 ### Validação técnica
 - Suíte de regressão do plano estratégico: **53 testes verdes** (contrato, preflight, normalização canônica, fluxo two-step).
