@@ -583,8 +583,11 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
 });
 
 describe("Exceção — teste de produto novo/lançamento não exige exclusão de clientes", () => {
+  const nonActionReasons = { c1: "Campanha c1 monitorada fora deste teste (justificativa válida)." };
+
   it("teste com product_lifecycle='launch' aprova sem exclusão e marca exclusion_skipped_reason", () => {
     const plan = basePlan({
+      explicit_non_action_reasons: nonActionReasons,
       planned_actions: [
         {
           action_type: "create_campaign",
@@ -621,6 +624,7 @@ describe("Exceção — teste de produto novo/lançamento não exige exclusão d
 
   it("teste com product_name contendo 'lançamento' aprova sem exclusão", () => {
     const plan = basePlan({
+      explicit_non_action_reasons: nonActionReasons,
       planned_actions: [
         {
           action_type: "create_campaign",
@@ -646,8 +650,9 @@ describe("Exceção — teste de produto novo/lançamento não exige exclusão d
     expect(guarded.approvalStatus).toBe("pending_approval");
   });
 
-  it("teste de carro-chefe MANTÉM exclusão de clientes (bloqueia se ausente)", () => {
+  it("teste de carro-chefe MANTÉM exclusão de clientes nos adsets de prospecção", () => {
     const plan = basePlan({
+      explicit_non_action_reasons: nonActionReasons,
       planned_actions: [
         {
           action_type: "create_campaign",
@@ -670,9 +675,9 @@ describe("Exceção — teste de produto novo/lançamento não exige exclusão d
       campaign_account_snapshot: plan.metadata.campaign_account_snapshot,
       analysis_run_id: "run_bestseller_test",
     });
-    // carro-chefe: o normalizador deve REINJETAR a exclusão automaticamente
+    // carro-chefe em teste: o normalizador deve REINJETAR a exclusão no adset broad
     const action = guarded.normalizedPlan.planned_actions[0];
-    expect(action.audience_exclusions.customers).toBe(true);
-    expect(action.audience_exclusions.exclusion_skipped_reason).toBeUndefined();
+    expect(action.adsets[0].audience_exclusions.customers).toBe(true);
+    expect(action.adsets[0].audience_exclusions.exclusion_skipped_reason).toBeUndefined();
   });
 });
