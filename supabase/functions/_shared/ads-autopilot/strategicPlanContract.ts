@@ -669,7 +669,10 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
 
     const normalizedAction = normalizeStrategicPlanAction(a, preflight);
     const rawCampaignType = normValue(a.campaign_type);
-    const rawExcl = normalizedAction?.audience_exclusions || a.audience_exclusions || {};
+    // IMPORTANT: rawExcl must come from the ORIGINAL action, not the normalized one.
+    // Normalization auto-injects customer exclusion for prospecting; using it here would
+    // mask the validator's job of catching plans that arrived without canonical exclusion.
+    const rawExcl = (a && typeof a === "object" && a.audience_exclusions && typeof a.audience_exclusions === "object") ? a.audience_exclusions : {};
     const campaignType = String(canonicalizeCampaignType(normalizedAction) || "").toLowerCase();
     if (!campaignType) {
       push({ code: "action_missing_campaign_type", severity: "blocker", message: "Ação sem `campaign_type`.", path });

@@ -42,12 +42,34 @@ function basePlan(overrides: any = {}) {
         campaign_type: "prospecting",
         campaign_intent: "acquisition",
         affected_funnel: "cold",
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
         daily_budget_brl: 50,
         budget_source: "free_now",
-        audience_exclusions: { customers: true, reason: "prospecção pura" },
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+          reason: "prospecção pura",
+        },
         audience_budget_fit: { fit: "insufficient_data" },
       },
-      { action_type: "maintain", target_campaign_id: "c1", campaign_type: "prospecting", campaign_intent: "acquisition", audience_exclusions: { customers: true }, audience_budget_fit: { fit: "adequate" } },
+      {
+        action_type: "maintain",
+        target_campaign_id: "c1",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+        },
+        audience_budget_fit: { fit: "adequate" },
+      },
     ],
     ...overrides,
   };
@@ -239,6 +261,7 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
         campaign_type: "TOF",
         funnel_stage: "tof",
         target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
         daily_budget_brl: 50,
         budget_source: "free_now",
         audience_budget_fit: { fit: "insufficient_data" },
@@ -247,7 +270,14 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
         target_campaign_id: "c1",
         campaign_type: "prospecting",
         campaign_intent: "acquisition",
-        audience_exclusions: { customers: true },
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+        },
         audience_budget_fit: { fit: "adequate" },
       }],
     };
@@ -388,6 +418,7 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
 
   it("rejeita plano legado sem metadata obrigatória", () => {
     const legacyPlan = basePlan();
+    delete (legacyPlan as any).metadata;
     const r = validateStrategicPlanContract(legacyPlan, basePreflight);
     expect(r.errors.some((e) => e.code === "plan_missing_required_metadata")).toBe(true);
   });
