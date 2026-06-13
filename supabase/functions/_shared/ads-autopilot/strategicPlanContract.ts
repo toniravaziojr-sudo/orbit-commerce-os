@@ -521,16 +521,35 @@ export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: S
 export function normalizeAndValidateStrategicPlanForApproval(
   plan: any,
   preflight: StrategicPlanPreflight | null,
+  options?: StrategicPlanGuardOptions,
 ): StrategicPlanApprovalGuardResult {
   if (!preflight) {
+    const missingContract = buildMissingPreflightContract();
     return {
-      normalizedPlan: plan,
-      contract: buildMissingPreflightContract(),
+      normalizedPlan: {
+        ...(plan && typeof plan === "object" ? plan : {}),
+        metadata: {
+          ...((plan && typeof plan === "object" && plan.metadata && typeof plan.metadata === "object") ? plan.metadata : {}),
+          source_flow: options?.source_flow || plan?.metadata?.source_flow || "unknown",
+          schema_version: PLAN_SCHEMA_VERSION,
+          preflight_version: null,
+          validator_version: CONTRACT_VERSION,
+          guard_version: CONTRACT_VERSION,
+          normalized_at: new Date().toISOString(),
+          validated_at: new Date().toISOString(),
+          validation_status: "invalid",
+          validation_errors: missingContract.errors,
+          is_approvable: false,
+          analysis_run_id: options?.analysis_run_id || plan?.metadata?.analysis_run_id || null,
+          campaign_account_snapshot: Array.isArray(options?.campaign_account_snapshot) ? options?.campaign_account_snapshot : [],
+        },
+      },
+      contract: missingContract,
       approvalStatus: "incomplete",
     };
   }
 
-  const normalizedPlan = normalizeStrategicPlanCustomerExclusions(plan, preflight);
+  const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
   const contract = validateStrategicPlanContract(normalizedPlan, preflight);
   const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
     (
@@ -540,10 +559,19 @@ export function normalizeAndValidateStrategicPlanForApproval(
       )
     )
   );
+  const approvalStatus = contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete";
+  const metadata = buildPlanMetadata(normalizedPlanBase, preflight, contract, approvalStatus, options);
+  const normalizedPlan = {
+    ...normalizedPlanBase,
+    metadata,
+    campaign_account_snapshot: metadata.campaign_account_snapshot,
+    source_flow: metadata.source_flow,
+    analysis_run_id: metadata.analysis_run_id,
+  };
   return {
     normalizedPlan,
     contract,
-    approvalStatus: contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete",
+    approvalStatus,
   };
 }
 
