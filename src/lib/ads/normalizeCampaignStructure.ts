@@ -182,8 +182,15 @@ function fromCanonical(cs: any): CampaignStructure {
             ? a.customer_exclusion
             : typeof a?.customer_exclusion?.applied === "boolean"
               ? a.customer_exclusion.applied
+              : typeof a?.audience_exclusions?.customers === "boolean"
+                ? a.audience_exclusions.customers
               : null,
-        customer_exclusion_label: pickStr(a?.customer_exclusion?.label),
+        customer_exclusion_label:
+          pickStr(a?.customer_exclusion?.label)
+          || (a?.audience_exclusions?.customers ? "Exclui clientes/compradores" : null)
+          || ((a?.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || a?.audience_exclusions?.pending_dependency === "customer_audience_missing")
+            ? "Pendência: público de clientes não detectado"
+            : null),
         location: pickStr(a?.location),
         age_range: pickStr(a?.age_range),
         gender: pickStr(a?.gender),
@@ -272,9 +279,14 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
         audience_type: pickStr(a?.audience_type, p?.audience_type),
         targeting_summary: pickStr(p?.targeting_summary, a?.targeting_summary, a?.audience_description),
         inclusions: asStringArray(t?.interests || a?.inclusions),
-        exclusions: asStringArray(t?.excluded_custom_audiences || a?.exclusions),
-        customer_exclusion_applied: null,
-        customer_exclusion_label: null,
+        exclusions: asStringArray(t?.excluded_custom_audiences || a?.exclusions || a?.excluded_audience_ids),
+        customer_exclusion_applied: typeof a?.audience_exclusions?.customers === "boolean" ? a.audience_exclusions.customers : null,
+        customer_exclusion_label:
+          a?.audience_exclusions?.customers
+            ? "Exclui clientes/compradores"
+            : (a?.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || a?.audience_exclusions?.pending_dependency === "customer_audience_missing")
+              ? "Pendência: público de clientes não detectado"
+              : null,
         // Contrato canônico v2: aceita location/age_min/age_max/gender estruturados por conjunto
         location: pickStr(a?.location) || buildLocation(t),
         age_range:
@@ -307,9 +319,14 @@ function fromLegacy(data: any, opts: { actionType?: string | null; flowVersion?:
         audience_type: pickStr(data?.audience_type, preview?.audience_type),
         targeting_summary: pickStr(preview?.targeting_summary, data?.targeting_summary),
         inclusions: asStringArray(t?.interests),
-        exclusions: asStringArray(t?.excluded_custom_audiences),
-        customer_exclusion_applied: null,
-        customer_exclusion_label: null,
+        exclusions: asStringArray(t?.excluded_custom_audiences || data?.excluded_audience_ids),
+        customer_exclusion_applied: typeof data?.audience_exclusions?.customers === "boolean" ? data.audience_exclusions.customers : null,
+        customer_exclusion_label:
+          data?.audience_exclusions?.customers
+            ? "Exclui clientes/compradores"
+            : (data?.audience_exclusions?.pending_dependency === "customer_audience_not_detected" || data?.audience_exclusions?.pending_dependency === "customer_audience_missing")
+              ? "Pendência: público de clientes não detectado"
+              : null,
         location: buildLocation(t),
         age_range: pickStr(preview?.age_range, data?.age_range) || buildAgeRange(t),
         gender: pickStr(preview?.gender, data?.gender) || buildGender(t),
