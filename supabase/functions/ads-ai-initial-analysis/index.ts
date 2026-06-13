@@ -283,6 +283,11 @@ async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> 
   }
   const runId = inserted!.id;
 
+  // 4.5) Onda H — força frescor da espelhagem de campanhas Meta antes do strategist.
+  // Evita propostas redundantes (pausar campanha já pausada / ajustar verba de
+  // campanha já parada) quando o usuário muda algo na Meta entre crons.
+  await ensureMetaCampaignMirrorFresh(supabase, tenantId, platform, adAccountId, limitations);
+
   // 5) Invoca o Strategist
   let strategistResult: any = null;
   let strategistError: string | null = null;
