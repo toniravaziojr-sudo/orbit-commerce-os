@@ -570,11 +570,11 @@ export function normalizeAndValidateStrategicPlanForApproval(
   };
   const provisionalStatus = hasCustomerAudiencePending ? "incomplete" : "pending_approval";
   const metadata = buildPlanMetadata(normalizedPlanBase, preflight, provisionalContract, provisionalStatus, options);
-  const normalizedPlan = {
+  const normalizedPlan: any = {
     ...normalizedPlanBase,
-    contract,
+    contract: provisionalContract,
     contract_version: CONTRACT_VERSION,
-    approval_status: approvalStatus,
+    approval_status: provisionalStatus,
     metadata,
     campaign_account_snapshot: metadata.campaign_account_snapshot,
     source_flow: metadata.source_flow,
