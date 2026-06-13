@@ -3641,7 +3641,10 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       if (!planAnalysisRunId) planAnalysisRunId = planRow.analysis_run_id || (planRow.action_data?.analysis_run_id ?? null);
       const plan = planRow.action_data || {};
       const diagnosis = plan.diagnosis || "";
-      const plannedActions = (plan.planned_actions || []).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n");
+      const plannedActions = (plan.planned_actions || []).map((a: any, i: number) => {
+        if (typeof a === "string") return `${i + 1}. ${a}`;
+        return `${i + 1}. ${JSON.stringify(a)}`;
+      }).join("\n");
       const expectedResults = plan.expected_results || "";
       const budgetAllocation = plan.budget_allocation ? JSON.stringify(plan.budget_allocation, null, 2) : "";
 
