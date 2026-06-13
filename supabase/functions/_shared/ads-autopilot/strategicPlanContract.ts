@@ -550,7 +550,6 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
-  const contract = validateStrategicPlanContract(normalizedPlanBase, preflight);
   const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) =>
     (
       (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
@@ -559,8 +558,15 @@ export function normalizeAndValidateStrategicPlanForApproval(
       )
     )
   );
-  const approvalStatus = contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete";
-  const metadata = buildPlanMetadata(normalizedPlanBase, preflight, contract, approvalStatus, options);
+  const provisionalContract: ContractResult = {
+    ok: true,
+    version: CONTRACT_VERSION,
+    errors: [],
+    blockers_count: 0,
+    warnings_count: 0,
+  };
+  const provisionalStatus = hasCustomerAudiencePending ? "incomplete" : "pending_approval";
+  const metadata = buildPlanMetadata(normalizedPlanBase, preflight, provisionalContract, provisionalStatus, options);
   const normalizedPlan = {
     ...normalizedPlanBase,
     metadata,
@@ -568,6 +574,9 @@ export function normalizeAndValidateStrategicPlanForApproval(
     source_flow: metadata.source_flow,
     analysis_run_id: metadata.analysis_run_id,
   };
+  const contract = validateStrategicPlanContract(normalizedPlan, preflight);
+  const approvalStatus = contract.ok && !hasCustomerAudiencePending ? "pending_approval" : "incomplete";
+  normalizedPlan.metadata = buildPlanMetadata(normalizedPlan, preflight, contract, approvalStatus, options);
   return {
     normalizedPlan,
     contract,
@@ -649,9 +658,9 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       return;
     }
 
+    const normalizedAction = normalizeStrategicPlanAction(a, preflight);
     const rawCampaignType = normValue(a.campaign_type);
     const rawExcl = normalizedAction?.audience_exclusions || a.audience_exclusions || {};
-    const normalizedAction = normalizeStrategicPlanAction(a, preflight);
     const campaignType = String(canonicalizeCampaignType(normalizedAction) || "").toLowerCase();
     if (!campaignType) {
       push({ code: "action_missing_campaign_type", severity: "blocker", message: "Ação sem `campaign_type`.", path });
