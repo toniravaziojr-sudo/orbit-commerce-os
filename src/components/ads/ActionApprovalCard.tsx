@@ -1683,8 +1683,10 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               )}
             </div>
 
-            {/* Frente 1 — Linha de exclusão de Clientes (Públicos Frios) */}
-            {exclusionInfo && (
+            {/* Frente 1 — Linha de exclusão de Clientes (Públicos Frios).
+                Para Plano Estratégico a tarja é exibida por conjunto dentro do modal,
+                então fica oculta aqui para evitar ruído fora de contexto. */}
+            {exclusionInfo && !isStrategicPlan && (
               <div className="flex items-center gap-1.5 flex-wrap pt-1">
                 {exclusionInfo.applied ? (
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
