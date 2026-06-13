@@ -412,10 +412,12 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
 export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
-  return {
+  const normalizedPlan = {
     ...plan,
     planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight)),
   };
+
+  return enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
 }
 
 export function normalizeAndValidateStrategicPlanForApproval(
@@ -433,7 +435,12 @@ export function normalizeAndValidateStrategicPlanForApproval(
   const normalizedPlan = normalizeStrategicPlanCustomerExclusions(plan, preflight);
   const contract = validateStrategicPlanContract(normalizedPlan, preflight);
   const hasCustomerAudiencePending = Array.isArray(normalizedPlan?.planned_actions) && normalizedPlan.planned_actions.some((action: any) =>
-    isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)
+    (
+      (isProspectingLike(action) && hasCustomerAudiencePendingDependency(action?.audience_exclusions?.pending_dependency)) ||
+      ensureArray<any>(action?.adsets).some((adset: any) =>
+        isProspectingLikeAdset(action, adset) && hasCustomerAudiencePendingDependency(adset?.audience_exclusions?.pending_dependency),
+      )
+    )
   );
   return {
     normalizedPlan,
@@ -582,6 +589,41 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
         }
       }
     }
+
+    const adsets = ensureArray<any>(normalizedAction?.adsets);
+    adsets.forEach((adset: any, adsetIndex: number) => {
+      if (!isProspectingLikeAdset(normalizedAction, adset)) return;
+
+      const adsetPath = `${path}.adsets[${adsetIndex}]`;
+      const adsetExclusion = adset?.audience_exclusions || {};
+      const adsetExcludedIds = ensureArray<any>(adset?.excluded_audience_ids).map((entry: any) => String(entry?.id ?? entry));
+      const adsetExcludedCustomAudiences = ensureArray<any>(adset?.targeting?.excluded_custom_audiences).map((entry: any) => String(entry?.id ?? entry));
+      const detected = preflight.customer_audience.customer_audience_detected;
+      const customerId = preflight.customer_audience.customer_audience_id;
+
+      if (detected && customerId) {
+        const hasConditionA =
+          adsetExclusion?.customers === true &&
+          adsetExcludedIds.includes(String(customerId)) &&
+          adsetExcludedCustomAudiences.includes(String(customerId));
+
+        if (!hasConditionA) {
+          push({
+            code: "prospecting_adset_missing_customer_exclusion",
+            severity: "blocker",
+            message: "Conjunto de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+            path: `${adsetPath}.audience_exclusions`,
+          });
+        }
+      } else if (!hasCustomerAudiencePendingDependency(adsetExclusion?.pending_dependency)) {
+        push({
+          code: "prospecting_adset_missing_pending_dependency",
+          severity: "blocker",
+          message: "Conjunto de público frio/prospecção precisa excluir clientes/compradores atuais ou declarar pendência técnica do público de clientes.",
+          path: `${adsetPath}.audience_exclusions.pending_dependency`,
+        });
+      }
+    });
 
     // Catálogo dinâmico
     if (isCatalogType(campaignType)) {
