@@ -477,7 +477,7 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     expect(guarded.approvalStatus).toBe("incomplete");
   });
 
-  it("payload persistido do plano canônico preserva metadata, preflight, contract e exclusão por adset", () => {
+  it("payload persistido de plano legado bloqueado preserva metadata, preflight, contract e exclusão por adset", () => {
     const legacyPlan = {
       diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
       risk_assessment: "Riscos mapeados.",
@@ -538,8 +538,10 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     };
 
     expect(persistedPayload.metadata?.schema_version).toBe("strategic_plan_v2");
-    expect(persistedPayload.metadata?.is_approvable).toBe(true);
-    expect(persistedPayload.contract?.ok).toBe(true);
+    expect(persistedPayload.metadata?.is_approvable).toBe(false);
+    expect(persistedPayload.metadata?.validation_status).toBe("invalid");
+    expect(persistedPayload.contract?.ok).toBe(false);
+    expect(persistedPayload.approval_status).toBe("incomplete");
     expect(persistedPayload.strategic_plan_preflight?.customer_audience?.customer_audience_id).toBe("aud1");
     expect(persistedPayload.planned_actions[0].adsets[0].audience_exclusions.customers).toBe(true);
     expect(persistedPayload.planned_actions[0].adsets[0].excluded_audience_ids).toContain("aud1");
