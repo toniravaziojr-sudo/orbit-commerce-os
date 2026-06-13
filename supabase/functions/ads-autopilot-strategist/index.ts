@@ -347,7 +347,7 @@ const STRATEGIST_TOOLS = [
               type: "object",
               properties: {
                 action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "test", "scale", "duplicate", "optimize"], description: "Tipo da ação" },
-                campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação", "prospecting", "retargeting", "catalog_prospecting", "catalog_retargeting", "testing"], description: "Tipo de campanha. Para catálogo dinâmico use 'catalog_prospecting' ou 'catalog_retargeting'." },
+                campaign_type: { type: "string", enum: ["prospecting", "retargeting", "catalog_prospecting", "catalog_retargeting", "testing"], description: "Tipo de campanha canônico. Use somente os valores canônicos internos; rótulos como TOF/BOF são apenas visuais." },
                 campaign_intent: { type: "string", enum: ["acquisition", "retention", "creative_test", "offer_test", "scale", "reactivation"], description: "Onda G.5 — Intenção da campanha. Em creative_test, clientes podem ser incluídos com justificativa (exclusion_override_reason)." },
                 funnel: { type: "string", enum: ["cold", "remarketing", "tests", "leads", "unknown"], description: "Onda G.1 — Funil canônico ao qual essa ação pertence. Deve bater com funnel_budget_state." },
                 budget_delta_brl: { type: "number", description: "Onda G.1 — Variação de orçamento desta ação em R$ (+ para criar/escalar, − para reduzir/pausar)." },
@@ -359,7 +359,7 @@ const STRATEGIST_TOOLS = [
                     customers: { type: "boolean", description: "Excluir clientes/compradores." },
                     reason: { type: "string", description: "Justificativa curta." },
                     customer_audience_detected: { type: "boolean", description: "true se o público de Clientes existe na conta Meta." },
-                    pending_dependency: { type: "string", enum: ["customer_audience_missing"], description: "Marca pendência quando o público de Clientes não foi detectado." },
+                    pending_dependency: { type: "string", enum: ["customer_audience_not_detected"], description: "Marca pendência quando o público de Clientes não foi detectado." },
                   },
                 },
                 exclusion_override_reason: { type: "string", description: "Onda G.5 — Justificativa OBRIGATÓRIA quando creative_test inclui clientes no frio." },
@@ -408,6 +408,35 @@ const STRATEGIST_TOOLS = [
                       adset_name: { type: "string", description: "Nome do conjunto (ex: CJ1 - Broad | TOF)" },
                       audience_type: { type: "string", enum: ["broad", "interest", "lookalike", "custom", "retargeting"], description: "Tipo de audiência deste conjunto" },
                       audience_description: { type: "string", description: "Descrição textual do público deste conjunto" },
+                       audience_exclusions: {
+                         type: "object",
+                         description: "Obrigatório em conjuntos frios/prospecção. A fonte operacional da exclusão é o adset.",
+                         properties: {
+                           customers: { type: "boolean" },
+                           customer_audience_detected: { type: "boolean" },
+                           customer_audience_id: { type: "string" },
+                           customer_audience_name: { type: "string" },
+                           pending_dependency: { type: "string", enum: ["customer_audience_not_detected"] },
+                           reason: { type: "string" },
+                         },
+                       },
+                       excluded_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos excluídos neste conjunto." },
+                       targeting: {
+                         type: "object",
+                         properties: {
+                           excluded_custom_audiences: {
+                             type: "array",
+                             items: {
+                               type: "object",
+                               properties: {
+                                 id: { type: "string" },
+                                 name: { type: "string" },
+                               },
+                             },
+                           },
+                         },
+                       },
+                       exclusion_override_reason: { type: "string", description: "Obrigatório apenas para creative_test com inclusão de clientes neste conjunto." },
                       // --- Targeting estruturado por conjunto (obrigatório no contrato canônico v2) ---
                       location: { type: "string", description: "Região/país do conjunto (ex.: 'BR', 'São Paulo, BR'). Default seguro: BR." },
                       age_min: { type: "number", description: "Idade mínima. Default: 18." },
