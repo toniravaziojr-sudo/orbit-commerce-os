@@ -521,9 +521,32 @@ Deno.serve(async (req) => {
 
     // ====== STRATEGIC PLAN APPROVAL ======
     if (action.action_type === "strategic_plan") {
-      // Onda G (rev2) — Fail-closed: plano inválido NUNCA é aprovado ou gera filhas.
-      const contract = (data as any)?.contract;
-      if (action.status === "incomplete" || (data as any)?.approval_status === "incomplete") {
+      const adAccountId = data.ad_account_id || data?.metadata?.campaign_account_snapshot?.[0]?.ad_account_id || null;
+      if (!adAccountId) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "strategic_plan_missing_account_context",
+            error_pt: "Plano incompleto — contexto da conta de anúncios não foi encontrado para revalidação.",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { preflight, guardOptions } = await buildStrategicPlanApprovalContext(supabase, tenant_id, adAccountId, {
+        analysisRunId: action.analysis_run_id || data?.metadata?.analysis_run_id || data?.analysis_run_id || null,
+        sourceFlow: "approval_endpoint",
+      });
+      const revalidated = normalizeAndValidateStrategicPlanForApproval(data, preflight, guardOptions);
+      const revalidatedPlan = revalidated.normalizedPlan;
+      const contract = revalidated.contract;
+
+      await supabase.from("ads_autopilot_actions").update({
+        action_data: revalidatedPlan,
+        status: revalidated.approvalStatus,
+      }).eq("id", action_id);
+
+      if (revalidated.approvalStatus === "incomplete" || revalidatedPlan?.metadata?.validation_status !== "valid" || revalidatedPlan?.metadata?.is_approvable !== true) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -549,12 +572,12 @@ Deno.serve(async (req) => {
       }
       console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved, triggering implementation`);
 
-      const planBody = data.diagnosis + "\n\n**Ações Planejadas:**\n" + (data.planned_actions || []).map((a: string) => `• ${a}`).join("\n");
+      const planBody = revalidatedPlan.diagnosis + "\n\n**Ações Planejadas:**\n" + (revalidatedPlan.planned_actions || []).map((a: any) => `• ${typeof a === "string" ? a : a.rationale || a.action_type || "ação"}`).join("\n");
 
       await supabase.from("ads_autopilot_insights").insert({
         tenant_id,
         channel: action.channel || "global",
-        ad_account_id: data.ad_account_id || null,
+          ad_account_id: adAccountId,
         title: "✅ Plano Estratégico Aprovado",
         body: planBody,
         category: "strategy",
@@ -565,11 +588,11 @@ Deno.serve(async (req) => {
 
       // Onda F: marca o plano como APROVADO (não publica; filhas são geradas pelo strategist).
       await supabase.from("ads_autopilot_actions")
-        .update({ status: "approved", approved_at: new Date().toISOString() })
+        .update({ status: "approved", approved_at: new Date().toISOString(), action_data: revalidatedPlan })
         .eq("id", action_id);
 
       // Recupera analysis_run_id do plano para propagação às filhas.
-      const planAnalysisRunId = action.analysis_run_id || data?.analysis_run_id || null;
+      const planAnalysisRunId = action.analysis_run_id || revalidatedPlan?.metadata?.analysis_run_id || revalidatedPlan?.analysis_run_id || null;
 
       const { error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
         body: {
