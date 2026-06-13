@@ -581,3 +581,98 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     );
   });
 });
+
+describe("Exceção — teste de produto novo/lançamento não exige exclusão de clientes", () => {
+  it("teste com product_lifecycle='launch' aprova sem exclusão e marca exclusion_skipped_reason", () => {
+    const plan = basePlan({
+      planned_actions: [
+        {
+          action_type: "create_campaign",
+          campaign_type: "testing",
+          campaign_intent: "creative_test",
+          affected_funnel: "tests",
+          funnel_stage: "test",
+          product_name: "Sérum Antiidade Novo",
+          product_lifecycle: "launch",
+          target_audience: "Homens 30-65, Brasil",
+          daily_budget_brl: 30,
+          budget_source: "test_allocation",
+          audience_exclusions: { customers: false },
+          audience_budget_fit: { fit: "insufficient_data" },
+          adsets: [
+            { adset_name: "TOF Broad teste lançamento", audience_type: "broad", audience_description: "Homens 30 65 Brasil" },
+          ],
+        },
+      ],
+    });
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: plan.metadata.campaign_account_snapshot,
+      analysis_run_id: "run_new_launch",
+    });
+    expect(guarded.contract.ok).toBe(true);
+    expect(guarded.approvalStatus).toBe("pending_approval");
+    const action = guarded.normalizedPlan.planned_actions[0];
+    expect(action.audience_exclusions.customers).toBe(false);
+    expect(action.audience_exclusions.exclusion_skipped_reason).toBe("test_for_new_or_launch_product");
+    expect(action.adsets[0].audience_exclusions.customers).toBe(false);
+    expect(action.adsets[0].audience_exclusions.exclusion_skipped_reason).toBe("test_for_new_or_launch_product");
+  });
+
+  it("teste com product_name contendo 'lançamento' aprova sem exclusão", () => {
+    const plan = basePlan({
+      planned_actions: [
+        {
+          action_type: "create_campaign",
+          campaign_type: "testing",
+          campaign_intent: "creative_test",
+          affected_funnel: "tests",
+          product_name: "Pré-venda Sérum Lançamento",
+          target_audience: "Homens 30-65, Brasil",
+          daily_budget_brl: 30,
+          budget_source: "test_allocation",
+          audience_exclusions: { customers: false },
+          audience_budget_fit: { fit: "insufficient_data" },
+          adsets: [{ adset_name: "TOF Broad", audience_type: "broad" }],
+        },
+      ],
+    });
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: plan.metadata.campaign_account_snapshot,
+      analysis_run_id: "run_launch_name",
+    });
+    expect(guarded.contract.ok).toBe(true);
+    expect(guarded.approvalStatus).toBe("pending_approval");
+  });
+
+  it("teste de carro-chefe MANTÉM exclusão de clientes (bloqueia se ausente)", () => {
+    const plan = basePlan({
+      planned_actions: [
+        {
+          action_type: "create_campaign",
+          campaign_type: "testing",
+          campaign_intent: "creative_test",
+          affected_funnel: "tests",
+          product_name: "Shampoo Calvície Zero (Carro-Chefe)",
+          product_lifecycle: "bestseller",
+          target_audience: "Homens 30-65, Brasil",
+          daily_budget_brl: 30,
+          budget_source: "test_allocation",
+          audience_exclusions: { customers: false },
+          audience_budget_fit: { fit: "insufficient_data" },
+          adsets: [{ adset_name: "TOF Broad", audience_type: "broad" }],
+        },
+      ],
+    });
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight, {
+      source_flow: "strategist_start",
+      campaign_account_snapshot: plan.metadata.campaign_account_snapshot,
+      analysis_run_id: "run_bestseller_test",
+    });
+    // carro-chefe: o normalizador deve REINJETAR a exclusão automaticamente
+    const action = guarded.normalizedPlan.planned_actions[0];
+    expect(action.audience_exclusions.customers).toBe(true);
+    expect(action.audience_exclusions.exclusion_skipped_reason).toBeUndefined();
+  });
+});
