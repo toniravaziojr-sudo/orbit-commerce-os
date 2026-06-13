@@ -40,6 +40,40 @@ function basePlan(overrides: any = {}) {
 }
 
 describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
+  it("fixture real problemática falha no contrato quando a action fria tem adsets sem exclusão por conjunto", () => {
+    const realProblematicPlan = {
+      diagnosis: "Diagnóstico válido com mais de 10 caracteres.",
+      risk_assessment: "Riscos mapeados.",
+      funnel_budget_state: basePreflight.funnel_budget_state,
+      active_campaigns_summary: basePreflight.active_campaigns_summary,
+      planned_actions: [{
+        action_type: "create_campaign",
+        campaign_type: "TOF",
+        funnel_stage: "tof",
+        campaign_intent: "acquisition",
+        target_audience: "Homens 30-65, Brasil",
+        product_name: "Shampoo Calvície Zero",
+        daily_budget_brl: 90,
+        budget_source: "free_now",
+        audience_budget_fit: { fit: "insufficient_data" },
+        adsets: [
+          {
+            audience_type: "broad",
+            audience_description: "Público amplo (Homens 30-65, Brasil)",
+          },
+          {
+            audience_type: "lookalike",
+            audience_description: "Lookalike 1% Compra 180D",
+          },
+        ],
+      }],
+    };
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(realProblematicPlan, basePreflight);
+
+    expect(guarded.contract.ok).toBe(false);
+  });
+
   it("aprova plano completo e bem-formado", () => {
     const r = validateStrategicPlanContract(basePlan(), basePreflight);
     expect(r.ok).toBe(true);
