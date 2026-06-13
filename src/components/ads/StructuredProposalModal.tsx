@@ -293,7 +293,7 @@ export function StructuredProposalModal({
   );
   const approveBlockedByContract = isStrategicPlan && (planIncomplete || (planContract && planContract.ok === false));
   const contractBlockerErrors: Array<{ code: string; message: string }> = approveBlockedByContract
-    ? (planContract.errors || []).filter((e: any) => e.severity === "blocker")
+    ? ((planContract?.errors as any[]) || []).filter((e: any) => e.severity === "blocker")
     : [];
 
   const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract;
