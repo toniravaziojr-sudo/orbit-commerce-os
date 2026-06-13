@@ -424,6 +424,23 @@ export function useExecutionCounts() {
   // Ads
   const adsBalance = useAdsBalanceMonitor();
 
+  // Ads: plano estratégico aguardando aprovação
+  const { data: pendingStrategicPlans = 0 } = useQuery({
+    queryKey: ["execution-ads-pending-strategic-plan", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("action_type", "strategic_plan")
+        .eq("status", "pending_approval");
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 60000,
+  });
+
   // New modules
   const { data: lowStock = 0 } = useLowStockCount();
   const { data: pendingReviews = 0 } = usePendingReviewsCount();
