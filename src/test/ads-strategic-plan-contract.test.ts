@@ -498,6 +498,22 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
           { adset_name: "[AI] CJ - Broad | TOF", audience_type: "broad", audience_description: "Homens 30-65 BR sem segmentação de interesses" },
           { adset_name: "[AI] CJ - LAL 1% Compradores 180D | TOF", audience_type: "lookalike", audience_description: "Lookalike 1% de compradores nos últimos 180 dias" },
         ],
+      }, {
+        action_type: "maintain",
+        target_campaign_id: "c1",
+        existing_campaign_id: "c1",
+        existing_campaign_name: "Frio Broad",
+        campaign_type: "prospecting",
+        campaign_intent: "acquisition",
+        product_name: "Shampoo Calvície Zero",
+        target_audience: "Homens 30-65, Brasil",
+        audience_exclusions: {
+          customers: true,
+          customer_audience_detected: true,
+          customer_audience_id: "aud1",
+          customer_audience_name: "Clientes",
+        },
+        audience_budget_fit: { fit: "adequate" },
       }],
     };
 
