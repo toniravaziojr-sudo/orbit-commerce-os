@@ -366,10 +366,11 @@ describe("Onda G (rev2) — Strategic Plan Contract Validator", () => {
     });
 
     const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight);
+    const expectedFit = basePreflight.audience_budget_fits.find((entry) => entry.campaign_id === "c1")?.fit;
 
     expect(guarded.approvalStatus).toBe("pending_approval");
     expect(guarded.contract.ok).toBe(true);
-    expect(guarded.normalizedPlan.planned_actions[0].audience_budget_fit?.fit).toBe("adequate");
+    expect(guarded.normalizedPlan.planned_actions[0].audience_budget_fit?.fit).toBe(expectedFit);
     expect(guarded.normalizedPlan.planned_actions[0].audience_budget_fit_inferred).toBe(true);
   });
 
