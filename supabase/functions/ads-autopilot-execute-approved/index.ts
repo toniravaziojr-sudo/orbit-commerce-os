@@ -58,6 +58,94 @@ function getSchedulingParams(): { status: string; start_time?: string } {
   };
 }
 
+async function buildStrategicPlanApprovalContext(
+  supabase: any,
+  tenantId: string,
+  adAccountId: string,
+  options?: { analysisRunId?: string | null; sourceFlow?: string | null },
+): Promise<{ preflight: StrategicPlanPreflight; guardOptions: StrategicPlanGuardOptions }> {
+  const [campaignsRes, adsetsRes, audienceRes, mappingsRes] = await Promise.all([
+    supabase
+      .from("meta_ad_campaigns")
+      .select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("meta_ad_adsets")
+      .select("meta_campaign_id, name, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("meta_ad_audiences")
+      .select("meta_audience_id, name, ad_account_id, synced_at")
+      .eq("tenant_id", tenantId)
+      .eq("ad_account_id", adAccountId),
+    supabase
+      .from("audience_sync_mappings")
+      .select("platform_audience_id, audience_name, last_synced_at, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .eq("platform", "meta")
+      .eq("ad_account_id", adAccountId)
+      .eq("status", "active"),
+  ]);
+
+  const campaigns = (campaignsRes.data || []).map((c: any) => ({
+    id: c.meta_campaign_id,
+    name: c.name,
+    status: String(c.status || c.effective_status || "").toUpperCase(),
+    daily_budget_cents: Number(c.daily_budget_cents || 0),
+    objective: c.objective || null,
+  }));
+  const adsetsByCampaign: Record<string, any[]> = {};
+  for (const row of adsetsRes.data || []) {
+    const campaignId = row.meta_campaign_id;
+    if (!campaignId) continue;
+    (adsetsByCampaign[campaignId] ||= []).push({ name: row.name || null });
+  }
+
+  const customerAudienceResolution = await resolveCustomerAudienceForMetaAccount(supabase, tenantId, adAccountId);
+  const preflight = buildStrategicPlanPreflightContext({
+    ad_account_id: adAccountId,
+    total_daily_cents: campaigns.reduce((sum: number, c: any) => sum + Number(c.daily_budget_cents || 0), 0),
+    funnel_splits: null,
+    campaigns,
+    adsets_by_campaign: adsetsByCampaign,
+    ads_by_campaign: {},
+    customer_audience: {
+      found: customerAudienceResolution.found,
+      meta_audience_id: customerAudienceResolution.meta_audience_id,
+      audience_name: customerAudienceResolution.audience_name,
+      source_table: customerAudienceResolution.source_table,
+      last_synced_at: customerAudienceResolution.last_synced_at,
+      reason_if_missing: customerAudienceResolution.reason_if_missing,
+    },
+  });
+
+  const campaignAccountSnapshot = (campaignsRes.data || []).map((c: any) => ({
+    campaign_id: c.meta_campaign_id,
+    campaign_name: c.name || null,
+    status: c.status || null,
+    effective_status: c.effective_status || null,
+    configured_status: c.status || null,
+    is_active_for_planning: String(c.status || c.effective_status || "").toUpperCase() === "ACTIVE",
+    is_paused: String(c.status || c.effective_status || "").toUpperCase() === "PAUSED",
+    current_daily_budget_brl: Number(c.daily_budget_cents || 0) / 100,
+    metrics_7d: null,
+    metrics_30d: null,
+    funnel_stage: null,
+    allowed_actions: getAllowedActionsForCampaignStatus(c.status, c.effective_status),
+  }));
+
+  return {
+    preflight,
+    guardOptions: {
+      source_flow: options?.sourceFlow || "approval_endpoint",
+      analysis_run_id: options?.analysisRunId || null,
+      campaign_account_snapshot: campaignAccountSnapshot,
+    },
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
