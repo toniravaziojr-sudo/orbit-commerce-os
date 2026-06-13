@@ -15,6 +15,12 @@ import {
   resolveCustomerAudienceForMetaAccount,
   isColdFunnelStage,
 } from "../_shared/ads-autopilot/customerAudience.ts";
+import {
+  normalizeAndValidateStrategicPlanForApproval,
+  getAllowedActionsForCampaignStatus,
+  type StrategicPlanGuardOptions,
+} from "../_shared/ads-autopilot/strategicPlanContract.ts";
+import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 
 // ===== VERSION =====
 const VERSION = "v4.1.0"; // Frente 1: revalidação de exclusão de Clientes em fria
