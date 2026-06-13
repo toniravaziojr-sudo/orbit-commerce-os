@@ -21,6 +21,10 @@ export interface CustomerAudienceResolution {
   list_id: string | null;
   ad_account_id: string;
   source: "audience_sync_mapping" | null;
+  source_table: "audience_sync_mappings" | null;
+  last_synced_at: string | null;
+  pending_dependency: "customer_audience_not_detected" | null;
+  reason_if_missing: string | null;
   reason_code?: "missing_customer_audience";
 }
 
@@ -47,6 +51,10 @@ export async function resolveCustomerAudienceForMetaAccount(
       list_id: null,
       ad_account_id: adAccountId,
       source: null,
+      source_table: null,
+      last_synced_at: null,
+      pending_dependency: "customer_audience_not_detected",
+      reason_if_missing: "tenant_or_ad_account_missing",
       reason_code: "missing_customer_audience",
     };
   }
@@ -68,6 +76,10 @@ export async function resolveCustomerAudienceForMetaAccount(
       list_id: null,
       ad_account_id: adAccountId,
       source: null,
+      source_table: null,
+      last_synced_at: null,
+      pending_dependency: "customer_audience_not_detected",
+      reason_if_missing: "system_customers_list_missing",
       reason_code: "missing_customer_audience",
     };
   }
@@ -75,7 +87,7 @@ export async function resolveCustomerAudienceForMetaAccount(
   // 2) Procura o mapeamento ativo para Meta naquela conta
   const { data: mapping } = await supabase
     .from("audience_sync_mappings")
-    .select("platform_audience_id, audience_name, status")
+    .select("platform_audience_id, audience_name, status, last_synced_at")
     .eq("tenant_id", tenantId)
     .eq("list_id", list.id)
     .eq("platform", "meta")
@@ -91,6 +103,10 @@ export async function resolveCustomerAudienceForMetaAccount(
       list_id: list.id,
       ad_account_id: adAccountId,
       source: null,
+      source_table: null,
+      last_synced_at: null,
+      pending_dependency: "customer_audience_not_detected",
+      reason_if_missing: "active_audience_mapping_missing",
       reason_code: "missing_customer_audience",
     };
   }
@@ -102,6 +118,10 @@ export async function resolveCustomerAudienceForMetaAccount(
     list_id: list.id,
     ad_account_id: adAccountId,
     source: "audience_sync_mapping",
+    source_table: "audience_sync_mappings",
+    last_synced_at: mapping.last_synced_at || null,
+    pending_dependency: null,
+    reason_if_missing: null,
   };
 }
 
