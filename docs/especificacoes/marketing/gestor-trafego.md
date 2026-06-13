@@ -3166,8 +3166,16 @@ Esta fase entrega apenas as duas primeiras frentes da evolução estratégica ap
 | Público existe + exclusão aplicada | ✅ Proposta passa, metadata `customer_audience_exclusion_enabled=true` salva no `action_data` e no `preview` |
 | Público existe + exclusão ausente | ❌ Strategist injeta exclusão automaticamente antes do gate; se ainda assim faltar, gate bloqueia |
 | Público não sincronizado nesta conta | ❌ Gate bloqueia com `reason_code = cold_audience_requires_customer_exclusion` e mensagem "Crie ou sincronize o público de Clientes antes de propor campanhas frias." |
+| **Exceção: teste de produto novo/lançamento** | ✅ Em `campaign_intent ∈ {creative_test, offer_test}` (ou `campaign_type='testing'`) com produto **novo/em lançamento** (não carro-chefe), a exclusão **NÃO é forçada**. O sistema marca `audience_exclusions.exclusion_skipped_reason = 'test_for_new_or_launch_product'` na ação e nos adsets de prospecção, libera o plano para aprovação, e a UI exibe a tarja azul "Mantém clientes (produto novo/lançamento em teste)". Carro-chefe em teste continua excluindo clientes via o normalizador de adset. |
 
 **Quality Gate v1.3.0:** novo reason_code `cold_audience_requires_customer_exclusion`. Acionado quando `isCold(args)` e a `customerAudience` informada não está disponível **ou** seu `meta_audience_id` não aparece em `excluded_audience_ids`. Quando o chamador não informa `customerAudience` (callers legados), o gate registra `details.customer_audience_check = "skipped_no_resolver_input"` sem bloquear (back-compat).
+
+**Detecção da exceção (helper `isTestForNewOrLaunchProduct`):**
+- Ação é teste (`campaign_intent ∈ {creative_test, offer_test}` OU `campaign_type='testing'` OU `funnel_stage='test'`)
+- **E** produto NÃO é carro-chefe (sem tokens `carro-chefe|bestseller|principal|mais vendido` no nome/tags, e `product_lifecycle` ∉ `{established, bestseller, consolidado, mature}`)
+- **E** há sinal de novo/lançamento: `product_lifecycle ∈ {new, launch, novo, lançamento, pre_launch, prelaunch}` **OU** nome/tags com `lançamento|novidade|nova fórmula|pré-venda|launch|new product|beta|piloto|recém-lançado`
+
+O estrategista (LLM) recebe instrução explícita no prompt para emitir `product_lifecycle='launch'` (ou `'new'`) em testes desses produtos. Mesmo sem o campo, a detecção por nome/tags atua como rede determinística.
 
 **Defesa em profundidade (executor `v4.1.0`):** antes de publicar uma campanha fria na Meta, `ads-autopilot-execute-approved` re-resolve o público de Clientes e:
 - Se não encontrar → retorna `success:false` com `reason_code: cold_audience_requires_customer_exclusion` e bloqueia a publicação
