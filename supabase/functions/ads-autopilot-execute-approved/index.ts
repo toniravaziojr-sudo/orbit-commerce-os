@@ -209,6 +209,21 @@ Deno.serve(async (req) => {
 
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
 
+    // ====== Onda H.2 — Guard server-side: campaign_proposal ainda não é aprovável ======
+    // A aprovação individual da proposta filha entra na Onda H.3. Até lá, o servidor
+    // rejeita explicitamente com mensagem PT-BR. Defesa em profundidade: mesmo que a UI
+    // permita o clique por engano, nada é executado.
+    if (action.action_type === "campaign_proposal") {
+      console.warn(`[ads-autopilot-execute-approved][${VERSION}] BLOCKED: campaign_proposal individual approval not implemented yet (Onda H.3).`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "campaign_proposal_individual_approval_pending",
+        error_pt: "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão.",
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
+
     // ====== POLICY GATE (Fase B / B.1) ================================
     // Stamp aprovação retroativa para fluxo legado APENAS se ação for recente (<24h).
     // Aprovação parada há >24h é tratada como expirada (sem chamada externa).
