@@ -1,6 +1,6 @@
 ---
-name: Aprovar Plano Estratégico não executa — Onda H.1+H.2
-description: Aprovação de strategic_plan revalida e gera campaign_proposal filhas; nunca executa, nunca chama Meta, nunca gera criativo. Trigger implement_approved_plan está descontinuado em servidor.
+name: Aprovar Plano e Aprovar Proposta de Campanha — Ondas H.1+H.2+H.2.1+H.3
+description: Aprovação de strategic_plan gera filhas sem executar; aprovação individual de campaign_proposal (H.3) só marca lifecycle, sem chamada Meta, sem criativo, sem público/catálogo.
 type: constraint
 ---
 
