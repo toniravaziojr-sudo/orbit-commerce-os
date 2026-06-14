@@ -1,20 +1,28 @@
 // =====================================================================
-// Onda H.2 — Gerador de Propostas Filhas Detalhadas
+// Onda H.2 + H.2.1 — Gerador de Propostas Filhas Detalhadas
 //
 // Recebe um Plano Estratégico **já validado e aprovado** (passou pelo
 // guard canônico em strategicPlanContract.ts) e gera 1 registro
 // `campaign_proposal` por ação planejada.
 //
+// H.2.1 (2026-06-14):
+// - Aceita `account_defaults` (resolvido server-side) e injeta identidade
+//   (página, IG, pixel, evento, UTM base, CTA padrão, faixa etária etc.)
+//   no snapshot, para a proposta nascer com dados reais da conta.
+// - Calcula `pending_fields[]` por contrato de objetivo Meta (sem ser gate).
+// - Garante pelo menos 1 criativo planejado por conjunto quando a proposta
+//   é de criação/ajuste, marcando-os como `placeholder_pending_strategy_fill`.
+//
 // REGRAS INVIOLÁVEIS:
 // - Função PURA. Não chama banco, não chama Meta, não consome crédito.
-// - Não gera criativo. Não cria público. Não cria catálogo.
-// - Cada proposta nasce em status='pending_approval' (UI legada lê
-//   `pending_approval` e mostra na fila), com lifecycle canônico
-//   `campaign_proposal_pending_review` dentro de action_data.lifecycle.
-// - Dedup garantida pelo índice único parcial
-//   idx_aaa_child_dedup_plan_action (parent_action_id, planned_action_index).
-//   Quem chama deve tratar erro 23505 como "já existe" (idempotente).
+// - Não gera criativo final. Não cria público. Não cria catálogo.
 // =====================================================================
+
+import {
+  computePendingFields,
+  type PendingFieldsReport,
+} from "./objectiveFieldContract.ts";
+import type { AccountDefaults } from "./accountDefaults.ts";
 
 export const CAMPAIGN_PROPOSAL_SCHEMA_VERSION = "campaign_proposal_v1" as const;
 export const CAMPAIGN_PROPOSAL_LIFECYCLE_VERSION = "h2_v1" as const;
@@ -46,6 +54,8 @@ export interface ParentPlanContext {
   session_id: string | null;
   analysis_run_id: string | null;
   ad_account_id?: string | null;
+  /** Defaults da conta (página, IG, pixel etc.) resolvidos server-side. */
+  account_defaults?: AccountDefaults | null;
 }
 
 export interface CampaignProposalRecord {
@@ -69,35 +79,59 @@ export interface CampaignProposalRecord {
 function classifyProposalKind(action: any): CampaignProposalKind {
   const raw = String(action?.action_type || "").toLowerCase();
   const intent = String(action?.campaign_intent || "").toLowerCase();
-
   if (raw.includes("pause") || raw === "pause_campaign") return "campaign_pause_proposal";
   if (raw.includes("reactivat") || intent === "reactivation") return "campaign_reactivation_proposal";
   if (raw.includes("scale") || raw.includes("reduce") || raw === "adjust_budget" || raw === "allocate_budget" || raw.includes("budget"))
     return "campaign_budget_adjustment_proposal";
   if (raw.includes("create") || raw.includes("duplicate") || raw.includes("launch")) return "campaign_creation_proposal";
   if (raw.includes("adjust") || raw.includes("optimi") || raw.includes("revise")) return "campaign_adjustment_proposal";
-  // default seguro: ajuste — não pressupõe criação real
   return "campaign_adjustment_proposal";
+}
+
+// ---------------- Identidade da conta (campo Identity) ---------------
+
+function buildIdentitySnapshot(action: any, defaults?: AccountDefaults | null) {
+  const d = defaults || null;
+  const utmFromAction = action?.utm || action?.utm_base || null;
+  return {
+    facebook_page_id: action?.facebook_page_id || d?.facebook_page_id || null,
+    facebook_page_name: d?.facebook_page_name || null,
+    instagram_actor_id: action?.instagram_actor_id || d?.instagram_actor_id || null,
+    instagram_actor_name: d?.instagram_actor_name || null,
+    pixel_id: action?.pixel_id || d?.pixel_id || null,
+    pixel_name: d?.pixel_name || null,
+    conversion_event_default: action?.conversion_event || d?.conversion_event_default || null,
+    attribution_window: action?.attribution_window || d?.attribution_window || null,
+    utm_base: utmFromAction || d?.default_utm_params || null,
+    cta_default: action?.cta_default || d?.default_cta || null,
+    conversions_api_active: !!d?.conversions_api_active,
+    source: d?.source || "none",
+  };
 }
 
 // ---------------- Snapshot da campanha ------------------------------
 
-function buildCampaignSnapshot(action: any) {
-  const brlToCents = (v: unknown): number | null => {
-    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : null;
-    return n !== null && Number.isFinite(n) ? Math.round(n * 100) : null;
-  };
+function brlToCents(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : null;
+  return n !== null && Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null) {
   const dailyBudgetCents =
     action?.daily_budget_cents
     ?? action?.budget_cents
     ?? brlToCents(action?.daily_budget_brl)
     ?? brlToCents(action?.budget_brl)
+    ?? defaults?.default_daily_budget_cents
     ?? null;
   return {
     name: action?.campaign_name || action?.name || null,
-    objective: action?.objective || null,
+    objective: action?.objective || defaults?.default_objective || null,
+    buying_type: action?.buying_type || defaults?.default_buying_type || "AUCTION",
+    budget_type: action?.budget_type || defaults?.default_budget_type || (dailyBudgetCents ? "daily" : null),
     daily_budget_cents: dailyBudgetCents,
-    initial_status_planned: action?.initial_status || "PAUSED",
+    initial_status_planned: action?.initial_status || defaults?.default_planned_status || "PAUSED",
+    planned_status: action?.initial_status || defaults?.default_planned_status || "PAUSED",
     campaign_type: action?.campaign_type || null,
     campaign_intent: action?.campaign_intent || null,
     product: action?.product_name || action?.product || null,
@@ -107,7 +141,8 @@ function buildCampaignSnapshot(action: any) {
     rationale: action?.rationale || null,
     risks: action?.risks || null,
     dependencies: action?.dependencies || null,
-    utm_base: action?.utm || action?.utm_base || null,
+    utm_base: action?.utm || action?.utm_base || defaults?.default_utm_params || null,
+    attribution_window: action?.attribution_window || defaults?.attribution_window || null,
     audience_budget_fit: action?.audience_budget_fit || null,
     budget_source: action?.budget_source || null,
     existing_campaign_id: action?.target_campaign_id || action?.campaign_id || null,
@@ -117,51 +152,97 @@ function buildCampaignSnapshot(action: any) {
 
 // ---------------- Snapshot de conjuntos -----------------------------
 
-function buildAdsetsSnapshot(action: any): any[] {
+function buildAdsetsSnapshot(action: any, defaults?: AccountDefaults | null): any[] {
   const adsets = Array.isArray(action?.adsets) ? action.adsets : [];
-  return adsets.map((adset: any, i: number) => ({
-    index: i,
-    name: adset?.name || `Conjunto ${i + 1}`,
-    audience: adset?.audience || adset?.audience_name || null,
-    targeting: adset?.targeting || null,
-    audience_exclusions: adset?.audience_exclusions || null,
-    excluded_audience_ids: adset?.excluded_audience_ids || null,
-    daily_budget_cents: adset?.daily_budget_cents ?? null,
-    placements: adset?.placements || null,
-    optimization_event: adset?.optimization_event || adset?.conversion_event || null,
-    required_audiences: adset?.required_audiences || null,
-    required_lookalikes: adset?.required_lookalikes || null,
-    required_catalogs: adset?.required_catalogs || adset?.product_catalog_id ? {
-      catalog_id: adset?.product_catalog_id || null,
-      product_set: adset?.product_set || null,
-    } : null,
-    pending_dependencies: adset?.pending_dependency || adset?.pending_dependencies || null,
-  }));
+  return adsets.map((adset: any, i: number) => {
+    const ageMin = adset?.age_min ?? adset?.targeting?.age_min ?? defaults?.default_age_min ?? null;
+    const ageMax = adset?.age_max ?? adset?.targeting?.age_max ?? defaults?.default_age_max ?? null;
+    const placements = Array.isArray(adset?.placements) ? adset.placements
+      : Array.isArray(defaults?.default_placements) ? defaults!.default_placements : null;
+    return {
+      index: i,
+      name: adset?.adset_name || adset?.name || `Conjunto ${i + 1}`,
+      audience: adset?.audience || adset?.audience_name || adset?.audience_description || null,
+      targeting: adset?.targeting || null,
+      audience_exclusions: adset?.audience_exclusions || null,
+      excluded_audience_ids: adset?.excluded_audience_ids || null,
+      age_min: ageMin,
+      age_max: ageMax,
+      age_range: (ageMin || ageMax) ? `${ageMin ?? 18}-${ageMax ?? 65}` : null,
+      gender: adset?.gender || defaults?.default_gender || null,
+      location: adset?.location || defaults?.default_country || null,
+      daily_budget_cents: adset?.daily_budget_cents ?? brlToCents(adset?.budget_brl) ?? null,
+      placements,
+      optimization_goal: adset?.optimization_goal || null,
+      conversion_event: adset?.conversion_event || adset?.optimization_event || defaults?.conversion_event_default || null,
+      schedule: adset?.schedule || { start: "Imediato após aprovação", end: "Sem data final" },
+      required_audiences: adset?.required_audiences || null,
+      required_lookalikes: adset?.required_lookalikes || null,
+      required_catalogs: (adset?.required_catalogs || adset?.product_catalog_id) ? {
+        catalog_id: adset?.product_catalog_id || null,
+        product_set: adset?.product_set || null,
+      } : null,
+      pending_dependencies: adset?.pending_dependency || adset?.pending_dependencies || null,
+    };
+  });
 }
 
 // ---------------- Snapshot de criativos planejados ------------------
 
-function buildPlannedCreativesSnapshot(action: any): any[] {
-  // Os criativos no Plano Estratégico vêm como descritivos (não gerados).
-  // Pode estar em action.creatives, action.planned_creatives ou action.ads.
+function buildPlannedCreativesSnapshot(
+  action: any,
+  adsetsSnapshot: any[],
+  kind: CampaignProposalKind,
+  defaults?: AccountDefaults | null,
+): any[] {
   const raw = Array.isArray(action?.creatives) ? action.creatives
     : Array.isArray(action?.planned_creatives) ? action.planned_creatives
     : Array.isArray(action?.ads) ? action.ads
     : [];
-  return raw.map((c: any, i: number) => ({
+
+  const mapped = raw.map((c: any, i: number) => ({
     index: i,
+    adset_index: typeof c?.adset_index === "number" ? c.adset_index : null,
     quantity: c?.quantity ?? 1,
-    format: c?.format || null,
+    format: c?.format || defaults?.default_creative_format || null,
     angle: c?.angle || null,
     promise: c?.promise || null,
-    copy: c?.copy || c?.primary_text || null,
+    primary_text: c?.copy || c?.primary_text || null,
     headline: c?.headline || null,
-    cta: c?.cta || c?.call_to_action || null,
-    final_url_with_utm: c?.destination_url || c?.final_url || null,
+    description: c?.description || null,
+    cta: c?.cta || c?.call_to_action || defaults?.default_cta || null,
+    destination_url: c?.destination_url || c?.final_url || c?.final_url_with_utm || null,
     visual_prompt: c?.visual_prompt || c?.prompt || null,
     reference: c?.reference || c?.reference_asset_id || null,
     generation_status: "planned_only" as const,
   }));
+
+  // H.2.1: garantir pelo menos 1 criativo por conjunto quando faz sentido.
+  const needsPlaceholders = (kind === "campaign_creation_proposal" || kind === "campaign_adjustment_proposal")
+    && mapped.length === 0
+    && adsetsSnapshot.length > 0;
+
+  if (needsPlaceholders) {
+    return adsetsSnapshot.map((adset, i) => ({
+      index: i,
+      adset_index: i,
+      quantity: 1,
+      format: defaults?.default_creative_format || null,
+      angle: null,
+      promise: null,
+      primary_text: null,
+      headline: null,
+      description: null,
+      cta: defaults?.default_cta || null,
+      destination_url: null,
+      visual_prompt: null,
+      reference: null,
+      generation_status: "placeholder_pending_strategy_fill" as const,
+      placeholder_reason: "A estratégia ainda não definiu o copy/título para este conjunto. Edite na próxima etapa.",
+      linked_adset_name: adset?.name || `Conjunto ${i + 1}`,
+    }));
+  }
+  return mapped;
 }
 
 // ---------------- Validações herdadas do plano ---------------------
@@ -189,10 +270,25 @@ function buildProposalRecord(
   plan: any,
 ): CampaignProposalRecord {
   const kind = classifyProposalKind(action);
-  const campaignSnapshot = buildCampaignSnapshot(action);
-  const adsetsSnapshot = buildAdsetsSnapshot(action);
-  const creativesSnapshot = buildPlannedCreativesSnapshot(action);
+  const defaults = parent.account_defaults || null;
+  const identity = buildIdentitySnapshot(action, defaults);
+  const campaignSnapshot = buildCampaignSnapshot(action, defaults);
+  const adsetsSnapshot = buildAdsetsSnapshot(action, defaults);
+  const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults);
   const validations = buildValidationsSnapshot(action);
+
+  // Pendências por contrato de objetivo Meta
+  let pendingReport: PendingFieldsReport;
+  try {
+    pendingReport = computePendingFields({
+      campaign: { ...campaignSnapshot, audience_exclusions: action?.audience_exclusions || null } as any,
+      adsets: adsetsSnapshot,
+      planned_creatives: creativesSnapshot,
+      identity,
+    });
+  } catch (_) {
+    pendingReport = { objective: null, contract_label_pt: null, pending: [], total: 0, meta_step_checklist: [] };
+  }
 
   const adAccountId = parent.ad_account_id
     || plan?.ad_account_id
@@ -224,10 +320,15 @@ function buildProposalRecord(
       source_plan_id: parent.id,
       planned_action_index: index,
       ad_account_id: adAccountId,
+      identity,
       campaign: campaignSnapshot,
       adsets: adsetsSnapshot,
       planned_creatives: creativesSnapshot,
       validations,
+      pending_fields: pendingReport.pending,
+      pending_fields_total: pendingReport.total,
+      meta_step_checklist: pendingReport.meta_step_checklist,
+      objective_contract_label_pt: pendingReport.contract_label_pt,
       raw_planned_action: action,
       inherited_contract: {
         plan_schema_version: plan?.metadata?.schema_version || null,
