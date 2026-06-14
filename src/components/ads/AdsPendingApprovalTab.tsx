@@ -271,16 +271,22 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   if (displayCount === 0) {
     return (
-      <EmptyState
-        icon={Hourglass}
-        title="Nenhuma ação aguardando aprovação"
-        description="Quando a IA propor ações de alto impacto, elas aparecerão aqui para sua revisão"
-      />
+      <div className="space-y-4">
+        <ApprovedProposalsSection channelFilter={channelFilter} />
+        <EmptyState
+          icon={Hourglass}
+          title="Nenhuma ação aguardando aprovação"
+          description="Quando a IA propor ações de alto impacto, elas aparecerão aqui para sua revisão"
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {/* Propostas aprovadas em andamento (H.4.2) */}
+      <ApprovedProposalsSection channelFilter={channelFilter} />
+
       {/* Budget Summary */}
       <BudgetSummaryHeader pendingActions={pendingActions} />
 
@@ -291,6 +297,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           {displayCount} {displayCount === 1 ? "proposta aguardando" : "propostas aguardando"} sua decisão
         </span>
       </div>
+
 
       {/* Campaign cards with nested adsets */}
       {campaigns.map(action => (
