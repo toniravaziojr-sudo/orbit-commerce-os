@@ -605,7 +605,14 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
 
   let audienceExclusions = current;
   const isTestNewLaunch = isTestForNewOrLaunchProduct({ ...action, campaign_type: campaignType, campaign_intent: campaignIntent, funnel_stage: funnelStage, affected_funnel: affectedFunnel });
-  if (isCold && !hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent }) && !isTestNewLaunch) {
+  const hasOverride = hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent });
+  // Default seguro: testes criativos sem sinal de lançamento e sem justificativa
+  // formal devem excluir clientes (mesmo critério do tráfego frio). Evita bloqueio
+  // por omissão do LLM e respeita a regra de negócio: só mantém clientes quando há
+  // sinal explícito de produto novo/lançamento.
+  const isCreativeTestWithoutLaunch =
+    campaignIntent === "creative_test" && !isTestNewLaunch && !hasOverride;
+  if ((isCold || isCreativeTestWithoutLaunch) && !hasOverride && !isTestNewLaunch) {
     if (detected) {
       const { pending_dependency: _pending, ...rest } = current;
       audienceExclusions = {
@@ -614,7 +621,9 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
         customer_audience_detected: true,
         customer_audience_id: preflight.customer_audience.customer_audience_id,
         customer_audience_name: preflight.customer_audience.customer_audience_name,
-        reason: String(rest.reason || "").trim() || "Campanha de aquisição/prospecção deve excluir clientes/compradores atuais.",
+        reason: String(rest.reason || "").trim() || (isCreativeTestWithoutLaunch
+          ? "Teste criativo sem sinal de produto novo/lançamento — aplicar exclusão padrão de clientes."
+          : "Campanha de aquisição/prospecção deve excluir clientes/compradores atuais."),
       };
     } else {
       const { customer_audience_id: _id, customer_audience_name: _name, ...rest } = current;
@@ -623,7 +632,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
         customers: false,
         customer_audience_detected: false,
         pending_dependency: CUSTOMER_AUDIENCE_PENDING_DEPENDENCY,
-        reason: String(rest.reason || "").trim() || "Campanha de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação.",
+        reason: String(rest.reason || "").trim() || "Campanha exige público de clientes/compradores para exclusão antes da aprovação.",
       };
     }
   } else if (isTestNewLaunch) {
