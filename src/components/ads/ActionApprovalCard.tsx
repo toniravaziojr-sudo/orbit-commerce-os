@@ -1516,11 +1516,23 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const primaryCreativeUrl = creativeUrls[0] || null;
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
-  const funnel = preview.funnel_stage || data.funnel_stage || null;
+  // Onda H.2 — campaign_proposal grava em data.campaign.* (não em data.* / preview.*)
+  const funnel = preview.funnel_stage || data.funnel_stage || (data as any)?.campaign?.funnel_stage || null;
   const funnelInfo = funnel ? getFunnelLabel(funnel) : null;
   const exclusionInfo = getCustomerExclusionLine(data, preview);
-  const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
-  const campaignName = preview.campaign_name || data.campaign_name || null;
+  const h2DailyBudgetCents =
+    (data as any)?.campaign?.daily_budget_cents
+    ?? (typeof (data as any)?.raw_planned_action?.daily_budget_brl === "number"
+      ? Math.round((data as any).raw_planned_action.daily_budget_brl * 100)
+      : null);
+  const budgetCents = data.daily_budget_cents ?? h2DailyBudgetCents ?? null;
+  const budgetDisplay = preview.daily_budget_display || (budgetCents ? `R$ ${(budgetCents / 100).toFixed(2)}/dia` : null);
+  const campaignName =
+    preview.campaign_name
+    || data.campaign_name
+    || (data as any)?.campaign?.name
+    || (data as any)?.campaign?.product
+    || null;
   const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
 
   // Frente 4 — Inteligência produto×funil (apenas para Etapa 1 do two_step_v1)
@@ -1534,7 +1546,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const fitBadge = enableFit && fitData ? fitLevelLabel(fitData.fit.fit_level) : null;
   const approveBlockedByFit = enableFit && fitData?.fit.soft_block === true;
 
-  const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
+  // Conjuntos: para campaign_proposal vêm embutidos em data.adsets[];
+  // para o fluxo legado vêm como ações filhas create_adset.
+  const adsets = isCampaignProposal
+    ? (Array.isArray((data as any)?.adsets) ? (data as any).adsets : [])
+    : (childActions || []).filter(a => a.action_type === "create_adset");
 
   // Classificação:
   //  - useStructuredModal: tipos que abrem o modal novo (Visualizar proposta)
