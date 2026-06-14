@@ -24,7 +24,7 @@ import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from 
 import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.2.0-h12"; // Onda H.1+H.2: lifecycle canônico + propostas filhas sem execução
+const VERSION = "v4.2.1-h12"; // Onda H.1+H.2: strategic_plan bypassa policy gate (sem idempotência)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -386,8 +386,10 @@ Deno.serve(async (req) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
-    // ====== /HARDENING C.4 ===================================================
-
+    // ====== Onda H.1 — strategic_plan NÃO passa pelo policy gate ======
+    // Aprovar plano estratégico não executa nada externo e não consome idempotência.
+    // O tratamento real ocorre no branch dedicado mais abaixo.
+    if (action.action_type !== "strategic_plan") {
 
     const actionForPolicy: ActionInput = {
       id: action.id,
@@ -463,7 +465,10 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
+
+    } // /if (action.action_type !== "strategic_plan")
     // ====== /POLICY GATE ===============================================
+
 
     const data = action.action_data || {};
     const preview = data.preview || {};
