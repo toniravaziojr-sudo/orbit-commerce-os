@@ -407,7 +407,7 @@ export function StructuredProposalModal({
                     warnings={overviewOnly ? [] : allWarnings}
                   />
                 )}
-                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
+                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} identity={(structure as any).identity} />}
                 {!overviewOnly && selected.startsWith("adset:") && (
                   <AdSetSection
                     adSet={adSets[Number(selected.split(":")[1])] || null}
