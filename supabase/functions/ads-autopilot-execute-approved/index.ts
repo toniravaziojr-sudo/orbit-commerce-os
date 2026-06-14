@@ -24,7 +24,7 @@ import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from 
 import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.2.0-h12"; // Onda H.1+H.2: lifecycle canônico + propostas filhas sem execução
+const VERSION = "v4.2.1-h12"; // Onda H.1+H.2: strategic_plan bypassa policy gate (sem idempotência)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
