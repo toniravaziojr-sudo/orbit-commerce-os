@@ -21,9 +21,10 @@ import {
   type StrategicPlanGuardOptions,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
+import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.1.0"; // Frente 1: revalidação de exclusão de Clientes em fria
+const VERSION = "v4.2.0-h12"; // Onda H.1+H.2: lifecycle canônico + propostas filhas sem execução
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
