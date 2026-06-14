@@ -296,9 +296,25 @@ export function StructuredProposalModal({
     ? ((planContract?.errors as any[]) || []).filter((e: any) => e.severity === "blocker")
     : [];
 
-  // Onda H.2 — Proposta de Campanha existe mas a aprovação individual entra na H.3.
+  // Onda H.3 — Aprovação individual da proposta de campanha habilitada.
+  // Gate mínimo no cliente apenas para feedback imediato; o servidor revalida.
   const isCampaignProposal = action.action_type === "campaign_proposal";
-  const approveBlockedByCampaignProposalH3 = isCampaignProposal;
+  const cpData: any = isCampaignProposal ? (data as any) : {};
+  const cpCampaign = cpData?.campaign || {};
+  const cpIdentity = cpData?.identity || {};
+  const cpAdsets = Array.isArray(cpData?.adsets) ? cpData.adsets : [];
+  const cpObjective = String(cpCampaign?.objective || "").toLowerCase();
+  const cpNeedsPixel = /sale|lead|convers|purchase|outcome_sales|outcome_leads/.test(cpObjective) || !cpObjective;
+  const cpCriticalBlockers: string[] = [];
+  if (isCampaignProposal) {
+    if (!cpCampaign?.name) cpCriticalBlockers.push("Nome da campanha");
+    if (!cpCampaign?.objective) cpCriticalBlockers.push("Objetivo");
+    if (!cpCampaign?.daily_budget_cents) cpCriticalBlockers.push("Orçamento diário");
+    if (cpAdsets.length === 0) cpCriticalBlockers.push("Conjunto de anúncios");
+    if (!cpIdentity?.facebook_page_id) cpCriticalBlockers.push("Página do Facebook");
+    if (cpNeedsPixel && !cpIdentity?.pixel_id) cpCriticalBlockers.push("Pixel");
+  }
+  const approveBlockedByCampaignProposalH3 = isCampaignProposal && cpCriticalBlockers.length > 0;
 
   const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3;
 
@@ -316,8 +332,10 @@ export function StructuredProposalModal({
     : approveBlockedByContract
       ? "Plano incompleto — não aprovável"
       : approveBlockedByCampaignProposalH3
-        ? "Aguardando próxima etapa"
-        : "Aprovar");
+        ? "Faltam dados para aprovar"
+        : isCampaignProposal
+          ? "Aprovar proposta de campanha"
+          : "Aprovar");
 
   const approveBlockedReason = approveBlockedByContract
     ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
@@ -326,7 +344,7 @@ export function StructuredProposalModal({
       : approveBlockedByGates
         ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
         : approveBlockedByCampaignProposalH3
-          ? "Esta proposta de campanha ainda não pode ser aprovada nesta etapa. A aprovação individual será habilitada na próxima etapa do fluxo de revisão."
+          ? `Faltam dados críticos: ${cpCriticalBlockers.join(", ")}. Ajuste antes de aprovar.`
           : null;
 
   return (

@@ -323,3 +323,48 @@ As propostas de campanha nasciam com vários campos vazios (página do FB, IG, p
    - **Conjuntos** mostra idade/gênero/local/posicionamentos vindos da conta quando a IA omitiu.
    - **Anúncios** lista 1 placeholder por conjunto quando a estratégia não detalhou criativos.
 4. Confirmar que botão "Aprovar" da proposta continua desabilitado com a mensagem de próxima etapa.
+
+---
+
+# Onda H.3 — Aprovação individual da Proposta de Campanha (entregue 2026-06-14)
+
+## Status
+✅ Implementado. Aguardando validação operacional do usuário no tenant Respeite o Homem.
+
+## O que muda no fluxo do usuário
+- Cada card de **Proposta de Campanha** filha do plano agora tem o botão **"Aprovar proposta de campanha"** habilitado quando os dados críticos de publicação estão preenchidos.
+- Aprovar 1 proposta **não publica nada na Meta**, **não gera criativo**, **não consome crédito** e **não cria público/catálogo**. Apenas marca a proposta como aprovada e a coloca na fila para as próximas etapas (geração de criativos → revisão final → publicação agendada para 00:01 BRT).
+- Se faltarem dados críticos, a UI mostra exatamente o que falta em PT-BR (ex.: Página do Facebook, Pixel, Orçamento diário, Conjunto de anúncios) e o botão fica com o rótulo "Faltam dados para aprovar".
+
+## Gate publish-critical (servidor — fonte da verdade)
+Bloqueia aprovação se faltar qualquer um:
+- Nome da campanha
+- Objetivo
+- Orçamento diário (> 0)
+- Pelo menos 1 conjunto de anúncios
+- Página do Facebook conectada na conta
+- Pixel conectado (quando objetivo é Vendas/Leads/Conversão)
+- Público de Clientes sincronizado (quando funil é frio/prospecção)
+
+Pendências ad-level (copy, headline, link, criativo final) **NÃO** bloqueiam aqui — entram na Onda H.4 (geração de criativos + revisão final).
+
+## Efeito no banco
+- Proposta aprovada vai para `status='approved'` com `action_data.lifecycle.status='campaign_creatives_generation_pending'` e timestamp de aprovação.
+- Insight gerado para o usuário: "Proposta de Campanha Aprovada" descrevendo a próxima janela 00:01 BRT.
+
+## O que NÃO faz
+- Não chama Meta (zero mutação).
+- Não cria campanha real, conjunto, anúncio, público, lookalike, catálogo.
+- Não gera criativo.
+- Não consome crédito.
+
+## Próximas ondas
+- **H.4 — Geração de criativos + Revisão Final + Publicação agendada 00:01 BRT**: ao aprovar a proposta, o sistema enfileira geração de imagens/vídeos para cada criativo planejado, exibe tela de revisão final com tudo renderizado, e publica em modo ATIVO com `start_time` na próxima janela 00:01 BRT (já suportado pelo helper `getSchedulingParams()` no executor).
+- **H.5 — Aprendizados Editáveis**: ao concluir uma campanha aprovada, a IA registra hipóteses, ganhos e perdas em `ads_ai_learnings`; usuário pode editar, aprovar ou rejeitar cada aprendizado para alimentar análises futuras.
+
+## Como validar no painel
+1. Abrir uma Proposta de Campanha filha do último Plano aprovado.
+2. Conferir que o botão "Aprovar proposta de campanha" está habilitado (ou rotulado "Faltam dados para aprovar" listando o que falta).
+3. Clicar em Aprovar: a proposta sai da fila pendente e ganha estado de aprovada.
+4. Conferir aviso/insight de "Proposta de Campanha Aprovada" com referência à próxima janela 00:01 BRT.
+5. Confirmar que **nada apareceu na Meta** (nenhuma campanha nova, nenhum conjunto, nenhum anúncio, nenhum criativo novo, nenhum público novo).
