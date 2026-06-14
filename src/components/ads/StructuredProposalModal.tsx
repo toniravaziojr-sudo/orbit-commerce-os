@@ -614,7 +614,49 @@ function OverviewSection({
         </Block>
       )}
 
-      {fitMessage && (
+      {Array.isArray((action.action_data as any)?.meta_step_checklist) && (action.action_data as any).meta_step_checklist.length > 0 && (
+        <Block
+          title="Passo a passo Meta — o que já está preenchido"
+          icon={<Layers className="h-3.5 w-3.5 text-primary" />}
+        >
+          <div className="space-y-2">
+            {((action.action_data as any).meta_step_checklist as any[]).map((s, i) => {
+              const ok = s.missing_count === 0;
+              return (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{s.label_pt}</span>
+                  <Badge variant={ok ? "outline" : "destructive"} className="text-[10px]">
+                    {ok ? "Completo" : `${s.missing_count} pendência(s)`}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </Block>
+      )}
+
+      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (
+        <Block
+          title={`Campos pendentes (${(action.action_data as any).pending_fields.length})`}
+          icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+        >
+          <ul className="space-y-1 text-xs">
+            {((action.action_data as any).pending_fields as any[]).slice(0, 25).map((p, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
+                  {p.level === "identity" ? "Identidade" : p.level === "campaign" ? "Campanha" : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}` : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`}
+                </Badge>
+                <span className="text-muted-foreground">{p.label_pt}</span>
+              </li>
+            ))}
+            {(action.action_data as any).pending_fields.length > 25 && (
+              <li className="text-muted-foreground italic">… e mais {(action.action_data as any).pending_fields.length - 25} pendência(s).</li>
+            )}
+          </ul>
+        </Block>
+      )}
+
+
         <Block
           title="Adequação produto × público"
           icon={approveBlockedByFit
