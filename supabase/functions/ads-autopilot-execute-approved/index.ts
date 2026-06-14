@@ -25,7 +25,7 @@ import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot
 import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.2.2-h21"; // Onda H.2.1: propostas filhas nascem com identidade da conta + pending_fields por objetivo
+const VERSION = "v4.3.0-h3"; // Onda H.3: aprovação individual da proposta de campanha (sem mutação Meta)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
