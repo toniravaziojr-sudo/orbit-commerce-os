@@ -242,7 +242,11 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
 
   const summary = request ? buildSummary(request.action) : null;
   const isApprove = request?.mode === "approve";
-  const canConfirm = selectedReasons.length > 0 && !saving;
+  const MIN_COMMENT_CHARS = 100;
+  const commentLength = reasonText.trim().length;
+  const commentValid = commentLength >= MIN_COMMENT_CHARS;
+  const canConfirm =
+    selectedReasons.length > 0 && commentValid && !saving;
 
   const FeedbackDialog = (
     <Dialog
@@ -251,7 +255,7 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
         if (!v) close();
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isApprove
@@ -259,8 +263,10 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
               : "Por que você está recusando esta sugestão?"}
           </DialogTitle>
           <DialogDescription>
-            Esse registro alimenta a memória da IA de tráfego deste tenant. Ele
-            não altera a sugestão original.
+            O que você explicar aqui vira <strong>instrução direta</strong> para
+            a IA de tráfego desta conta. Ela usa esse contexto para calibrar as
+            próximas propostas — quanto mais específico, melhores as sugestões
+            futuras. Esse registro <strong>não altera</strong> a sugestão atual.
           </DialogDescription>
         </DialogHeader>
 
@@ -321,38 +327,74 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
         </ScrollArea>
 
         <div className="space-y-2">
-          <Label htmlFor="reason-text" className="text-xs">
-            Comentário (opcional)
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="reason-text" className="text-xs">
+              Explique sua decisão <span className="text-destructive">*</span>
+            </Label>
+            <span
+              className={`text-[11px] ${
+                commentValid ? "text-muted-foreground" : "text-destructive"
+              }`}
+            >
+              {commentLength}/{MIN_COMMENT_CHARS} caracteres mínimos
+            </span>
+          </div>
           <Textarea
             id="reason-text"
             value={reasonText}
             onChange={(e) => setReasonText(e.target.value)}
-            placeholder="Algo a mais que ajude a IA a entender essa decisão?"
-            rows={2}
+            placeholder={
+              isApprove
+                ? "Ex: aprovei porque o produto está em lançamento, quero priorizar prospecção fria mesmo sem histórico de conversão, e o orçamento sugerido cabe no caixa desta semana."
+                : "Ex: recusei porque a IA propôs escalar uma campanha que ainda está em aprendizado há menos de 7 dias, e o público sugerido conflita com a estratégia de remarketing que já está rodando."
+            }
+            rows={4}
             disabled={saving}
+            className={!commentValid && commentLength > 0 ? "border-destructive" : ""}
           />
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            Quanto mais específico (produto, momento do negócio, restrição de
+            caixa, estratégia paralela, histórico que a IA não enxergou),
+            melhor a IA aprende seu critério e menos retrabalho você terá nas
+            próximas análises.
+          </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium">Sinais extras para a memória da IA</p>
           {isApprove ? (
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex items-start gap-2 text-xs cursor-pointer">
               <Checkbox
                 checked={wouldDoManually}
                 onCheckedChange={(v) => setWouldDoManually(!!v)}
                 disabled={saving}
+                className="mt-0.5"
               />
-              Eu faria isso manualmente
+              <span className="leading-snug">
+                <strong>Eu faria isso manualmente</strong>
+                <span className="block text-muted-foreground text-[11px]">
+                  Marque se, mesmo sem a IA, você tomaria exatamente essa
+                  decisão. Reforça confiança nesse padrão e a IA passa a
+                  sugerir com mais segurança em casos parecidos.
+                </span>
+              </span>
             </label>
           ) : (
             <>
-              <label className="flex items-center gap-2 text-xs">
+              <label className="flex items-start gap-2 text-xs cursor-pointer">
                 <Checkbox
                   checked={ignoredContext}
                   onCheckedChange={(v) => setIgnoredContext(!!v)}
                   disabled={saving}
+                  className="mt-0.5"
                 />
-                A IA ignorou algum contexto importante
+                <span className="leading-snug">
+                  <strong>A IA ignorou algum contexto importante</strong>
+                  <span className="block text-muted-foreground text-[11px]">
+                    Marque se faltou informação de negócio, sazonalidade,
+                    estoque, caixa ou estratégia que mudaria a recomendação.
+                  </span>
+                </span>
               </label>
               {ignoredContext && (
                 <Input
@@ -364,13 +406,23 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
               )}
             </>
           )}
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
             <Checkbox
               checked={shouldBecomePreference}
               onCheckedChange={(v) => setShouldBecomePreference(!!v)}
               disabled={saving}
+              className="mt-0.5"
             />
-            Usar como preferência futura deste tenant
+            <span className="leading-snug">
+              <strong>Usar como preferência futura desta conta</strong>
+              <span className="block text-muted-foreground text-[11px]">
+                Promove o motivo acima a <strong>regra permanente</strong> da
+                conta. A IA vai aplicar esse critério automaticamente em todas
+                as próximas propostas, sem precisar repetir essa decisão.
+                Use apenas quando for um padrão que vale sempre — não para
+                casos pontuais.
+              </span>
+            </span>
           </label>
         </div>
 
