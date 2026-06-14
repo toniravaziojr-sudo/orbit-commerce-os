@@ -637,6 +637,20 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     };
   }
 
+  // Auto-cura: catálogo dinâmico sem catálogo Meta detectado → injetar pending_dependency
+  // determinística para evitar bloqueio do plano inteiro por falha do LLM em declarar a pendência.
+  // Mesmo padrão usado acima para `customer_audience_not_detected`.
+  let catalogSetup = action.catalog_setup;
+  if (isCatalogType(campaignType) && !preflight.catalog_availability?.catalog_detected) {
+    const cs = (catalogSetup && typeof catalogSetup === "object") ? catalogSetup : {};
+    if (cs.pending_dependency !== "catalog_not_connected") {
+      catalogSetup = {
+        ...cs,
+        pending_dependency: "catalog_not_connected",
+      };
+    }
+  }
+
   return {
     ...action,
     campaign_type: campaignType,
@@ -645,6 +659,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     affected_funnel: affectedFunnel,
     funnel: action?.funnel ?? affectedFunnel,
     audience_exclusions: audienceExclusions,
+    ...(catalogSetup !== undefined ? { catalog_setup: catalogSetup } : {}),
   };
 }
 
