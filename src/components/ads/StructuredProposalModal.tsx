@@ -407,7 +407,7 @@ export function StructuredProposalModal({
                     warnings={overviewOnly ? [] : allWarnings}
                   />
                 )}
-                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} />}
+                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} identity={(structure as any).identity} />}
                 {!overviewOnly && selected.startsWith("adset:") && (
                   <AdSetSection
                     adSet={adSets[Number(selected.split(":")[1])] || null}
@@ -614,6 +614,49 @@ function OverviewSection({
         </Block>
       )}
 
+      {Array.isArray((action.action_data as any)?.meta_step_checklist) && (action.action_data as any).meta_step_checklist.length > 0 && (
+        <Block
+          title="Passo a passo Meta — o que já está preenchido"
+          icon={<Layers className="h-3.5 w-3.5 text-primary" />}
+        >
+          <div className="space-y-2">
+            {((action.action_data as any).meta_step_checklist as any[]).map((s, i) => {
+              const ok = s.missing_count === 0;
+              return (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{s.label_pt}</span>
+                  <Badge variant={ok ? "outline" : "destructive"} className="text-[10px]">
+                    {ok ? "Completo" : `${s.missing_count} pendência(s)`}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </Block>
+      )}
+
+      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (
+        <Block
+          title={`Campos pendentes (${(action.action_data as any).pending_fields.length})`}
+          icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+        >
+          <ul className="space-y-1 text-xs">
+            {((action.action_data as any).pending_fields as any[]).slice(0, 25).map((p, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
+                  {p.level === "identity" ? "Identidade" : p.level === "campaign" ? "Campanha" : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}` : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`}
+                </Badge>
+                <span className="text-muted-foreground">{p.label_pt}</span>
+              </li>
+            ))}
+            {(action.action_data as any).pending_fields.length > 25 && (
+              <li className="text-muted-foreground italic">… e mais {(action.action_data as any).pending_fields.length - 25} pendência(s).</li>
+            )}
+          </ul>
+        </Block>
+      )}
+
+
       {fitMessage && (
         <Block
           title="Adequação produto × público"
@@ -629,9 +672,7 @@ function OverviewSection({
   );
 }
 
-function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channel: string }) {
-  // Onda D: link/CTA/tracking pertencem APENAS a Anúncio/Criativo.
-  // Bloco "Resumo herdado dos anúncios" removido da Campanha por completo.
+function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNode; channel: string; identity?: any }) {
   return (
     <div className="space-y-4">
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
@@ -645,6 +686,28 @@ function CampaignSection({ campaign, channel }: { campaign: CampaignNode; channe
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
         </DetailGrid>
       </Block>
+      {identity && (
+        <Block title="Identidade e rastreamento da conta" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
+          <DetailGrid>
+            <Detail label="Página do Facebook" value={identity.facebook_page_name || identity.facebook_page_id || null} />
+            <Detail label="Instagram vinculado" value={identity.instagram_actor_name || identity.instagram_actor_id || null} />
+            <Detail label="Pixel" value={identity.pixel_name || identity.pixel_id || null} />
+            <Detail label="API de Conversões" value={identity.conversions_api_active ? "Ativa" : "Não configurada"} />
+            <Detail label="Evento de conversão padrão" value={tr("conversion_event", identity.conversion_event_default)} />
+            <Detail label="Janela de atribuição" value={identity.attribution_window} />
+            <Detail label="CTA padrão" value={tr("cta", identity.cta_default)} />
+            <Detail
+              label="UTM base"
+              value={typeof identity.utm_base === "string"
+                ? identity.utm_base
+                : identity.utm_base && typeof identity.utm_base === "object"
+                  ? Object.entries(identity.utm_base).map(([k, v]) => `${k}=${v}`).join(" · ")
+                  : null}
+              fullWidth
+            />
+          </DetailGrid>
+        </Block>
+      )}
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>

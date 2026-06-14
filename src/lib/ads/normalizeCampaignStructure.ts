@@ -70,6 +70,36 @@ export interface AdNode {
   rationale: string | null;
 }
 
+export interface IdentityNode {
+  facebook_page_id: string | null;
+  facebook_page_name: string | null;
+  instagram_actor_id: string | null;
+  instagram_actor_name: string | null;
+  pixel_id: string | null;
+  pixel_name: string | null;
+  conversion_event_default: string | null;
+  attribution_window: string | null;
+  utm_base: string | Record<string, string> | null;
+  cta_default: string | null;
+  conversions_api_active: boolean;
+  source: string;
+}
+
+export interface PendingFieldUi {
+  level: "identity" | "campaign" | "adset" | "ad";
+  index?: number;
+  field: string;
+  label_pt: string;
+}
+
+export interface MetaStepChecklistItem {
+  step: "identity" | "campaign" | "adset" | "ad";
+  label_pt: string;
+  total: number;
+  filled: number;
+  missing_count: number;
+}
+
 export interface CampaignStructure {
   /** Versão do contrato canônico desta proposta (1=legacy, 2=canonical v2, 2.1=ownership-by-level). */
   schema_version: 1 | 2;
@@ -78,6 +108,14 @@ export interface CampaignStructure {
   ads: AdNode[];
   is_structured_campaign: boolean;
   source: "canonical" | "legacy_adapter";
+  /** H.2.1 — identidade da conta (página, IG, pixel, evento, UTM, CTA padrão). */
+  identity?: IdentityNode | null;
+  /** H.2.1 — pendências por contrato de objetivo Meta. */
+  pending_fields?: PendingFieldUi[];
+  /** H.2.1 — passo a passo Meta com status de preenchimento. */
+  meta_step_checklist?: MetaStepChecklistItem[];
+  /** H.2.1 — rótulo PT-BR do objetivo (ex.: "Vendas"). */
+  objective_contract_label_pt?: string | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -525,6 +563,10 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     ads,
     is_structured_campaign: true,
     source: "canonical",
+    identity: (data?.identity as any) || null,
+    pending_fields: Array.isArray(data?.pending_fields) ? data.pending_fields : [],
+    meta_step_checklist: Array.isArray(data?.meta_step_checklist) ? data.meta_step_checklist : [],
+    objective_contract_label_pt: typeof data?.objective_contract_label_pt === "string" ? data.objective_contract_label_pt : null,
   };
 }
 
