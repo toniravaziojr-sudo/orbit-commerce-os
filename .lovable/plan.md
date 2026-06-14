@@ -290,3 +290,36 @@ A base canônica do plano (Onda G.4) está sólida — `schema_version=strategic
    - nenhuma campanha real foi alterada na Meta.
 4. Clicar em **Aprovar plano** uma segunda vez por erro: confirmar que não duplica as propostas filhas e a resposta mostra "já existiam".
 5. Clicar em **Aprovar** dentro de uma proposta de campanha: confirmar que o botão está desabilitado com a mensagem "Aguardando próxima etapa". A rejeição continua funcionando.
+
+---
+
+# Onda H.2.1 — Propostas filhas com identidade da conta + pendências por objetivo (entregue 2026-06-14)
+
+## Por que
+As propostas de campanha nasciam com vários campos vazios (página do FB, IG, pixel, evento, atribuição, CTA padrão, UTM, posicionamentos, idade/local default) e sem nenhum anúncio planejado quando a estratégia não detalhava. Resultado: o usuário não conseguia entender o que estava sendo proposto. O LLM não deveria precisar inventar identidade de conta — isso já está cadastrado.
+
+## O que mudou (sem mudar UX nem regra de aprovação)
+- **Backend — Account Defaults**: novo resolvedor `accountDefaults.ts` que cruza `ads_meta_production_config` + `tenant_meta_integrations` (assets OAuth) e devolve identidade pronta (página, IG, pixel, CAPI, evento, atribuição, CTA, UTM, idade, gênero, país, posicionamentos, formato padrão).
+- **Backend — Contrato de objetivo Meta**: novo `objectiveFieldContract.ts` mapeia, por objetivo (Vendas, Leads, Tráfego, Reconhecimento, Engajamento, Mensagens, App), os campos obrigatórios em cada nível (Identidade / Campanha / Conjunto / Anúncio). Função pura `computePendingFields()` devolve a lista de pendências em PT-BR.
+- **Backend — Builder de propostas**: `buildCampaignProposalsFromApprovedPlan` agora aceita `account_defaults` no contexto, injeta `identity{}`, herda defaults nos snapshots de campanha e conjunto, sintetiza pelo menos 1 criativo placeholder por conjunto quando a estratégia não trouxe, e grava `pending_fields[]` + `meta_step_checklist[]` + `objective_contract_label_pt` no `action_data`.
+- **Backend — Executor**: `ads-autopilot-execute-approved` resolve `account_defaults` antes de chamar o builder. Versão `v4.2.2-h21`.
+- **UI — sem nova tela**: a aba **Campanha** do modal ganhou o bloco "Identidade e rastreamento da conta" (página, IG, pixel, CAPI, evento padrão, atribuição, CTA, UTM). A **Visão Geral** ganhou "Passo a passo Meta — o que já está preenchido" (status por etapa) e "Campos pendentes" (lista em PT-BR).
+
+## O que NÃO mudou
+- Aprovar plano continua **não executando** nada (Onda H.1).
+- `campaign_proposal` continua **não aprovável individualmente** (gate da H.3).
+- Sem chamada à Meta, sem consumo de crédito, sem geração de criativo final, sem criação de público.
+
+## Testes
+- `src/test/ads-campaign-proposals-h21.test.ts` — 4 testes (identidade injetada; placeholders por conjunto; pending_fields/checklist; herança de defaults).
+- Suítes anteriores (H.2 + dialeto v1) seguem 100% verdes (10/10).
+
+## Como validar no painel
+1. Recusar plano atual e rodar nova análise.
+2. Aprovar o novo plano (continua só gerando propostas, sem executar).
+3. Abrir uma proposta de campanha:
+   - **Visão Geral** mostra "Passo a passo Meta" com status por etapa e "Campos pendentes".
+   - **Campanha** mostra "Identidade e rastreamento da conta" preenchida (página, IG, pixel, CAPI, evento, atribuição, CTA, UTM).
+   - **Conjuntos** mostra idade/gênero/local/posicionamentos vindos da conta quando a IA omitiu.
+   - **Anúncios** lista 1 placeholder por conjunto quando a estratégia não detalhou criativos.
+4. Confirmar que botão "Aprovar" da proposta continua desabilitado com a mensagem de próxima etapa.
