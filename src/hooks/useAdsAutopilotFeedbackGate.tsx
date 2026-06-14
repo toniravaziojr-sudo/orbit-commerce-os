@@ -264,7 +264,7 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
             {summary.action_type && (
               <div>
                 <span className="text-muted-foreground">Tipo de ação: </span>
-                <span className="font-medium">{summary.action_type}</span>
+                <span className="font-medium">{translateActionType(summary.action_type)}</span>
               </div>
             )}
             {summary.objective && (
