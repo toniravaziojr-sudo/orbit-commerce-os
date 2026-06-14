@@ -563,6 +563,10 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     ads,
     is_structured_campaign: true,
     source: "canonical",
+    identity: (data?.identity as any) || null,
+    pending_fields: Array.isArray(data?.pending_fields) ? data.pending_fields : [],
+    meta_step_checklist: Array.isArray(data?.meta_step_checklist) ? data.meta_step_checklist : [],
+    objective_contract_label_pt: typeof data?.objective_contract_label_pt === "string" ? data.objective_contract_label_pt : null,
   };
 }
 
