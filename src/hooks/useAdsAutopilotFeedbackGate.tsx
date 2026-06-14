@@ -13,7 +13,7 @@
 // - se a gravação do feedback falhar, a decisão NÃO prossegue.
 // =====================================================================
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
 
 type DecisionMode = "approve" | "reject";
 
