@@ -152,6 +152,12 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
       toast.error("Selecione ao menos um motivo");
       return;
     }
+    if (reasonText.trim().length < 100) {
+      toast.error(
+        "Explique sua decisão com pelo menos 100 caracteres — esse texto vira instrução para a IA.",
+      );
+      return;
+    }
     const effectiveTenant = tenantId || request.action.tenant_id;
     if (!effectiveTenant) {
       toast.error("Não foi possível identificar o tenant");
