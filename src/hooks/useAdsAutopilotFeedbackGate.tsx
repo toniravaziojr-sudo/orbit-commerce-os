@@ -93,13 +93,13 @@ function buildSummary(action: FeedbackTargetAction) {
 
 export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
   const [request, setRequest] = useState<OpenRequest | null>(null);
-  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [reasonText, setReasonText] = useState("");
   const [wouldDoManually, setWouldDoManually] = useState(false);
   const [shouldBecomePreference, setShouldBecomePreference] = useState(false);
   const [ignoredContext, setIgnoredContext] = useState(false);
   const [ignoredContextText, setIgnoredContextText] = useState("");
   const [saving, setSaving] = useState(false);
+
 
   const resetForm = useCallback(() => {
     setSelectedReasons([]);
