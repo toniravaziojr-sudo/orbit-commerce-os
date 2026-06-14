@@ -657,6 +657,7 @@ function OverviewSection({
       )}
 
 
+      {fitMessage && (
         <Block
           title="Adequação produto × público"
           icon={approveBlockedByFit
