@@ -404,6 +404,5 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
   return { requestApproval, requestRejection, FeedbackDialog, isSaving: saving };
 }
 
-// Exposed for tests / docs
-export const ADS_AUTOPILOT_APPROVAL_REASONS = APPROVAL_REASONS;
-export const ADS_AUTOPILOT_REJECTION_REASONS = REJECTION_REASONS;
+export const ADS_AUTOPILOT_ACTION_TYPE_LABELS = ACTION_TYPE_LABELS;
+
