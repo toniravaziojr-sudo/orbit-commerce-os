@@ -22,9 +22,10 @@ import {
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
+import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.2.1-h12"; // Onda H.1+H.2: strategic_plan bypassa policy gate (sem idempotência)
+const VERSION = "v4.2.2-h21"; // Onda H.2.1: propostas filhas nascem com identidade da conta + pending_fields por objetivo
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
