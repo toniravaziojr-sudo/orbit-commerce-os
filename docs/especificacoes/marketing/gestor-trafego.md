@@ -2064,33 +2064,29 @@ Os rótulos em português registrados no catálogo são placeholders técnicos �
 ### O que A.2 adiciona
 
 - Diálogo obrigatório de feedback aparece **antes** de qualquer aprovação ou recusa ser efetivada.
-- O diálogo exige seleção de pelo menos um motivo do catálogo da A.1. Sem motivo, o botão de confirmação fica desabilitado.
-- **Comentário obrigatório com mínimo de 100 caracteres** (atualização v2026-06-14). O texto explicativo passa a ser tratado como **instrução direta para a IA** calibrar as próximas propostas — não é mais opcional. Contador ao vivo no diálogo, com borda de alerta quando insuficiente. Botão de confirmação bloqueado até atingir o mínimo.
+- **Comentário obrigatório com mínimo de 100 caracteres** (atualização v2026-06-14). O texto explicativo é a **única justificativa obrigatória** e é tratado como **instrução direta para a IA** calibrar as próximas propostas. Contador ao vivo no diálogo, com borda de alerta quando insuficiente. Botão de confirmação bloqueado até atingir o mínimo.
 - A decisão original (aprovar/recusar) só prossegue **depois** que o feedback for gravado com sucesso. Se a gravação falhar, a decisão não acontece e o erro é exibido ao usuário, com opção de tentar novamente.
 
 ### Campos capturados pelo diálogo
 
 Aprovação:
-- motivo(s) selecionado(s) do catálogo de aprovação;
 - comentário obrigatório (mínimo 100 caracteres) — usado como instrução de contexto pela IA nas próximas análises;
 - "Eu faria isso manualmente" (opcional) — sinaliza que, mesmo sem a IA, o usuário tomaria a mesma decisão; reforça confiança no padrão para casos parecidos;
 - "Usar como preferência futura desta conta" (opcional) — promove o motivo a **regra permanente** da conta; a IA passa a aplicar esse critério automaticamente em propostas futuras.
 
 Recusa:
-- motivo(s) selecionado(s) do catálogo de recusa/revisão;
 - comentário obrigatório (mínimo 100 caracteres) — usado como instrução de contexto pela IA nas próximas análises;
 - "A IA ignorou algum contexto importante" + descrição (opcional);
 - "Usar como preferência futura desta conta" (opcional) — mesma semântica acima.
 
-**Microcopy de orientação ao usuário (v2026-06-14):** o diálogo abre com texto explicando que o comentário vira instrução direta para a IA, e cada uma das marcações ("Eu faria isso manualmente", "Ignorou contexto", "Preferência futura") traz descrição inline do efeito que produz na memória da IA. O placeholder do comentário traz exemplo de aprovação e exemplo de recusa, no nível de detalhe esperado (produto, momento do negócio, restrição de caixa, estratégia paralela).
+**Microcopy de orientação ao usuário (v2026-06-14):** o diálogo abre com texto explicando que o comentário vira instrução direta para a IA, e cada uma das marcações ("Eu faria isso manualmente", "Ignorou contexto", "Preferência futura") traz descrição inline do efeito que produz na memória da IA. O placeholder do comentário traz exemplo de aprovação e exemplo de recusa, no nível de detalhe esperado (produto, momento do negócio, restrição de caixa, estratégia paralela). O rótulo do "Tipo de ação" é exibido em português executivo (ex.: "Plano estratégico", "Criar campanha", "Pausar campanha"), nunca em código técnico.
 
 Além disso, o feedback grava automaticamente snapshot imutável de: tenant, canal, conta de anúncios, campanha, objetivo, tipo de ação, classe da ação, estado funcional, veredito proposto, resultado da política, observação/reasoning da IA e métricas disponíveis no momento da decisão.
 
-### Motivos exibidos na UI
+### Catálogo de motivos (uso interno)
 
-Aprovação: `good_budget_logic`, `good_creative_recommendation`, `matches_business_goal`, `would_do_manually`, `safe_and_conservative`, `strong_data_support`.
+A v2026-06-14 simplificou a UI: as listas de checkboxes de motivos pré-definidos foram **removidas** do diálogo. O catálogo continua existindo no backend para retrocompatibilidade e analytics, mas a UI passa a registrar todo feedback com um motivo genérico único — `user_explained` (aprovação) ou `user_explained_rejection` (recusa) — sendo a justificativa real o texto livre obrigatório de 100+ caracteres. Os motivos pré-definidos legados (`good_budget_logic`, `weak_copy`, `wrong_audience` etc.) seguem aceitos pelo registro, mas não são mais oferecidos como opção visual ao usuário.
 
-Recusa/Revisão: `insufficient_data`, `wrong_product`, `weak_copy`, `budget_too_high`, `budget_too_low`, `campaign_still_learning`, `bad_timing`, `conflicts_with_strategy`, `missing_context`, `do_not_scale_this_product`, `incoherent_recommendation`, `duplicated_or_conflicting_action`, `wrong_audience`, `tracking_issue`, `creative_mismatch`, `cold_campaign_too_aggressive`.
 
 ### Ordem da operação
 
