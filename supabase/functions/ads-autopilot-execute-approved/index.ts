@@ -659,6 +659,19 @@ Deno.serve(async (req) => {
       // 1 registro por ação planejada, em pending_approval, sem qualquer mutação.
       // Não chama Meta. Não gera criativo. Não cria público/lookalike/catálogo.
       const planAnalysisRunId = action.analysis_run_id || revalidatedPlan?.metadata?.analysis_run_id || revalidatedPlan?.analysis_run_id || null;
+
+      // H.2.1: resolve defaults da conta (página, IG, pixel, evento, UTM, CTA…)
+      // ANTES de construir as propostas, para que cada filha nasça preenchida.
+      let accountDefaults: any = null;
+      try {
+        accountDefaults = await resolveAccountDefaults(supabase, {
+          tenant_id,
+          ad_account_id: adAccountId || null,
+        });
+      } catch (e) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] account defaults resolution failed (non-blocking):`, e);
+      }
+
       const { records: proposalRecords, skipped_reasons } = buildCampaignProposalsFromApprovedPlan(revalidatedPlan, {
         id: action_id,
         tenant_id,
@@ -666,6 +679,7 @@ Deno.serve(async (req) => {
         session_id: action.session_id,
         analysis_run_id: planAnalysisRunId,
         ad_account_id: adAccountId,
+        account_defaults: accountDefaults,
       });
 
       let proposalsCreated = 0;
