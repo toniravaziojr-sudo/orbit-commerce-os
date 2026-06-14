@@ -49,33 +49,25 @@ interface OpenRequest {
   onConfirmed: () => void;
 }
 
-const APPROVAL_REASONS: Array<{ code: string; label: string }> = [
-  { code: "good_budget_logic", label: "Boa lógica de orçamento" },
-  { code: "good_creative_recommendation", label: "Boa recomendação de criativo" },
-  { code: "matches_business_goal", label: "Alinhado ao objetivo de negócio" },
-  { code: "would_do_manually", label: "Eu faria isso manualmente" },
-  { code: "safe_and_conservative", label: "Decisão segura e conservadora" },
-  { code: "strong_data_support", label: "Boa base de dados suportando a decisão" },
-];
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  strategic_plan: "Plano estratégico",
+  create_campaign: "Criar campanha",
+  create_adset: "Criar conjunto de anúncios",
+  generate_creative: "Gerar criativo",
+  adjust_budget: "Ajustar orçamento",
+  allocate_budget: "Realocar orçamento",
+  pause_campaign: "Pausar campanha",
+  activate_campaign: "Ativar campanha",
+  duplicate_campaign: "Duplicar campanha",
+  duplicate_adset: "Duplicar conjunto",
+  duplicate_creative: "Duplicar criativo",
+};
 
-const REJECTION_REASONS: Array<{ code: string; label: string }> = [
-  { code: "insufficient_data", label: "Dados insuficientes" },
-  { code: "wrong_product", label: "Produto errado" },
-  { code: "weak_copy", label: "Copy fraca" },
-  { code: "budget_too_high", label: "Orçamento alto demais" },
-  { code: "budget_too_low", label: "Orçamento baixo demais" },
-  { code: "campaign_still_learning", label: "Campanha ainda em aprendizado" },
-  { code: "bad_timing", label: "Momento ruim" },
-  { code: "conflicts_with_strategy", label: "Conflita com a estratégia" },
-  { code: "missing_context", label: "Falta de contexto" },
-  { code: "do_not_scale_this_product", label: "Não escalar este produto" },
-  { code: "incoherent_recommendation", label: "Recomendação incoerente" },
-  { code: "duplicated_or_conflicting_action", label: "Ação duplicada ou conflitante" },
-  { code: "wrong_audience", label: "Público errado" },
-  { code: "tracking_issue", label: "Problema de tracking" },
-  { code: "creative_mismatch", label: "Criativo não combina" },
-  { code: "cold_campaign_too_aggressive", label: "Campanha fria, agressiva demais" },
-];
+function translateActionType(code?: string | null): string | null {
+  if (!code) return null;
+  return ACTION_TYPE_LABELS[code] || code.replace(/_/g, " ");
+}
+
 
 function buildSummary(action: FeedbackTargetAction) {
   const ad = (action.action_data || {}) as Record<string, any>;
