@@ -7,7 +7,8 @@
 // chamadas externas. Falha silenciosa → retorna defaults vazios.
 // =============================================================================
 
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+// SupabaseClient é tipado como any para evitar dependência de tipos do esm.sh em build TS local.
+type SupabaseClient = any;
 
 export interface AccountDefaults {
   facebook_page_id: string | null;
