@@ -111,6 +111,7 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   pause_campaign: Target,
   activate_campaign: Sparkles,
   strategic_plan: Bot,
+  campaign_proposal: Megaphone,
 };
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
@@ -121,7 +122,9 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   pause_campaign: "Pausar Campanha",
   activate_campaign: "Ativar Campanha",
   strategic_plan: "Plano Estratégico",
+  campaign_proposal: "Proposta de Campanha",
 };
+
 
 /** Action types that should be hidden from user approval view (internal/technical) */
 const HIDDEN_ACTION_TYPES = new Set(["activate_campaign"]);
