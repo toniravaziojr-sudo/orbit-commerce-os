@@ -424,6 +424,110 @@ export interface NormalizeOptions {
   flowVersion?: string | null;
 }
 
+// -----------------------------------------------------------------------------
+// Construtor para dialeto Onda H.2 — campaign_proposal_v1
+// O builder em supabase/functions/_shared/ads-autopilot/campaignProposals.ts
+// grava { campaign:{}, adsets:[], planned_creatives:[], raw_planned_action }.
+// Aqui mapeamos para o contrato canônico esperado pela UI, enriquecendo cada
+// conjunto com os campos granulares (idade, gênero, local, orçamento, etc.)
+// que ficam preservados em raw_planned_action.adsets[i].
+// -----------------------------------------------------------------------------
+function fromCampaignProposalV1(data: any): CampaignStructure {
+  const c = data?.campaign || {};
+  const raw = data?.raw_planned_action || {};
+  const rawAdsets: any[] = Array.isArray(raw?.adsets) ? raw.adsets : [];
+
+  const cents = (brl: unknown): number | null => {
+    const n = pickNum(brl);
+    return n === null ? null : Math.round(n * 100);
+  };
+
+  const campaign: CampaignNode = {
+    name: pickStr(c?.name, raw?.campaign_name, raw?.name),
+    objective: pickStr(c?.objective, raw?.objective),
+    platform: pickStr(c?.platform, data?.channel, raw?.platform),
+    buying_type: pickStr(c?.buying_type, raw?.buying_type),
+    budget_type: pickStr(c?.budget_type, raw?.budget_type) || (c?.daily_budget_cents || raw?.daily_budget_brl ? "daily" : null),
+    daily_budget_cents: pickNum(c?.daily_budget_cents) ?? cents(raw?.daily_budget_brl) ?? cents(raw?.budget_brl),
+    planned_status: pickStr(c?.initial_status_planned, c?.planned_status) || "PAUSED",
+    rationale: pickStr(c?.rationale, raw?.rationale),
+    inherited_destination_url: null,
+    inherited_cta: null,
+  };
+
+  const h2Adsets: any[] = Array.isArray(data?.adsets) ? data.adsets : [];
+  const merged = h2Adsets.length > 0 ? h2Adsets : rawAdsets.map((_, i) => ({ index: i }));
+
+  const ad_sets: AdSetNode[] = merged.map((h2: any, i: number) => {
+    const r = rawAdsets[i] || {};
+    const excludedAudArr =
+      h2?.targeting?.excluded_custom_audiences
+      || r?.targeting?.excluded_custom_audiences
+      || [];
+    return {
+      id: null,
+      name: pickStr(h2?.name, r?.adset_name, r?.name) || `Conjunto ${i + 1}`,
+      funnel_stage: pickStr(r?.funnel_stage, c?.funnel_stage, raw?.funnel_stage),
+      audience_type: pickStr(r?.audience_type, h2?.audience),
+      targeting_summary: pickStr(r?.audience_description, h2?.audience),
+      inclusions: asStringArray(r?.targeting?.interests || h2?.targeting?.interests),
+      exclusions: asStringArray(excludedAudArr),
+      customer_exclusion_applied:
+        typeof h2?.audience_exclusions?.customers === "boolean"
+          ? h2.audience_exclusions.customers
+          : typeof r?.audience_exclusions?.customers === "boolean"
+            ? r.audience_exclusions.customers
+            : null,
+      customer_exclusion_label:
+        (h2?.audience_exclusions?.customers || r?.audience_exclusions?.customers)
+          ? "Exclui clientes/compradores"
+          : null,
+      location: pickStr(r?.location) || buildLocation(r?.targeting),
+      age_range:
+        (typeof r?.age_min === "number" || typeof r?.age_max === "number")
+          ? `${r?.age_min ?? 18}-${r?.age_max ?? 65}`
+          : buildAgeRange(r?.targeting),
+      gender: pickStr(r?.gender) || buildGender(r?.targeting),
+      placements: asStringArray(h2?.placements || r?.placements),
+      optimization_goal: pickStr(r?.optimization_goal),
+      conversion_event: pickStr(r?.conversion_event, h2?.optimization_event),
+      schedule: null,
+      daily_budget_cents: pickNum(h2?.daily_budget_cents) ?? cents(r?.budget_brl),
+      rationale: pickStr(h2?.audience_exclusions?.reason),
+    } as AdSetNode;
+  });
+
+  const planned: any[] = Array.isArray(data?.planned_creatives) ? data.planned_creatives : [];
+  const ads: AdNode[] = planned.map((p: any, i: number) => ({
+    name: pickStr(p?.name) || `Anúncio ${i + 1}`,
+    ad_set_ref: pickStr(p?.adset_name, p?.ad_set_ref),
+    product_name: pickStr(c?.product, raw?.product_name),
+    offer_note: pickStr(p?.promise),
+    primary_text: pickStr(p?.copy, p?.primary_text),
+    headline: pickStr(p?.headline),
+    description: pickStr(p?.description),
+    cta: pickStr(p?.cta),
+    destination_url: pickStr(p?.final_url_with_utm, p?.destination_url),
+    tracking_params: null,
+    creative_prompt: pickStr(p?.visual_prompt),
+    creative_format: pickStr(p?.format),
+    alternative_formats: [],
+    reference_image_url: pickStr(p?.reference),
+    creative_final_url: null,
+    creative_status: "pending_strategy_approval",
+    rationale: pickStr(p?.angle),
+  }));
+
+  return {
+    schema_version: 2,
+    campaign,
+    ad_sets,
+    ads,
+    is_structured_campaign: true,
+    source: "canonical",
+  };
+}
+
 export function normalizeCampaignStructure(
   actionData: Record<string, any> | null | undefined,
   opts: NormalizeOptions = {},
@@ -432,14 +536,19 @@ export function normalizeCampaignStructure(
   const flowVersion = opts.flowVersion ?? (data as any)?.flow_version ?? null;
   const actionType = opts.actionType ?? null;
 
-  // 1) Já gravado no formato canônico
+  // 1) Dialeto Onda H.2 — campaign_proposal_v1
+  if (data && typeof data === "object" && (data as any).schema_version === "campaign_proposal_v1") {
+    return fromCampaignProposalV1(data);
+  }
+
+  // 2) Já gravado no formato canônico
   if (data && typeof data === "object" && (data as any).campaign_structure) {
     const out = fromCanonical((data as any).campaign_structure);
     // Reaproveita o flag de classificação se a IA já marcou
     return out;
   }
 
-  // 2) Fallback legacy
+  // 3) Fallback legacy
   return fromLegacy(data, { actionType, flowVersion });
 }
 

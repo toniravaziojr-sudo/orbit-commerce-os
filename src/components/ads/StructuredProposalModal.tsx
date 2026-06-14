@@ -296,7 +296,11 @@ export function StructuredProposalModal({
     ? ((planContract?.errors as any[]) || []).filter((e: any) => e.severity === "blocker")
     : [];
 
-  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract;
+  // Onda H.2 — Proposta de Campanha existe mas a aprovação individual entra na H.3.
+  const isCampaignProposal = action.action_type === "campaign_proposal";
+  const approveBlockedByCampaignProposalH3 = isCampaignProposal;
+
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3;
 
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
@@ -311,7 +315,9 @@ export function StructuredProposalModal({
       : "Aprovar estratégia e gerar criativos"
     : approveBlockedByContract
       ? "Plano incompleto — não aprovável"
-      : "Aprovar");
+      : approveBlockedByCampaignProposalH3
+        ? "Aguardando próxima etapa"
+        : "Aprovar");
 
   const approveBlockedReason = approveBlockedByContract
     ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
@@ -319,7 +325,9 @@ export function StructuredProposalModal({
       ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
       : approveBlockedByGates
         ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
-        : null;
+        : approveBlockedByCampaignProposalH3
+          ? "Esta proposta de campanha ainda não pode ser aprovada nesta etapa. A aprovação individual será habilitada na próxima etapa do fluxo de revisão."
+          : null;
 
   return (
     <>
