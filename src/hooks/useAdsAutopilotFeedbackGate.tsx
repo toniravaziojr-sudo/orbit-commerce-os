@@ -102,13 +102,13 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
 
 
   const resetForm = useCallback(() => {
-    setSelectedReasons([]);
     setReasonText("");
     setWouldDoManually(false);
     setShouldBecomePreference(false);
     setIgnoredContext(false);
     setIgnoredContextText("");
   }, []);
+
 
   const requestApproval = useCallback(
     (action: FeedbackTargetAction, onConfirmed: () => void) => {
