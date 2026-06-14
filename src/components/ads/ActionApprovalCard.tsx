@@ -1498,6 +1498,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const preview = data.preview || {};
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
+  const isCampaignProposal = action.action_type === "campaign_proposal";
   const strategicPlanBlocked = isStrategicPlan && (
     action.status === "incomplete"
     || data?.approval_status === "incomplete"
@@ -1505,6 +1506,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
     || data?.metadata?.validation_status !== "valid"
     || data?.metadata?.is_approvable !== true
   );
+  // Onda H.1+H.2 — propostas filhas existem mas a aprovação individual entra na
+  // Onda H.3. Até lá, o botão Aprovar fica desabilitado com mensagem PT-BR clara.
+  // Rejeitar segue disponível.
+  const campaignProposalApprovalNotReady = isCampaignProposal;
+
 
   const creativeUrls = useAllCreativeUrls(action);
   const primaryCreativeUrl = creativeUrls[0] || null;
