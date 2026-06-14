@@ -4012,3 +4012,55 @@ Mesmo com a persistência canônica funcionando (Onda I), planos novos nasciam m
 
 ### Saneamento adicional
 13/06/2026 (após o fix de inferência) foram descartadas as 2 propostas pendentes do Respeite o Homem geradas durante o ciclo de teste, para que o usuário rode "Nova análise" e valide o plano nascendo aprovável.
+
+---
+
+## 13 — Onda H.1 + H.2 — Aprovar plano não executa (2026-06-14)
+
+### Regra de negócio definitiva
+- Aprovar o Plano Estratégico **revalida** o plano e **gera propostas filhas detalhadas** pendentes de revisão individual. Nada mais.
+- Aprovar o plano **não** gera criativo, **não** cria público, **não** cria lookalike, **não** cria catálogo, **não** chama Meta para mutação, **não** publica nada, **não** marca o plano como "executed".
+- O status "executed" do plano fica reservado para a etapa de implementação final (Onda H.4), que ainda não está liberada.
+
+### Fluxo Plano → Propostas filhas
+
+1. Usuário clica em **Aprovar plano**.
+2. Servidor recarrega o plano, revalida metadata canônica, contrato fail-closed e exclusão de clientes por adset.
+3. Se inválido/legado, retorna erro PT-BR e bloqueia a aprovação.
+4. Se válido:
+   - status legado vira `approved` (nunca `executed`);
+   - `action_data.lifecycle.status='plan_approved'` é gravado;
+   - 1 proposta filha é criada por ação planejada do plano, do tipo `campaign_proposal`, em `pending_approval`, com `action_data.lifecycle.status='campaign_proposal_pending_review'` e snapshot detalhado completo (campanha, conjuntos, criativos planejados, validações).
+5. Dedup por `(parent_action_id, planned_action_index)` impede que segundo clique gere propostas duplicadas.
+
+### Campos canônicos da proposta filha
+
+| Bloco | Conteúdo |
+|---|---|
+| `lifecycle` | `status`, `version`, `created_at` |
+| `kind` | `campaign_creation_proposal` / `campaign_adjustment_proposal` / `campaign_pause_proposal` / `campaign_budget_adjustment_proposal` / `campaign_reactivation_proposal` |
+| `campaign` | nome, objetivo, orçamento, tipo, intenção, produto, funil, racional, UTM base, fit, fonte de orçamento, campanha existente alvo |
+| `adsets[]` | público, segmentação, exclusões (com público de clientes), orçamento, posicionamentos, evento de otimização, dependências de público/catálogo |
+| `planned_creatives[]` | quantidade, formato, ângulo, copy, headline, CTA, link final com UTM, prompt visual, referência — todos com `generation_status='planned_only'` |
+| `validations` | UTM presente, exclusão fria presente, blockers, warnings, pending_dependencies |
+| `inherited_contract` | versão do schema, do contrato e flags `is_approvable` / `validation_status` do plano-pai |
+
+### Estados canônicos suportados no lifecycle
+
+**Plano:** `plan_pending_review`, `plan_approved`, `plan_rejected`, `plan_needs_adjustment`, `plan_superseded`, `plan_incomplete`.
+
+**Proposta filha de campanha:** `campaign_proposal_pending_review`, `campaign_proposal_approved`, `campaign_proposal_rejected`, `campaign_proposal_needs_adjustment`, `campaign_assets_pending`, `campaign_creatives_generation_pending`, `campaign_creatives_pending_review`, `campaign_final_review_pending`, `campaign_ready_for_implementation`, `campaign_implemented`, `campaign_implementation_failed`.
+
+Os estados de criativo e revisão final entram nas Ondas H.4 e H.5.
+
+### Guards server-side
+
+- O trigger `implement_approved_plan` do estrategista foi descontinuado: bloqueia em servidor, devolve `blocked:true` e razão `implement_approved_plan_deprecated_by_onda_h1`. Mesmo se algum caminho legado chamar, nada executa.
+- A função de execução rejeita explicitamente aprovação individual de `campaign_proposal` (será habilitada na Onda H.3).
+
+### UI
+
+- Card de proposta filha mostra rótulo **Proposta de Campanha**.
+- Botão **Aprovar** desabilitado com tooltip claro até H.3.
+- Botão **Rejeitar** disponível normalmente.
+

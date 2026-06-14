@@ -111,6 +111,7 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   pause_campaign: Target,
   activate_campaign: Sparkles,
   strategic_plan: Bot,
+  campaign_proposal: Megaphone,
 };
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
@@ -121,7 +122,9 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   pause_campaign: "Pausar Campanha",
   activate_campaign: "Ativar Campanha",
   strategic_plan: "Plano Estratégico",
+  campaign_proposal: "Proposta de Campanha",
 };
+
 
 /** Action types that should be hidden from user approval view (internal/technical) */
 const HIDDEN_ACTION_TYPES = new Set(["activate_campaign"]);
@@ -1495,6 +1498,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const preview = data.preview || {};
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
+  const isCampaignProposal = action.action_type === "campaign_proposal";
   const strategicPlanBlocked = isStrategicPlan && (
     action.status === "incomplete"
     || data?.approval_status === "incomplete"
@@ -1502,6 +1506,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
     || data?.metadata?.validation_status !== "valid"
     || data?.metadata?.is_approvable !== true
   );
+  // Onda H.1+H.2 — propostas filhas existem mas a aprovação individual entra na
+  // Onda H.3. Até lá, o botão Aprovar fica desabilitado com mensagem PT-BR clara.
+  // Rejeitar segue disponível.
+  const campaignProposalApprovalNotReady = isCampaignProposal;
+
 
   const creativeUrls = useAllCreativeUrls(action);
   const primaryCreativeUrl = creativeUrls[0] || null;
@@ -1809,18 +1818,31 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             <Button
               size="sm"
               onClick={() => onApprove(action.id)}
-                disabled={!!approvingId || !!rejectingId || strategicPlanBlocked}
+                disabled={!!approvingId || !!rejectingId || strategicPlanBlocked || campaignProposalApprovalNotReady}
               className="flex-1 h-8 text-xs gap-1.5"
-                title={strategicPlanBlocked ? "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar." : undefined}
+                title={
+                  strategicPlanBlocked
+                    ? "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar."
+                    : campaignProposalApprovalNotReady
+                      ? "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão."
+                      : undefined
+                }
             >
               {approvingId === action.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Check className="h-3.5 w-3.5" />
               )}
-              {approvingId === action.id ? "Aprovando..." : strategicPlanBlocked ? "Plano incompleto" : "Aprovar"}
+              {approvingId === action.id
+                ? "Aprovando..."
+                : strategicPlanBlocked
+                  ? "Plano incompleto"
+                  : campaignProposalApprovalNotReady
+                    ? "Aguardando próxima etapa"
+                    : "Aprovar"}
             </Button>
           )}
+
           <Button
             variant="outline"
             size="sm"

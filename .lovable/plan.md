@@ -233,3 +233,60 @@ Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podi
 3. Confirmar que nenhuma ação de orçamento ficou marcada como incompleta apenas por ausência de sinal de fit; quando a IA omitir esse campo, o plano deve nascer com fallback determinístico reaproveitado do preflight.
 4. Confirmar que nenhuma campanha já pausada aparece com sugestão de “Pausar campanha”.
 5. Confirmar que o botão **“Aprovar plano”** só fica habilitado quando o plano carrega metadata canônica válida; planos legados/incompletos exibem o banner “Plano incompleto” com o botão desabilitado.
+
+---
+
+## Onda H.1 + H.2 — Lifecycle canônico + Propostas filhas detalhadas sem execução (2026-06-14)
+
+### Status
+✅ Aplicado. Pendente de validação operacional pelo usuário no tenant Respeite o Homem.
+
+### Por que entrar agora
+A base canônica do plano (Onda G.4) está sólida — `schema_version=strategic_plan_v2`, `is_approvable`, `contract.ok`, `source_flow` corretos; planos legados travados como `incomplete`. Sintoma restante: ao aprovar o Plano Estratégico, o sistema invocava o estrategista para "implementar o plano aprovado", e esse caminho gerava criativos imediatamente, tentava criar lookalike e marcava o plano como executado. Auditado no plano `d5ca39cb-6d6b-4af6-99f3-35876378df0c` (5 criativos gerados + 1 lookalike falhado por duplicidade).
+
+### H.1 — Lifecycle canônico e bloqueio de execução
+
+- Plano aprovado nunca mais marca status legado `executed`. Status legado vira `approved`; `action_data.lifecycle.status` recebe `plan_approved` (versão `h1_v1`). `executed` fica reservado para implementação final (Onda H.4).
+- Killswitch server-side no estrategista: o trigger `implement_approved_plan` foi descontinuado e retorna imediatamente sem chamar LLM, sem chamada à Meta, sem geração de criativo, sem criação de público/lookalike/catálogo. Caminhos legados que ainda chamem esse trigger ficam bloqueados em servidor — não dependem de UI.
+- Guard server-side adicional: ações de tipo `campaign_proposal` ainda não são aprováveis (Onda H.3); a função de execução devolve erro PT-BR claro caso seja chamada por qualquer caminho.
+
+### H.2 — Propostas filhas detalhadas
+
+- Após o plano ser validado e marcado como aprovado, um novo módulo determinístico gera 1 registro por ação planejada, do tipo `campaign_proposal`, em `status='pending_approval'` (UI legada já reconhece e mostra na fila), com `action_data.lifecycle.status='campaign_proposal_pending_review'`.
+- Cada proposta filha carrega snapshot completo para revisão individual: campanha (nome, objetivo, orçamento, tipo, intenção, produto, funil, racional, UTM, fit), conjuntos (público, exclusões, lookalikes, catálogos, posicionamentos, otimização, pendências) e criativos planejados (formato, ângulo, copy, headline, CTA, link final, prompt visual — todos com `generation_status='planned_only'`, nenhum asset gerado).
+- Classificação automática em 5 tipos: criação, ajuste, pausa, ajuste de orçamento, reativação.
+- Vínculo obrigatório: `parent_action_id=plano`, `planned_action_index`, `analysis_run_id` herdado.
+- Dedup garantida pelo índice único parcial já existente `idx_aaa_child_dedup_plan_action (parent_action_id, planned_action_index)`. Segundo clique não duplica; conta como `proposals_already_existed` na resposta.
+- Resposta da função informa, em PT-BR, quantas propostas foram criadas, quantas já existiam, lista de erros e contadores explícitos `executed=false`, `meta_mutations=0`, `creatives_generated=0`, `audiences_created=0`.
+
+### UI
+
+- Card de proposta filha é reconhecido com rótulo "Proposta de Campanha". Botão **Aprovar** fica desabilitado com tooltip "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão" (Onda H.3). Botão **Rejeitar** continua ativo.
+- Card do Plano Estratégico não muda visualmente.
+
+### O que NÃO foi feito (proposital)
+
+- H.3 (aprovação individual + resolução de públicos/catálogos), H.4 (geração de criativos + Revisão Final + implementação PAUSED), H.5 (área Aprendizados e Decisões editável) ficam para entregas seguintes.
+- Nenhuma migração de banco (índice único já existia; lifecycle vive dentro de `action_data`).
+- Nenhuma chamada nova à Meta. Nenhum novo cron. Sem Google/TikTok.
+
+### Validação técnica
+
+- Suíte nova `ads-campaign-proposals-h2.test.ts`: **6/6 testes verdes** (vínculo, snapshot, classificação, ausência de planned_actions, restrição de tipo único `campaign_proposal`, função pura sem efeitos).
+- Suíte Onda G (`ads-strategic-plan-preflight`, `ads-quality-gate-creative-test-override`, `ads-funnel-budget-model`): **13/13 verdes** após o ajuste.
+- Build TS pendente de pipeline (mudanças são tipadas).
+- Nenhuma proposta filha foi gerada em produção durante a entrega; nenhuma campanha real alterada.
+
+### Como validar no painel
+
+1. No tenant Respeite o Homem, rodar uma nova análise estratégica completa.
+2. Conferir que o novo plano carrega metadata canônica e está aprovável.
+3. Clicar em **Aprovar plano** e confirmar que:
+   - o plano não vira "executed" — fica "aprovado";
+   - aparecem N novos cards "Proposta de Campanha" na fila pendente, um por ação do plano;
+   - nenhum criativo novo foi gerado;
+   - nenhum público novo foi criado;
+   - nenhum lookalike novo foi tentado;
+   - nenhuma campanha real foi alterada na Meta.
+4. Clicar em **Aprovar plano** uma segunda vez por erro: confirmar que não duplica as propostas filhas e a resposta mostra "já existiam".
+5. Clicar em **Aprovar** dentro de uma proposta de campanha: confirmar que o botão está desabilitado com a mensagem "Aguardando próxima etapa". A rejeição continua funcionando.

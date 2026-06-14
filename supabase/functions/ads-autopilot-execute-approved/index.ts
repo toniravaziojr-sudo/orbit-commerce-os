@@ -21,9 +21,10 @@ import {
   type StrategicPlanGuardOptions,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
+import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.1.0"; // Frente 1: revalidação de exclusão de Clientes em fria
+const VERSION = "v4.2.0-h12"; // Onda H.1+H.2: lifecycle canônico + propostas filhas sem execução
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,6 +208,21 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
+
+    // ====== Onda H.2 — Guard server-side: campaign_proposal ainda não é aprovável ======
+    // A aprovação individual da proposta filha entra na Onda H.3. Até lá, o servidor
+    // rejeita explicitamente com mensagem PT-BR. Defesa em profundidade: mesmo que a UI
+    // permita o clique por engano, nada é executado.
+    if (action.action_type === "campaign_proposal") {
+      console.warn(`[ads-autopilot-execute-approved][${VERSION}] BLOCKED: campaign_proposal individual approval not implemented yet (Onda H.3).`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "campaign_proposal_individual_approval_pending",
+        error_pt: "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão.",
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
 
     // ====== POLICY GATE (Fase B / B.1) ================================
     // Stamp aprovação retroativa para fluxo legado APENAS se ação for recente (<24h).
@@ -596,14 +612,14 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved, triggering implementation`);
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved — generating campaign proposals only (no execution).`);
 
       const planBody = revalidatedPlan.diagnosis + "\n\n**Ações Planejadas:**\n" + (revalidatedPlan.planned_actions || []).map((a: any) => `• ${typeof a === "string" ? a : a.rationale || a.action_type || "ação"}`).join("\n");
 
       await supabase.from("ads_autopilot_insights").insert({
         tenant_id,
         channel: action.channel || "global",
-          ad_account_id: adAccountId,
+        ad_account_id: adAccountId,
         title: "✅ Plano Estratégico Aprovado",
         body: planBody,
         category: "strategy",
@@ -612,30 +628,88 @@ Deno.serve(async (req) => {
         status: "open",
       });
 
-      // Onda F: marca o plano como APROVADO (não publica; filhas são geradas pelo strategist).
+      // ====== Onda H.1 — Lifecycle canônico do plano ======
+      // O plano APROVADO não executa nada. Marca-se status legado "approved"
+      // (NUNCA "executed") e adiciona-se action_data.lifecycle.status="plan_approved".
+      // "executed" fica reservado para implementação final (Revisão Final — Onda H.4).
+      const planLifecycle = {
+        version: "h1_v1",
+        status: "plan_approved",
+        approved_at: new Date().toISOString(),
+      };
+      const planActionData = {
+        ...revalidatedPlan,
+        lifecycle: planLifecycle,
+      };
       await supabase.from("ads_autopilot_actions")
-        .update({ status: "approved", approved_at: new Date().toISOString(), action_data: revalidatedPlan })
+        .update({
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          action_data: planActionData,
+        })
         .eq("id", action_id);
 
-      // Recupera analysis_run_id do plano para propagação às filhas.
+      // ====== Onda H.2 — Geração de propostas filhas detalhadas ======
+      // 1 registro por ação planejada, em pending_approval, sem qualquer mutação.
+      // Não chama Meta. Não gera criativo. Não cria público/lookalike/catálogo.
       const planAnalysisRunId = action.analysis_run_id || revalidatedPlan?.metadata?.analysis_run_id || revalidatedPlan?.analysis_run_id || null;
-
-      const { error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
-        body: {
-          tenant_id,
-          trigger: "implement_approved_plan",
-          source_plan_id: action_id,
-          analysis_run_id: planAnalysisRunId,
-        },
+      const { records: proposalRecords, skipped_reasons } = buildCampaignProposalsFromApprovedPlan(revalidatedPlan, {
+        id: action_id,
+        tenant_id,
+        channel: action.channel || "meta",
+        session_id: action.session_id,
+        analysis_run_id: planAnalysisRunId,
+        ad_account_id: adAccountId,
       });
 
-      if (stratErr) console.error(`[ads-autopilot-execute-approved][${VERSION}] Strategist trigger error:`, stratErr.message);
+      let proposalsCreated = 0;
+      let proposalsAlreadyExisted = 0;
+      const proposalErrors: Array<{ index: number; code?: string; message?: string }> = [];
+      for (const record of proposalRecords) {
+        const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(record);
+        if (insertErr) {
+          // 23505 = unique violation no índice idx_aaa_child_dedup_plan_action.
+          // É comportamento esperado em segundo clique / retry. Idempotente.
+          if (String((insertErr as any).code) === "23505") {
+            proposalsAlreadyExisted += 1;
+          } else {
+            console.error(`[ads-autopilot-execute-approved][${VERSION}] proposal insert error index=${record.planned_action_index}:`, insertErr);
+            proposalErrors.push({
+              index: record.planned_action_index,
+              code: (insertErr as any).code,
+              message: (insertErr as any).message,
+            });
+          }
+        } else {
+          proposalsCreated += 1;
+        }
+      }
+
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Plan ${action_id}: ${proposalsCreated} proposals created, ${proposalsAlreadyExisted} already existed, ${proposalErrors.length} errors, ${skipped_reasons.length} skipped.`);
 
       return new Response(
-        JSON.stringify({ success: true, data: { type: "strategic_plan_approved", source_plan_id: action_id } }),
+        JSON.stringify({
+          success: true,
+          data: {
+            type: "strategic_plan_approved",
+            source_plan_id: action_id,
+            lifecycle_status: "plan_approved",
+            proposals_created: proposalsCreated,
+            proposals_already_existed: proposalsAlreadyExisted,
+            proposals_total: proposalRecords.length,
+            proposal_errors: proposalErrors,
+            skipped_reasons,
+            executed: false,
+            children_executed: false,
+            meta_mutations: 0,
+            creatives_generated: 0,
+            audiences_created: 0,
+          },
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     // ====== CREATE CAMPAIGN — Direct Meta API execution ======
     if (action.action_type === "create_campaign" && action.channel === "meta") {

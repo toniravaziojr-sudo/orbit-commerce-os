@@ -3654,6 +3654,24 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
 
+  // ====== Onda H.1 — KILLSWITCH: implement_approved_plan ======
+  // A aprovação do Plano Estratégico não pode mais executar nada.
+  // A geração de propostas filhas é feita por ads-autopilot-execute-approved
+  // (módulo _shared/ads-autopilot/campaignProposals.ts), de forma determinística,
+  // sem LLM, sem geração de criativo, sem chamada à Meta.
+  // Caminhos legados que ainda chamem este trigger são bloqueados aqui.
+  if (trigger === "implement_approved_plan") {
+    console.warn(`[ads-autopilot-strategist][${VERSION}] BLOCKED (Onda H.1): trigger=implement_approved_plan is no longer allowed. Approving a strategic plan must not execute anything. Use ads-autopilot-execute-approved which generates campaign_proposal children only.`);
+    return {
+      trigger,
+      accounts: 0,
+      blocked: true,
+      reason: "implement_approved_plan_deprecated_by_onda_h1",
+      message: "Aprovar plano não executa. Use o fluxo de aprovação de proposta de campanha individual.",
+    };
+  }
+
+
   // Get account configs
   let query = supabase
     .from("ads_autopilot_account_configs")
