@@ -13,7 +13,7 @@
 // - se a gravação do feedback falhar, a decisão NÃO prossegue.
 // =====================================================================
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
 
 type DecisionMode = "approve" | "reject";
 
@@ -49,33 +49,25 @@ interface OpenRequest {
   onConfirmed: () => void;
 }
 
-const APPROVAL_REASONS: Array<{ code: string; label: string }> = [
-  { code: "good_budget_logic", label: "Boa lógica de orçamento" },
-  { code: "good_creative_recommendation", label: "Boa recomendação de criativo" },
-  { code: "matches_business_goal", label: "Alinhado ao objetivo de negócio" },
-  { code: "would_do_manually", label: "Eu faria isso manualmente" },
-  { code: "safe_and_conservative", label: "Decisão segura e conservadora" },
-  { code: "strong_data_support", label: "Boa base de dados suportando a decisão" },
-];
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  strategic_plan: "Plano estratégico",
+  create_campaign: "Criar campanha",
+  create_adset: "Criar conjunto de anúncios",
+  generate_creative: "Gerar criativo",
+  adjust_budget: "Ajustar orçamento",
+  allocate_budget: "Realocar orçamento",
+  pause_campaign: "Pausar campanha",
+  activate_campaign: "Ativar campanha",
+  duplicate_campaign: "Duplicar campanha",
+  duplicate_adset: "Duplicar conjunto",
+  duplicate_creative: "Duplicar criativo",
+};
 
-const REJECTION_REASONS: Array<{ code: string; label: string }> = [
-  { code: "insufficient_data", label: "Dados insuficientes" },
-  { code: "wrong_product", label: "Produto errado" },
-  { code: "weak_copy", label: "Copy fraca" },
-  { code: "budget_too_high", label: "Orçamento alto demais" },
-  { code: "budget_too_low", label: "Orçamento baixo demais" },
-  { code: "campaign_still_learning", label: "Campanha ainda em aprendizado" },
-  { code: "bad_timing", label: "Momento ruim" },
-  { code: "conflicts_with_strategy", label: "Conflita com a estratégia" },
-  { code: "missing_context", label: "Falta de contexto" },
-  { code: "do_not_scale_this_product", label: "Não escalar este produto" },
-  { code: "incoherent_recommendation", label: "Recomendação incoerente" },
-  { code: "duplicated_or_conflicting_action", label: "Ação duplicada ou conflitante" },
-  { code: "wrong_audience", label: "Público errado" },
-  { code: "tracking_issue", label: "Problema de tracking" },
-  { code: "creative_mismatch", label: "Criativo não combina" },
-  { code: "cold_campaign_too_aggressive", label: "Campanha fria, agressiva demais" },
-];
+function translateActionType(code?: string | null): string | null {
+  if (!code) return null;
+  return ACTION_TYPE_LABELS[code] || code.replace(/_/g, " ");
+}
+
 
 function buildSummary(action: FeedbackTargetAction) {
   const ad = (action.action_data || {}) as Record<string, any>;
@@ -101,7 +93,6 @@ function buildSummary(action: FeedbackTargetAction) {
 
 export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
   const [request, setRequest] = useState<OpenRequest | null>(null);
-  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [reasonText, setReasonText] = useState("");
   const [wouldDoManually, setWouldDoManually] = useState(false);
   const [shouldBecomePreference, setShouldBecomePreference] = useState(false);
@@ -109,14 +100,15 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
   const [ignoredContextText, setIgnoredContextText] = useState("");
   const [saving, setSaving] = useState(false);
 
+
   const resetForm = useCallback(() => {
-    setSelectedReasons([]);
     setReasonText("");
     setWouldDoManually(false);
     setShouldBecomePreference(false);
     setIgnoredContext(false);
     setIgnoredContextText("");
   }, []);
+
 
   const requestApproval = useCallback(
     (action: FeedbackTargetAction, onConfirmed: () => void) => {
@@ -140,24 +132,15 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
     resetForm();
   }, [saving, resetForm]);
 
-  const toggleReason = useCallback((code: string) => {
-    setSelectedReasons((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
-    );
-  }, []);
-
   const handleConfirm = useCallback(async () => {
     if (!request) return;
-    if (selectedReasons.length === 0) {
-      toast.error("Selecione ao menos um motivo");
-      return;
-    }
     if (reasonText.trim().length < 100) {
       toast.error(
         "Explique sua decisão com pelo menos 100 caracteres — esse texto vira instrução para a IA.",
       );
       return;
     }
+
     const effectiveTenant = tenantId || request.action.tenant_id;
     if (!effectiveTenant) {
       toast.error("Não foi possível identificar o tenant");
@@ -189,7 +172,7 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
         policy_check_result: summary.policy_check_result || null,
         observation: request.action.reasoning || null,
         decision,
-        reason_codes: selectedReasons,
+        reason_codes: ["user_explained"],
         reason_text: reasonText.trim() || null,
         should_become_preference: shouldBecomePreference || null,
       };
@@ -231,7 +214,6 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
     }
   }, [
     request,
-    selectedReasons,
     reasonText,
     wouldDoManually,
     shouldBecomePreference,
@@ -241,18 +223,13 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
     resetForm,
   ]);
 
-  const reasons = useMemo(
-    () => (request?.mode === "approve" ? APPROVAL_REASONS : REJECTION_REASONS),
-    [request?.mode],
-  );
-
   const summary = request ? buildSummary(request.action) : null;
   const isApprove = request?.mode === "approve";
   const MIN_COMMENT_CHARS = 100;
   const commentLength = reasonText.trim().length;
   const commentValid = commentLength >= MIN_COMMENT_CHARS;
-  const canConfirm =
-    selectedReasons.length > 0 && commentValid && !saving;
+  const canConfirm = commentValid && !saving;
+
 
   const FeedbackDialog = (
     <Dialog
@@ -287,7 +264,7 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
             {summary.action_type && (
               <div>
                 <span className="text-muted-foreground">Tipo de ação: </span>
-                <span className="font-medium">{summary.action_type}</span>
+                <span className="font-medium">{translateActionType(summary.action_type)}</span>
               </div>
             )}
             {summary.objective && (
@@ -305,32 +282,8 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
           </div>
         )}
 
-        <ScrollArea className="max-h-72 pr-3">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">
-              Motivos {isApprove ? "de aprovação" : "de recusa"}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {reasons.map((r) => {
-                const checked = selectedReasons.includes(r.code);
-                return (
-                  <label
-                    key={r.code}
-                    className="flex items-start gap-2 rounded-md border p-2 cursor-pointer hover:bg-muted/50"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleReason(r.code)}
-                      disabled={saving}
-                      aria-label={r.label}
-                    />
-                    <span className="text-xs leading-tight">{r.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        </ScrollArea>
+
+
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -451,6 +404,5 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
   return { requestApproval, requestRejection, FeedbackDialog, isSaving: saving };
 }
 
-// Exposed for tests / docs
-export const ADS_AUTOPILOT_APPROVAL_REASONS = APPROVAL_REASONS;
-export const ADS_AUTOPILOT_REJECTION_REASONS = REJECTION_REASONS;
+export const ADS_AUTOPILOT_ACTION_TYPE_LABELS = ACTION_TYPE_LABELS;
+
