@@ -282,32 +282,8 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
           </div>
         )}
 
-        <ScrollArea className="max-h-72 pr-3">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">
-              Motivos {isApprove ? "de aprovação" : "de recusa"}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {reasons.map((r) => {
-                const checked = selectedReasons.includes(r.code);
-                return (
-                  <label
-                    key={r.code}
-                    className="flex items-start gap-2 rounded-md border p-2 cursor-pointer hover:bg-muted/50"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleReason(r.code)}
-                      disabled={saving}
-                      aria-label={r.label}
-                    />
-                    <span className="text-xs leading-tight">{r.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        </ScrollArea>
+
+
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
