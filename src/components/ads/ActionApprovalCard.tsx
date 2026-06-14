@@ -1818,18 +1818,31 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             <Button
               size="sm"
               onClick={() => onApprove(action.id)}
-                disabled={!!approvingId || !!rejectingId || strategicPlanBlocked}
+                disabled={!!approvingId || !!rejectingId || strategicPlanBlocked || campaignProposalApprovalNotReady}
               className="flex-1 h-8 text-xs gap-1.5"
-                title={strategicPlanBlocked ? "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar." : undefined}
+                title={
+                  strategicPlanBlocked
+                    ? "Plano incompleto — precisa ser regenerado ou ajustado antes de aprovar."
+                    : campaignProposalApprovalNotReady
+                      ? "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão."
+                      : undefined
+                }
             >
               {approvingId === action.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Check className="h-3.5 w-3.5" />
               )}
-              {approvingId === action.id ? "Aprovando..." : strategicPlanBlocked ? "Plano incompleto" : "Aprovar"}
+              {approvingId === action.id
+                ? "Aprovando..."
+                : strategicPlanBlocked
+                  ? "Plano incompleto"
+                  : campaignProposalApprovalNotReady
+                    ? "Aguardando próxima etapa"
+                    : "Aprovar"}
             </Button>
           )}
+
           <Button
             variant="outline"
             size="sm"
