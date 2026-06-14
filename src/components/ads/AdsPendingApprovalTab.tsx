@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
+import { ApprovedProposalsSection } from "./ApprovedProposalsSection";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { showErrorToast } from '@/lib/error-toast';
 import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
