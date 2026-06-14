@@ -25,7 +25,7 @@ import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot
 import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.3.0-h3"; // Onda H.3: aprovação individual da proposta de campanha (sem mutação Meta)
+const VERSION = "v4.4.0-h41"; // Onda H.4.1: aprovação da proposta enfileira geração de criativos (sem mutação Meta)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -262,13 +262,59 @@ Deno.serve(async (req) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Aprovação efetiva — apenas marca lifecycle. Nada externo.
+      // Aprovação efetiva — marca lifecycle e ENFILEIRA geração de criativos (H.4.1).
+      // Nada externo na Meta. Apenas cria jobs no motor unificado de criativos.
       const nowIso = new Date().toISOString();
+      const plannedCreatives = Array.isArray(propData.planned_creatives) ? propData.planned_creatives : [];
+
+      // Enfileira 1 job por anúncio planejado (formato imagem por enquanto — vídeo entra em H.4.2 se solicitado)
+      const enqueuedJobs: Array<{ creative_index: number; job_id: string | null; product_id: string | null; status: "queued" | "error"; error?: string }> = [];
+      for (let i = 0; i < plannedCreatives.length; i++) {
+        const pc = plannedCreatives[i] || {};
+        const promptText = String(pc.prompt_visual || pc.copy || pc.headline || campaign.name || "").trim();
+        if (!promptText) {
+          enqueuedJobs.push({ creative_index: i, job_id: null, product_id: pc.product_id || null, status: "error", error: "empty_prompt" });
+          continue;
+        }
+        try {
+          const { data: jobRow, error: jobErr } = await supabase.from("creative_jobs").insert({
+            tenant_id,
+            type: "image_generation",
+            status: "queued",
+            prompt: promptText,
+            product_id: pc.product_id || null,
+            product_name: pc.product_name || null,
+            product_image_url: pc.product_image_url || null,
+            reference_images: Array.isArray(pc.reference_images) ? pc.reference_images : null,
+            settings: {
+              aspect_ratio: pc.aspect_ratio || "1:1",
+              source: "ads_autopilot_h41",
+              proposal_action_id: action_id,
+              creative_index: i,
+            },
+            has_authorization: true,
+            authorization_accepted_at: nowIso,
+            pipeline_steps: [{ step: "generate_image", status: "pending" }],
+            current_step: 0,
+          }).select("id").single();
+          if (jobErr) throw jobErr;
+          enqueuedJobs.push({ creative_index: i, job_id: jobRow.id, product_id: pc.product_id || null, status: "queued" });
+        } catch (e: any) {
+          console.error(`[ads-autopilot-execute-approved][${VERSION}] H.4.1 enqueue failed idx=${i}:`, e?.message);
+          enqueuedJobs.push({ creative_index: i, job_id: null, product_id: pc.product_id || null, status: "error", error: String(e?.message || e) });
+        }
+      }
+
+      const anyQueued = enqueuedJobs.some(j => j.status === "queued");
+      const lifecycleStatus = anyQueued ? "campaign_creatives_generating" : "campaign_creatives_generation_pending";
+
       const updatedLifecycle = {
         ...(propData.lifecycle || {}),
-        version: "h3_v1",
-        status: "campaign_creatives_generation_pending" as const,
+        version: "h41_v1",
+        status: lifecycleStatus,
         proposal_approved_at: nowIso,
+        creative_jobs: enqueuedJobs,
+        creative_jobs_enqueued_at: anyQueued ? nowIso : null,
       };
       await supabase.from("ads_autopilot_actions").update({
         status: "approved",
@@ -277,30 +323,36 @@ Deno.serve(async (req) => {
       }).eq("id", action_id);
 
       // Insight visível ao usuário
+      const queuedCount = enqueuedJobs.filter(j => j.status === "queued").length;
       await supabase.from("ads_autopilot_insights").insert({
         tenant_id,
         channel: action.channel || "meta",
         ad_account_id: adAccountIdProp,
         title: "✅ Proposta de Campanha Aprovada",
-        body: `Campanha "${campaign.name}" aprovada. Próximas etapas: geração de criativos e revisão final antes da publicação agendada para a próxima janela 00:01 (horário de Brasília).`,
+        body: queuedCount > 0
+          ? `Campanha "${campaign.name}" aprovada. ${queuedCount} criativo(s) entraram na fila de geração. Quando todos ficarem prontos, abriremos a Revisão Final antes da publicação agendada para a próxima janela 00:01 (horário de Brasília).`
+          : `Campanha "${campaign.name}" aprovada. Nenhum criativo planejado encontrado — siga para revisão manual antes da publicação 00:01 BRT.`,
         category: "strategy",
         priority: "medium",
         sentiment: "positive",
         status: "open",
       });
 
-      console.log(`[ads-autopilot-execute-approved][${VERSION}] H.3 proposal ${action_id} approved — lifecycle=campaign_creatives_generation_pending`);
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] H.4.1 proposal ${action_id} approved — lifecycle=${lifecycleStatus} jobs=${queuedCount}/${plannedCreatives.length}`);
 
       return new Response(JSON.stringify({
         success: true,
         data: {
           type: "campaign_proposal_approved",
           proposal_id: action_id,
-          lifecycle_status: "campaign_creatives_generation_pending",
-          next_step_pt: "Geração de criativos e revisão final antes da publicação agendada 00:01 BRT.",
+          lifecycle_status: lifecycleStatus,
+          next_step_pt: anyQueued
+            ? `Geração de ${queuedCount} criativo(s) em andamento. Quando todos ficarem prontos, abriremos a Revisão Final.`
+            : "Sem criativos planejados — revisão manual antes da publicação 00:01 BRT.",
           executed: false,
           meta_mutations: 0,
           creatives_generated: 0,
+          creatives_enqueued: queuedCount,
           audiences_created: 0,
         },
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

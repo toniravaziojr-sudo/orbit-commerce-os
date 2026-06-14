@@ -368,3 +368,35 @@ Pendências ad-level (copy, headline, link, criativo final) **NÃO** bloqueiam a
 3. Clicar em Aprovar: a proposta sai da fila pendente e ganha estado de aprovada.
 4. Conferir aviso/insight de "Proposta de Campanha Aprovada" com referência à próxima janela 00:01 BRT.
 5. Confirmar que **nada apareceu na Meta** (nenhuma campanha nova, nenhum conjunto, nenhum anúncio, nenhum criativo novo, nenhum público novo).
+
+---
+
+# Onda H.4.1 — Disparo automático da geração de criativos ao aprovar a Proposta (entregue 2026-06-14)
+
+## Status
+✅ Backend implementado. Aguardando validação operacional e aprovação de UX das próximas sub-ondas.
+
+## O que muda no fluxo
+Quando você aprova uma **Proposta de Campanha** (H.3), o sistema agora enfileira automaticamente um job de geração de imagem por anúncio planejado, usando o motor unificado de criativos do sistema. Nada é enviado à Meta. Nenhuma campanha real é criada. Apenas os criativos entram na fila de geração.
+
+## Lifecycle
+- Aprovação com criativos planejados → `lifecycle.status = 'campaign_creatives_generating'` + lista de `creative_jobs` (id, índice, produto, status) gravada na proposta.
+- Aprovação sem criativos planejados → `lifecycle.status = 'campaign_creatives_generation_pending'` (segue exigindo revisão manual).
+- Versão do lifecycle: `h41_v1`.
+
+## Restrições mantidas
+- Zero chamada à Meta.
+- Zero criação de campanha/conjunto/anúncio.
+- Zero criação de público/lookalike/catálogo.
+- O crédito é consumido somente pela geração de imagem em si (motor já existente).
+
+## Próximas sub-ondas (dependem de aprovação tua de UX)
+- **H.4.2 — Revisão Final**: tela mostrando campanha + conjuntos + anúncios com criativos gerados, com botão único "Publicar agendado para a próxima janela 00:01 BRT". Decisão pendente: aba no modal existente OU página dedicada.
+- **H.4.3 — Publicação real na Meta**: cria campanha, conjuntos, anúncios e criativos reais com `start_time` na próxima janela 00:01 BRT (status ACTIVE, nunca PAUSED). Idempotência por chave de aprovação. Reconciliação dos IDs Meta.
+- **H.5 — Aprendizados editáveis**: área para revisar/editar/aprovar/rejeitar hipóteses e ganhos/perdas que a IA registra por campanha. Decisão pendente: aba nova na página de Ads OU página separada no menu lateral.
+
+## Como validar
+1. Aprovar uma Proposta de Campanha que tenha anúncios planejados.
+2. Conferir que aparece a mensagem "N criativo(s) entraram na fila de geração" no insight.
+3. Conferir nos jobs de criativo que cada anúncio planejado virou um job com status "queued"/"processing"/"ready".
+4. Conferir que nenhuma campanha nova apareceu na Meta.
