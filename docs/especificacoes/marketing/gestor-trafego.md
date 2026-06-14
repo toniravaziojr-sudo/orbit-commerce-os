@@ -3177,6 +3177,8 @@ Esta fase entrega apenas as duas primeiras frentes da evolução estratégica ap
 
 O estrategista (LLM) recebe instrução explícita no prompt para emitir `product_lifecycle='launch'` (ou `'new'`) em testes desses produtos. Mesmo sem o campo, a detecção por nome/tags atua como rede determinística.
 
+**Auto-cura de default seguro (v2026-06-14):** quando a ação é `campaign_intent='creative_test'` mas **nenhum sinal de produto novo/lançamento** é detectado **e** o LLM **não emitiu** `exclusion_override_reason` (≥ 12 chars), o normalizer aplica automaticamente a exclusão de clientes (mesmo caminho do tráfego frio). Isso elimina bloqueio por omissão do LLM e respeita a regra de negócio: exclusão é o default; manter clientes só com sinal claro de lançamento ou justificativa formal. Sem mudança de UI/UX.
+
 **Defesa em profundidade (executor `v4.1.0`):** antes de publicar uma campanha fria na Meta, `ads-autopilot-execute-approved` re-resolve o público de Clientes e:
 - Se não encontrar → retorna `success:false` com `reason_code: cold_audience_requires_customer_exclusion` e bloqueia a publicação
 - Se encontrar mas exclusão estiver ausente do payload → injeta a exclusão automaticamente antes da chamada à Meta
