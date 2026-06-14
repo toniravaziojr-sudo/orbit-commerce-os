@@ -210,16 +210,99 @@ Deno.serve(async (req) => {
 
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
 
-    // ====== Onda H.2 — Guard server-side: campaign_proposal ainda não é aprovável ======
-    // A aprovação individual da proposta filha entra na Onda H.3. Até lá, o servidor
-    // rejeita explicitamente com mensagem PT-BR. Defesa em profundidade: mesmo que a UI
-    // permita o clique por engano, nada é executado.
+    // ====== Onda H.3 — Aprovação individual da proposta de campanha ======
+    // Gate publish-critical (página, pixel se vendas/leads, nome, objetivo, orçamento, conjuntos,
+    // público de clientes para frio). Pendências ad-level (copy/headline) NÃO bloqueiam aqui —
+    // ficam para a H.4 (geração de criativos + revisão final + publicação agendada 00:01 BRT).
+    // Esta etapa NÃO chama Meta, NÃO gera criativo, NÃO cria público/catálogo.
     if (action.action_type === "campaign_proposal") {
-      console.warn(`[ads-autopilot-execute-approved][${VERSION}] BLOCKED: campaign_proposal individual approval not implemented yet (Onda H.3).`);
+      const propData = action.action_data || {};
+      const campaign = propData.campaign || {};
+      const identity = propData.identity || {};
+      const adsets = Array.isArray(propData.adsets) ? propData.adsets : [];
+      const adAccountIdProp = propData.ad_account_id || campaign.ad_account_id || null;
+      const objective = String(campaign.objective || "").toLowerCase();
+      const needsPixel = /sale|lead|convers|purchase|outcome_sales|outcome_leads/.test(objective) || !objective;
+
+      const blockers: Array<{ code: string; message_pt: string }> = [];
+      if (!campaign.name) blockers.push({ code: "campaign_name_missing", message_pt: "Nome da campanha está vazio." });
+      if (!campaign.objective) blockers.push({ code: "campaign_objective_missing", message_pt: "Objetivo da campanha não definido." });
+      if (!campaign.daily_budget_cents || Number(campaign.daily_budget_cents) <= 0)
+        blockers.push({ code: "campaign_budget_missing", message_pt: "Orçamento diário não definido." });
+      if (adsets.length === 0)
+        blockers.push({ code: "no_adsets", message_pt: "Nenhum conjunto de anúncios definido." });
+      if (!identity.facebook_page_id)
+        blockers.push({ code: "facebook_page_missing", message_pt: "Página do Facebook não conectada à conta." });
+      if (needsPixel && !identity.pixel_id)
+        blockers.push({ code: "pixel_missing", message_pt: "Pixel não conectado à conta — necessário para campanhas de vendas/leads." });
+
+      // Frio/prospecção: público de clientes precisa existir
+      const funnelStage = campaign.funnel_stage || campaign.affected_funnel || null;
+      if (isColdFunnelStage(funnelStage) && adAccountIdProp) {
+        try {
+          const ca = await resolveCustomerAudienceForMetaAccount(supabase, tenant_id, adAccountIdProp);
+          if (!ca.found || !ca.meta_audience_id) {
+            blockers.push({
+              code: "customer_audience_missing",
+              message_pt: "Público de Clientes não está sincronizado nesta conta — obrigatório para público frio.",
+            });
+          }
+        } catch (e) {
+          console.warn(`[ads-autopilot-execute-approved][${VERSION}] H.3 customer audience check failed:`, (e as any)?.message);
+        }
+      }
+
+      if (blockers.length > 0) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] H.3 blocked: ${blockers.length} blocker(s)`);
+        return new Response(JSON.stringify({
+          success: false,
+          error: "campaign_proposal_has_publish_critical_blockers",
+          error_pt: `Não foi possível aprovar: ${blockers.length} pendência(s) crítica(s). ${blockers.map(b => "• " + b.message_pt).join(" ")}`,
+          blockers,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Aprovação efetiva — apenas marca lifecycle. Nada externo.
+      const nowIso = new Date().toISOString();
+      const updatedLifecycle = {
+        ...(propData.lifecycle || {}),
+        version: "h3_v1",
+        status: "campaign_creatives_generation_pending" as const,
+        proposal_approved_at: nowIso,
+      };
+      await supabase.from("ads_autopilot_actions").update({
+        status: "approved",
+        approved_at: nowIso,
+        action_data: { ...propData, lifecycle: updatedLifecycle },
+      }).eq("id", action_id);
+
+      // Insight visível ao usuário
+      await supabase.from("ads_autopilot_insights").insert({
+        tenant_id,
+        channel: action.channel || "meta",
+        ad_account_id: adAccountIdProp,
+        title: "✅ Proposta de Campanha Aprovada",
+        body: `Campanha "${campaign.name}" aprovada. Próximas etapas: geração de criativos e revisão final antes da publicação agendada para a próxima janela 00:01 (horário de Brasília).`,
+        category: "strategy",
+        priority: "medium",
+        sentiment: "positive",
+        status: "open",
+      });
+
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] H.3 proposal ${action_id} approved — lifecycle=campaign_creatives_generation_pending`);
+
       return new Response(JSON.stringify({
-        success: false,
-        error: "campaign_proposal_individual_approval_pending",
-        error_pt: "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão.",
+        success: true,
+        data: {
+          type: "campaign_proposal_approved",
+          proposal_id: action_id,
+          lifecycle_status: "campaign_creatives_generation_pending",
+          next_step_pt: "Geração de criativos e revisão final antes da publicação agendada 00:01 BRT.",
+          executed: false,
+          meta_mutations: 0,
+          creatives_generated: 0,
+          audiences_created: 0,
+        },
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
