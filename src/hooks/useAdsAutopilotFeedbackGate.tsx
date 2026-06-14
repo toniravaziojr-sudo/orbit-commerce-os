@@ -214,7 +214,6 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
     }
   }, [
     request,
-    selectedReasons,
     reasonText,
     wouldDoManually,
     shouldBecomePreference,
@@ -224,18 +223,13 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
     resetForm,
   ]);
 
-  const reasons = useMemo(
-    () => (request?.mode === "approve" ? APPROVAL_REASONS : REJECTION_REASONS),
-    [request?.mode],
-  );
-
   const summary = request ? buildSummary(request.action) : null;
   const isApprove = request?.mode === "approve";
   const MIN_COMMENT_CHARS = 100;
   const commentLength = reasonText.trim().length;
   const commentValid = commentLength >= MIN_COMMENT_CHARS;
-  const canConfirm =
-    selectedReasons.length > 0 && commentValid && !saving;
+  const canConfirm = commentValid && !saving;
+
 
   const FeedbackDialog = (
     <Dialog
