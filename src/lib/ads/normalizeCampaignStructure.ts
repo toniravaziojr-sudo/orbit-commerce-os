@@ -109,13 +109,13 @@ export interface CampaignStructure {
   is_structured_campaign: boolean;
   source: "canonical" | "legacy_adapter";
   /** H.2.1 — identidade da conta (página, IG, pixel, evento, UTM, CTA padrão). */
-  identity: IdentityNode | null;
+  identity?: IdentityNode | null;
   /** H.2.1 — pendências por contrato de objetivo Meta. */
-  pending_fields: PendingFieldUi[];
+  pending_fields?: PendingFieldUi[];
   /** H.2.1 — passo a passo Meta com status de preenchimento. */
-  meta_step_checklist: MetaStepChecklistItem[];
+  meta_step_checklist?: MetaStepChecklistItem[];
   /** H.2.1 — rótulo PT-BR do objetivo (ex.: "Vendas"). */
-  objective_contract_label_pt: string | null;
+  objective_contract_label_pt?: string | null;
 }
 
 // -----------------------------------------------------------------------------
