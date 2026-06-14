@@ -25,7 +25,7 @@ import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot
 import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.3.0-h3"; // Onda H.3: aprovação individual da proposta de campanha (sem mutação Meta)
+const VERSION = "v4.4.0-h41"; // Onda H.4.1: aprovação da proposta enfileira geração de criativos (sem mutação Meta)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
