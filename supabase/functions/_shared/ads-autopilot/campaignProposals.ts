@@ -83,16 +83,26 @@ function classifyProposalKind(action: any): CampaignProposalKind {
 // ---------------- Snapshot da campanha ------------------------------
 
 function buildCampaignSnapshot(action: any) {
+  const brlToCents = (v: unknown): number | null => {
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : null;
+    return n !== null && Number.isFinite(n) ? Math.round(n * 100) : null;
+  };
+  const dailyBudgetCents =
+    action?.daily_budget_cents
+    ?? action?.budget_cents
+    ?? brlToCents(action?.daily_budget_brl)
+    ?? brlToCents(action?.budget_brl)
+    ?? null;
   return {
     name: action?.campaign_name || action?.name || null,
     objective: action?.objective || null,
-    daily_budget_cents: action?.daily_budget_cents ?? action?.budget_cents ?? null,
+    daily_budget_cents: dailyBudgetCents,
     initial_status_planned: action?.initial_status || "PAUSED",
     campaign_type: action?.campaign_type || null,
     campaign_intent: action?.campaign_intent || null,
     product: action?.product_name || action?.product || null,
     product_id: action?.product_id || null,
-    funnel_stage: action?.funnel_stage || null,
+    funnel_stage: action?.funnel_stage || action?.funnel || null,
     affected_funnel: action?.affected_funnel || null,
     rationale: action?.rationale || null,
     risks: action?.risks || null,
