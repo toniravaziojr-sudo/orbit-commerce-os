@@ -1,8 +1,12 @@
 ---
-name: Aprovar Plano e Aprovar Proposta de Campanha — Ondas H.1+H.2+H.2.1+H.3
-description: Aprovação de strategic_plan gera filhas sem executar; aprovação individual de campaign_proposal (H.3) só marca lifecycle, sem chamada Meta, sem criativo, sem público/catálogo.
+name: Aprovar Plano e Aprovar Proposta — Ondas H.1+H.2+H.2.1+H.3+H.4.1
+description: Aprovar plano gera filhas sem executar; aprovar campaign_proposal (H.3) marca lifecycle e enfileira geração de criativos (H.4.1) sem qualquer chamada à Meta, sem criação de público/lookalike/catálogo.
 type: constraint
 ---
+
+## Onda H.4.1 (2026-06-14) — Aprovar proposta enfileira criativos
+Aprovar uma `campaign_proposal` (H.3) agora também enfileira automaticamente 1 job em `creative_jobs` por anúncio planejado (`type='image_generation'`, `status='queued'`, `settings.source='ads_autopilot_h41'`, `settings.proposal_action_id`+`creative_index`). Lifecycle vira `campaign_creatives_generating` (versão `h41_v1`) e a lista `lifecycle.creative_jobs[]` registra cada job. Proibido em H.4.1: criar campanha/conjunto/anúncio na Meta, criar público/lookalike/catálogo, ou qualquer mutação externa fora do motor de criativos. Crédito consumido é apenas o da geração de imagem em si.
+
 
 ## Regra
 Quando uma ação `strategic_plan` é aprovada:
