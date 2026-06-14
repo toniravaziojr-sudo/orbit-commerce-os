@@ -172,7 +172,7 @@ export function useAdsAutopilotFeedbackGate(tenantId?: string | null) {
         policy_check_result: summary.policy_check_result || null,
         observation: request.action.reasoning || null,
         decision,
-        reason_codes: selectedReasons,
+        reason_codes: ["user_explained"],
         reason_text: reasonText.trim() || null,
         should_become_preference: shouldBecomePreference || null,
       };
