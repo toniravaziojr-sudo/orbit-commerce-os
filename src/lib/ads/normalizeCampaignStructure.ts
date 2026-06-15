@@ -504,8 +504,9 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
       || [];
     return {
       id: null,
-      name: pickStr(h2?.name, r?.adset_name, r?.name) || `Conjunto ${i + 1}`,
+      name: humanizeAdsetDisplayName(pickStr(h2?.name, r?.adset_name, r?.name), i),
       funnel_stage: pickStr(r?.funnel_stage, c?.funnel_stage, raw?.funnel_stage),
+
       audience_type: pickStr(r?.audience_type, h2?.audience),
       targeting_summary: pickStr(r?.audience_description, h2?.audience),
       inclusions: asStringArray(r?.targeting?.interests || h2?.targeting?.interests),
