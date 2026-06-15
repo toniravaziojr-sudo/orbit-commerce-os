@@ -87,7 +87,20 @@ export interface AdNode {
     | "landing_invalid_or_internal"
     | "no_product_or_offer_linked"
     | null;
-  format_phase?: "h2_structural" | "h4_future" | null;
+  format_phase?: "h2_structural" | "h4_future" | "account_config" | null;
+  // H.2.5 — origem do formato resolvido.
+  format_source?:
+    | "strategy_explicit_format"
+    | "account_default_format"
+    | "meta_sales_manual_contract_default"
+    | "catalog_required"
+    | "testing_h4_variable"
+    | "missing_catalog_config"
+    | "unsupported_format"
+    | null;
+  format_source_label_pt?: string | null;
+  format_label?: string | null;
+
 }
 
 export interface IdentityNode {
