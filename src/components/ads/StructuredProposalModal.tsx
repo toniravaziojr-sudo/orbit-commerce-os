@@ -775,26 +775,30 @@ function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNo
       </Block>
       {identity && (
         <Block title="Identidade e rastreamento da conta" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
-          <DetailGrid>
-            <Detail label="Página do Facebook" value={identity.facebook_page_name || identity.facebook_page_id || null} />
-            <Detail label="Instagram vinculado" value={identity.instagram_actor_name || identity.instagram_actor_id || null} />
-            <Detail label="Pixel" value={identity.pixel_name || identity.pixel_id || null} />
-            <Detail label="API de Conversões" value={identity.conversions_api_active ? "Ativa" : "Não configurada"} />
-            <Detail label="Evento de conversão padrão" value={tr("conversion_event", identity.conversion_event_default)} />
-            <Detail label="Janela de atribuição" value={identity.attribution_window} />
-            <Detail label="CTA padrão" value={tr("cta", identity.cta_default)} />
-            <Detail
-              label="UTM base"
-              value={typeof identity.utm_base === "string"
-                ? identity.utm_base
-                : identity.utm_base && typeof identity.utm_base === "object"
-                  ? Object.entries(identity.utm_base).map(([k, v]) => `${k}=${v}`).join(" · ")
-                  : null}
-              fullWidth
-            />
-          </DetailGrid>
+          {(() => {
+            const FALLBACK = "Pendente de configuração da conta";
+            const fb = (v: string | null | undefined) => (v && String(v).trim() !== "" ? v : FALLBACK);
+            const utmStr = typeof identity.utm_base === "string"
+              ? identity.utm_base
+              : identity.utm_base && typeof identity.utm_base === "object"
+                ? Object.entries(identity.utm_base).map(([k, v]) => `${k}=${v}`).join(" · ")
+                : null;
+            return (
+              <DetailGrid>
+                <Detail label="Página do Facebook" value={fb(identity.facebook_page_name || identity.facebook_page_id)} />
+                <Detail label="Instagram vinculado" value={fb(identity.instagram_actor_name || identity.instagram_actor_id)} />
+                <Detail label="Pixel" value={fb(identity.pixel_name || identity.pixel_id)} />
+                <Detail label="API de Conversões" value={identity.conversions_api_active ? "Ativa" : "Não configurada na conta"} />
+                <Detail label="Evento de conversão padrão" value={fb(tr("conversion_event", identity.conversion_event_default))} />
+                <Detail label="Janela de atribuição" value={fb(identity.attribution_window)} />
+                <Detail label="CTA padrão" value={fb(tr("cta", identity.cta_default))} />
+                <Detail label="UTM base" value={fb(utmStr)} fullWidth />
+              </DetailGrid>
+            );
+          })()}
         </Block>
       )}
+
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
