@@ -126,6 +126,12 @@ export interface CampaignStructure {
   meta_step_checklist?: MetaStepChecklistItem[];
   /** H.2.1 — rótulo PT-BR do objetivo (ex.: "Vendas"). */
   objective_contract_label_pt?: string | null;
+  /** Contrato v1.1 (Onda H.2.1) — versão explícita do contrato salvo. */
+  contract_version?: "campaign_proposal_v1" | "campaign_proposal_v1_1" | null;
+  /** Contrato v1.1 — ok | pending_dependency | blocked. */
+  contract_validation_status?: "ok" | "pending_dependency" | "blocked" | null;
+  /** Contrato v1.1 — mensagem amigável quando blocked. */
+  unsupported_reason?: string | null;
 }
 
 // -----------------------------------------------------------------------------
