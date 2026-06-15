@@ -105,11 +105,33 @@ export function runStructureCompletenessGate(
 
   // ===== Etapa A (estratégia) — default =====
   const c = structure.campaign;
+
+  // Onda H.2.1 — contrato v1.1: detecta orçamento misto CBO+ABO no payload.
+  // Se a campanha tem orçamento E algum conjunto também tem, e o budget_mode
+  // não foi explicitamente declarado, isso é incoerência técnica (bloqueia).
+  if (c.budget_mode == null) {
+    const campaignHasBudget = typeof c.daily_budget_cents === "number" && c.daily_budget_cents > 0;
+    const someAdsetHasBudget = structure.ad_sets.some((a) => typeof a.daily_budget_cents === "number" && (a.daily_budget_cents as number) > 0);
+    if (campaignHasBudget && someAdsetHasBudget) {
+      blockers.push(make("campaign", "campaign", "Campanha", "campaign.budget_mode", "blocker",
+        "Esta proposta tem orçamento ao mesmo tempo na campanha e nos conjuntos, sem indicar qual deles é o real. Ajuste a proposta antes de aprovar.",
+        { technical_reason: "mixed_budget_modes" }));
+    }
+  }
+
   if (isMissing(c.name)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.name", "blocker", "A campanha precisa de um nome."));
   if (isMissing(c.objective)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.objective", "blocker", "Defina o objetivo da campanha."));
   if (isMissing(c.buying_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.buying_type", "warning", "Modo de compra não definido — será usado Leilão por padrão."));
   if (isMissing(c.budget_type)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.budget_type", "warning", "Tipo de orçamento não definido — será usado Diário por padrão."));
-  if (isMissing(c.daily_budget_cents)) blockers.push(make("campaign", "campaign", "Campanha", "campaign.daily_budget_cents", "blocker", "Informe o orçamento da campanha."));
+  // Em CBO, orçamento fica na campanha; em ABO, fica nos conjuntos.
+  if (c.budget_mode === "ABO") {
+    const anyAdsetBudget = structure.ad_sets.some((a) => typeof a.daily_budget_cents === "number" && (a.daily_budget_cents as number) > 0);
+    if (!anyAdsetBudget) {
+      blockers.push(make("campaign", "campaign", "Campanha", "ad_sets.daily_budget_cents", "blocker", "Em ABO, informe o orçamento de pelo menos um conjunto."));
+    }
+  } else if (isMissing(c.daily_budget_cents)) {
+    blockers.push(make("campaign", "campaign", "Campanha", "campaign.daily_budget_cents", "blocker", "Informe o orçamento da campanha."));
+  }
   if (isMissing(c.planned_status)) warnings.push(make("campaign", "campaign", "Campanha", "campaign.planned_status", "warning", "Status inicial não definido — será criada como Pausada por padrão."));
 
   if (structure.ad_sets.length === 0) {
