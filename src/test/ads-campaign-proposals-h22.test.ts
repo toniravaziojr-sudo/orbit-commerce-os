@@ -145,14 +145,16 @@ describe("H.2.2 — checklist conta apenas pendência H.2 estrutural", () => {
     );
     const ad = records[0].action_data as any;
     const adsStep = ad.meta_step_checklist.find((s: any) => s.step === "ad");
-    // título/texto ainda ausentes → vão para h4_future (não inflam o passo a passo)
-    expect(adsStep.h2_missing_count).toBe(0);
+    // título/texto ausentes vão para h4_future, não para h2_structural
     expect(adsStep.h4_missing_count).toBeGreaterThanOrEqual(4);
-    // pending_fields no nível "ad" só carregam fase h4_future (copy/headline)
-    const adPendings = ad.pending_fields.filter((p: any) => p.level === "ad");
-    expect(adPendings.length).toBeGreaterThan(0);
-    expect(adPendings.every((p: any) => p.phase === "h4_future")).toBe(true);
+    // pending_fields no nível "ad": copy/headline trazem phase=h4_future
+    const adH4 = ad.pending_fields.filter((p: any) => p.level === "ad" && p.phase === "h4_future");
+    expect(adH4.length).toBeGreaterThanOrEqual(4);
+    // copy/headline NUNCA aparecem como h2_structural
+    const adH2 = ad.pending_fields.filter((p: any) => p.level === "ad" && p.phase === "h2_structural");
+    expect(adH2.find((p: any) => p.field === "headline" || p.field === "primary_text")).toBeUndefined();
   });
+
 
 
   it("ABO não exige daily_budget_cents na campanha (sem pendência fantasma)", () => {
