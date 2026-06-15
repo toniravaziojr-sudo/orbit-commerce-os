@@ -116,16 +116,47 @@ function brlToCents(v: unknown): number | null {
   return n !== null && Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 
-function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null) {
+function pickFunnelShareCents(defaults: AccountDefaults | null | undefined, funnelStage: string | null): number | null {
+  if (!defaults?.default_daily_budget_cents || !defaults?.funnel_splits) return defaults?.default_daily_budget_cents ?? null;
+  const total = Number(defaults.default_daily_budget_cents);
+  const fs = defaults.funnel_splits as any;
+  const stage = String(funnelStage || "").toLowerCase();
+  const key =
+    stage.includes("test") ? "tests"
+    : stage.includes("remark") || stage.includes("warm") ? "remarketing"
+    : stage.includes("cold") || stage.includes("frio") || stage.includes("prosp") ? "cold"
+    : stage.includes("lead") ? "leads"
+    : null;
+  const pct = key && typeof fs[key] === "number" ? Number(fs[key]) : null;
+  if (!pct || pct <= 0) return total;
+  return Math.max(1000, Math.round((total * pct) / 100)); // mínimo R$ 10,00/dia
+}
+
+function autoCampaignName(action: any, kind: CampaignProposalKind): string {
+  const stage = String(action?.funnel_stage || action?.affected_funnel || "").toLowerCase();
+  const label =
+    kind === "campaign_creation_proposal" ? "Criação"
+    : stage.includes("test") ? "Teste"
+    : stage.includes("remark") || stage.includes("warm") ? "Remarketing"
+    : stage.includes("cold") || stage.includes("frio") ? "Frio"
+    : "Campanha";
+  const prod = (action?.product_name || action?.product || "").toString().trim().slice(0, 40) || "Geral";
+  const d = new Date();
+  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `[${label}] ${prod} — ${ymd}`;
+}
+
+function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null, kind: CampaignProposalKind = "campaign_adjustment_proposal") {
+  const funnelStage = action?.funnel_stage || action?.affected_funnel || null;
   const dailyBudgetCents =
     action?.daily_budget_cents
     ?? action?.budget_cents
     ?? brlToCents(action?.daily_budget_brl)
     ?? brlToCents(action?.budget_brl)
-    ?? defaults?.default_daily_budget_cents
+    ?? pickFunnelShareCents(defaults || null, funnelStage)
     ?? null;
   return {
-    name: action?.campaign_name || action?.name || null,
+    name: action?.campaign_name || action?.name || autoCampaignName(action, kind),
     objective: action?.objective || defaults?.default_objective || null,
     buying_type: action?.buying_type || defaults?.default_buying_type || "AUCTION",
     budget_type: action?.budget_type || defaults?.default_budget_type || (dailyBudgetCents ? "daily" : null),
@@ -136,7 +167,7 @@ function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null) {
     campaign_intent: action?.campaign_intent || null,
     product: action?.product_name || action?.product || null,
     product_id: action?.product_id || null,
-    funnel_stage: action?.funnel_stage || action?.funnel || null,
+    funnel_stage: funnelStage,
     affected_funnel: action?.affected_funnel || null,
     rationale: action?.rationale || null,
     risks: action?.risks || null,
@@ -144,11 +175,12 @@ function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null) {
     utm_base: action?.utm || action?.utm_base || defaults?.default_utm_params || null,
     attribution_window: action?.attribution_window || defaults?.attribution_window || null,
     audience_budget_fit: action?.audience_budget_fit || null,
-    budget_source: action?.budget_source || null,
+    budget_source: action?.budget_source || (dailyBudgetCents && !action?.daily_budget_cents ? "funnel_share_fallback" : null),
     existing_campaign_id: action?.target_campaign_id || action?.campaign_id || null,
     existing_campaign_action: action?.existing_campaign_action || null,
   };
 }
+
 
 // ---------------- Snapshot de conjuntos -----------------------------
 
