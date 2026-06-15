@@ -499,7 +499,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
   const campaign: CampaignNode = {
     name: pickStr(c?.name, raw?.campaign_name, raw?.name),
     objective: pickStr(c?.objective, raw?.objective),
-    platform: pickStr(c?.platform, data?.channel, raw?.platform),
+    platform: pickStr(c?.platform, data?.platform, data?.channel, raw?.platform),
     buying_type: pickStr(c?.buying_type, raw?.buying_type),
     budget_type: pickStr(c?.budget_type, raw?.budget_type) || (c?.daily_budget_cents || raw?.daily_budget_brl ? "daily" : null),
     daily_budget_cents: pickNum(c?.daily_budget_cents) ?? cents(raw?.daily_budget_brl) ?? cents(raw?.budget_brl),
@@ -507,6 +507,10 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     rationale: pickStr(c?.rationale, raw?.rationale),
     inherited_destination_url: null,
     inherited_cta: null,
+    budget_mode: (c?.budget_mode === "CBO" || c?.budget_mode === "ABO") ? c.budget_mode : null,
+    internal_strategy_tag: pickStr(c?.internal_strategy_tag),
+    sales_subtype: pickStr(c?.sales_subtype),
+    requires_catalog: typeof c?.requires_catalog === "boolean" ? c.requires_catalog : null,
   };
 
   const h2Adsets: any[] = Array.isArray(data?.adsets) ? data.adsets : [];
