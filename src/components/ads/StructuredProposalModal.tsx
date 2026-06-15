@@ -461,6 +461,8 @@ export function StructuredProposalModal({
                   <AdSection
                     ad={ads[Number(selected.split(":")[1])] || null}
                     isStrategyStage={isStrategyStage}
+                    isCampaignProposal={action.action_type === "campaign_proposal"}
+                    campaign={structure.campaign}
                     blockers={allBlockers.filter(
                       (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === selected.split(":")[1],
                     )}
@@ -908,10 +910,45 @@ function AdSetSection({ adSet, blockers }: { adSet: AdSetNode | null; blockers: 
   );
 }
 
-function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStrategyStage: boolean; blockers: GateIssue[] }) {
+function AdSection({
+  ad,
+  isStrategyStage,
+  isCampaignProposal,
+  campaign,
+  blockers,
+}: {
+  ad: AdNode | null;
+  isStrategyStage: boolean;
+  isCampaignProposal?: boolean;
+  campaign?: CampaignNode;
+  blockers: GateIssue[];
+}) {
   if (!ad) return <p className="text-sm text-muted-foreground">Anúncio não encontrado.</p>;
   const pending = new Set(blockers.map((b) => b.field));
   const isP = (suffix: string) => Array.from(pending).some((f) => f.endsWith(suffix));
+
+  // H.2.3 — Em propostas H.2, copy final (título/texto/descrição) é SEMPRE H.4.
+  const copyAsFuturePhase = isStrategyStage || !!isCampaignProposal;
+  const isTesting = String(campaign?.internal_strategy_tag || "").toLowerCase() === "testing";
+  const formatIsTestVariable = (ad.format_phase === "h4_future") || (isTesting && !ad.creative_format);
+
+  // CTA: mostra o valor (humanizado por dicionário). Se derivado do objetivo,
+  // anexa origem. Se ausente sem default, vira pendência clara.
+  const ctaValue = ad.cta ? tr("cta", ad.cta) : null;
+  const ctaOriginNote = ad.cta && ad.cta_source === "objective_default"
+    ? "Padrão do objetivo Vendas"
+    : null;
+
+  // Link de destino: deve vir do produto/oferta. Se ausente, classifica
+  // explicitamente como pendência de URL do produto/oferta (não da conta Meta).
+  const destValue = ad.destination_url || null;
+  const destPlaceholder = !destValue && ad.destination_pending_reason === "product_offer_url_missing"
+    ? "Pendente de URL do produto/oferta"
+    : null;
+  const formatPlaceholder = formatIsTestVariable
+    ? "Será definido na etapa de criativos como variável do teste"
+    : null;
+
   return (
     <div className="space-y-4">
       {/* Bloco 1: ANÚNCIO (entrega) */}
@@ -919,7 +956,7 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
         <DetailGrid>
           <Detail label="Nome do anúncio" value={ad.name} />
           <Detail label="Conjunto vinculado" value={ad.ad_set_ref} />
-          <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, isStrategyStage)} />
+          <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, copyAsFuturePhase)} />
         </DetailGrid>
       </Block>
 
@@ -927,16 +964,30 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
       <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
-          <Detail label="Formato" value={ad.creative_format} pendingField={!ad.creative_format && isP(".creative_format")} />
-          {/* H.2.2 — copy final (título/texto/descrição) é gerado na próxima etapa, não conta como pendência H.2. */}
-          <Detail label="Título" value={ad.headline} fullWidth futurePhase={isStrategyStage} />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={isStrategyStage} />
-          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={isStrategyStage} />
-          <Detail label="Botão de ação" value={tr("cta", ad.cta)} pendingField={!ad.cta && isP(".cta")} />
+          <Detail
+            label="Formato"
+            value={ad.creative_format}
+            customPlaceholder={formatPlaceholder ?? (!ad.creative_format ? "Pendente de definição do formato planejado" : undefined)}
+          />
+          {/* H.2.3 — copy final (título/texto/descrição) é sempre H.4 em proposta de campanha. */}
+          <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
+          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
+          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
+          <Detail
+            label="Botão de ação"
+            value={ctaValue}
+            helperText={ctaOriginNote}
+            customPlaceholder={!ctaValue ? "Pendente de CTA padrão" : undefined}
+          />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
           )}
-          <Detail label="Link de destino" value={ad.destination_url} fullWidth pendingField={!ad.destination_url && isP(".destination_url")} />
+          <Detail
+            label="Link de destino"
+            value={destValue}
+            fullWidth
+            customPlaceholder={destPlaceholder ?? (!destValue ? "Pendente de URL do produto/oferta" : undefined)}
+          />
           {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
           {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
         </DetailGrid>
@@ -1039,13 +1090,31 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth, pendingField, futurePhase,
-}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean; futurePhase?: boolean }) {
+  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  fullWidth?: boolean;
+  pendingField?: boolean;
+  futurePhase?: boolean;
+  /** H.2.3 — texto exibido quando o valor está vazio, com origem/fase clara
+   *  (ex.: "Pendente de URL do produto/oferta", "Pendente de CTA padrão",
+   *  "Será definido na etapa de criativos como variável do teste"). */
+  customPlaceholder?: string;
+  /** H.2.3 — nota de origem ao lado do valor (ex.: "Padrão do objetivo Vendas"). */
+  helperText?: string | null;
+}) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-      {empty && futurePhase ? (
+      {empty && customPlaceholder ? (
+        <p className="text-sm">
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30 px-1.5 py-0.5 text-[11px] font-medium">
+            {customPlaceholder}
+          </span>
+        </p>
+      ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
             Será gerado na próxima etapa
@@ -1058,7 +1127,10 @@ function Detail({
           </span>
         </p>
       ) : (
-        <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+        <>
+          <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+          {helperText && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{helperText}</p>}
+        </>
       )}
     </div>
   );
