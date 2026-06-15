@@ -518,7 +518,9 @@ export function buildCampaignProposalsFromApprovedPlan(
       skipped.push(`index_${i}_not_object`);
       continue;
     }
-    records.push(buildProposalRecord(action, i, parent, plan));
+    const rec = buildProposalRecord(action, i, parent, plan);
+    enrichRecordWithV1_1Contract(rec, parent);
+    records.push(rec);
   }
 
   return { records, skipped_reasons: skipped };
