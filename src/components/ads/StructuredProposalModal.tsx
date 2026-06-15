@@ -91,14 +91,20 @@ interface Props {
 const DICT: Record<string, Record<string, string>> = {
   objective: {
     sales: "Vendas",
+    OUTCOME_SALES: "Vendas",
     conversions: "Conversões",
     traffic: "Tráfego",
+    OUTCOME_TRAFFIC: "Tráfego",
     awareness: "Reconhecimento de marca",
+    OUTCOME_AWARENESS: "Reconhecimento de marca",
     engagement: "Engajamento",
+    OUTCOME_ENGAGEMENT: "Engajamento",
     leads: "Geração de leads",
+    OUTCOME_LEADS: "Geração de leads",
     video_views: "Visualizações de vídeo",
     messages: "Mensagens",
     app_promotion: "Promoção de aplicativo",
+    OUTCOME_APP_PROMOTION: "Promoção de aplicativo",
   },
   budget_type: { daily: "Diário", lifetime: "Total da campanha" },
   planned_status: { PAUSED: "Pausada", ACTIVE: "Ativa", ARCHIVED: "Arquivada" },
@@ -131,14 +137,15 @@ const DICT: Record<string, Record<string, string>> = {
   },
   buying_type: { AUCTION: "Leilão", RESERVED: "Reserva" },
   funnel: {
-    tof: "Topo do funil (descoberta)",
-    mof: "Meio do funil (consideração)",
-    bof: "Fundo do funil (conversão)",
+    tof: "Topo do funil / Público frio",
+    mof: "Meio do funil / Público morno",
+    bof: "Fundo do funil / Público quente",
     top: "Topo do funil (descoberta)",
     middle: "Meio do funil (consideração)",
     bottom: "Fundo do funil (conversão)",
     prospecting: "Prospecção",
     retargeting: "Remarketing",
+    test: "Teste de criativos",
   },
   audience_type: {
     cold: "Público frio",
@@ -151,7 +158,7 @@ const DICT: Record<string, Record<string, string>> = {
     retargeting: "Remarketing",
   },
   optimization_goal: {
-    OFFSITE_CONVERSIONS: "Conversões",
+    OFFSITE_CONVERSIONS: "Conversões no site",
     LINK_CLICKS: "Cliques no link",
     IMPRESSIONS: "Impressões",
     REACH: "Alcance",
@@ -180,6 +187,9 @@ const DICT: Record<string, Record<string, string>> = {
     messenger: "Messenger",
     audience_network: "Audience Network",
     marketplace: "Marketplace",
+    advantage_plus: "Posicionamento automático (Advantage+)",
+    advantage_plus_placements: "Posicionamento automático (Advantage+)",
+    automatic: "Posicionamento automático (Advantage+)",
   },
 };
 
@@ -190,18 +200,19 @@ function tr(group: string, value: string | null | undefined): string | null {
 }
 
 function translateCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
-  if (isStrategyStage) return "Aguardando aprovação da estratégia";
+  if (isStrategyStage) return "Será gerado na próxima etapa";
   switch (status) {
     case "pending_strategy_approval":
-      return "Aguardando aprovação da estratégia";
+      return "Será gerado na próxima etapa";
     case "generating":
       return "Gerando…";
     case "ready":
       return "Pronto";
     default:
-      return "Não informado";
+      return "Será gerado na próxima etapa";
   }
 }
+
 
 /* --------------------------------------------------------------------------- */
 
