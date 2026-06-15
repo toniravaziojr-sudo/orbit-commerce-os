@@ -24,6 +24,7 @@ import {
   type PendingFieldsReport,
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
+import { resolveDestination } from "./destinationResolver.ts";
 
 /**
  * Onda H.2.1 — versão do contrato. v1 continua sendo aceito em LEITURA pelo
