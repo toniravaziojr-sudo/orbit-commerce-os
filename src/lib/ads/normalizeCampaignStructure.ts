@@ -609,8 +609,9 @@ export function normalizeCampaignStructure(
   const flowVersion = opts.flowVersion ?? (data as any)?.flow_version ?? null;
   const actionType = opts.actionType ?? null;
 
-  // 1) Dialeto Onda H.2 — campaign_proposal_v1
-  if (data && typeof data === "object" && (data as any).schema_version === "campaign_proposal_v1") {
+  // 1) Dialeto Onda H.2 — campaign_proposal_v1 e v1.1 (mesmo formato base, v1.1 adiciona campos do contrato)
+  const sv = (data as any)?.schema_version;
+  if (data && typeof data === "object" && (sv === "campaign_proposal_v1" || sv === "campaign_proposal_v1_1")) {
     return fromCampaignProposalV1(data);
   }
 
