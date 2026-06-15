@@ -46,7 +46,8 @@ function fullAdSet() {
     optimization_goal: "OFFSITE_CONVERSIONS",
     conversion_event: "PURCHASE",
     schedule: null,
-    daily_budget_cents: 2500,
+    // Onda H.2.1 — em CBO, o orçamento real fica na campanha, não no conjunto.
+    daily_budget_cents: null,
     rationale: "x",
   };
 }
