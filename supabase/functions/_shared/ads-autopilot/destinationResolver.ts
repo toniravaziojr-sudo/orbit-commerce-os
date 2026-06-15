@@ -20,6 +20,8 @@
 // UTM template é tratado SEPARADAMENTE; este resolver devolve apenas a URL base.
 // =============================================================================
 
+import { buildPublicProductPath } from "../storefront/publicRoutes.ts";
+
 export type DestinationSource =
   | "ad_override"
   | "landing"
@@ -42,6 +44,8 @@ export interface DestinationResolverInput {
   productName?: string | null;
   /** Apenas o domínio (sem protocolo, sem path). Ex.: "www.respeiteohomem.com.br" */
   tenantPrimaryVerifiedDomain?: string | null;
+  /** Override opcional de template de rota por tenant (futuro). Default global: /produto/{slug}. */
+  tenantProductRouteTemplate?: string | null;
 }
 
 export interface DestinationResolverOutput {
@@ -124,8 +128,9 @@ export function resolveDestination(input: DestinationResolverInput): Destination
         destination_pending_reason: "store_public_domain_not_verified",
       };
     }
+    const path = buildPublicProductPath(slug, input.tenantProductRouteTemplate);
     return {
-      destination_url: `https://${domain}/produto/${slug}`,
+      destination_url: `https://${domain}${path}`,
       destination_source: "domain_derived",
       destination_pending_reason: null,
     };
