@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.ads_patch_proposal_to_h22(uuid) FROM PUBLIC, anon, authenticated;
