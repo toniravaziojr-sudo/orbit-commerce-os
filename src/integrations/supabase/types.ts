@@ -25267,6 +25267,7 @@ export type Database = {
         Args: { p_action_id: string }
         Returns: Json
       }
+      ads_patch_proposal_to_h24: { Args: { p_id: string }; Returns: Json }
       ads_patch_proposal_to_v1_1: {
         Args: { p_action_id: string }
         Returns: {

@@ -939,11 +939,28 @@ function AdSection({
     ? "Padrão do objetivo Vendas"
     : null;
 
-  // Link de destino: deve vir do produto/oferta. Se ausente, classifica
-  // explicitamente como pendência de URL do produto/oferta (não da conta Meta).
+  // H.2.4 — Link de destino: pode vir do anúncio, landing pública, produto
+  // ou ser derivado do domínio público verificado da loja. Se ausente,
+  // mostra mensagem clara por motivo de pendência (sem inventar URL).
   const destValue = ad.destination_url || null;
-  const destPlaceholder = !destValue && ad.destination_pending_reason === "product_offer_url_missing"
-    ? "Pendente de URL do produto/oferta"
+  const destPendingReasonLabel =
+    ad.destination_pending_reason === "store_public_domain_not_verified"
+      ? "Pendente de domínio público verificado da loja"
+      : ad.destination_pending_reason === "landing_invalid_or_internal"
+      ? "Landing inválida ou interna — defina URL pública"
+      : ad.destination_pending_reason === "no_product_or_offer_linked"
+      ? "Sem produto, kit, oferta ou landing vinculados"
+      : ad.destination_pending_reason === "product_offer_url_missing"
+      ? "Pendente de URL do produto/oferta"
+      : null;
+  const destPlaceholder = !destValue ? destPendingReasonLabel : null;
+  // H.2.4 — origem humanizada do link, para o usuário entender de onde veio.
+  const destOriginNote = destValue
+    ? (ad.destination_source === "ad_override" ? "Definido no próprio anúncio"
+      : ad.destination_source === "landing" ? "Landing vinculada à campanha"
+      : ad.destination_source === "product_offer" ? "URL pública do produto/oferta"
+      : ad.destination_source === "domain_derived" ? "Derivado do domínio verificado da loja"
+      : null)
     : null;
   const formatPlaceholder = formatIsTestVariable
     ? "Será definido na etapa de criativos como variável do teste"

@@ -822,7 +822,58 @@ Deno.serve(async (req) => {
         console.warn(`[ads-autopilot-execute-approved][${VERSION}] account defaults resolution failed (non-blocking):`, e);
       }
 
-      const { records: proposalRecords, skipped_reasons } = buildCampaignProposalsFromApprovedPlan(revalidatedPlan, {
+      // H.2.4: domínio público primário verificado da loja (sem inventar URL).
+      let tenantPrimaryVerifiedDomain: string | null = null;
+      try {
+        const { data: domRow } = await supabase
+          .from("tenant_domains")
+          .select("domain")
+          .eq("tenant_id", tenant_id)
+          .eq("is_primary", true)
+          .eq("status", "verified")
+          .eq("ssl_status", "active")
+          .maybeSingle();
+        tenantPrimaryVerifiedDomain = domRow?.domain || null;
+      } catch (e) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] primary verified domain lookup failed (non-blocking):`, e);
+      }
+
+      // H.2.4: para cada ação planejada, enriquece com product_slug (lookup
+      // por nome dentro do tenant, apenas produtos ativos não-excluídos) e,
+      // se houver landing_page_id, com landing_page_url pública. Sem inventar.
+      const plannedActionsRaw = Array.isArray(revalidatedPlan?.planned_actions) ? revalidatedPlan.planned_actions : [];
+      const productNames = Array.from(new Set(
+        plannedActionsRaw.map((a: any) => (a?.product_name || "").trim()).filter((s: string) => s.length > 0),
+      ));
+      const slugByName = new Map<string, string>();
+      if (productNames.length > 0) {
+        try {
+          const { data: prodRows } = await supabase
+            .from("products")
+            .select("name, slug, status, deleted_at")
+            .eq("tenant_id", tenant_id)
+            .is("deleted_at", null)
+            .eq("status", "active")
+            .in("name", productNames);
+          for (const r of prodRows || []) {
+            const k = String(r?.name || "").toLowerCase();
+            if (k && r?.slug && !slugByName.has(k)) slugByName.set(k, String(r.slug));
+          }
+        } catch (e) {
+          console.warn(`[ads-autopilot-execute-approved][${VERSION}] product slug lookup failed (non-blocking):`, e);
+        }
+      }
+      const enrichedPlan = {
+        ...revalidatedPlan,
+        planned_actions: plannedActionsRaw.map((a: any) => {
+          if (!a || typeof a !== "object") return a;
+          const nm = String(a?.product_name || "").toLowerCase();
+          const slug = a?.product_slug || (nm ? slugByName.get(nm) : null) || null;
+          return { ...a, product_slug: slug };
+        }),
+      };
+
+      const { records: proposalRecords, skipped_reasons } = buildCampaignProposalsFromApprovedPlan(enrichedPlan, {
         id: action_id,
         tenant_id,
         channel: action.channel || "meta",
@@ -830,6 +881,7 @@ Deno.serve(async (req) => {
         analysis_run_id: planAnalysisRunId,
         ad_account_id: adAccountId,
         account_defaults: accountDefaults,
+        tenant_primary_verified_domain: tenantPrimaryVerifiedDomain,
       });
 
       let proposalsCreated = 0;

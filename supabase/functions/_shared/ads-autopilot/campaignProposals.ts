@@ -24,6 +24,7 @@ import {
   type PendingFieldsReport,
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
+import { resolveDestination } from "./destinationResolver.ts";
 
 /**
  * Onda H.2.1 — versão do contrato. v1 continua sendo aceito em LEITURA pelo
@@ -61,6 +62,8 @@ export interface ParentPlanContext {
   ad_account_id?: string | null;
   /** Defaults da conta (página, IG, pixel etc.) resolvidos server-side. */
   account_defaults?: AccountDefaults | null;
+  /** H.2.4 — domínio público primário verificado da loja (sem protocolo). */
+  tenant_primary_verified_domain?: string | null;
 }
 
 export interface CampaignProposalRecord {
@@ -238,7 +241,15 @@ function buildPlannedCreativesSnapshot(
   adsetsSnapshot: any[],
   kind: CampaignProposalKind,
   defaults?: AccountDefaults | null,
-  options?: { strategyTag?: string | null; objectiveCanonical?: string | null; productUrl?: string | null },
+  options?: {
+    strategyTag?: string | null;
+    objectiveCanonical?: string | null;
+    productUrl?: string | null;
+    productSlug?: string | null;
+    productName?: string | null;
+    landingUrl?: string | null;
+    tenantPrimaryVerifiedDomain?: string | null;
+  },
 ): any[] {
   const raw = Array.isArray(action?.creatives) ? action.creatives
     : Array.isArray(action?.planned_creatives) ? action.planned_creatives
@@ -252,8 +263,13 @@ function buildPlannedCreativesSnapshot(
     : objCanon === "leads" ? "SIGN_UP"
     : objCanon === "traffic" ? "LEARN_MORE"
     : null;
-  // H.2.3 — Link de destino sai do produto/oferta, NUNCA de URL fixa da conta.
-  const productUrl = options?.productUrl || action?.product_url || action?.destination_url || null;
+
+  // H.2.4 — Link de destino é resolvido por cascata determinística (sem inventar).
+  const baseProductUrl = options?.productUrl || action?.product_url || action?.destination_url || null;
+  const baseProductSlug = options?.productSlug || action?.product_slug || null;
+  const baseProductName = options?.productName || action?.product_name || null;
+  const baseLandingUrl = options?.landingUrl || action?.landing_url || action?.landing_page_url || null;
+  const tenantDomain = options?.tenantPrimaryVerifiedDomain || null;
 
   const adsetName = (i: number) =>
     (adsetsSnapshot[i] && (adsetsSnapshot[i].name as string | null)) || `Conjunto ${i + 1}`;
@@ -268,11 +284,17 @@ function buildPlannedCreativesSnapshot(
       c?.cta || c?.call_to_action ? "ad_override"
       : ctaFromObjective ? "objective_default"
       : null;
-    const planned_destination_url = c?.destination_url || c?.final_url || c?.final_url_with_utm || productUrl || null;
-    const destination_source: "ad_override" | "product_offer" | null =
-      c?.destination_url || c?.final_url || c?.final_url_with_utm ? "ad_override"
-      : productUrl ? "product_offer"
-      : null;
+
+    // H.2.4 — Resolver determinístico do link de destino.
+    const adExplicit = c?.destination_url || c?.final_url || c?.final_url_with_utm || null;
+    const dest = resolveDestination({
+      adExplicitUrl: adExplicit,
+      landingUrl: baseLandingUrl,
+      productPublicUrl: baseProductUrl,
+      productSlug: baseProductSlug,
+      productName: baseProductName,
+      tenantPrimaryVerifiedDomain: tenantDomain,
+    });
 
     return {
       index: idx,
@@ -288,9 +310,9 @@ function buildPlannedCreativesSnapshot(
       description: c?.description || null,
       cta: planned_cta,
       cta_source,
-      destination_url: planned_destination_url,
-      destination_source,
-      destination_pending_reason: !planned_destination_url ? "product_offer_url_missing" : null,
+      destination_url: dest.destination_url,
+      destination_source: dest.destination_source,
+      destination_pending_reason: dest.destination_pending_reason,
       visual_prompt: c?.visual_prompt || c?.prompt || null,
       reference: c?.reference || c?.reference_asset_id || null,
       generation_status: (c?.generation_status || "planned_only") as
@@ -565,6 +587,10 @@ function buildProposalRecord(
     strategyTag: strategyTagPre,
     objectiveCanonical: objectiveCanonPre,
     productUrl: productUrlPre,
+    productSlug: action?.product_slug || null,
+    productName: action?.product_name || null,
+    landingUrl: action?.landing_url || action?.landing_page_url || null,
+    tenantPrimaryVerifiedDomain: parent.tenant_primary_verified_domain || null,
   });
   const validations = buildValidationsSnapshot(action);
 
