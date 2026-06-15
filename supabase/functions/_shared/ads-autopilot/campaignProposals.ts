@@ -506,18 +506,17 @@ function buildProposalRecord(
   const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults);
   const validations = buildValidationsSnapshot(action);
 
-  // Pendências por contrato de objetivo Meta
-  let pendingReport: PendingFieldsReport;
-  try {
-    pendingReport = computePendingFields({
-      campaign: { ...campaignSnapshot, audience_exclusions: action?.audience_exclusions || null } as any,
-      adsets: adsetsSnapshot,
-      planned_creatives: creativesSnapshot,
-      identity,
-    });
-  } catch (_) {
-    pendingReport = { objective: null, contract_label_pt: null, pending: [], total: 0, meta_step_checklist: [] };
-  }
+  // H.2.2 — Pendências são computadas DEPOIS de o contrato v1.1 decidir
+  // budget_mode (a regra muda se ABO/CBO). Aqui apenas inicializamos vazio.
+  const pendingReport: PendingFieldsReport = {
+    objective: null,
+    contract_label_pt: null,
+    pending: [],
+    total: 0,
+    meta_step_checklist: [],
+    contract_phase_version: "h22_v1",
+  };
+
 
   const adAccountId = parent.ad_account_id
     || plan?.ad_account_id
