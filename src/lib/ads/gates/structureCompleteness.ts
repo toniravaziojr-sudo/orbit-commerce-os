@@ -169,10 +169,13 @@ export function runStructureCompletenessGate(
     const node = ad.name || `Anúncio ${idx + 1}`;
     const prefix = `ad.${idx}`;
 
-    if (isMissing(ad.headline)) blockers.push(make("creative", nodeId, node, `${prefix}.headline`, "blocker", "Defina o título do anúncio."));
-    if (isMissing(ad.primary_text)) blockers.push(make("creative", nodeId, node, `${prefix}.primary_text`, "blocker", "Defina o texto principal do anúncio."));
-    if (isMissing(ad.cta)) blockers.push(make("creative", nodeId, node, `${prefix}.cta`, "blocker", "Defina o botão de ação (ex.: Comprar agora, Saiba mais)."));
-    if (isMissing(ad.destination_url)) blockers.push(make("creative", nodeId, node, `${prefix}.destination_url`, "blocker", "Defina a URL de destino do anúncio."));
+    // H.2.2 — copy final (título/texto) é gerado na próxima etapa.
+    // Não bloqueia a aprovação da estratégia; viram avisos amigáveis.
+    if (isMissing(ad.headline)) warnings.push(make("creative", nodeId, node, `${prefix}.headline`, "warning", "Título será gerado na próxima etapa."));
+    if (isMissing(ad.primary_text)) warnings.push(make("creative", nodeId, node, `${prefix}.primary_text`, "warning", "Texto principal será gerado na próxima etapa."));
+    // Estruturais H.2 — continuam blockers.
+    if (isMissing(ad.cta)) blockers.push(make("creative", nodeId, node, `${prefix}.cta`, "blocker", "Defina o botão de ação planejado (ex.: Comprar agora, Saiba mais)."));
+    if (isMissing(ad.destination_url)) blockers.push(make("creative", nodeId, node, `${prefix}.destination_url`, "blocker", "Defina o link de destino do anúncio."));
     if (isMissing(ad.creative_format)) warnings.push(make("creative", nodeId, node, `${prefix}.creative_format`, "warning", "Recomendado: definir o formato do criativo (imagem, vídeo, carrossel)."));
   });
 

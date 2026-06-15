@@ -225,6 +225,13 @@ function buildAdsetsSnapshot(action: any, defaults?: AccountDefaults | null): an
 
 // ---------------- Snapshot de criativos planejados ------------------
 
+/**
+ * H.2.2 — Vincula cada anúncio planejado a um conjunto e enriquece com
+ * campos estruturais H.2 (creative_source, destination_type, planned_cta,
+ * utm_template, linked_adset_name/key/index, resolution_phase).
+ *
+ * Não inventa copy, asset, ID Meta ou URL final. Não chama IA nem Meta.
+ */
 function buildPlannedCreativesSnapshot(
   action: any,
   adsetsSnapshot: any[],
@@ -236,9 +243,14 @@ function buildPlannedCreativesSnapshot(
     : Array.isArray(action?.ads) ? action.ads
     : [];
 
-  const mapped = raw.map((c: any, i: number) => ({
-    index: i,
-    adset_index: typeof c?.adset_index === "number" ? c.adset_index : null,
+  const adsetName = (i: number) =>
+    (adsetsSnapshot[i] && (adsetsSnapshot[i].name as string | null)) || `Conjunto ${i + 1}`;
+
+  const enrich = (c: any, idx: number, adsetIdx: number) => ({
+    index: idx,
+    adset_index: adsetIdx,
+    adset_key: `adset_${adsetIdx}`,
+    linked_adset_name: adsetName(adsetIdx),
     quantity: c?.quantity ?? 1,
     format: c?.format || defaults?.default_creative_format || null,
     angle: c?.angle || null,
@@ -250,35 +262,55 @@ function buildPlannedCreativesSnapshot(
     destination_url: c?.destination_url || c?.final_url || c?.final_url_with_utm || null,
     visual_prompt: c?.visual_prompt || c?.prompt || null,
     reference: c?.reference || c?.reference_asset_id || null,
-    generation_status: "planned_only" as const,
-  }));
+    generation_status: (c?.generation_status || "planned_only") as
+      "planned_only" | "placeholder_pending_strategy_fill",
+    // ---------- Campos estruturais H.2 (Onda H.2.2) ----------
+    creative_source: defaults?.default_creative_format === "catalog" ? "catalog" : "manual",
+    destination_type: "website",
+    planned_cta: c?.cta || c?.call_to_action || defaults?.default_cta || null,
+    utm_template: defaults?.default_utm_params || null,
+    /** Mapa por campo: o que pertence a H.2 estrutural × H.4 futuro × config Meta. */
+    resolution_phase: {
+      adset_link: "h2_structural",
+      format: "h2_structural",
+      cta: "h2_structural",
+      destination_url: "h2_structural",
+      utm_template: "h2_structural",
+      primary_text: "h4_future",
+      headline: "h4_future",
+      description: "h4_future",
+      visual_prompt: "h4_future",
+      reference: "h4_future",
+      creative_final_url: "h4_future",
+      creative_id: "publication_final",
+    } as const,
+  });
 
-  // H.2.1: garantir pelo menos 1 criativo por conjunto quando faz sentido.
+  // Caso 1 — IA forneceu criativos explícitos: respeitar mapping vindo
+  // (adset_index), com fallback determinístico para o índice posicional.
+  if (raw.length > 0) {
+    return raw.map((c: any, i: number) => {
+      const a = typeof c?.adset_index === "number" && c.adset_index >= 0
+        ? Math.min(c.adset_index, Math.max(0, adsetsSnapshot.length - 1))
+        : Math.min(i, Math.max(0, adsetsSnapshot.length - 1));
+      return enrich(c, i, a);
+    });
+  }
+
+  // Caso 2 — sem criativos vindos da estratégia. Geramos 1 placeholder por
+  // conjunto (paridade 1↔1) para criação/ajuste; demais kinds ficam vazios.
   const needsPlaceholders = (kind === "campaign_creation_proposal" || kind === "campaign_adjustment_proposal")
-    && mapped.length === 0
     && adsetsSnapshot.length > 0;
 
-  if (needsPlaceholders) {
-    return adsetsSnapshot.map((adset, i) => ({
-      index: i,
-      adset_index: i,
-      quantity: 1,
-      format: defaults?.default_creative_format || null,
-      angle: null,
-      promise: null,
-      primary_text: null,
-      headline: null,
-      description: null,
-      cta: defaults?.default_cta || null,
-      destination_url: null,
-      visual_prompt: null,
-      reference: null,
-      generation_status: "placeholder_pending_strategy_fill" as const,
-      placeholder_reason: "A estratégia ainda não definiu o copy/título para este conjunto. Edite na próxima etapa.",
-      linked_adset_name: adset?.name || `Conjunto ${i + 1}`,
-    }));
-  }
-  return mapped;
+  if (!needsPlaceholders) return [];
+
+  return adsetsSnapshot.map((_adset, i) => enrich(
+    {
+      generation_status: "placeholder_pending_strategy_fill",
+    },
+    i,
+    i,
+  ));
 }
 
 // ---------------- Validações herdadas do plano ---------------------
@@ -410,6 +442,70 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
   data.contract_version = "campaign_proposal_v1_1";
   data.contract_validation_status = contract_validation_status;
   data.unsupported_reason = unsupported_reason;
+
+  // ---- H.2.2: Paridade [Teste]/ABO — 1 anúncio por conjunto -------------
+  // Determinístico: se planned_creatives.length === adsets.length, força
+  // vínculo posicional. Se houver placeholder, expande até a contagem dos
+  // conjuntos. Se houver mismatch ambíguo (planned > adsets ou planned ≠ 0
+  // e ≠ adsets sem placeholders), marca pending_dependency em vez de inventar.
+  if (strategyTag === "testing" && budget_mode === "ABO") {
+    const planned: any[] = Array.isArray(data.planned_creatives) ? data.planned_creatives : [];
+    const allPlaceholder = planned.length > 0 && planned.every(
+      (p) => p?.generation_status === "placeholder_pending_strategy_fill",
+    );
+    const adsetName = (i: number) =>
+      (adsets[i] && (adsets[i].name as string | null)) || `Conjunto ${i + 1}`;
+
+    if (planned.length === adsets.length && planned.length > 0) {
+      // Reforça vínculo posicional explicitamente.
+      planned.forEach((p, i) => {
+        p.adset_index = i;
+        p.adset_key = `adset_${i}`;
+        p.linked_adset_name = adsetName(i);
+      });
+    } else if (allPlaceholder && adsets.length > 0) {
+      // Reexpande placeholders 1:1 (idempotente).
+      data.planned_creatives = adsets.map((_, i) => {
+        const base = planned[i] || planned[0] || {};
+        return {
+          ...base,
+          index: i,
+          adset_index: i,
+          adset_key: `adset_${i}`,
+          linked_adset_name: adsetName(i),
+          generation_status: "placeholder_pending_strategy_fill",
+        };
+      });
+    } else if (planned.length === 0 && adsets.length > 0) {
+      // Sem criativos: o builder já gera placeholders 1:1. Nada a fazer.
+    } else {
+      // Mismatch ambíguo — não inventa, marca pendência declarada.
+      if (contract_validation_status === "ok") contract_validation_status = "pending_dependency";
+      data.contract_validation_status = contract_validation_status;
+      data.testing_abo_pairing_status = "mismatch_pending_user_decision";
+      data.testing_abo_pairing_note =
+        `Esta campanha de teste em ABO tem ${planned.length} anúncio(s) planejado(s) para ${adsets.length} conjunto(s). ` +
+        "A paridade 1:1 não pôde ser resolvida automaticamente. Ajuste antes de aprovar.";
+    }
+  }
+
+  // ---- H.2.2: recompute pending_fields/meta_step_checklist com fase ------
+  try {
+    const report = computePendingFields({
+      campaign: campaign as any,
+      adsets: adsets as any,
+      planned_creatives: (data.planned_creatives as any[]) || [],
+      identity: (data.identity as any) || {},
+      budget_mode: budget_mode,
+    });
+    data.pending_fields = report.pending;
+    data.pending_fields_total = report.total;
+    data.meta_step_checklist = report.meta_step_checklist;
+    data.objective_contract_label_pt = report.contract_label_pt;
+    data.contract_phase_version = report.contract_phase_version;
+  } catch (_) {
+    // Sem objetivo canônico — mantemos os campos inicializados vazios.
+  }
 }
 
 // ---------------- Construção do registro ---------------------------
@@ -428,18 +524,17 @@ function buildProposalRecord(
   const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults);
   const validations = buildValidationsSnapshot(action);
 
-  // Pendências por contrato de objetivo Meta
-  let pendingReport: PendingFieldsReport;
-  try {
-    pendingReport = computePendingFields({
-      campaign: { ...campaignSnapshot, audience_exclusions: action?.audience_exclusions || null } as any,
-      adsets: adsetsSnapshot,
-      planned_creatives: creativesSnapshot,
-      identity,
-    });
-  } catch (_) {
-    pendingReport = { objective: null, contract_label_pt: null, pending: [], total: 0, meta_step_checklist: [] };
-  }
+  // H.2.2 — Pendências são computadas DEPOIS de o contrato v1.1 decidir
+  // budget_mode (a regra muda se ABO/CBO). Aqui apenas inicializamos vazio.
+  const pendingReport: PendingFieldsReport = {
+    objective: null,
+    contract_label_pt: null,
+    pending: [],
+    total: 0,
+    meta_step_checklist: [],
+    contract_phase_version: "h22_v1",
+  };
+
 
   const adAccountId = parent.ad_account_id
     || plan?.ad_account_id

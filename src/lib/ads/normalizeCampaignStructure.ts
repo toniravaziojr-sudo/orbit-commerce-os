@@ -558,26 +558,41 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
   });
 
   const planned: any[] = Array.isArray(data?.planned_creatives) ? data.planned_creatives : [];
-  const ads: AdNode[] = planned.map((p: any, i: number) => ({
-    name: humanizeAdDisplayName(pickStr(p?.name), i),
-
-    ad_set_ref: pickStr(p?.adset_name, p?.ad_set_ref),
-    product_name: pickStr(c?.product, raw?.product_name),
-    offer_note: pickStr(p?.promise),
-    primary_text: pickStr(p?.copy, p?.primary_text),
-    headline: pickStr(p?.headline),
-    description: pickStr(p?.description),
-    cta: pickStr(p?.cta),
-    destination_url: pickStr(p?.final_url_with_utm, p?.destination_url),
-    tracking_params: null,
-    creative_prompt: pickStr(p?.visual_prompt),
-    creative_format: pickStr(p?.format),
-    alternative_formats: [],
-    reference_image_url: pickStr(p?.reference),
-    creative_final_url: null,
-    creative_status: "pending_strategy_approval",
-    rationale: pickStr(p?.angle),
-  }));
+  const ads: AdNode[] = planned.map((p: any, i: number) => {
+    // H.2.2 — vínculo explícito com o conjunto:
+    //   1) linked_adset_name (gerador novo)
+    //   2) adset_name (legado da estratégia)
+    //   3) nome do conjunto no índice apontado por adset_index
+    //   4) fallback "Conjunto N"
+    const adsetIdx = typeof p?.adset_index === "number" ? p.adset_index : null;
+    const linkedFromAdsets = adsetIdx !== null && ad_sets[adsetIdx]
+      ? ad_sets[adsetIdx].name
+      : null;
+    return {
+      name: humanizeAdDisplayName(pickStr(p?.name), i),
+      ad_set_ref:
+        pickStr(p?.linked_adset_name, p?.adset_name, p?.ad_set_ref, linkedFromAdsets)
+        || (adsetIdx !== null ? `Conjunto ${adsetIdx + 1}` : null),
+      product_name: pickStr(c?.product, raw?.product_name),
+      offer_note: pickStr(p?.promise),
+      primary_text: pickStr(p?.copy, p?.primary_text),
+      headline: pickStr(p?.headline),
+      description: pickStr(p?.description),
+      cta: pickStr(p?.cta, p?.planned_cta),
+      destination_url: pickStr(p?.final_url_with_utm, p?.destination_url),
+      tracking_params: typeof p?.utm_template === "string" ? p.utm_template
+        : (p?.utm_template && typeof p.utm_template === "object")
+          ? Object.entries(p.utm_template).map(([k, v]) => `${k}=${v}`).join("&")
+          : null,
+      creative_prompt: pickStr(p?.visual_prompt),
+      creative_format: pickStr(p?.format),
+      alternative_formats: [],
+      reference_image_url: pickStr(p?.reference),
+      creative_final_url: null,
+      creative_status: "pending_strategy_approval",
+      rationale: pickStr(p?.angle),
+    };
+  });
 
   const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");
   const cvs = data?.contract_validation_status === "ok" || data?.contract_validation_status === "pending_dependency" || data?.contract_validation_status === "blocked"
@@ -682,10 +697,15 @@ const ACCOUNT_CONFIG_FIELD_HINTS = [
   "default_objective", "default_daily_budget",
 ];
 
-export function classifyPendingFieldH2(p: { level?: string; field?: string; label_pt?: string }): H2PendingCategory {
+export function classifyPendingFieldH2(p: { level?: string; field?: string; label_pt?: string; phase?: string }): H2PendingCategory {
+  // H.2.2: payload novo já traz `phase` explícito.
+  if (p?.phase === "h2_structural") return "h2_structure";
+  if (p?.phase === "h4_future") return "h4_future";
+  if (p?.phase === "account_config") return "account_config";
+  // Fallback heurístico para payloads antigos.
   const field = String(p?.field || "").toLowerCase();
   const level = String(p?.level || "").toLowerCase();
-  if (level === "ad" || H4_FIELD_HINTS.some((h) => field.includes(h))) return "h4_future";
+  if (level === "ad" && H4_FIELD_HINTS.some((h) => field.includes(h))) return "h4_future";
   if (level === "identity" || ACCOUNT_CONFIG_FIELD_HINTS.some((h) => field.includes(h))) return "account_config";
   return "h2_structure";
 }

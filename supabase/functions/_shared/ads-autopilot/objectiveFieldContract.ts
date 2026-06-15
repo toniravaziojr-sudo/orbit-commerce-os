@@ -1,14 +1,15 @@
 // =============================================================================
-// Onda H.2.1 — Contrato de campos por objetivo Meta
+// Onda H.2.1 + H.2.2 — Contrato de campos por objetivo Meta com FASE.
 //
-// Mapa determinístico (sem IA, sem rede) que descreve, para cada objetivo Meta,
-// quais campos a proposta de campanha DEVE conter para refletir o passo a passo
-// real do Gerenciador de Anúncios. A função pure `computePendingFields` lê o
-// snapshot já construído (campaign + adsets + planned_creatives + identity) e
-// devolve a lista de pendências em PT-BR para exibir na UI.
+// Mapa determinístico (sem IA, sem rede). Para cada objetivo Meta, descreve
+// quais campos a proposta DEVE conter e a FASE a que cada campo pertence:
+//   - h2_structural   → bloqueia a revisão H.2 (estrutura/segmentação/regra)
+//   - h4_future       → é gerado na fase de Criativos (não bloqueia H.2)
+//   - account_config  → vem da configuração padrão da conta Meta
+//   - publication_final → é resolvido só na publicação (IDs Meta etc.)
 //
-// Não é gate: a proposta continua sendo gerada mesmo com pendências; a UI
-// destaca o que falta para o usuário aprovar/ajustar.
+// `computePendingFields` aceita budget_mode (CBO/ABO) para não exigir
+// `campaign.daily_budget_cents` quando o orçamento mora nos conjuntos.
 // =============================================================================
 
 export type CanonicalObjective =
@@ -20,79 +21,118 @@ export type CanonicalObjective =
   | "messages"
   | "app_promotion";
 
-export interface ObjectiveContract {
-  /** Rótulo PT-BR do objetivo. */
-  label_pt: string;
-  /** Campos obrigatórios no nível CAMPANHA. */
-  campaign_required: string[];
-  /** Campos obrigatórios no nível CONJUNTO. */
-  adset_required: string[];
-  /** Campos obrigatórios no nível ANÚNCIO/CRIATIVO. */
-  ad_required: string[];
-  /** Identidade necessária para publicar (página, IG, pixel etc.). */
-  identity_required: string[];
+export type FieldPhase =
+  | "h2_structural"
+  | "h4_future"
+  | "account_config"
+  | "publication_final";
+
+export interface FieldSpec {
+  field: string;
+  phase: FieldPhase;
 }
 
-const BASE_CAMPAIGN = ["name", "objective", "buying_type", "budget_type", "daily_budget_cents", "planned_status"];
-const BASE_ADSET = ["name", "audience", "placements", "daily_budget_cents", "schedule"];
-const BASE_AD = ["primary_text", "headline", "cta", "destination_url", "creative_format"];
+export interface ObjectiveContract {
+  label_pt: string;
+  campaign_required: FieldSpec[];
+  adset_required: FieldSpec[];
+  ad_required: FieldSpec[];
+  identity_required: FieldSpec[];
+}
+
+const f = (field: string, phase: FieldPhase): FieldSpec => ({ field, phase });
+
+// Bases reaproveitadas
+const BASE_CAMPAIGN: FieldSpec[] = [
+  f("name", "h2_structural"),
+  f("objective", "h2_structural"),
+  f("buying_type", "h2_structural"),
+  f("budget_type", "h2_structural"),
+  f("daily_budget_cents", "h2_structural"),
+  f("planned_status", "h2_structural"),
+];
+const BASE_ADSET: FieldSpec[] = [
+  f("name", "h2_structural"),
+  f("audience", "h2_structural"),
+  f("placements", "h2_structural"),
+  f("daily_budget_cents", "h2_structural"),
+  f("schedule", "h2_structural"),
+];
+const BASE_AD: FieldSpec[] = [
+  // estrutura H.2
+  f("creative_format", "h2_structural"),
+  f("cta", "h2_structural"),
+  f("destination_url", "h2_structural"),
+  // conteúdo final (H.4)
+  f("primary_text", "h4_future"),
+  f("headline", "h4_future"),
+];
 
 export const OBJECTIVE_CONTRACTS: Record<CanonicalObjective, ObjectiveContract> = {
   sales: {
     label_pt: "Vendas",
-    campaign_required: [...BASE_CAMPAIGN, "attribution_window"],
-    adset_required: [...BASE_ADSET, "optimization_goal", "conversion_event", "audience_exclusions.customers"],
+    campaign_required: [...BASE_CAMPAIGN, f("attribution_window", "account_config")],
+    adset_required: [
+      ...BASE_ADSET,
+      f("optimization_goal", "h2_structural"),
+      f("conversion_event", "h2_structural"),
+      f("audience_exclusions.customers", "h2_structural"),
+    ],
     ad_required: [...BASE_AD],
-    identity_required: ["facebook_page_id", "pixel_id", "conversion_event_default"],
+    identity_required: [
+      f("facebook_page_id", "account_config"),
+      f("pixel_id", "account_config"),
+      f("conversion_event_default", "account_config"),
+    ],
   },
   leads: {
     label_pt: "Geração de leads",
     campaign_required: [...BASE_CAMPAIGN],
-    adset_required: [...BASE_ADSET, "optimization_goal", "conversion_event", "lead_destination"],
-    ad_required: [...BASE_AD, "lead_form_id_or_destination"],
-    identity_required: ["facebook_page_id", "pixel_id"],
+    adset_required: [...BASE_ADSET, f("optimization_goal", "h2_structural"), f("conversion_event", "h2_structural"), f("lead_destination", "h2_structural")],
+    ad_required: [...BASE_AD, f("lead_form_id_or_destination", "h2_structural")],
+    identity_required: [f("facebook_page_id", "account_config"), f("pixel_id", "account_config")],
   },
   traffic: {
     label_pt: "Tráfego",
     campaign_required: [...BASE_CAMPAIGN],
-    adset_required: [...BASE_ADSET, "optimization_goal", "destination_type"],
+    adset_required: [...BASE_ADSET, f("optimization_goal", "h2_structural"), f("destination_type", "h2_structural")],
     ad_required: [...BASE_AD],
-    identity_required: ["facebook_page_id"],
+    identity_required: [f("facebook_page_id", "account_config")],
   },
   awareness: {
     label_pt: "Reconhecimento de marca",
     campaign_required: [...BASE_CAMPAIGN],
-    adset_required: [...BASE_ADSET, "optimization_goal"],
+    adset_required: [...BASE_ADSET, f("optimization_goal", "h2_structural")],
     ad_required: [...BASE_AD],
-    identity_required: ["facebook_page_id"],
+    identity_required: [f("facebook_page_id", "account_config")],
   },
   engagement: {
     label_pt: "Engajamento",
     campaign_required: [...BASE_CAMPAIGN],
-    adset_required: [...BASE_ADSET, "optimization_goal", "engagement_type"],
+    adset_required: [...BASE_ADSET, f("optimization_goal", "h2_structural"), f("engagement_type", "h2_structural")],
     ad_required: [...BASE_AD],
-    identity_required: ["facebook_page_id"],
+    identity_required: [f("facebook_page_id", "account_config")],
   },
   messages: {
     label_pt: "Mensagens",
     campaign_required: [...BASE_CAMPAIGN],
-    adset_required: [...BASE_ADSET, "messaging_destination"],
+    adset_required: [...BASE_ADSET, f("messaging_destination", "h2_structural")],
     ad_required: [...BASE_AD],
-    identity_required: ["facebook_page_id"],
+    identity_required: [f("facebook_page_id", "account_config")],
   },
   app_promotion: {
     label_pt: "Promoção de aplicativo",
-    campaign_required: [...BASE_CAMPAIGN, "app_id"],
-    adset_required: [...BASE_ADSET, "optimization_goal", "app_install_destination"],
-    ad_required: [...BASE_AD, "app_deep_link"],
-    identity_required: ["facebook_page_id"],
+    campaign_required: [...BASE_CAMPAIGN, f("app_id", "h2_structural")],
+    adset_required: [...BASE_ADSET, f("optimization_goal", "h2_structural"), f("app_install_destination", "h2_structural")],
+    ad_required: [...BASE_AD, f("app_deep_link", "h2_structural")],
+    identity_required: [f("facebook_page_id", "account_config")],
   },
 };
 
 const ALIASES: Record<string, CanonicalObjective> = {
-  sales: "sales", outcome_sales: "sales", conversions: "sales", purchase: "sales", vendas: "sales",
+  sales: "sales", outcome_sales: "sales", conversions: "sales", purchase: "sales", purchases: "sales", vendas: "sales",
   leads: "leads", outcome_leads: "leads", lead_generation: "leads",
-  traffic: "traffic", outcome_traffic: "traffic", tráfego: "traffic", trafego: "traffic",
+  traffic: "traffic", outcome_traffic: "traffic", "tráfego": "traffic", trafego: "traffic",
   awareness: "awareness", outcome_awareness: "awareness", brand_awareness: "awareness", reach: "awareness",
   engagement: "engagement", outcome_engagement: "engagement", engajamento: "engagement",
   messages: "messages", outcome_messages: "messages", mensagens: "messages",
@@ -104,7 +144,7 @@ export function inferCanonicalObjective(raw: unknown): CanonicalObjective | null
   return ALIASES[raw.trim().toLowerCase()] ?? null;
 }
 
-// ----- PT-BR labels por campo (para mensagens de pendência amigáveis) --------
+// ----- PT-BR labels por campo -----------------------------------------------
 
 const FIELD_LABELS_PT: Record<string, string> = {
   name: "Nome",
@@ -143,13 +183,13 @@ function pretty(field: string): string {
   return FIELD_LABELS_PT[field] || field;
 }
 
-// ----- Avaliação de pendências ----------------------------------------------
+// ----- Avaliação ------------------------------------------------------------
 
 function isFilled(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value === "boolean") return true; // booleanos contam como preenchidos (true ou false)
+  if (typeof value === "boolean") return true;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length > 0;
   return false;
@@ -161,9 +201,26 @@ function readPath(obj: any, path: string): unknown {
 
 export interface PendingField {
   level: "identity" | "campaign" | "adset" | "ad";
-  index?: number; // só para adset/ad
+  index?: number;
   field: string;
   label_pt: string;
+  /** H.2.2 — fase a que o campo pertence. */
+  phase: FieldPhase;
+}
+
+export interface MetaStepChecklistItemV2 {
+  step: "identity" | "campaign" | "adset" | "ad";
+  label_pt: string;
+  total: number;
+  filled: number;
+  /** Quantos campos obrigatórios estão faltando NO TOTAL (todas as fases). */
+  missing_count: number;
+  /** H.2.2 — quantos pertencem à fase H.2 (são os que realmente bloqueiam a revisão). */
+  h2_missing_count: number;
+  /** H.2.2 — quantos serão resolvidos só na geração de criativos. */
+  h4_missing_count: number;
+  /** H.2.2 — quantos dependem da configuração da conta. */
+  account_config_missing_count: number;
 }
 
 export interface PendingFieldsReport {
@@ -171,22 +228,21 @@ export interface PendingFieldsReport {
   contract_label_pt: string | null;
   pending: PendingField[];
   total: number;
-  /** Passo-a-passo Meta com status: identidade → campanha → conjuntos → anúncios. */
-  meta_step_checklist: Array<{
-    step: "identity" | "campaign" | "adset" | "ad";
-    label_pt: string;
-    total: number;
-    filled: number;
-    missing_count: number;
-  }>;
+  meta_step_checklist: MetaStepChecklistItemV2[];
+  /** Versão do contrato/checklist; consumida pela UI para saber que pode confiar nos campos h2_/h4_/account_config. */
+  contract_phase_version: "h22_v1";
 }
 
-export function computePendingFields(input: {
+export interface ComputePendingInput {
   campaign: Record<string, any>;
   adsets: Array<Record<string, any>>;
   planned_creatives: Array<Record<string, any>>;
   identity: Record<string, any>;
-}): PendingFieldsReport {
+  /** H.2.2 — quando "ABO", suprime exigência de daily_budget_cents na campanha. */
+  budget_mode?: "CBO" | "ABO" | null;
+}
+
+export function computePendingFields(input: ComputePendingInput): PendingFieldsReport {
   const objective = inferCanonicalObjective(input.campaign?.objective);
   if (!objective) {
     return {
@@ -195,45 +251,72 @@ export function computePendingFields(input: {
       pending: [],
       total: 0,
       meta_step_checklist: [],
+      contract_phase_version: "h22_v1",
     };
   }
   const contract = OBJECTIVE_CONTRACTS[objective];
   const pending: PendingField[] = [];
 
-  const stepIdentity = { step: "identity" as const, label_pt: "Identidade da conta", total: contract.identity_required.length, filled: 0, missing_count: 0 };
-  for (const f of contract.identity_required) {
-    if (isFilled(readPath(input.identity, f))) stepIdentity.filled += 1;
-    else { pending.push({ level: "identity", field: f, label_pt: pretty(f) }); stepIdentity.missing_count += 1; }
+  const mkStep = (
+    step: "identity" | "campaign" | "adset" | "ad",
+    label_pt: string,
+    total: number,
+  ): MetaStepChecklistItemV2 => ({
+    step, label_pt, total, filled: 0,
+    missing_count: 0, h2_missing_count: 0, h4_missing_count: 0, account_config_missing_count: 0,
+  });
+
+  const bump = (s: MetaStepChecklistItemV2, p: FieldPhase) => {
+    s.missing_count += 1;
+    if (p === "h2_structural") s.h2_missing_count += 1;
+    else if (p === "h4_future") s.h4_missing_count += 1;
+    else if (p === "account_config") s.account_config_missing_count += 1;
+  };
+
+  const stepIdentity = mkStep("identity", "Identidade da conta", contract.identity_required.length);
+  for (const fs of contract.identity_required) {
+    if (isFilled(readPath(input.identity, fs.field))) stepIdentity.filled += 1;
+    else { pending.push({ level: "identity", field: fs.field, label_pt: pretty(fs.field), phase: fs.phase }); bump(stepIdentity, fs.phase); }
   }
 
-  const stepCampaign = { step: "campaign" as const, label_pt: "Campanha", total: contract.campaign_required.length, filled: 0, missing_count: 0 };
-  for (const f of contract.campaign_required) {
-    if (isFilled(readPath(input.campaign, f))) stepCampaign.filled += 1;
-    else { pending.push({ level: "campaign", field: f, label_pt: pretty(f) }); stepCampaign.missing_count += 1; }
+  // H.2.2: em ABO, não exigir orçamento na campanha.
+  const filteredCampaignReq = contract.campaign_required.filter((fs) => {
+    if (input.budget_mode === "ABO" && fs.field === "daily_budget_cents") return false;
+    return true;
+  });
+  const stepCampaign = mkStep("campaign", "Campanha", filteredCampaignReq.length);
+  for (const fs of filteredCampaignReq) {
+    if (isFilled(readPath(input.campaign, fs.field))) stepCampaign.filled += 1;
+    else { pending.push({ level: "campaign", field: fs.field, label_pt: pretty(fs.field), phase: fs.phase }); bump(stepCampaign, fs.phase); }
   }
 
-  const stepAdset = { step: "adset" as const, label_pt: `Conjuntos (${input.adsets.length})`, total: contract.adset_required.length * Math.max(1, input.adsets.length), filled: 0, missing_count: 0 };
+  const stepAdset = mkStep("adset", `Conjuntos (${input.adsets.length})`, contract.adset_required.length * Math.max(1, input.adsets.length));
   if (input.adsets.length === 0) {
-    pending.push({ level: "adset", field: "adsets", label_pt: "Pelo menos 1 conjunto de anúncios" });
-    stepAdset.missing_count += 1;
+    pending.push({ level: "adset", field: "adsets", label_pt: "Pelo menos 1 conjunto de anúncios", phase: "h2_structural" });
+    bump(stepAdset, "h2_structural");
   } else {
     input.adsets.forEach((adset, i) => {
-      for (const f of contract.adset_required) {
-        if (isFilled(readPath(adset, f))) stepAdset.filled += 1;
-        else { pending.push({ level: "adset", index: i, field: f, label_pt: pretty(f) }); stepAdset.missing_count += 1; }
+      // CBO: não exigir daily_budget_cents do conjunto.
+      const fields = contract.adset_required.filter((fs) => {
+        if (input.budget_mode === "CBO" && fs.field === "daily_budget_cents") return false;
+        return true;
+      });
+      for (const fs of fields) {
+        if (isFilled(readPath(adset, fs.field))) stepAdset.filled += 1;
+        else { pending.push({ level: "adset", index: i, field: fs.field, label_pt: pretty(fs.field), phase: fs.phase }); bump(stepAdset, fs.phase); }
       }
     });
   }
 
-  const stepAd = { step: "ad" as const, label_pt: `Anúncios planejados (${input.planned_creatives.length})`, total: contract.ad_required.length * Math.max(1, input.planned_creatives.length), filled: 0, missing_count: 0 };
+  const stepAd = mkStep("ad", `Anúncios planejados (${input.planned_creatives.length})`, contract.ad_required.length * Math.max(1, input.planned_creatives.length));
   if (input.planned_creatives.length === 0) {
-    pending.push({ level: "ad", field: "planned_creatives", label_pt: "Pelo menos 1 anúncio planejado por conjunto" });
-    stepAd.missing_count += 1;
+    pending.push({ level: "ad", field: "planned_creatives", label_pt: "Pelo menos 1 anúncio planejado por conjunto", phase: "h2_structural" });
+    bump(stepAd, "h2_structural");
   } else {
     input.planned_creatives.forEach((ad, i) => {
-      for (const f of contract.ad_required) {
-        if (isFilled(readPath(ad, f))) stepAd.filled += 1;
-        else { pending.push({ level: "ad", index: i, field: f, label_pt: pretty(f) }); stepAd.missing_count += 1; }
+      for (const fs of contract.ad_required) {
+        if (isFilled(readPath(ad, fs.field))) stepAd.filled += 1;
+        else { pending.push({ level: "ad", index: i, field: fs.field, label_pt: pretty(fs.field), phase: fs.phase }); bump(stepAd, fs.phase); }
       }
     });
   }
@@ -244,5 +327,6 @@ export function computePendingFields(input: {
     pending,
     total: pending.length,
     meta_step_checklist: [stepIdentity, stepCampaign, stepAdset, stepAd],
+    contract_phase_version: "h22_v1",
   };
 }

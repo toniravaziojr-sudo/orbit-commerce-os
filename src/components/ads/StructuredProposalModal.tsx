@@ -685,12 +685,15 @@ function OverviewSection({
         >
           <div className="space-y-2">
             {((action.action_data as any).meta_step_checklist as any[]).map((s, i) => {
-              const ok = s.missing_count === 0;
+              // H.2.2 — só conta como pendência H.2 o que pertence à fase estrutural.
+              // Itens h4_future e account_config aparecem em blocos próprios abaixo.
+              const h2Missing = typeof s.h2_missing_count === "number" ? s.h2_missing_count : s.missing_count;
+              const ok = h2Missing === 0;
               return (
                 <div key={i} className="flex items-center justify-between text-xs">
                   <span className="font-medium">{s.label_pt}</span>
                   <Badge variant={ok ? "outline" : "destructive"} className="text-[10px]">
-                    {ok ? "Completo" : `${s.missing_count} pendência(s)`}
+                    {ok ? "Completo" : `${h2Missing} pendência(s)`}
                   </Badge>
                 </div>
               );
@@ -698,6 +701,7 @@ function OverviewSection({
           </div>
         </Block>
       )}
+
 
       {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (() => {
         const all = ((action.action_data as any).pending_fields as any[]) || [];
@@ -924,9 +928,10 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
           <Detail label="Formato" value={ad.creative_format} pendingField={!ad.creative_format && isP(".creative_format")} />
-          <Detail label="Título" value={ad.headline} fullWidth pendingField={!ad.headline && isP(".headline")} />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth pendingField={!ad.primary_text && isP(".primary_text")} />
-          <Detail label="Descrição" value={ad.description} fullWidth />
+          {/* H.2.2 — copy final (título/texto/descrição) é gerado na próxima etapa, não conta como pendência H.2. */}
+          <Detail label="Título" value={ad.headline} fullWidth futurePhase={isStrategyStage} />
+          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={isStrategyStage} />
+          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={isStrategyStage} />
           <Detail label="Botão de ação" value={tr("cta", ad.cta)} pendingField={!ad.cta && isP(".cta")} />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
@@ -936,6 +941,7 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
           {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
         </DetailGrid>
       </Block>
+
 
       {(ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
         <Block
@@ -1033,13 +1039,19 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth, pendingField,
-}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean }) {
+  label, value, fullWidth, pendingField, futurePhase,
+}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean; futurePhase?: boolean }) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-      {empty && pendingField ? (
+      {empty && futurePhase ? (
+        <p className="text-sm">
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
+            Será gerado na próxima etapa
+          </span>
+        </p>
+      ) : empty && pendingField ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 px-1.5 py-0.5 text-[11px] font-medium">
             Pendente · Obrigatório
@@ -1051,6 +1063,7 @@ function Detail({
     </div>
   );
 }
+
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (

@@ -25251,6 +25251,18 @@ export type Database = {
         }[]
       }
       ads_ai_learnings_norm_title: { Args: { t: string }; Returns: string }
+      ads_patch_proposal_to_h22: {
+        Args: { p_action_id: string }
+        Returns: {
+          account_config_missing_total: number
+          action_id: string
+          changed: boolean
+          contract_validation_status: string
+          h2_missing_total: number
+          h4_missing_total: number
+          pairing_status: string
+        }[]
+      }
       ads_patch_proposal_to_v1_1: {
         Args: { p_action_id: string }
         Returns: {
