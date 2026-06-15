@@ -40,6 +40,8 @@ Quando o Gestor de Tráfego IA monta uma proposta de anúncio (H.2), o "Link de 
 
 - Módulo puro: `supabase/functions/_shared/ads-autopilot/destinationResolver.ts`.
 - Função patch idempotente (one-shot para propostas legadas): `public.ads_patch_proposal_to_h24(uuid)`.
+- **Fonte única da rota pública de produto:** `supabase/functions/_shared/storefront/publicRoutes.ts` (`STOREFRONT_PRODUCT_PATH_TEMPLATE = "/produto/{slug}"` + `buildPublicProductPath`). Qualquer módulo backend que precise montar URL pública de produto deve consumir essa função — NUNCA hardcodar `/produto/` em outros lugares.
+- Override por tenant: o resolver aceita `tenantProductRouteTemplate` como parâmetro opcional. Hoje não há fonte segura de configuração por tenant para essa rota (nenhuma coluna em `store_settings`/`tenants`), então o default global é sempre usado. Quando existir, basta passar o valor — nenhuma outra mudança é necessária.
 
 ## O que NUNCA fazer
 
