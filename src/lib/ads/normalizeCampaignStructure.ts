@@ -579,6 +579,11 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     rationale: pickStr(p?.angle),
   }));
 
+  const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");
+  const cvs = data?.contract_validation_status === "ok" || data?.contract_validation_status === "pending_dependency" || data?.contract_validation_status === "blocked"
+    ? data.contract_validation_status
+    : null;
+
   return {
     schema_version: 2,
     campaign,
@@ -590,6 +595,9 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     pending_fields: Array.isArray(data?.pending_fields) ? data.pending_fields : [],
     meta_step_checklist: Array.isArray(data?.meta_step_checklist) ? data.meta_step_checklist : [],
     objective_contract_label_pt: typeof data?.objective_contract_label_pt === "string" ? data.objective_contract_label_pt : null,
+    contract_version: cv as any,
+    contract_validation_status: cvs as any,
+    unsupported_reason: typeof data?.unsupported_reason === "string" ? data.unsupported_reason : null,
   };
 }
 
