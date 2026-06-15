@@ -697,10 +697,15 @@ const ACCOUNT_CONFIG_FIELD_HINTS = [
   "default_objective", "default_daily_budget",
 ];
 
-export function classifyPendingFieldH2(p: { level?: string; field?: string; label_pt?: string }): H2PendingCategory {
+export function classifyPendingFieldH2(p: { level?: string; field?: string; label_pt?: string; phase?: string }): H2PendingCategory {
+  // H.2.2: payload novo já traz `phase` explícito.
+  if (p?.phase === "h2_structural") return "h2_structure";
+  if (p?.phase === "h4_future") return "h4_future";
+  if (p?.phase === "account_config") return "account_config";
+  // Fallback heurístico para payloads antigos.
   const field = String(p?.field || "").toLowerCase();
   const level = String(p?.level || "").toLowerCase();
-  if (level === "ad" || H4_FIELD_HINTS.some((h) => field.includes(h))) return "h4_future";
+  if (level === "ad" && H4_FIELD_HINTS.some((h) => field.includes(h))) return "h4_future";
   if (level === "identity" || ACCOUNT_CONFIG_FIELD_HINTS.some((h) => field.includes(h))) return "account_config";
   return "h2_structure";
 }
