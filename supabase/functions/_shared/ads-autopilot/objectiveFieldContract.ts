@@ -252,6 +252,8 @@ export interface ComputePendingInput {
   identity: Record<string, any>;
   /** H.2.2 — quando "ABO", suprime exigência de daily_budget_cents na campanha. */
   budget_mode?: "CBO" | "ABO" | null;
+  /** H.2.3 — quando "testing", `creative_format` do anúncio vira fase H.4 (variável de teste). */
+  internal_strategy_tag?: string | null;
 }
 
 export function computePendingFields(input: ComputePendingInput): PendingFieldsReport {
@@ -268,6 +270,8 @@ export function computePendingFields(input: ComputePendingInput): PendingFieldsR
   }
   const contract = OBJECTIVE_CONTRACTS[objective];
   const pending: PendingField[] = [];
+  const isTesting = String(input.internal_strategy_tag || "").toLowerCase() === "testing";
+  const ctaDefault = defaultCtaForObjective(objective);
 
   const mkStep = (
     step: "identity" | "campaign" | "adset" | "ad",
@@ -327,8 +331,19 @@ export function computePendingFields(input: ComputePendingInput): PendingFieldsR
   } else {
     input.planned_creatives.forEach((ad, i) => {
       for (const fs of contract.ad_required) {
+        // H.2.3 — Em [Teste]/ABO, formato é variável do teste (H.4), não pendência H.2.
+        let effectivePhase: FieldPhase = fs.phase;
+        if (fs.field === "creative_format" && isTesting) effectivePhase = "h4_future";
+
+        // H.2.3 — CTA: se objetivo tem default e o anúncio não preencheu,
+        // considera-se atendido pelo contrato do objetivo (não é pendência).
+        if (fs.field === "cta" && !isFilled(readPath(ad, "cta")) && ctaDefault) {
+          stepAd.filled += 1;
+          continue;
+        }
+
         if (isFilled(readPath(ad, fs.field))) stepAd.filled += 1;
-        else { pending.push({ level: "ad", index: i, field: fs.field, label_pt: pretty(fs.field), phase: fs.phase }); bump(stepAd, fs.phase); }
+        else { pending.push({ level: "ad", index: i, field: fs.field, label_pt: pretty(fs.field), phase: effectivePhase }); bump(stepAd, effectivePhase); }
       }
     });
   }
