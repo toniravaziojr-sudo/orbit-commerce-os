@@ -316,7 +316,12 @@ export function StructuredProposalModal({
   }
   const approveBlockedByCampaignProposalH3 = isCampaignProposal && cpCriticalBlockers.length > 0;
 
-  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3;
+  // Onda H.2 — Interruptor de etapa (default OFF) — espelha o guard do backend.
+  // Aprovar campaign_proposal fica bloqueado até a validação visual da H.2.
+  const H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED = true;
+  const approveBlockedByH2Lock = isCampaignProposal && H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED;
+
+  const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3 || approveBlockedByH2Lock;
 
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
@@ -325,27 +330,32 @@ export function StructuredProposalModal({
     else onApprove(action.id);
   };
 
-  const approveLabel = approveLabelOverride ?? (isStrategyStage
-    ? approveBlocked
-      ? "Ajuste necessário antes de aprovar"
-      : "Aprovar estratégia e gerar criativos"
-    : approveBlockedByContract
-      ? "Plano incompleto — não aprovável"
-      : approveBlockedByCampaignProposalH3
-        ? "Faltam dados para aprovar"
-        : isCampaignProposal
-          ? "Aprovar proposta de campanha"
-          : "Aprovar");
-
-  const approveBlockedReason = approveBlockedByContract
-    ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
-    : approveBlockedByFit
-      ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
-      : approveBlockedByGates
-        ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+  const approveLabel = approveLabelOverride ?? (approveBlockedByH2Lock
+    ? "Aguardando próxima etapa"
+    : isStrategyStage
+      ? approveBlocked
+        ? "Ajuste necessário antes de aprovar"
+        : "Aprovar estratégia e gerar criativos"
+      : approveBlockedByContract
+        ? "Plano incompleto — não aprovável"
         : approveBlockedByCampaignProposalH3
-          ? `Faltam dados críticos: ${cpCriticalBlockers.join(", ")}. Ajuste antes de aprovar.`
-          : null;
+          ? "Faltam dados para aprovar"
+          : isCampaignProposal
+            ? "Aprovar proposta de campanha"
+            : "Aprovar");
+
+  const approveBlockedReason = approveBlockedByH2Lock
+    ? "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão."
+    : approveBlockedByContract
+      ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
+      : approveBlockedByFit
+        ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+        : approveBlockedByGates
+          ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+          : approveBlockedByCampaignProposalH3
+            ? `Faltam dados críticos: ${cpCriticalBlockers.join(", ")}. Ajuste antes de aprovar.`
+            : null;
+
 
   return (
     <>
