@@ -43,6 +43,7 @@ import { fitLevelLabel } from "../../../supabase/functions/_shared/ads-autopilot
 import {
   formatBudgetBRL,
   normalizeCampaignStructure,
+  classifyPendingFieldH2,
   type AdNode,
   type AdSetNode,
   type CampaignNode,
@@ -51,6 +52,7 @@ import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleten
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
 import { runUtmGate } from "@/lib/ads/gates/utm";
 import type { GateIssue } from "@/lib/ads/gates/types";
+
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
