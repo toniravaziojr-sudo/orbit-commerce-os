@@ -66,7 +66,19 @@ const BASE_AD: FieldSpec[] = [
   // conteúdo final (H.4)
   f("primary_text", "h4_future"),
   f("headline", "h4_future"),
+  f("description", "h4_future"),
 ];
+
+// H.2.3 — CTA padrão por objetivo (derivado do contrato, não da conta).
+// Quando o objetivo tem CTA padrão definido, a ausência de `cta` no anúncio
+// NÃO conta como pendência H.2: a UI deriva e mostra a origem "Padrão do objetivo".
+export const OBJECTIVE_DEFAULT_CTA: Partial<Record<CanonicalObjective, string>> = {
+  sales: "SHOP_NOW",
+};
+export function defaultCtaForObjective(obj: CanonicalObjective | null): string | null {
+  if (!obj) return null;
+  return OBJECTIVE_DEFAULT_CTA[obj] ?? null;
+}
 
 export const OBJECTIVE_CONTRACTS: Record<CanonicalObjective, ObjectiveContract> = {
   sales: {
