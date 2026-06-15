@@ -964,7 +964,12 @@ function AdSection({
     : null;
   const formatPlaceholder = formatIsTestVariable
     ? "Será definido na etapa de criativos como variável do teste"
-    : null;
+    : (ad.format_source === "missing_catalog_config"
+      ? "Pendente de configuração de catálogo na conta Meta"
+      : null);
+  // H.2.5 — valor humanizado do formato resolvido + origem.
+  const formatDisplayValue = ad.format_label || (ad.creative_format ? tr("creative_format", ad.creative_format) : null);
+  const formatOriginNote = ad.format_source_label_pt || null;
 
   return (
     <div className="space-y-4">
@@ -983,8 +988,9 @@ function AdSection({
           <Detail label="Produto/oferta" value={ad.product_name} />
           <Detail
             label="Formato"
-            value={ad.creative_format}
-            customPlaceholder={formatPlaceholder ?? (!ad.creative_format ? "Pendente de definição do formato planejado" : undefined)}
+            value={formatDisplayValue}
+            helperText={formatOriginNote}
+            customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
           />
           {/* H.2.3 — copy final (título/texto/descrição) é sempre H.4 em proposta de campanha. */}
           <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
@@ -999,6 +1005,7 @@ function AdSection({
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
           )}
+
           <Detail
             label="Link de destino"
             value={destValue}
