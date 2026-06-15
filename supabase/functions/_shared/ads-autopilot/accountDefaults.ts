@@ -33,7 +33,9 @@ export interface AccountDefaults {
   default_creative_format: string | null;
   default_utm_params: Record<string, string> | null;
   conversions_api_active: boolean;
-  source: "ads_meta_production_config" | "tenant_meta_integrations" | "merged" | "none";
+  source: "ads_meta_production_config" | "tenant_meta_integrations" | "marketing_integrations" | "ads_autopilot_account_configs" | "merged" | "none";
+  /** Distribuição de orçamento por funil (% inteiros somando 100). */
+  funnel_splits?: { cold?: number; warm?: number; remarketing?: number; tests?: number; leads?: number } | null;
 }
 
 const EMPTY: AccountDefaults = {
@@ -45,7 +47,7 @@ const EMPTY: AccountDefaults = {
   default_daily_budget_cents: null, default_planned_status: null,
   default_country: null, default_age_min: null, default_age_max: null, default_gender: null,
   default_placements: null, default_cta: null, default_creative_format: null, default_utm_params: null,
-  conversions_api_active: false, source: "none",
+  conversions_api_active: false, source: "none", funnel_splits: null,
 };
 
 export async function resolveAccountDefaults(
@@ -123,6 +125,40 @@ export async function resolveAccountDefaults(
     }
   } catch (_) { /* tolerante */ }
 
-  out.source = sources.length === 2 ? "merged" : sources.length === 1 ? (sources[0] as any) : "none";
+  try {
+    // 3) marketing_integrations — Pixel oficial cadastrado no marketing do tenant
+    const { data: mk } = await supabase
+      .from("marketing_integrations")
+      .select("meta_pixel_id")
+      .eq("tenant_id", params.tenant_id)
+      .maybeSingle();
+    if (mk?.meta_pixel_id && !out.pixel_id) {
+      sources.push("marketing_integrations");
+      out.pixel_id = String(mk.meta_pixel_id);
+    }
+  } catch (_) { /* tolerante */ }
+
+  try {
+    // 4) ads_autopilot_account_configs — Orçamento estratégico + funnel splits do canal Meta
+    const acctQ = supabase
+      .from("ads_autopilot_account_configs")
+      .select("budget_mode, budget_cents, funnel_splits, target_roi")
+      .eq("tenant_id", params.tenant_id)
+      .eq("channel", "meta");
+    if (params.ad_account_id) acctQ.eq("ad_account_id", params.ad_account_id);
+    const { data: acct } = await acctQ.limit(1).maybeSingle();
+    if (acct) {
+      sources.push("ads_autopilot_account_configs");
+      if (out.default_daily_budget_cents == null && acct.budget_cents && acct.budget_mode === "daily") {
+        out.default_daily_budget_cents = Number(acct.budget_cents);
+      }
+      if (acct.funnel_splits && typeof acct.funnel_splits === "object") {
+        out.funnel_splits = acct.funnel_splits as AccountDefaults["funnel_splits"];
+      }
+    }
+  } catch (_) { /* tolerante */ }
+
+  out.source = sources.length > 1 ? "merged" : sources.length === 1 ? (sources[0] as any) : "none";
   return out;
 }
+
