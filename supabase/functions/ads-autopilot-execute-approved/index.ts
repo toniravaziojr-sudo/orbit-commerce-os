@@ -216,6 +216,21 @@ Deno.serve(async (req) => {
     // ficam para a H.4 (geração de criativos + revisão final + publicação agendada 00:01 BRT).
     // Esta etapa NÃO chama Meta, NÃO gera criativo, NÃO cria público/catálogo.
     if (action.action_type === "campaign_proposal") {
+      // ====== Onda H.2 — Interruptor de etapa (default OFF) ======
+      // Enquanto a H.2 (revisão visual das Propostas de Campanha) não for validada,
+      // a aprovação individual de campaign_proposal fica bloqueada antes de QUALQUER
+      // efeito colateral (status, lifecycle, creative_jobs, IA, Meta, públicos).
+      // H.3/H.4.1 permanecem implementadas e voltam quando este flag virar false.
+      const H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED = true;
+      if (H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] H.2 LOCK: campaign_proposal approval blocked (action ${action_id})`);
+        return new Response(JSON.stringify({
+          success: false,
+          error: "campaign_proposal_approval_locked_h2",
+          message: "A aprovação individual de propostas de campanha ainda está bloqueada nesta etapa. Valide a H.2 antes de avançar para geração de criativos.",
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       const propData = action.action_data || {};
       const campaign = propData.campaign || {};
       const identity = propData.identity || {};
