@@ -554,7 +554,17 @@ function buildProposalRecord(
   const identity = buildIdentitySnapshot(action, defaults);
   const campaignSnapshot = buildCampaignSnapshot(action, defaults, kind);
   const adsetsSnapshot = buildAdsetsSnapshot(action, defaults);
-  const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults);
+  // H.2.3 — passa strategy_tag e objetivo canônico para o builder de criativos
+  // resolver CTA padrão por objetivo, formato como variável em [Teste] e
+  // link de destino vindo do produto/oferta (não da conta).
+  const strategyTagPre = inferStrategyTag(action?.campaign_type || campaignSnapshot?.campaign_type);
+  const objectiveCanonPre = inferObjectiveCanonical(campaignSnapshot?.objective);
+  const productUrlPre = action?.product_url || action?.preview?.product_url || null;
+  const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults, {
+    strategyTag: strategyTagPre,
+    objectiveCanonical: objectiveCanonPre,
+    productUrl: productUrlPre,
+  });
   const validations = buildValidationsSnapshot(action);
 
   // H.2.2 — Pendências são computadas DEPOIS de o contrato v1.1 decidir
