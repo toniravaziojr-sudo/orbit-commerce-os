@@ -62,6 +62,8 @@ export interface ParentPlanContext {
   ad_account_id?: string | null;
   /** Defaults da conta (página, IG, pixel etc.) resolvidos server-side. */
   account_defaults?: AccountDefaults | null;
+  /** H.2.4 — domínio público primário verificado da loja (sem protocolo). */
+  tenant_primary_verified_domain?: string | null;
 }
 
 export interface CampaignProposalRecord {
