@@ -928,9 +928,10 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
           <Detail label="Formato" value={ad.creative_format} pendingField={!ad.creative_format && isP(".creative_format")} />
-          <Detail label="Título" value={ad.headline} fullWidth pendingField={!ad.headline && isP(".headline")} />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth pendingField={!ad.primary_text && isP(".primary_text")} />
-          <Detail label="Descrição" value={ad.description} fullWidth />
+          {/* H.2.2 — copy final (título/texto/descrição) é gerado na próxima etapa, não conta como pendência H.2. */}
+          <Detail label="Título" value={ad.headline} fullWidth futurePhase={isStrategyStage} />
+          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={isStrategyStage} />
+          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={isStrategyStage} />
           <Detail label="Botão de ação" value={tr("cta", ad.cta)} pendingField={!ad.cta && isP(".cta")} />
           {ad.alternative_formats.length > 0 && (
             <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
@@ -940,6 +941,7 @@ function AdSection({ ad, isStrategyStage, blockers }: { ad: AdNode | null; isStr
           {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
         </DetailGrid>
       </Block>
+
 
       {(ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
         <Block
