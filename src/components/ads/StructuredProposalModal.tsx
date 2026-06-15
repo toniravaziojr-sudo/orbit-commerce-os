@@ -43,6 +43,7 @@ import { fitLevelLabel } from "../../../supabase/functions/_shared/ads-autopilot
 import {
   formatBudgetBRL,
   normalizeCampaignStructure,
+  classifyPendingFieldH2,
   type AdNode,
   type AdSetNode,
   type CampaignNode,
@@ -51,6 +52,7 @@ import { runStructureCompletenessGate } from "@/lib/ads/gates/structureCompleten
 import { runPlatformCompatibilityGate } from "@/lib/ads/gates/platformCompatibility";
 import { runUtmGate } from "@/lib/ads/gates/utm";
 import type { GateIssue } from "@/lib/ads/gates/types";
+
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
@@ -89,14 +91,20 @@ interface Props {
 const DICT: Record<string, Record<string, string>> = {
   objective: {
     sales: "Vendas",
+    OUTCOME_SALES: "Vendas",
     conversions: "Conversões",
     traffic: "Tráfego",
+    OUTCOME_TRAFFIC: "Tráfego",
     awareness: "Reconhecimento de marca",
+    OUTCOME_AWARENESS: "Reconhecimento de marca",
     engagement: "Engajamento",
+    OUTCOME_ENGAGEMENT: "Engajamento",
     leads: "Geração de leads",
+    OUTCOME_LEADS: "Geração de leads",
     video_views: "Visualizações de vídeo",
     messages: "Mensagens",
     app_promotion: "Promoção de aplicativo",
+    OUTCOME_APP_PROMOTION: "Promoção de aplicativo",
   },
   budget_type: { daily: "Diário", lifetime: "Total da campanha" },
   planned_status: { PAUSED: "Pausada", ACTIVE: "Ativa", ARCHIVED: "Arquivada" },
@@ -129,14 +137,15 @@ const DICT: Record<string, Record<string, string>> = {
   },
   buying_type: { AUCTION: "Leilão", RESERVED: "Reserva" },
   funnel: {
-    tof: "Topo do funil (descoberta)",
-    mof: "Meio do funil (consideração)",
-    bof: "Fundo do funil (conversão)",
+    tof: "Topo do funil / Público frio",
+    mof: "Meio do funil / Público morno",
+    bof: "Fundo do funil / Público quente",
     top: "Topo do funil (descoberta)",
     middle: "Meio do funil (consideração)",
     bottom: "Fundo do funil (conversão)",
     prospecting: "Prospecção",
     retargeting: "Remarketing",
+    test: "Teste de criativos",
   },
   audience_type: {
     cold: "Público frio",
@@ -149,7 +158,7 @@ const DICT: Record<string, Record<string, string>> = {
     retargeting: "Remarketing",
   },
   optimization_goal: {
-    OFFSITE_CONVERSIONS: "Conversões",
+    OFFSITE_CONVERSIONS: "Conversões no site",
     LINK_CLICKS: "Cliques no link",
     IMPRESSIONS: "Impressões",
     REACH: "Alcance",
@@ -178,6 +187,9 @@ const DICT: Record<string, Record<string, string>> = {
     messenger: "Messenger",
     audience_network: "Audience Network",
     marketplace: "Marketplace",
+    advantage_plus: "Posicionamento automático (Advantage+)",
+    advantage_plus_placements: "Posicionamento automático (Advantage+)",
+    automatic: "Posicionamento automático (Advantage+)",
   },
 };
 
@@ -188,18 +200,19 @@ function tr(group: string, value: string | null | undefined): string | null {
 }
 
 function translateCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
-  if (isStrategyStage) return "Aguardando aprovação da estratégia";
+  if (isStrategyStage) return "Será gerado na próxima etapa";
   switch (status) {
     case "pending_strategy_approval":
-      return "Aguardando aprovação da estratégia";
+      return "Será gerado na próxima etapa";
     case "generating":
       return "Gerando…";
     case "ready":
       return "Pronto";
     default:
-      return "Não informado";
+      return "Será gerado na próxima etapa";
   }
 }
+
 
 /* --------------------------------------------------------------------------- */
 
@@ -663,26 +676,72 @@ function OverviewSection({
         </Block>
       )}
 
-      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (
-        <Block
-          title={`Campos pendentes (${(action.action_data as any).pending_fields.length})`}
-          icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
-        >
-          <ul className="space-y-1 text-xs">
-            {((action.action_data as any).pending_fields as any[]).slice(0, 25).map((p, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
-                  {p.level === "identity" ? "Identidade" : p.level === "campaign" ? "Campanha" : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}` : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`}
-                </Badge>
-                <span className="text-muted-foreground">{p.label_pt}</span>
-              </li>
-            ))}
-            {(action.action_data as any).pending_fields.length > 25 && (
-              <li className="text-muted-foreground italic">… e mais {(action.action_data as any).pending_fields.length - 25} pendência(s).</li>
+      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (() => {
+        const all = ((action.action_data as any).pending_fields as any[]) || [];
+        const h2Structure = all.filter((p) => classifyPendingFieldH2(p) === "h2_structure");
+        const accountConfig = all.filter((p) => classifyPendingFieldH2(p) === "account_config");
+        const h4Future = all.filter((p) => classifyPendingFieldH2(p) === "h4_future");
+        const labelFor = (p: any) =>
+          p.level === "identity" ? "Configuração da conta"
+          : p.level === "campaign" ? "Campanha"
+          : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`
+          : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`;
+
+        return (
+          <>
+            {h2Structure.length > 0 && (
+              <Block
+                title={`Pendências da revisão atual (${h2Structure.length})`}
+                icon={<AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
+              >
+                <ul className="space-y-1 text-xs">
+                  {h2Structure.slice(0, 25).map((p, i) => (
+                    <li key={`s-${i}`} className="flex items-start gap-2">
+                      <Badge variant="outline" className="text-[10px] shrink-0">{labelFor(p)}</Badge>
+                      <span className="text-muted-foreground">{p.label_pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Block>
             )}
-          </ul>
-        </Block>
-      )}
+
+            {accountConfig.length > 0 && (
+              <Block
+                title={`Pendente de configuração da conta Meta (${accountConfig.length})`}
+                icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+              >
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Estes itens dependem de uma configuração-padrão da conta de anúncios. A IA não preenche
+                  automaticamente — defina na aba de configuração da conta Meta para liberar a próxima etapa.
+                </p>
+                <ul className="space-y-1 text-xs">
+                  {accountConfig.map((p, i) => (
+                    <li key={`a-${i}`} className="flex items-start gap-2">
+                      <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-500/5 border-amber-500/30">
+                        {labelFor(p)}
+                      </Badge>
+                      <span className="text-muted-foreground">{p.label_pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Block>
+            )}
+
+            {h4Future.length > 0 && (
+              <Block
+                title="Será gerado na próxima etapa"
+                icon={<Sparkles className="h-3.5 w-3.5 text-muted-foreground" />}
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  {h4Future.length} item(ns) do anúncio final (textos, criativo, link de destino e identificadores)
+                  serão gerados na etapa seguinte. Não bloqueiam a revisão da estratégia.
+                </p>
+              </Block>
+            )}
+          </>
+        );
+      })()}
+
 
 
       {fitMessage && (
@@ -716,26 +775,30 @@ function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNo
       </Block>
       {identity && (
         <Block title="Identidade e rastreamento da conta" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
-          <DetailGrid>
-            <Detail label="Página do Facebook" value={identity.facebook_page_name || identity.facebook_page_id || null} />
-            <Detail label="Instagram vinculado" value={identity.instagram_actor_name || identity.instagram_actor_id || null} />
-            <Detail label="Pixel" value={identity.pixel_name || identity.pixel_id || null} />
-            <Detail label="API de Conversões" value={identity.conversions_api_active ? "Ativa" : "Não configurada"} />
-            <Detail label="Evento de conversão padrão" value={tr("conversion_event", identity.conversion_event_default)} />
-            <Detail label="Janela de atribuição" value={identity.attribution_window} />
-            <Detail label="CTA padrão" value={tr("cta", identity.cta_default)} />
-            <Detail
-              label="UTM base"
-              value={typeof identity.utm_base === "string"
-                ? identity.utm_base
-                : identity.utm_base && typeof identity.utm_base === "object"
-                  ? Object.entries(identity.utm_base).map(([k, v]) => `${k}=${v}`).join(" · ")
-                  : null}
-              fullWidth
-            />
-          </DetailGrid>
+          {(() => {
+            const FALLBACK = "Pendente de configuração da conta";
+            const fb = (v: string | null | undefined) => (v && String(v).trim() !== "" ? v : FALLBACK);
+            const utmStr = typeof identity.utm_base === "string"
+              ? identity.utm_base
+              : identity.utm_base && typeof identity.utm_base === "object"
+                ? Object.entries(identity.utm_base).map(([k, v]) => `${k}=${v}`).join(" · ")
+                : null;
+            return (
+              <DetailGrid>
+                <Detail label="Página do Facebook" value={fb(identity.facebook_page_name || identity.facebook_page_id)} />
+                <Detail label="Instagram vinculado" value={fb(identity.instagram_actor_name || identity.instagram_actor_id)} />
+                <Detail label="Pixel" value={fb(identity.pixel_name || identity.pixel_id)} />
+                <Detail label="API de Conversões" value={identity.conversions_api_active ? "Ativa" : "Não configurada na conta"} />
+                <Detail label="Evento de conversão padrão" value={fb(tr("conversion_event", identity.conversion_event_default))} />
+                <Detail label="Janela de atribuição" value={fb(identity.attribution_window)} />
+                <Detail label="CTA padrão" value={fb(tr("cta", identity.cta_default))} />
+                <Detail label="UTM base" value={fb(utmStr)} fullWidth />
+              </DetailGrid>
+            );
+          })()}
         </Block>
       )}
+
       {campaign.rationale && (
         <Block title="Por que esta configuração" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{campaign.rationale}</p>
