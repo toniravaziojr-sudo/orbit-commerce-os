@@ -238,54 +238,86 @@ function buildPlannedCreativesSnapshot(
   adsetsSnapshot: any[],
   kind: CampaignProposalKind,
   defaults?: AccountDefaults | null,
+  options?: { strategyTag?: string | null; objectiveCanonical?: string | null; productUrl?: string | null },
 ): any[] {
   const raw = Array.isArray(action?.creatives) ? action.creatives
     : Array.isArray(action?.planned_creatives) ? action.planned_creatives
     : Array.isArray(action?.ads) ? action.ads
     : [];
 
+  const isTesting = String(options?.strategyTag || "").toLowerCase() === "testing";
+  const objCanon = options?.objectiveCanonical || null;
+  // H.2.3 — CTA padrão derivado do objetivo (não da conta).
+  const ctaFromObjective = objCanon === "sales" ? "SHOP_NOW"
+    : objCanon === "leads" ? "SIGN_UP"
+    : objCanon === "traffic" ? "LEARN_MORE"
+    : null;
+  // H.2.3 — Link de destino sai do produto/oferta, NUNCA de URL fixa da conta.
+  const productUrl = options?.productUrl || action?.product_url || action?.destination_url || null;
+
   const adsetName = (i: number) =>
     (adsetsSnapshot[i] && (adsetsSnapshot[i].name as string | null)) || `Conjunto ${i + 1}`;
 
-  const enrich = (c: any, idx: number, adsetIdx: number) => ({
-    index: idx,
-    adset_index: adsetIdx,
-    adset_key: `adset_${adsetIdx}`,
-    linked_adset_name: adsetName(adsetIdx),
-    quantity: c?.quantity ?? 1,
-    format: c?.format || defaults?.default_creative_format || null,
-    angle: c?.angle || null,
-    promise: c?.promise || null,
-    primary_text: c?.copy || c?.primary_text || null,
-    headline: c?.headline || null,
-    description: c?.description || null,
-    cta: c?.cta || c?.call_to_action || defaults?.default_cta || null,
-    destination_url: c?.destination_url || c?.final_url || c?.final_url_with_utm || null,
-    visual_prompt: c?.visual_prompt || c?.prompt || null,
-    reference: c?.reference || c?.reference_asset_id || null,
-    generation_status: (c?.generation_status || "planned_only") as
-      "planned_only" | "placeholder_pending_strategy_fill",
-    // ---------- Campos estruturais H.2 (Onda H.2.2) ----------
-    creative_source: defaults?.default_creative_format === "catalog" ? "catalog" : "manual",
-    destination_type: "website",
-    planned_cta: c?.cta || c?.call_to_action || defaults?.default_cta || null,
-    utm_template: defaults?.default_utm_params || null,
-    /** Mapa por campo: o que pertence a H.2 estrutural × H.4 futuro × config Meta. */
-    resolution_phase: {
-      adset_link: "h2_structural",
-      format: "h2_structural",
-      cta: "h2_structural",
-      destination_url: "h2_structural",
-      utm_template: "h2_structural",
-      primary_text: "h4_future",
-      headline: "h4_future",
-      description: "h4_future",
-      visual_prompt: "h4_future",
-      reference: "h4_future",
-      creative_final_url: "h4_future",
-      creative_id: "publication_final",
-    } as const,
-  });
+  const enrich = (c: any, idx: number, adsetIdx: number) => {
+    // H.2.3 — Em [Teste], formato é variável do teste (decidido na H.4).
+    const planned_format = isTesting
+      ? null
+      : (c?.format || defaults?.default_creative_format || null);
+    const planned_cta = c?.cta || c?.call_to_action || ctaFromObjective || null;
+    const cta_source: "ad_override" | "objective_default" | null =
+      c?.cta || c?.call_to_action ? "ad_override"
+      : ctaFromObjective ? "objective_default"
+      : null;
+    const planned_destination_url = c?.destination_url || c?.final_url || c?.final_url_with_utm || productUrl || null;
+    const destination_source: "ad_override" | "product_offer" | null =
+      c?.destination_url || c?.final_url || c?.final_url_with_utm ? "ad_override"
+      : productUrl ? "product_offer"
+      : null;
+
+    return {
+      index: idx,
+      adset_index: adsetIdx,
+      adset_key: `adset_${adsetIdx}`,
+      linked_adset_name: adsetName(adsetIdx),
+      quantity: c?.quantity ?? 1,
+      format: planned_format,
+      angle: c?.angle || null,
+      promise: c?.promise || null,
+      primary_text: c?.copy || c?.primary_text || null,
+      headline: c?.headline || null,
+      description: c?.description || null,
+      cta: planned_cta,
+      cta_source,
+      destination_url: planned_destination_url,
+      destination_source,
+      destination_pending_reason: !planned_destination_url ? "product_offer_url_missing" : null,
+      visual_prompt: c?.visual_prompt || c?.prompt || null,
+      reference: c?.reference || c?.reference_asset_id || null,
+      generation_status: (c?.generation_status || "planned_only") as
+        "planned_only" | "placeholder_pending_strategy_fill",
+      // ---------- Campos estruturais H.2 (Onda H.2.2/H.2.3) ----------
+      creative_source: defaults?.default_creative_format === "catalog" ? "catalog" : "manual",
+      destination_type: "website",
+      planned_cta,
+      utm_template: defaults?.default_utm_params || null,
+      /** Mapa por campo: o que pertence a H.2 estrutural × H.4 futuro × config Meta. */
+      resolution_phase: {
+        adset_link: "h2_structural",
+        // H.2.3 — em [Teste], formato vira variável do teste (H.4).
+        format: isTesting ? "h4_future" : "h2_structural",
+        cta: "h2_structural",
+        destination_url: "h2_structural",
+        utm_template: "h2_structural",
+        primary_text: "h4_future",
+        headline: "h4_future",
+        description: "h4_future",
+        visual_prompt: "h4_future",
+        reference: "h4_future",
+        creative_final_url: "h4_future",
+        creative_id: "publication_final",
+      } as const,
+    };
+  };
 
   // Caso 1 — IA forneceu criativos explícitos: respeitar mapping vindo
   // (adset_index), com fallback determinístico para o índice posicional.
