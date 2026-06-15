@@ -25263,6 +25263,10 @@ export type Database = {
           pairing_status: string
         }[]
       }
+      ads_patch_proposal_to_h23: {
+        Args: { p_action_id: string }
+        Returns: Json
+      }
       ads_patch_proposal_to_v1_1: {
         Args: { p_action_id: string }
         Returns: {
