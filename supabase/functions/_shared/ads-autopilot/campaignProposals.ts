@@ -442,6 +442,52 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
   data.contract_version = "campaign_proposal_v1_1";
   data.contract_validation_status = contract_validation_status;
   data.unsupported_reason = unsupported_reason;
+
+  // ---- H.2.2: Paridade [Teste]/ABO — 1 anúncio por conjunto -------------
+  // Determinístico: se planned_creatives.length === adsets.length, força
+  // vínculo posicional. Se houver placeholder, expande até a contagem dos
+  // conjuntos. Se houver mismatch ambíguo (planned > adsets ou planned ≠ 0
+  // e ≠ adsets sem placeholders), marca pending_dependency em vez de inventar.
+  if (strategyTag === "testing" && budget_mode === "ABO") {
+    const planned: any[] = Array.isArray(data.planned_creatives) ? data.planned_creatives : [];
+    const allPlaceholder = planned.length > 0 && planned.every(
+      (p) => p?.generation_status === "placeholder_pending_strategy_fill",
+    );
+    const adsetName = (i: number) =>
+      (adsets[i] && (adsets[i].name as string | null)) || `Conjunto ${i + 1}`;
+
+    if (planned.length === adsets.length && planned.length > 0) {
+      // Reforça vínculo posicional explicitamente.
+      planned.forEach((p, i) => {
+        p.adset_index = i;
+        p.adset_key = `adset_${i}`;
+        p.linked_adset_name = adsetName(i);
+      });
+    } else if (allPlaceholder && adsets.length > 0) {
+      // Reexpande placeholders 1:1 (idempotente).
+      data.planned_creatives = adsets.map((_, i) => {
+        const base = planned[i] || planned[0] || {};
+        return {
+          ...base,
+          index: i,
+          adset_index: i,
+          adset_key: `adset_${i}`,
+          linked_adset_name: adsetName(i),
+          generation_status: "placeholder_pending_strategy_fill",
+        };
+      });
+    } else if (planned.length === 0 && adsets.length > 0) {
+      // Sem criativos: o builder já gera placeholders 1:1. Nada a fazer.
+    } else {
+      // Mismatch ambíguo — não inventa, marca pendência declarada.
+      if (contract_validation_status === "ok") contract_validation_status = "pending_dependency";
+      data.contract_validation_status = contract_validation_status;
+      data.testing_abo_pairing_status = "mismatch_pending_user_decision";
+      data.testing_abo_pairing_note =
+        `Esta campanha de teste em ABO tem ${planned.length} anúncio(s) planejado(s) para ${adsets.length} conjunto(s). ` +
+        "A paridade 1:1 não pôde ser resolvida automaticamente. Ajuste antes de aprovar.";
+    }
+  }
 }
 
 // ---------------- Construção do registro ---------------------------
