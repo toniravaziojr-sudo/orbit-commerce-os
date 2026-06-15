@@ -47,7 +47,7 @@ const EMPTY: AccountDefaults = {
   default_daily_budget_cents: null, default_planned_status: null,
   default_country: null, default_age_min: null, default_age_max: null, default_gender: null,
   default_placements: null, default_cta: null, default_creative_format: null, default_utm_params: null,
-  conversions_api_active: false, source: "none",
+  conversions_api_active: false, source: "none", funnel_splits: null,
 };
 
 export async function resolveAccountDefaults(
