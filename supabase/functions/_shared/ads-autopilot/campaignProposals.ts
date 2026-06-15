@@ -225,6 +225,13 @@ function buildAdsetsSnapshot(action: any, defaults?: AccountDefaults | null): an
 
 // ---------------- Snapshot de criativos planejados ------------------
 
+/**
+ * H.2.2 — Vincula cada anúncio planejado a um conjunto e enriquece com
+ * campos estruturais H.2 (creative_source, destination_type, planned_cta,
+ * utm_template, linked_adset_name/key/index, resolution_phase).
+ *
+ * Não inventa copy, asset, ID Meta ou URL final. Não chama IA nem Meta.
+ */
 function buildPlannedCreativesSnapshot(
   action: any,
   adsetsSnapshot: any[],
@@ -236,9 +243,14 @@ function buildPlannedCreativesSnapshot(
     : Array.isArray(action?.ads) ? action.ads
     : [];
 
-  const mapped = raw.map((c: any, i: number) => ({
-    index: i,
-    adset_index: typeof c?.adset_index === "number" ? c.adset_index : null,
+  const adsetName = (i: number) =>
+    (adsetsSnapshot[i] && (adsetsSnapshot[i].name as string | null)) || `Conjunto ${i + 1}`;
+
+  const enrich = (c: any, idx: number, adsetIdx: number) => ({
+    index: idx,
+    adset_index: adsetIdx,
+    adset_key: `adset_${adsetIdx}`,
+    linked_adset_name: adsetName(adsetIdx),
     quantity: c?.quantity ?? 1,
     format: c?.format || defaults?.default_creative_format || null,
     angle: c?.angle || null,
@@ -250,35 +262,55 @@ function buildPlannedCreativesSnapshot(
     destination_url: c?.destination_url || c?.final_url || c?.final_url_with_utm || null,
     visual_prompt: c?.visual_prompt || c?.prompt || null,
     reference: c?.reference || c?.reference_asset_id || null,
-    generation_status: "planned_only" as const,
-  }));
+    generation_status: (c?.generation_status || "planned_only") as
+      "planned_only" | "placeholder_pending_strategy_fill",
+    // ---------- Campos estruturais H.2 (Onda H.2.2) ----------
+    creative_source: defaults?.default_creative_format === "catalog" ? "catalog" : "manual",
+    destination_type: "website",
+    planned_cta: c?.cta || c?.call_to_action || defaults?.default_cta || null,
+    utm_template: defaults?.default_utm_params || null,
+    /** Mapa por campo: o que pertence a H.2 estrutural × H.4 futuro × config Meta. */
+    resolution_phase: {
+      adset_link: "h2_structural",
+      format: "h2_structural",
+      cta: "h2_structural",
+      destination_url: "h2_structural",
+      utm_template: "h2_structural",
+      primary_text: "h4_future",
+      headline: "h4_future",
+      description: "h4_future",
+      visual_prompt: "h4_future",
+      reference: "h4_future",
+      creative_final_url: "h4_future",
+      creative_id: "publication_final",
+    } as const,
+  });
 
-  // H.2.1: garantir pelo menos 1 criativo por conjunto quando faz sentido.
+  // Caso 1 — IA forneceu criativos explícitos: respeitar mapping vindo
+  // (adset_index), com fallback determinístico para o índice posicional.
+  if (raw.length > 0) {
+    return raw.map((c: any, i: number) => {
+      const a = typeof c?.adset_index === "number" && c.adset_index >= 0
+        ? Math.min(c.adset_index, Math.max(0, adsetsSnapshot.length - 1))
+        : Math.min(i, Math.max(0, adsetsSnapshot.length - 1));
+      return enrich(c, i, a);
+    });
+  }
+
+  // Caso 2 — sem criativos vindos da estratégia. Geramos 1 placeholder por
+  // conjunto (paridade 1↔1) para criação/ajuste; demais kinds ficam vazios.
   const needsPlaceholders = (kind === "campaign_creation_proposal" || kind === "campaign_adjustment_proposal")
-    && mapped.length === 0
     && adsetsSnapshot.length > 0;
 
-  if (needsPlaceholders) {
-    return adsetsSnapshot.map((adset, i) => ({
-      index: i,
-      adset_index: i,
-      quantity: 1,
-      format: defaults?.default_creative_format || null,
-      angle: null,
-      promise: null,
-      primary_text: null,
-      headline: null,
-      description: null,
-      cta: defaults?.default_cta || null,
-      destination_url: null,
-      visual_prompt: null,
-      reference: null,
-      generation_status: "placeholder_pending_strategy_fill" as const,
-      placeholder_reason: "A estratégia ainda não definiu o copy/título para este conjunto. Edite na próxima etapa.",
-      linked_adset_name: adset?.name || `Conjunto ${i + 1}`,
-    }));
-  }
-  return mapped;
+  if (!needsPlaceholders) return [];
+
+  return adsetsSnapshot.map((_adset, i) => enrich(
+    {
+      generation_status: "placeholder_pending_strategy_fill",
+    },
+    i,
+    i,
+  ));
 }
 
 // ---------------- Validações herdadas do plano ---------------------
