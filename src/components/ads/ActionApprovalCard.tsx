@@ -2088,11 +2088,10 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-2 text-center">
                 <Megaphone className="h-6 w-6 text-primary/40" />
-                {action.action_type === "campaign_proposal" && (
-                  <span className="text-[9px] text-muted-foreground leading-tight">Criativo na próxima etapa</span>
-                )}
+                <span className="text-[9px] text-muted-foreground leading-tight">Criativo na próxima etapa</span>
               </div>
             )}
+
 
           </div>
 
