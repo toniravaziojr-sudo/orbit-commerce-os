@@ -676,26 +676,72 @@ function OverviewSection({
         </Block>
       )}
 
-      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (
-        <Block
-          title={`Campos pendentes (${(action.action_data as any).pending_fields.length})`}
-          icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
-        >
-          <ul className="space-y-1 text-xs">
-            {((action.action_data as any).pending_fields as any[]).slice(0, 25).map((p, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
-                  {p.level === "identity" ? "Identidade" : p.level === "campaign" ? "Campanha" : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}` : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`}
-                </Badge>
-                <span className="text-muted-foreground">{p.label_pt}</span>
-              </li>
-            ))}
-            {(action.action_data as any).pending_fields.length > 25 && (
-              <li className="text-muted-foreground italic">… e mais {(action.action_data as any).pending_fields.length - 25} pendência(s).</li>
+      {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (() => {
+        const all = ((action.action_data as any).pending_fields as any[]) || [];
+        const h2Structure = all.filter((p) => classifyPendingFieldH2(p) === "h2_structure");
+        const accountConfig = all.filter((p) => classifyPendingFieldH2(p) === "account_config");
+        const h4Future = all.filter((p) => classifyPendingFieldH2(p) === "h4_future");
+        const labelFor = (p: any) =>
+          p.level === "identity" ? "Configuração da conta"
+          : p.level === "campaign" ? "Campanha"
+          : p.level === "adset" ? `Conjunto${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`
+          : `Anúncio${typeof p.index === "number" ? ` ${p.index + 1}` : ""}`;
+
+        return (
+          <>
+            {h2Structure.length > 0 && (
+              <Block
+                title={`Pendências da revisão atual (${h2Structure.length})`}
+                icon={<AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
+              >
+                <ul className="space-y-1 text-xs">
+                  {h2Structure.slice(0, 25).map((p, i) => (
+                    <li key={`s-${i}`} className="flex items-start gap-2">
+                      <Badge variant="outline" className="text-[10px] shrink-0">{labelFor(p)}</Badge>
+                      <span className="text-muted-foreground">{p.label_pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Block>
             )}
-          </ul>
-        </Block>
-      )}
+
+            {accountConfig.length > 0 && (
+              <Block
+                title={`Pendente de configuração da conta Meta (${accountConfig.length})`}
+                icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+              >
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Estes itens dependem de uma configuração-padrão da conta de anúncios. A IA não preenche
+                  automaticamente — defina na aba de configuração da conta Meta para liberar a próxima etapa.
+                </p>
+                <ul className="space-y-1 text-xs">
+                  {accountConfig.map((p, i) => (
+                    <li key={`a-${i}`} className="flex items-start gap-2">
+                      <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-500/5 border-amber-500/30">
+                        {labelFor(p)}
+                      </Badge>
+                      <span className="text-muted-foreground">{p.label_pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Block>
+            )}
+
+            {h4Future.length > 0 && (
+              <Block
+                title="Será gerado na próxima etapa"
+                icon={<Sparkles className="h-3.5 w-3.5 text-muted-foreground" />}
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  {h4Future.length} item(ns) do anúncio final (textos, criativo, link de destino e identificadores)
+                  serão gerados na etapa seguinte. Não bloqueiam a revisão da estratégia.
+                </p>
+              </Block>
+            )}
+          </>
+        );
+      })()}
+
 
 
       {fitMessage && (
