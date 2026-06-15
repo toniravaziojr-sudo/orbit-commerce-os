@@ -33,7 +33,9 @@ export interface AccountDefaults {
   default_creative_format: string | null;
   default_utm_params: Record<string, string> | null;
   conversions_api_active: boolean;
-  source: "ads_meta_production_config" | "tenant_meta_integrations" | "merged" | "none";
+  source: "ads_meta_production_config" | "tenant_meta_integrations" | "marketing_integrations" | "ads_autopilot_account_configs" | "merged" | "none";
+  /** Distribuição de orçamento por funil (% inteiros somando 100). */
+  funnel_splits?: { cold?: number; warm?: number; remarketing?: number; tests?: number; leads?: number } | null;
 }
 
 const EMPTY: AccountDefaults = {
