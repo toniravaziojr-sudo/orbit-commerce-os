@@ -488,6 +488,24 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
         "A paridade 1:1 não pôde ser resolvida automaticamente. Ajuste antes de aprovar.";
     }
   }
+
+  // ---- H.2.2: recompute pending_fields/meta_step_checklist com fase ------
+  try {
+    const report = computePendingFields({
+      campaign: campaign as any,
+      adsets: adsets as any,
+      planned_creatives: (data.planned_creatives as any[]) || [],
+      identity: (data.identity as any) || {},
+      budget_mode: budget_mode,
+    });
+    data.pending_fields = report.pending;
+    data.pending_fields_total = report.total;
+    data.meta_step_checklist = report.meta_step_checklist;
+    data.objective_contract_label_pt = report.contract_label_pt;
+    data.contract_phase_version = report.contract_phase_version;
+  } catch (_) {
+    // Sem objetivo canônico — mantemos os campos inicializados vazios.
+  }
 }
 
 // ---------------- Construção do registro ---------------------------
