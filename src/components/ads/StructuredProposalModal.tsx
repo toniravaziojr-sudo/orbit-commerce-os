@@ -776,7 +776,7 @@ function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNo
           <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
           <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
           <Detail label="Tipo de orçamento" value={budgetModeLabel || tr("budget_type", campaign.budget_type)} />
-          <Detail label={budgetLabel} value={formatBudgetBRL(campaign.daily_budget_cents)} />
+          <Detail label={budgetLabel} value={budgetMode === "ABO" && !campaign.daily_budget_cents ? "Definido nos conjuntos" : formatBudgetBRL(campaign.daily_budget_cents)} />
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
         </DetailGrid>
       </Block>
