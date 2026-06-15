@@ -120,7 +120,16 @@ describe("H.2.2 — [Teste] ABO paridade 1 anúncio ↔ 1 conjunto", () => {
 });
 
 describe("H.2.2 — checklist conta apenas pendência H.2 estrutural", () => {
-  it("anúncios placeholder NÃO inflam o passo a passo com campos H.4", () => {
+  it("anúncios placeholder: copy/título/descrição NÃO contam como pendência H.2 (vão para h4_future)", () => {
+    // defaults preenchem CTA e formato → não geram pendência H.2 nos anúncios
+    const parentWithDefaults = {
+      ...parent,
+      account_defaults: {
+        ...(parent.account_defaults as any),
+        default_cta: "SHOP_NOW",
+        default_creative_format: "image",
+      } as any,
+    };
     const { records } = buildCampaignProposalsFromApprovedPlan(
       basePlan([{
         action_type: "create_campaign",
@@ -130,20 +139,21 @@ describe("H.2.2 — checklist conta apenas pendência H.2 estrutural", () => {
         adsets: [
           { name: "C1", audience: "X", placements: ["feed"], schedule: { start: "now" }, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: "PURCHASE", audience_exclusions: { customers: true } },
           { name: "C2", audience: "Y", placements: ["feed"], schedule: { start: "now" }, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: "PURCHASE", audience_exclusions: { customers: true } },
-          { name: "C3", audience: "Z", placements: ["feed"], schedule: { start: "now" }, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: "PURCHASE", audience_exclusions: { customers: true } },
         ],
       }]),
-      parent as any,
+      parentWithDefaults as any,
     );
     const ad = records[0].action_data as any;
     const adsStep = ad.meta_step_checklist.find((s: any) => s.step === "ad");
-    // título, texto, descrição ausentes nos 3 placeholders → 9 itens H.4, 0 itens H.2
+    // título/texto ainda ausentes → vão para h4_future (não inflam o passo a passo)
     expect(adsStep.h2_missing_count).toBe(0);
-    expect(adsStep.h4_missing_count).toBeGreaterThanOrEqual(6);
-    // pending_fields trazem `phase` explícito
+    expect(adsStep.h4_missing_count).toBeGreaterThanOrEqual(4);
+    // pending_fields no nível "ad" só carregam fase h4_future (copy/headline)
     const adPendings = ad.pending_fields.filter((p: any) => p.level === "ad");
-    expect(adPendings.every((p: any) => p.phase === "h2_structural" || p.phase === "h4_future")).toBe(true);
+    expect(adPendings.length).toBeGreaterThan(0);
+    expect(adPendings.every((p: any) => p.phase === "h4_future")).toBe(true);
   });
+
 
   it("ABO não exige daily_budget_cents na campanha (sem pendência fantasma)", () => {
     const { records } = buildCampaignProposalsFromApprovedPlan(
