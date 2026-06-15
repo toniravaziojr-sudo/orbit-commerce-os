@@ -20,6 +20,7 @@
 
 import {
   computePendingFields,
+  defaultCtaForObjective,
   type PendingFieldsReport,
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
