@@ -568,11 +568,15 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     const linkedFromAdsets = adsetIdx !== null && ad_sets[adsetIdx]
       ? ad_sets[adsetIdx].name
       : null;
+    // H.2.3 — humaniza o nome do conjunto vinculado APENAS na UI.
+    // Mantém o nome técnico salvo no payload intacto.
+    const rawLinked = pickStr(p?.linked_adset_name, p?.adset_name, p?.ad_set_ref, linkedFromAdsets);
+    const humanizedLinked = rawLinked
+      ? humanizeAdsetDisplayName(rawLinked, adsetIdx ?? i)
+      : (adsetIdx !== null ? `Conjunto ${adsetIdx + 1}` : null);
     return {
       name: humanizeAdDisplayName(pickStr(p?.name), i),
-      ad_set_ref:
-        pickStr(p?.linked_adset_name, p?.adset_name, p?.ad_set_ref, linkedFromAdsets)
-        || (adsetIdx !== null ? `Conjunto ${adsetIdx + 1}` : null),
+      ad_set_ref: humanizedLinked,
       product_name: pickStr(c?.product, raw?.product_name),
       offer_note: pickStr(p?.promise),
       primary_text: pickStr(p?.copy, p?.primary_text),
@@ -591,7 +595,12 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
       creative_final_url: null,
       creative_status: "pending_strategy_approval",
       rationale: pickStr(p?.angle),
-    };
+      // H.2.3 — metadados de origem/fase para a UI exibir mensagens corretas.
+      cta_source: (p?.cta_source as any) || null,
+      destination_source: (p?.destination_source as any) || null,
+      destination_pending_reason: (p?.destination_pending_reason as any) || null,
+      format_phase: (p?.resolution_phase?.format as any) || null,
+    } as AdNode;
   });
 
   const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");
