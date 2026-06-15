@@ -80,8 +80,13 @@ export interface AdNode {
   rationale: string | null;
   // ---- H.2.3 — metadados de origem/fase (só para a UI exibir mensagens) ----
   cta_source?: "ad_override" | "objective_default" | null;
-  destination_source?: "ad_override" | "product_offer" | null;
-  destination_pending_reason?: "product_offer_url_missing" | null;
+  destination_source?: "ad_override" | "landing" | "product_offer" | "domain_derived" | null;
+  destination_pending_reason?:
+    | "product_offer_url_missing"
+    | "store_public_domain_not_verified"
+    | "landing_invalid_or_internal"
+    | "no_product_or_offer_linked"
+    | null;
   format_phase?: "h2_structural" | "h4_future" | null;
 }
 
