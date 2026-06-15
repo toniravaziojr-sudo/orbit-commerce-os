@@ -26,6 +26,14 @@ export interface CampaignNode {
    *  Preenchido pelo adapter quando o payload legado guardou link/CTA no topo. */
   inherited_destination_url: string | null;
   inherited_cta: string | null;
+  /** Contrato v1.1 (Onda H.2.1) — orçamento na campanha (CBO) ou nos conjuntos (ABO). */
+  budget_mode?: "CBO" | "ABO" | null;
+  /** Contrato v1.1 — tag estratégica interna (não é A/B test nativo da Meta). */
+  internal_strategy_tag?: string | null;
+  /** Contrato v1.1 — subtipo da venda (manual_sales ou advantage_plus_shopping). */
+  sales_subtype?: string | null;
+  /** Contrato v1.1 — exige catálogo Meta? */
+  requires_catalog?: boolean | null;
 }
 
 export interface AdSetNode {
