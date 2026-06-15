@@ -1090,13 +1090,31 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth, pendingField, futurePhase,
-}: { label: string; value: string | number | null | undefined; fullWidth?: boolean; pendingField?: boolean; futurePhase?: boolean }) {
+  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  fullWidth?: boolean;
+  pendingField?: boolean;
+  futurePhase?: boolean;
+  /** H.2.3 — texto exibido quando o valor está vazio, com origem/fase clara
+   *  (ex.: "Pendente de URL do produto/oferta", "Pendente de CTA padrão",
+   *  "Será definido na etapa de criativos como variável do teste"). */
+  customPlaceholder?: string;
+  /** H.2.3 — nota de origem ao lado do valor (ex.: "Padrão do objetivo Vendas"). */
+  helperText?: string | null;
+}) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-      {empty && futurePhase ? (
+      {empty && customPlaceholder ? (
+        <p className="text-sm">
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30 px-1.5 py-0.5 text-[11px] font-medium">
+            {customPlaceholder}
+          </span>
+        </p>
+      ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
             Será gerado na próxima etapa
@@ -1109,7 +1127,10 @@ function Detail({
           </span>
         </p>
       ) : (
-        <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+        <>
+          <p className="text-sm break-words">{empty ? "—" : String(value)}</p>
+          {helperText && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{helperText}</p>}
+        </>
       )}
     </div>
   );
