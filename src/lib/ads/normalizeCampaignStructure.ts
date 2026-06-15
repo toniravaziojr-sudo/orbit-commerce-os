@@ -87,7 +87,20 @@ export interface AdNode {
     | "landing_invalid_or_internal"
     | "no_product_or_offer_linked"
     | null;
-  format_phase?: "h2_structural" | "h4_future" | null;
+  format_phase?: "h2_structural" | "h4_future" | "account_config" | null;
+  // H.2.5 — origem do formato resolvido.
+  format_source?:
+    | "strategy_explicit_format"
+    | "account_default_format"
+    | "meta_sales_manual_contract_default"
+    | "catalog_required"
+    | "testing_h4_variable"
+    | "missing_catalog_config"
+    | "unsupported_format"
+    | null;
+  format_source_label_pt?: string | null;
+  format_label?: string | null;
+
 }
 
 export interface IdentityNode {
@@ -599,7 +612,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
           ? Object.entries(p.utm_template).map(([k, v]) => `${k}=${v}`).join("&")
           : null,
       creative_prompt: pickStr(p?.visual_prompt),
-      creative_format: pickStr(p?.format),
+      creative_format: pickStr(p?.creative_format, p?.format),
       alternative_formats: [],
       reference_image_url: pickStr(p?.reference),
       creative_final_url: null,
@@ -609,8 +622,13 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
       cta_source: (p?.cta_source as any) || null,
       destination_source: (p?.destination_source as any) || null,
       destination_pending_reason: (p?.destination_pending_reason as any) || null,
-      format_phase: (p?.resolution_phase?.format as any) || null,
+      format_phase: (p?.format_resolution_phase as any) || (p?.resolution_phase?.format as any) || null,
+      // H.2.5 — origem humanizada do formato resolvido.
+      format_source: (p?.format_source as any) || null,
+      format_source_label_pt: pickStr(p?.format_source_label_pt),
+      format_label: pickStr(p?.format_label),
     } as AdNode;
+
   });
 
   const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");

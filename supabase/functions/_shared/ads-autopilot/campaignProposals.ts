@@ -25,6 +25,8 @@ import {
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
 import { resolveDestination } from "./destinationResolver.ts";
+import { resolveCreativeFormat } from "./creativeFormatResolver.ts";
+
 
 /**
  * Onda H.2.1 — versão do contrato. v1 continua sendo aceito em LEITURA pelo
@@ -544,6 +546,44 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
     }
   }
 
+  // ---- H.2.5: resolução determinística de creative_format ---------------
+  // Cascata global: explícito → padrão da conta → default contratual
+  // (Meta + Vendas manual → "Imagem única"). [Teste] mantém H.4. Catálogo
+  // tem regra própria. NUNCA inventa vídeo/carrossel como default.
+  try {
+    const isTesting = String(campaign.internal_strategy_tag || "").toLowerCase() === "testing";
+    const requiresCatalog = !!campaign.requires_catalog;
+    const hasValidCatalog = typeof campaign?.product_catalog_id === "string"
+      && campaign.product_catalog_id.length > 0;
+    const accountDefaultFmt = (parent.account_defaults as any)?.default_creative_format ?? null;
+
+    const plannedAds: any[] = Array.isArray(data.planned_creatives) ? data.planned_creatives : [];
+    for (const ad of plannedAds) {
+      const resolved = resolveCreativeFormat({
+        explicit: ad?.format,
+        accountDefault: accountDefaultFmt,
+        isTesting,
+        requiresCatalog,
+        hasValidCatalog,
+        platform,
+        objectiveCanonical,
+      });
+      ad.format = resolved.value;
+      // Mirror em creative_format para o contrato de pendências enxergar o campo preenchido.
+      ad.creative_format = resolved.value;
+      ad.format_label = resolved.label;
+      ad.format_source = resolved.source;
+      ad.format_source_label_pt = resolved.source_label_pt;
+      ad.format_resolution_phase = resolved.resolution_phase;
+      ad.format_missing_reason = resolved.missing_reason;
+      if (ad.resolution_phase && typeof ad.resolution_phase === "object") {
+        ad.resolution_phase.format = resolved.resolution_phase;
+      }
+    }
+  } catch (_) {
+    // resolver é puro e tolerante; em caso de payload atípico, mantém formato como estava.
+  }
+
   // ---- H.2.2/H.2.3: recompute pending_fields/meta_step_checklist com fase ------
   try {
     const report = computePendingFields({
@@ -563,6 +603,7 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
     // Sem objetivo canônico — mantemos os campos inicializados vazios.
   }
 }
+
 
 // ---------------- Construção do registro ---------------------------
 
