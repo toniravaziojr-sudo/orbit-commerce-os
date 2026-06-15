@@ -54,6 +54,8 @@ export interface AdSetNode {
   conversion_event: string | null;
   schedule: { start: string | null; end: string | null } | null;
   daily_budget_cents: number | null;
+  /** Contrato v1.1 — em CBO, valor informativo de distribuição estimada. */
+  budget_distribution_estimate?: number | null;
   rationale: string | null;
 }
 
