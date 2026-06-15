@@ -552,6 +552,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
       conversion_event: pickStr(r?.conversion_event, h2?.optimization_event),
       schedule: null,
       daily_budget_cents: pickNum(h2?.daily_budget_cents) ?? cents(r?.budget_brl),
+      budget_distribution_estimate: pickNum(h2?.budget_distribution_estimate),
       rationale: pickStr(h2?.audience_exclusions?.reason),
     } as AdSetNode;
   });
