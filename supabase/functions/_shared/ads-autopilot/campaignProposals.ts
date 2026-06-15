@@ -24,7 +24,11 @@ import {
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
 
-export const CAMPAIGN_PROPOSAL_SCHEMA_VERSION = "campaign_proposal_v1" as const;
+/**
+ * Onda H.2.1 — versão do contrato. v1 continua sendo aceito em LEITURA pelo
+ * normalizador da UI, mas toda escrita nova passa a sair como v1.1.
+ */
+export const CAMPAIGN_PROPOSAL_SCHEMA_VERSION = "campaign_proposal_v1_1" as const;
 export const CAMPAIGN_PROPOSAL_LIFECYCLE_VERSION = "h2_v1" as const;
 
 export type CampaignProposalLifecycleStatus =
@@ -293,6 +297,121 @@ function buildValidationsSnapshot(action: any) {
   };
 }
 
+// ---------------- Onda H.2.1 — Contrato v1.1 (enricher inline) -------
+// Réplica determinística da derivação em
+// src/lib/ads/contracts/campaignProposalV1_1.ts — mantenha em sincronia.
+
+function inferObjectiveCanonical(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const k = String(raw).trim().toLowerCase();
+  if (["sales","outcome_sales","purchases","conversions","vendas"].includes(k)) return "sales";
+  if (["leads","outcome_leads","lead_generation"].includes(k)) return "leads";
+  if (["traffic","outcome_traffic","trafego","tráfego"].includes(k)) return "traffic";
+  if (["awareness","outcome_awareness","reach","brand_awareness"].includes(k)) return "awareness";
+  if (["engagement","outcome_engagement"].includes(k)) return "engagement";
+  if (["app_promotion","outcome_app_promotion","app"].includes(k)) return "app_promotion";
+  return null;
+}
+
+function inferStrategyTag(ctype: string | null | undefined): string | null {
+  if (!ctype) return null;
+  const k = String(ctype).toLowerCase();
+  if (k === "testing" || k.includes("test")) return "testing";
+  if (k === "catalog_prospecting") return "catalog_prospecting";
+  if (k === "catalog_retargeting") return "catalog_retargeting";
+  if (k.includes("retarget") || k.includes("remark")) return "retargeting";
+  if (k.includes("prospect") || k.includes("cold")) return "prospecting";
+  if (k.includes("creat") || k.includes("launch")) return "creation";
+  return null;
+}
+
+function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: ParentPlanContext): void {
+  const data = record.action_data as any;
+  const campaign = data.campaign as any;
+  const adsets: any[] = Array.isArray(data.adsets) ? data.adsets : [];
+
+  const platform = String(campaign?.platform || parent.channel || "meta").toLowerCase();
+  const objectiveCanonical = inferObjectiveCanonical(campaign?.objective);
+  const platformObjective = objectiveCanonical === "sales" ? "OUTCOME_SALES"
+    : objectiveCanonical === "leads" ? "OUTCOME_LEADS"
+    : objectiveCanonical === "traffic" ? "OUTCOME_TRAFFIC"
+    : objectiveCanonical === "awareness" ? "OUTCOME_AWARENESS"
+    : objectiveCanonical === "engagement" ? "OUTCOME_ENGAGEMENT"
+    : objectiveCanonical === "app_promotion" ? "OUTCOME_APP_PROMOTION"
+    : null;
+
+  let contract_validation_status: "ok" | "pending_dependency" | "blocked" = "ok";
+  let unsupported_reason: string | null = null;
+  if (platform !== "meta") {
+    unsupported_reason = `A plataforma "${platform}" ainda não está disponível nesta fase do Gestor de Tráfego IA. Apenas Meta Ads está habilitado.`;
+    contract_validation_status = "blocked";
+  } else if (!objectiveCanonical) {
+    unsupported_reason = "Não conseguimos identificar o objetivo desta proposta. Apenas o objetivo de Vendas está disponível nesta fase.";
+    contract_validation_status = "blocked";
+  } else if (objectiveCanonical !== "sales") {
+    const label = objectiveCanonical === "leads" ? "Geração de leads"
+      : objectiveCanonical === "traffic" ? "Tráfego"
+      : objectiveCanonical === "awareness" ? "Reconhecimento de marca"
+      : objectiveCanonical === "engagement" ? "Engajamento"
+      : objectiveCanonical === "app_promotion" ? "Promoção de aplicativo"
+      : objectiveCanonical;
+    unsupported_reason = `O objetivo "${label}" ainda não está disponível nesta fase. Apenas o objetivo de Vendas está habilitado.`;
+    contract_validation_status = "blocked";
+  }
+
+  const strategyTag = inferStrategyTag(campaign?.campaign_type);
+  const salesSubtype = (strategyTag === "catalog_prospecting" || strategyTag === "catalog_retargeting"
+    || String(campaign?.sales_subtype || "").toLowerCase() === "advantage_plus_shopping")
+    ? "advantage_plus_shopping" : "manual_sales";
+
+  const campaignCents = typeof campaign?.daily_budget_cents === "number" && campaign.daily_budget_cents > 0 ? campaign.daily_budget_cents : null;
+  const adsetHasBudget = adsets.some((a) => typeof a?.daily_budget_cents === "number" && a.daily_budget_cents > 0);
+
+  let budget_mode: "CBO" | "ABO";
+  let finalCampaignCents: number | null;
+  if (strategyTag === "testing") {
+    budget_mode = "ABO";
+    finalCampaignCents = null;
+    if (!adsetHasBudget && campaignCents && adsets.length > 0) {
+      const base = Math.floor(campaignCents / adsets.length);
+      const remainder = campaignCents - base * adsets.length;
+      adsets.forEach((a, i) => {
+        a.daily_budget_cents = base + (i === adsets.length - 1 ? remainder : 0);
+        a.budget_distribution_estimate = null;
+      });
+    } else {
+      adsets.forEach((a) => { a.budget_distribution_estimate = null; });
+    }
+  } else {
+    budget_mode = "CBO";
+    finalCampaignCents = campaignCents;
+    adsets.forEach((a) => {
+      a.budget_distribution_estimate = typeof a?.daily_budget_cents === "number" && a.daily_budget_cents > 0
+        ? a.daily_budget_cents : null;
+      a.daily_budget_cents = null;
+    });
+  }
+
+  const requires_catalog = salesSubtype === "advantage_plus_shopping";
+  if (requires_catalog && !campaign?.product_catalog_id && contract_validation_status === "ok") {
+    contract_validation_status = "pending_dependency";
+  }
+
+  campaign.platform = platform;
+  campaign.platform_objective = platformObjective;
+  campaign.objective_canonical = objectiveCanonical;
+  campaign.sales_subtype = salesSubtype;
+  campaign.internal_strategy_tag = strategyTag;
+  campaign.budget_mode = budget_mode;
+  campaign.daily_budget_cents = finalCampaignCents;
+  campaign.requires_catalog = requires_catalog;
+
+  data.platform = platform;
+  data.contract_version = "campaign_proposal_v1_1";
+  data.contract_validation_status = contract_validation_status;
+  data.unsupported_reason = unsupported_reason;
+}
+
 // ---------------- Construção do registro ---------------------------
 
 function buildProposalRecord(
@@ -399,7 +518,9 @@ export function buildCampaignProposalsFromApprovedPlan(
       skipped.push(`index_${i}_not_object`);
       continue;
     }
-    records.push(buildProposalRecord(action, i, parent, plan));
+    const rec = buildProposalRecord(action, i, parent, plan);
+    enrichRecordWithV1_1Contract(rec, parent);
+    records.push(rec);
   }
 
   return { records, skipped_reasons: skipped };

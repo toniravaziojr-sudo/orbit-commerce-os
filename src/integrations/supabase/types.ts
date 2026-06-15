@@ -25251,6 +25251,17 @@ export type Database = {
         }[]
       }
       ads_ai_learnings_norm_title: { Args: { t: string }; Returns: string }
+      ads_patch_proposal_to_v1_1: {
+        Args: { p_action_id: string }
+        Returns: {
+          action_id: string
+          budget_mode: string
+          changed: boolean
+          contract_validation_status: string
+          notes: string[]
+          unsupported_reason: string
+        }[]
+      }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
       allocate_remessa_numero: {
         Args: { p_tenant_id: string }

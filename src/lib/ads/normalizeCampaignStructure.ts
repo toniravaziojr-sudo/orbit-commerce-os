@@ -26,6 +26,14 @@ export interface CampaignNode {
    *  Preenchido pelo adapter quando o payload legado guardou link/CTA no topo. */
   inherited_destination_url: string | null;
   inherited_cta: string | null;
+  /** Contrato v1.1 (Onda H.2.1) — orçamento na campanha (CBO) ou nos conjuntos (ABO). */
+  budget_mode?: "CBO" | "ABO" | null;
+  /** Contrato v1.1 — tag estratégica interna (não é A/B test nativo da Meta). */
+  internal_strategy_tag?: string | null;
+  /** Contrato v1.1 — subtipo da venda (manual_sales ou advantage_plus_shopping). */
+  sales_subtype?: string | null;
+  /** Contrato v1.1 — exige catálogo Meta? */
+  requires_catalog?: boolean | null;
 }
 
 export interface AdSetNode {
@@ -46,6 +54,8 @@ export interface AdSetNode {
   conversion_event: string | null;
   schedule: { start: string | null; end: string | null } | null;
   daily_budget_cents: number | null;
+  /** Contrato v1.1 — em CBO, valor informativo de distribuição estimada. */
+  budget_distribution_estimate?: number | null;
   rationale: string | null;
 }
 
@@ -116,6 +126,12 @@ export interface CampaignStructure {
   meta_step_checklist?: MetaStepChecklistItem[];
   /** H.2.1 — rótulo PT-BR do objetivo (ex.: "Vendas"). */
   objective_contract_label_pt?: string | null;
+  /** Contrato v1.1 (Onda H.2.1) — versão explícita do contrato salvo. */
+  contract_version?: "campaign_proposal_v1" | "campaign_proposal_v1_1" | null;
+  /** Contrato v1.1 — ok | pending_dependency | blocked. */
+  contract_validation_status?: "ok" | "pending_dependency" | "blocked" | null;
+  /** Contrato v1.1 — mensagem amigável quando blocked. */
+  unsupported_reason?: string | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -483,7 +499,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
   const campaign: CampaignNode = {
     name: pickStr(c?.name, raw?.campaign_name, raw?.name),
     objective: pickStr(c?.objective, raw?.objective),
-    platform: pickStr(c?.platform, data?.channel, raw?.platform),
+    platform: pickStr(c?.platform, data?.platform, data?.channel, raw?.platform),
     buying_type: pickStr(c?.buying_type, raw?.buying_type),
     budget_type: pickStr(c?.budget_type, raw?.budget_type) || (c?.daily_budget_cents || raw?.daily_budget_brl ? "daily" : null),
     daily_budget_cents: pickNum(c?.daily_budget_cents) ?? cents(raw?.daily_budget_brl) ?? cents(raw?.budget_brl),
@@ -491,6 +507,10 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     rationale: pickStr(c?.rationale, raw?.rationale),
     inherited_destination_url: null,
     inherited_cta: null,
+    budget_mode: (c?.budget_mode === "CBO" || c?.budget_mode === "ABO") ? c.budget_mode : null,
+    internal_strategy_tag: pickStr(c?.internal_strategy_tag),
+    sales_subtype: pickStr(c?.sales_subtype),
+    requires_catalog: typeof c?.requires_catalog === "boolean" ? c.requires_catalog : null,
   };
 
   const h2Adsets: any[] = Array.isArray(data?.adsets) ? data.adsets : [];
@@ -532,6 +552,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
       conversion_event: pickStr(r?.conversion_event, h2?.optimization_event),
       schedule: null,
       daily_budget_cents: pickNum(h2?.daily_budget_cents) ?? cents(r?.budget_brl),
+      budget_distribution_estimate: pickNum(h2?.budget_distribution_estimate),
       rationale: pickStr(h2?.audience_exclusions?.reason),
     } as AdSetNode;
   });
@@ -558,6 +579,11 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     rationale: pickStr(p?.angle),
   }));
 
+  const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");
+  const cvs = data?.contract_validation_status === "ok" || data?.contract_validation_status === "pending_dependency" || data?.contract_validation_status === "blocked"
+    ? data.contract_validation_status
+    : null;
+
   return {
     schema_version: 2,
     campaign,
@@ -569,6 +595,9 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     pending_fields: Array.isArray(data?.pending_fields) ? data.pending_fields : [],
     meta_step_checklist: Array.isArray(data?.meta_step_checklist) ? data.meta_step_checklist : [],
     objective_contract_label_pt: typeof data?.objective_contract_label_pt === "string" ? data.objective_contract_label_pt : null,
+    contract_version: cv as any,
+    contract_validation_status: cvs as any,
+    unsupported_reason: typeof data?.unsupported_reason === "string" ? data.unsupported_reason : null,
   };
 }
 
@@ -580,8 +609,9 @@ export function normalizeCampaignStructure(
   const flowVersion = opts.flowVersion ?? (data as any)?.flow_version ?? null;
   const actionType = opts.actionType ?? null;
 
-  // 1) Dialeto Onda H.2 — campaign_proposal_v1
-  if (data && typeof data === "object" && (data as any).schema_version === "campaign_proposal_v1") {
+  // 1) Dialeto Onda H.2 — campaign_proposal_v1 e v1.1 (mesmo formato base, v1.1 adiciona campos do contrato)
+  const sv = (data as any)?.schema_version;
+  if (data && typeof data === "object" && (sv === "campaign_proposal_v1" || sv === "campaign_proposal_v1_1")) {
     return fromCampaignProposalV1(data);
   }
 
