@@ -760,6 +760,13 @@ function OverviewSection({
 }
 
 function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNode; channel: string; identity?: any }) {
+  const budgetMode = campaign.budget_mode || null;
+  const budgetModeLabel = budgetMode === "CBO"
+    ? "Orçamento na campanha (CBO)"
+    : budgetMode === "ABO"
+      ? "Orçamento nos conjuntos (ABO)"
+      : null;
+  const budgetLabel = budgetMode === "ABO" ? "Total planejado (soma dos conjuntos)" : "Orçamento diário";
   return (
     <div className="space-y-4">
       <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
@@ -768,8 +775,8 @@ function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNo
           <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
           <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
           <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
-          <Detail label="Tipo de orçamento" value={tr("budget_type", campaign.budget_type)} />
-          <Detail label="Orçamento diário" value={formatBudgetBRL(campaign.daily_budget_cents)} />
+          <Detail label="Tipo de orçamento" value={budgetModeLabel || tr("budget_type", campaign.budget_type)} />
+          <Detail label={budgetLabel} value={formatBudgetBRL(campaign.daily_budget_cents)} />
           <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
         </DetailGrid>
       </Block>
