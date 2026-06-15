@@ -538,7 +538,8 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
 
   const planned: any[] = Array.isArray(data?.planned_creatives) ? data.planned_creatives : [];
   const ads: AdNode[] = planned.map((p: any, i: number) => ({
-    name: pickStr(p?.name) || `Anúncio ${i + 1}`,
+    name: humanizeAdDisplayName(pickStr(p?.name), i),
+
     ad_set_ref: pickStr(p?.adset_name, p?.ad_set_ref),
     product_name: pickStr(c?.product, raw?.product_name),
     offer_note: pickStr(p?.promise),
