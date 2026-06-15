@@ -304,7 +304,7 @@ function buildProposalRecord(
   const kind = classifyProposalKind(action);
   const defaults = parent.account_defaults || null;
   const identity = buildIdentitySnapshot(action, defaults);
-  const campaignSnapshot = buildCampaignSnapshot(action, defaults);
+  const campaignSnapshot = buildCampaignSnapshot(action, defaults, kind);
   const adsetsSnapshot = buildAdsetsSnapshot(action, defaults);
   const creativesSnapshot = buildPlannedCreativesSnapshot(action, adsetsSnapshot, kind, defaults);
   const validations = buildValidationsSnapshot(action);
