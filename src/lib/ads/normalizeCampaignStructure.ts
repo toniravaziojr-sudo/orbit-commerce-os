@@ -598,3 +598,63 @@ export function formatBudgetBRL(cents: number | null | undefined): string {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) return "—";
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+// =============================================================================
+// Helpers de apresentação H.2 (Onda H.2 — auditoria visual)
+// Funções puras. Não alteram payload salvo. Apenas convertem valores técnicos
+// internos em rótulos amigáveis ou classificam pendências por fase do fluxo.
+// =============================================================================
+
+/**
+ * Sanitiza prefixos técnicos do nome de conjunto/anúncio mantendo o contexto
+ * de negócio. Ex.: "[AI] TEST - Kit Banho - Criativo A" → "Kit Banho — Teste de criativo A".
+ * Nunca persiste — só usado na UI. Se o nome ficar vazio, devolve fallback.
+ */
+export function humanizeAdsetDisplayName(raw: string | null | undefined, index: number): string {
+  const fallback = `Conjunto ${index + 1}`;
+  if (!raw || typeof raw !== "string") return fallback;
+  let s = raw.trim();
+  s = s.replace(/^\s*\[AI\]\s*/i, "");
+  s = s.replace(/^\s*\[?TESTE?\]?\s*[-–—:]\s*/i, "Teste de criativo — ");
+  s = s.replace(/\bTEST\b\s*[-–—:]\s*/gi, "Teste de criativo — ");
+  s = s.replace(/\s*[-–—]\s*Criativo\s+([A-Za-z0-9]+)/gi, " — Variação $1");
+  s = s.replace(/\s{2,}/g, " ").trim();
+  return s.length > 0 ? s : fallback;
+}
+
+export function humanizeAdDisplayName(raw: string | null | undefined, index: number): string {
+  const fallback = `Anúncio planejado ${index + 1}`;
+  if (!raw || typeof raw !== "string") return fallback;
+  const s = raw.trim().replace(/^\s*\[AI\]\s*/i, "").replace(/\s{2,}/g, " ").trim();
+  return s.length > 0 ? s : fallback;
+}
+
+/**
+ * Classifica uma pendência salva no payload nas três categorias da H.2:
+ *  - "h2_structure"     → bloqueio legítimo da fase atual (estrutura/segmentação).
+ *  - "account_config"   → falta uma configuração padrão da conta (evento, CTA, UTM…).
+ *  - "h4_future"        → pertence à fase de geração de criativos; NÃO bloqueia H.2.
+ */
+export type H2PendingCategory = "h2_structure" | "account_config" | "h4_future";
+
+const H4_FIELD_HINTS = [
+  "primary_text", "headline", "description", "copy", "body",
+  "asset", "image", "video", "creative_id", "creative_url",
+  "ad_id", "campaign_id_meta", "adset_id_meta", "creative_final_url",
+];
+
+const ACCOUNT_CONFIG_FIELD_HINTS = [
+  "conversion_event", "attribution_window", "cta_default", "utm_base",
+  "default_cta", "default_format", "default_creative_format", "pixel_id",
+  "facebook_page_id", "facebook_page_name", "instagram_actor_id",
+  "default_objective", "default_daily_budget",
+];
+
+export function classifyPendingFieldH2(p: { level?: string; field?: string; label_pt?: string }): H2PendingCategory {
+  const field = String(p?.field || "").toLowerCase();
+  const level = String(p?.level || "").toLowerCase();
+  if (level === "ad" || H4_FIELD_HINTS.some((h) => field.includes(h))) return "h4_future";
+  if (level === "identity" || ACCOUNT_CONFIG_FIELD_HINTS.some((h) => field.includes(h))) return "account_config";
+  return "h2_structure";
+}
+
