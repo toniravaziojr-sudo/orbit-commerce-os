@@ -24,7 +24,11 @@ import {
 } from "./objectiveFieldContract.ts";
 import type { AccountDefaults } from "./accountDefaults.ts";
 
-export const CAMPAIGN_PROPOSAL_SCHEMA_VERSION = "campaign_proposal_v1" as const;
+/**
+ * Onda H.2.1 — versão do contrato. v1 continua sendo aceito em LEITURA pelo
+ * normalizador da UI, mas toda escrita nova passa a sair como v1.1.
+ */
+export const CAMPAIGN_PROPOSAL_SCHEMA_VERSION = "campaign_proposal_v1_1" as const;
 export const CAMPAIGN_PROPOSAL_LIFECYCLE_VERSION = "h2_v1" as const;
 
 export type CampaignProposalLifecycleStatus =
