@@ -23,13 +23,20 @@ type: constraint
 
 ## 3. Link de destino — prioridade obrigatória
 `destination_url_base` é campo estrutural H.2. Cascata determinística:
-1. URL explícita do próprio anúncio (`ad_override`).
+1. **Override de URL do anúncio** (`ad_override`) — ver definição estrita abaixo.
 2. Landing/oferta vinculada — apenas se pública e segura.
 3. URL pública do produto/kit.
 4. Coleção/categoria pública, quando aplicável.
 5. Derivação `https://{domínio_primário_verificado}/produto/{slug}` (último recurso).
 
-**Proibido**: URL fixa da conta Meta como fallback; URL admin/preview/checkout admin/interna; `localhost`, `lovable.app`, `supabase.co`, `vercel.app`; qualquer domínio não verificado; não-https.
+### Definição estrita de "override"
+O termo **override** nesta cascata só pode significar uma das duas coisas:
+1. **URL pública explícita** vinculada à campanha/oferta, que tenha sido validada como destino confiável (https, domínio público verificado, não-interna, não-admin, não-preview, não-checkout administrativo, não pertencente à conta Meta).
+2. **Template técnico seguro de rota pública do storefront**, quando existir fonte configurada (hoje só o default global `/produto/{slug}` em `publicRoutes.ts`; futuro `tenantProductRouteTemplate` quando houver fonte segura por tenant).
+
+**Override NUNCA pode ser**: valor manual solto no payload sem origem rastreável; URL interna do app; URL de preview/staging; URL administrativa; URL fixa configurada na conta Meta; URL de domínio não verificado; URL gerada por IA sem validação; qualquer string que não passe pelo saneador.
+
+**Proibido (geral)**: URL fixa da conta Meta como fallback; URL admin/preview/checkout admin/interna; `localhost`, `lovable.app`, `supabase.co`, `vercel.app`; qualquer domínio não verificado; não-https.
 
 ## 4. Domínio
 - Derivação por slug **só** com domínio em `tenant_domains` com `is_primary = true`, `status = 'verified'`, `ssl_status = 'active'`.
