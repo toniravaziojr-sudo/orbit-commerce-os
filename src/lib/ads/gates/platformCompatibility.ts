@@ -65,6 +65,18 @@ export function runPlatformCompatibilityGate(
   const blockers: GateIssue[] = [];
   const warnings: GateIssue[] = [];
 
+  // ---- 0) Contrato v1.1 (Onda H.2.1) — fail-closed --------------------------
+  // Se o contrato já marcou a proposta como bloqueada (plataforma/objetivo
+  // fora do escopo desta onda), retornamos um único blocker amigável em PT-BR,
+  // sem checar capacidades — evita mensagem técnica genérica.
+  if (structure.contract_validation_status === "blocked") {
+    const msg = structure.unsupported_reason
+      || "Esta proposta usa uma combinação de plataforma e objetivo que ainda não está disponível nesta fase.";
+    blockers.push(make("platform", "platform", "Plataforma", "platform.contract", "blocker", msg,
+      { technical_reason: "contract_validation_status=blocked", kind: "required" }));
+    return { passed: false, blockers, warnings, summary: msg };
+  }
+
   // ---- 1) Estado da plataforma --------------------------------------------
   if (!capability) {
     blockers.push(make(
