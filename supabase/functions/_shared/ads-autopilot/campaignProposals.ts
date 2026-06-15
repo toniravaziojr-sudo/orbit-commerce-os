@@ -522,7 +522,7 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
     }
   }
 
-  // ---- H.2.2: recompute pending_fields/meta_step_checklist com fase ------
+  // ---- H.2.2/H.2.3: recompute pending_fields/meta_step_checklist com fase ------
   try {
     const report = computePendingFields({
       campaign: campaign as any,
@@ -530,6 +530,7 @@ function enrichRecordWithV1_1Contract(record: CampaignProposalRecord, parent: Pa
       planned_creatives: (data.planned_creatives as any[]) || [],
       identity: (data.identity as any) || {},
       budget_mode: budget_mode,
+      internal_strategy_tag: campaign.internal_strategy_tag || null,
     });
     data.pending_fields = report.pending;
     data.pending_fields_total = report.total;
