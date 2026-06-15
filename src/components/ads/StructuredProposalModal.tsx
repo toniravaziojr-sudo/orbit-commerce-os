@@ -685,12 +685,15 @@ function OverviewSection({
         >
           <div className="space-y-2">
             {((action.action_data as any).meta_step_checklist as any[]).map((s, i) => {
-              const ok = s.missing_count === 0;
+              // H.2.2 — só conta como pendência H.2 o que pertence à fase estrutural.
+              // Itens h4_future e account_config aparecem em blocos próprios abaixo.
+              const h2Missing = typeof s.h2_missing_count === "number" ? s.h2_missing_count : s.missing_count;
+              const ok = h2Missing === 0;
               return (
                 <div key={i} className="flex items-center justify-between text-xs">
                   <span className="font-medium">{s.label_pt}</span>
                   <Badge variant={ok ? "outline" : "destructive"} className="text-[10px]">
-                    {ok ? "Completo" : `${s.missing_count} pendência(s)`}
+                    {ok ? "Completo" : `${h2Missing} pendência(s)`}
                   </Badge>
                 </div>
               );
@@ -698,6 +701,7 @@ function OverviewSection({
           </div>
         </Block>
       )}
+
 
       {Array.isArray((action.action_data as any)?.pending_fields) && (action.action_data as any).pending_fields.length > 0 && (() => {
         const all = ((action.action_data as any).pending_fields as any[]) || [];
