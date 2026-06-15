@@ -587,6 +587,10 @@ function buildProposalRecord(
     strategyTag: strategyTagPre,
     objectiveCanonical: objectiveCanonPre,
     productUrl: productUrlPre,
+    productSlug: action?.product_slug || null,
+    productName: action?.product_name || null,
+    landingUrl: action?.landing_url || action?.landing_page_url || null,
+    tenantPrimaryVerifiedDomain: parent.tenant_primary_verified_domain || null,
   });
   const validations = buildValidationsSnapshot(action);
 
