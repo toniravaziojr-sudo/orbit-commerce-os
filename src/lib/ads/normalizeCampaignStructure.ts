@@ -78,6 +78,11 @@ export interface AdNode {
   creative_final_url: string | null;
   creative_status: "pending_strategy_approval" | "generating" | "ready" | "unknown";
   rationale: string | null;
+  // ---- H.2.3 — metadados de origem/fase (só para a UI exibir mensagens) ----
+  cta_source?: "ad_override" | "objective_default" | null;
+  destination_source?: "ad_override" | "product_offer" | null;
+  destination_pending_reason?: "product_offer_url_missing" | null;
+  format_phase?: "h2_structural" | "h4_future" | null;
 }
 
 export interface IdentityNode {
