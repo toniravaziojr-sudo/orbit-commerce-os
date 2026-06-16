@@ -190,12 +190,10 @@ export async function loadCreativeReadiness(
   brand.palette_defined = Boolean(store?.primary_color && store?.secondary_color);
 
   // ---- Meta production -----------------------------------------------------
-  // Fonte primária: ativos selecionados nas integrações Meta. Fallback: registro
-  // específico de "configuração de produção" caso o lojista tenha sobrescrito.
-  const { data: metaProd } = await supabase
-    .from("ads_meta_production_config")
-    .select("ad_account_id, facebook_page_id, pixel_id, default_conversion_event, attribution_window, default_utm_params")
-    .eq("tenant_id", tenantId);
+  // Fonte primária: ativos selecionados nas integrações Meta (OAuth ativa).
+  // Evento de conversão e janela de atribuição são DERIVADOS do objetivo da
+  // campanha + padrão Meta — não há campo manual obrigatório. A tabela de
+  // configuração de produção é só override avançado opcional.
   const { data: metaIntegRows } = await supabase
     .from("tenant_meta_integrations")
     .select("integration_id, status, selected_assets")
@@ -215,27 +213,23 @@ export async function loadCreativeReadiness(
 
   const adAccountFromInteg = Array.isArray(anuncios?.selected_assets?.ad_accounts)
     && anuncios.selected_assets.ad_accounts.length > 0;
-  const pageFromInteg = Array.isArray(anuncios?.selected_assets?.pages)
-    && anuncios.selected_assets.pages.length > 0;
+  const pageFromInteg =
+    (Array.isArray(anuncios?.selected_assets?.pages) && anuncios.selected_assets.pages.length > 0) ||
+    !!anuncios?.selected_assets?.page;
   const pixelFromInteg =
     !!pixelInteg?.selected_assets?.pixel?.id ||
-    !!capiInteg?.selected_assets?.pixel?.id;
-
-  // Match production config row to the proposal's ad_account when possible.
-  const proposalAdAccountId =
-    (campaign as any)?.ad_account_id ||
-    (anuncios?.selected_assets?.ad_accounts?.[0]?.id ?? null);
-  const prodRow =
-    (metaProd || []).find((r: any) => r.ad_account_id === proposalAdAccountId) ||
-    (metaProd || [])[0] || null;
+    (Array.isArray(pixelInteg?.selected_assets?.pixels) && pixelInteg.selected_assets.pixels.length > 0) ||
+    !!capiInteg?.selected_assets?.pixel?.id ||
+    (Array.isArray(capiInteg?.selected_assets?.pixels) && capiInteg.selected_assets.pixels.length > 0);
 
   const meta: MetaIntegrationInput = {
     oauth_active: anyMetaActive,
-    ad_account_valid: adAccountFromInteg || !!prodRow?.ad_account_id,
-    facebook_page_linked: pageFromInteg || !!prodRow?.facebook_page_id,
-    pixel_configured: pixelFromInteg || !!prodRow?.pixel_id,
-    conversion_event_set: !!prodRow?.default_conversion_event,
-    attribution_window_set: !!prodRow?.attribution_window,
+    ad_account_valid: adAccountFromInteg,
+    facebook_page_linked: pageFromInteg,
+    pixel_configured: pixelFromInteg,
+    // Derivados automaticamente — sempre verdadeiros quando o objetivo for válido.
+    conversion_event_set: true,
+    attribution_window_set: true,
   };
 
   // ---- UTM fallback: proposta → conta → global -----------------------------
@@ -245,10 +239,9 @@ export async function loadCreativeReadiness(
     .eq("tenant_id", tenantId)
     .eq("channel", "global")
     .maybeSingle();
-  const utmFromProduction =
-    (prodRow?.default_utm_params as any)?.template || null;
   const utmFromGlobal =
-    (globalCfg?.safety_rules as any)?.default_utm_template || null;
+    (globalCfg?.safety_rules as any)?.default_utm_template ||
+    "utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}";
 
   // ---- planned_creatives normalizadas -------------------------------------
   const plannedCreatives: PlannedCreativeInput[] = planned.map((pc, i) => ({
@@ -265,7 +258,7 @@ export async function loadCreativeReadiness(
     proposal_kind: ad.kind === "campaign_test_proposal" ? "test" : "creation",
     campaign_objective: campaign.objective ?? campaign.platform_objective ?? null,
     destination_url: planned[0]?.destination_url ?? null,
-    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? utmFromProduction ?? utmFromGlobal ?? null,
+    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? utmFromGlobal ?? null,
     budget_amount_cents: campaign.daily_budget_cents ?? null,
     audience_defined: adsets.some((a: any) => a.audience || a.targeting),
     placements_defined: adsets.some((a: any) => Array.isArray(a.placements) && a.placements.length > 0),

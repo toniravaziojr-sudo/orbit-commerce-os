@@ -158,7 +158,43 @@ export async function resolveAccountDefaults(
     }
   } catch (_) { /* tolerante */ }
 
+  // 5) Derivação automática de evento de conversão e janela de atribuição
+  // a partir do objetivo da campanha + padrão Meta. Só preenche se ainda
+  // estiverem vazios após as fontes acima.
+  if (!out.conversion_event_default) {
+    out.conversion_event_default = deriveConversionEventFromObjective(out.default_objective);
+  }
+  if (!out.attribution_window) {
+    out.attribution_window = deriveAttributionWindowFromObjective(out.default_objective);
+  }
+
   out.source = sources.length > 1 ? "merged" : sources.length === 1 ? (sources[0] as any) : "none";
   return out;
+}
+
+/**
+ * Mapeia objetivo de campanha → evento de conversão padrão Meta.
+ * Decisão da plataforma (não da IA). Lojista pode sobrescrever via
+ * ads_meta_production_config (avançado).
+ */
+export function deriveConversionEventFromObjective(objective: string | null | undefined): string {
+  const o = String(objective || "sales").toLowerCase();
+  if (o === "sales" || o === "conversions" || o === "purchase") return "PURCHASE";
+  if (o === "leads" || o === "lead_generation") return "LEAD";
+  if (o === "traffic") return "VIEW_CONTENT";
+  if (o === "engagement") return "VIEW_CONTENT";
+  if (o === "awareness" || o === "brand_awareness") return "VIEW_CONTENT";
+  return "PURCHASE";
+}
+
+/**
+ * Janela de atribuição padrão Meta.
+ * Sales: 7d clique + 1d view (recomendado Meta). Leads: 7d clique. Outros: 1d clique.
+ */
+export function deriveAttributionWindowFromObjective(objective: string | null | undefined): string {
+  const o = String(objective || "sales").toLowerCase();
+  if (o === "sales" || o === "conversions" || o === "purchase") return "7d_click_1d_view";
+  if (o === "leads" || o === "lead_generation") return "7d_click";
+  return "1d_click";
 }
 

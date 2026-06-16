@@ -112,14 +112,16 @@ Deno.test("04 blocked sem Pixel", () => {
   expectBlocker("meta.pixel", i);
 });
 
-Deno.test("05 blocked sem evento de conversão", () => {
+Deno.test("05 evento de conversão NÃO é mais bloqueador (derivado do objetivo)", () => {
   const i = baseInput(); i.meta.conversion_event_set = false;
-  expectBlocker("meta.conversion_event", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
 });
 
-Deno.test("06 blocked sem janela de atribuição", () => {
+Deno.test("06 janela de atribuição NÃO é mais bloqueador (padrão Meta)", () => {
   const i = baseInput(); i.meta.attribution_window_set = false;
-  expectBlocker("meta.attribution_window", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
 });
 
 Deno.test("07 blocked sem UTM", () => {
@@ -167,9 +169,11 @@ Deno.test("14 blocked sem promessa principal aprovada", () => {
   expectBlocker("brand.approved_main_promise", i);
 });
 
-Deno.test("15 blocked sem diferenciais/benefícios", () => {
+Deno.test("15 diferenciais/benefícios viraram AVISO (não bloqueia)", () => {
   const i = baseInput(); i.product.benefits = [];
-  expectBlocker("product.benefits", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.benefits"));
 });
 
 Deno.test("16 blocked sem logo", () => {
@@ -189,26 +193,28 @@ Deno.test("18 blocked sem imagem principal do produto (packshot da marca não su
   expectBlocker("product.primary_image_url", i);
 });
 
-Deno.test("19 blocked sem claims permitidas", () => {
-  const i = baseInput(); i.brand.allowed_claims = [];
-  expectBlocker("brand.allowed_claims", i);
+Deno.test("19 claims permitidas: bloqueia só em categoria sensível", () => {
+  const i = baseInput();
+  i.brand.allowed_claims = [];
+  i.product.regulatory_category = "other";
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "brand.allowed_claims"));
+
+  const j = baseInput();
+  j.brand.allowed_claims = [];
+  j.product.regulatory_category = "cosmetic_hair";
+  expectBlocker("brand.allowed_claims", j);
 });
 
-Deno.test("20 blocked sem claims proibidas E sem confirmação explícita", () => {
+Deno.test("20 claims proibidas/restrições viraram AVISO (não bloqueia)", () => {
   const i = baseInput();
   i.brand.banned_claims = [];
   i.brand.do_not_do = [];
   i.brand.no_additional_restrictions_confirmed = false;
-  expectBlocker("brand.restrictions", i);
-});
-
-Deno.test("20b passa quando claims proibidas vazias mas confirmação explícita marcada", () => {
-  const i = baseInput();
-  i.brand.banned_claims = [];
-  i.brand.do_not_do = [];
-  i.brand.no_additional_restrictions_confirmed = true;
   const r = evaluateCreativeReadiness(i);
   assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "brand.restrictions"));
 });
 
 Deno.test("21 categoria sensível sem restrições nem confirmação bloqueia", () => {
