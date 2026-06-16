@@ -158,6 +158,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         min_roi_cold: parseFloat(minRoiCold || "0") || null,
         min_roi_warm: parseFloat(minRoiWarm || "0") || null,
         roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
+        default_utm_template: utmTemplate.trim() || null,
       },
     });
   };
