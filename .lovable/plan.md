@@ -1,402 +1,54 @@
-# Onda G — Qualidade Estratégica do Plano Inicial (entregue 2026-06-12)
-
-## Status
-✅ Implementado e validado por testes. Aguardando validação operacional do usuário no tenant Respeite o Homem.
-
-## O que foi entregue
-
-### G.1 — Modelo de Orçamento por Funil (determinístico)
-- Cálculo sem IA, antes do prompt, com **planejado / ocupado / livre** por funil (cold, remarketing, tests, leads).
-- Campanhas ativas viram orçamento ocupado (classificação por palavra-chave no nome).
-- Projeção sequencial: ação que cria/escala só pode usar `livre` corrente; para usar mais, precisa referenciar uma ação anterior de pausar/reduzir.
-- Bloco "ESTADO DO ORÇAMENTO POR FUNIL" injetado no prompt como **fonte de verdade**; IA é instruída a não recalcular.
-- Plano estratégico ganhou campo `funnel_budget_state`.
-
-### G.2 — Identificação de Produto em campanhas existentes
-- Pré-processamento determinístico em 6 fontes: creative_product_id → URL slug → nome da campanha → nome do conjunto → nome do anúncio → copy.
-- Campos no plano: `product_identification_confidence` (high/medium/low/unknown), `diagnosis_limitation`.
-- Regra: confiança low/unknown **proíbe pausa automática como ação principal** — permitidos manter, reduzir com aviso ou pedir revisão.
-
-### G.3 — Tipo de Campanha + Catálogo Dinâmico
-- Enum `campaign_type` ampliado: `prospecting | retargeting | catalog_prospecting | catalog_retargeting | testing` (compat com legado mantida).
-- Bloco `catalog_setup` obrigatório quando `campaign_type` começa com `catalog_`: catálogo, product set, janela, exclusão de compradores recentes, `creative_mode='dynamic'`.
-- Disponibilidade de catálogo Meta pré-calculada e injetada; sem catálogo → IA marca `pending_dependency='catalog_not_connected'` em vez de inventar IDs.
-
-### G.4 — Exclusão de Clientes explícita no Plano
-- Bloco `audience_exclusions` por ação (customers, reason, customer_audience_detected, pending_dependency).
-- Disponibilidade do público de Clientes pré-resolvida por conta de anúncios.
-- Sem público detectado → `pending_dependency='customer_audience_missing'`.
-- Quality Gate de proposta filha continua bloqueando frio sem exclusão (`cold_audience_requires_customer_exclusion`).
-
-### G.5 — campaign_intent + override para teste criativo
-- Enum `campaign_intent`: acquisition, retention, creative_test, offer_test, scale, reactivation.
-- Quality Gate v1.4.0: quando `campaign_intent='creative_test'` E `exclusion_override_reason` ≥ 12 chars, libera a inclusão de clientes em público frio. Auditoria fica em `details.exclusion_overridden_creative_test`.
-- Prospecção pura (acquisition/scale) continua sem direito a override.
-
-### G.6 — Audience Budget Fit (Lite)
-- Sem chamada à Meta. Usa apenas histórico 30d (impressões, alcance, frequência, CPM, CTR, conversões, CPA, ROAS, gasto).
-- 5 categorias: `under_funded`, `adequate`, `over_funded_small_audience`, `saturation_risk`, `insufficient_data`.
-- Heurísticas de saturação (frequência) e sub-financiamento (ROAS alto com gasto baixo).
-- Sugere faixa de orçamento quando aplicável. Nunca bloqueia o plano; é sinal estratégico.
-
-## UI (enriquecimento, sem tela nova)
-- Card de ação ganhou badges: "Exclui clientes/compradores", "Pendência: público de clientes não detectado", "Catálogo dinâmico", "Pendência: catálogo Meta não detectado", "Teste criativo", "Produto identificado com baixa confiança", "Fit: …".
-- Justificativa de override de teste criativo renderizada inline.
-- Detalhamento de catálogo (nome, product set, janela, exclusão de compradores) inline.
-- Nova seção "Orçamento por Funil" com planejado/ocupado/livre por funil + lista de campanhas ativas que ocupam cada bucket.
-
-## Restrições respeitadas
-- Sem chamada à Meta `delivery_estimate` / `reachestimate`.
-- Sem publicação, mutação Meta/Google/TikTok, criativo final automático, crédito sem aprovação.
-- Sem Google/TikTok operacional, sem cron mensal, sem nova integração.
-- Sem aprovar plano atual automaticamente, sem gerar propostas filhas automaticamente.
-
-## Como validar no painel
-1. Abrir o Plano Estratégico atual no tenant Respeite o Homem.
-2. Conferir a nova seção "Orçamento por Funil" com planejado/ocupado/livre.
-3. Conferir badges nas ações: exclusão de clientes, intent, catálogo dinâmico, baixa confiança de produto, fit.
-4. Rodar nova análise inicial e conferir que o diagnóstico cita orçamento ocupado vs livre e identifica produto com confiança declarada.
-5. Em teste criativo com clientes incluídos, conferir a justificativa renderizada.
-
-## Testes automatizados
-- `src/test/ads-funnel-budget-model.test.ts` — 5 testes (split, ocupado, inferência, projeção sequencial, bloqueio).
-- `src/test/ads-product-identification.test.ts` — 5 testes (slug, nome, copy, unknown, gate destrutivo).
-- `src/test/ads-audience-budget-fit-lite.test.ts` — 5 testes (insufficient, saturation, over_funded_small, under_funded, adequate).
-- `src/test/ads-quality-gate-creative-test-override.test.ts` — 3 testes (bloqueia sem override, libera com override, exige justificativa).
-
----
-
-# Onda G.1 (rev2) — Strategy Preflight Builder + Contrato fail-closed (entregue 2026-06-12)
-
-## Por que
-O Plano Estratégico gerado pelo Estrategista vinha "incompleto" mesmo após a Onda G:
-- não criava ações para campanhas ativas em queda;
-- não declarava `funnel_budget_state` no payload final;
-- não declarava `audience_exclusions`, `campaign_intent`, `audience_budget_fit`;
-- usava `campaign_type` em formato textual antigo (TOF/Remarketing/Teste).
-
-Causa raiz: os blocos da Onda G eram apenas **instrução de prompt**. A IA podia ignorar. Agora viraram **contrato obrigatório validado fora do LLM**.
-
-## O que mudou (somente camada técnica — sem mudar UI/negócio)
-
-### Strategy Preflight Builder (determinístico, sem IA)
-- Reúne em um único objeto: `funnel_budget_state`, `active_campaigns_summary` (com `must_be_addressed_in_plan`), `product_identifications`, `customer_audience`, `catalog_availability`, `audience_budget_fits`.
-- Cálculo de tendência ROAS 7d vs 30d para classificar atenção (`ok | watch | act_now`).
-- Persistido no `context` do Estrategista por conta de anúncios.
-
-### Contrato do Plano Estratégico (fail-closed)
-- Roda **depois** do LLM, **antes** de salvar como `pending_approval`.
-- Valida campos obrigatórios e regras:
-  - `funnel_budget_state` presente;
-  - `active_campaigns_summary` presente;
-  - cada ação com `campaign_type` em valor canônico (`prospecting | retargeting | catalog_prospecting | catalog_retargeting | testing`);
-  - cada ação com `campaign_intent` válido (`acquisition | retention | creative_test | offer_test | scale | reactivation`);
-  - prospecção/aquisição com `audience_exclusions.customers=true` quando público de Clientes detectado, ou `pending_dependency='customer_audience_missing'`;
-  - catálogo com `creative_mode='dynamic'` + `product_catalog_id` + `product_set` (ou `pending_dependency='catalog_not_connected'`);
-  - ações de orçamento com `audience_budget_fit` (incluindo `insufficient_data` quando aplicável);
-  - orçamento sequencial: criar/escalar não pode exceder o livre, salvo `budget_source='released_by_previous_action'`;
-  - pausa proibida em campanhas com produto identificado em confiança `low`/`unknown`;
-  - campanhas ativas com `must_be_addressed_in_plan=true` precisam aparecer no plano ou ter `explicit_non_action_reasons[campaign_id]` com justificativa.
-- Resultado anexado ao `action.action_data.contract` com `ok`, `errors[]`, `blockers_count`.
-
-### Bloqueio de aprovação
-- **UI:** modal do Plano Estratégico mostra banner "Plano incompleto — precisa ser regenerado ou ajustado" com lista de pendências, e desabilita o botão "Aprovar plano".
-- **Servidor:** o executor de aprovação devolve `success:false` com `error_pt` em PT-BR antes de marcar o plano como aprovado ou disparar geração de filhas.
-
-### Plano antigo
-- Permanece visível para recusar ou usar como referência. Não é aprovável. Não gera filhas. Não é regenerado automaticamente.
-
-## Testes
-- `src/test/ads-strategic-plan-preflight.test.ts` — 5 testes (orçamento por funil, atenção em queda, identificação por slug, pending_dependency, fit lite).
-- `src/test/ads-strategic-plan-contract.test.ts` — 10 testes (aprovação válida + 9 cenários de invalidação cobrindo todas as regras críticas).
-- Suítes Onda G originais (18 testes) seguem 100% verdes.
-
-## Como validar (usuário)
-1. No tenant Respeite o Homem, recusar o plano atual.
-2. Rodar nova análise inicial.
-3. Conferir que o novo plano:
-   - se vier completo, aparece "Aprovar plano" habilitado e seção "Orçamento por Funil" preenchida;
-   - se vier incompleto, aparece banner vermelho "Plano incompleto" listando pendências e botão "Aprovar plano" desabilitado.
-
-## O que NÃO foi feito (proposital)
-- Não publica campanha, não chama Meta para mutação, não consome crédito de criativo, não cria cron novo, não chama IA para "consertar" o plano atual, não migra plano antigo para válido.
-
----
-
-# Onda G.2 — Exclusão obrigatória de clientes em público frio/prospecção (entregue 2026-06-12)
-
-## Status
-✅ Implementado em modo fail-closed. Aguardando validação operacional com nova análise no tenant Respeite o Homem.
-
-## Diagnóstico fechado
-- Havia mais de um caminho capaz de gravar `strategic_plan` fora do contrato canônico.
-- O Strategist já validava contrato, mas ainda faltava uma blindagem única com **status técnico não-aprovável** e fechamento explícito dos caminhos legados.
-- O plano real problemático ainda aparecia em formato legado (`campaign_type='TOF'`, `funnel_stage='tof'`, sem `audience_exclusions` estruturado).
-
-## O que foi entregue
-
-### G.2.1 — Guard canônico obrigatório
-- Nova função única de entrada: `normalizeAndValidateStrategicPlanForApproval(plan, preflight)`.
-- Ordem obrigatória: `Preflight → normalização canônica → validação de contrato → persistência`.
-- Resultado define `approval_status: pending_approval | incomplete`.
-
-### G.2.2 — Normalização de legado para payload canônico
-- Identifica frio/prospecção por `campaign_type`, `campaign_intent`, `funnel_stage`, labels legadas e sinais de audiência (`broad`, `lookalike`, `Homens 30-65, Brasil`, aquisição, novos clientes).
-- Converte `TOF`/legado para:
-  - `campaign_type='prospecting'`
-  - `campaign_intent='acquisition'`
-  - `funnel_stage='tof'`
-  - `affected_funnel='cold'`
-
-### G.2.3 — Exclusão obrigatória de clientes
-- Se o público de clientes existe no preflight, injeta `audience_exclusions.customers=true` + metadata do público.
-- Se não existe, injeta `pending_dependency='customer_audience_not_detected'` e marca o plano como `incomplete`.
-- Prospecção pura nunca segue aprovável sem exclusão ou pendência explícita.
-
-### G.2.4 — Fail-closed de aprovação
-- `ads-autopilot-execute-approved` recusa plano `incomplete` ou com `contract.ok=false`.
-- Não aprova, não gera filhas, não publica, não chama Meta.
-
-### G.2.5 — Fechamento dos caminhos legados
-- `ads-autopilot-strategist`: agora persiste plano como `pending_approval` ou `incomplete` conforme o guard.
-- `ads-chat-v2`: caminho legado de criação direta de plano agora salva sempre como `incomplete`.
-- `ads-chat` legado: mantido apenas como artefato observacional (`executed`), fora da fila aprovável.
-
-### G.2.6 — UI alinhada à fonte canônica
-- Card de aprovação mostra badge **Plano incompleto**.
-- Modal do plano continua bloqueando aprovação e agora também respeita `status='incomplete'`.
-- Resumo compacto, detalhe e conteúdo do plano passam a mostrar a mesma indicação canônica:
-  - **Exclui clientes/compradores**; ou
-  - **Pendência: público de clientes não detectado**.
-
-## Testes e validação técnica
-- Fixture de regressão adicionada para plano real legado `TOF + tof + Homens 30-65, Brasil + sem audience_exclusions`.
-- Coberto cenário com público de clientes detectado e cenário sem público de clientes.
-- Guard adicional no nível do adset: ação fria/prospecção só é aprovável quando cada conjunto carrega a exclusão canônica (`audience_exclusions` + `excluded_audience_ids` + `targeting.excluded_custom_audiences`) ou pendência explícita `customer_audience_not_detected`.
-- Aprovação two-step agora lê a fonte canônica (`audience_exclusions` / `excluded_audience_ids`) além do metadata legado, impedindo falso negativo ou falso positivo por campo legado isolado.
-- Implementação de plano aprovado preserva `planned_actions` estruturadas e não reduz mais objetos a `[object Object]`, mantendo contexto suficiente para herdar exclusões nas filhas.
-- `create_adset` também injeta metadata/exclusão de clientes quando o conjunto é frio, alinhando ação pai e filha com a mesma regra operacional.
-- Nenhuma publicação executada.
-- Nenhuma campanha real alterada.
-
-## Onda G.3 — Auditoria real do Plano Estratégico + fail-closed canônico (2026-06-13)
-
-### Diagnóstico fechado
-- O último plano real salvo no tenant estava em payload legado, sem metadata de validação, sem versionamento e sem exclusão de clientes por adset, apesar do contrato canônico já existir.
-- A análise inicial do painel passa por um orquestrador próprio e depois dispara o estrategista no gatilho `start`; o problema não era só teste insuficiente, mas falta de blindagem no plano persistido e na aprovação real.
-- Havia também risco de ação inválida sobre campanha já pausada, porque o plano não carregava snapshot canônico de status/ações permitidas no payload final aprovado.
-
-### Ajustes aplicados
-- O contrato do plano agora anexa metadata obrigatória de auditoria e versionamento: origem do fluxo, versão do schema, versão do preflight, versão do validator, versão do guard, timestamps de normalização/validação, erros e flag canônica de aprovabilidade.
-- O plano estratégico passa a carregar também o snapshot canônico da conta para as campanhas existentes, incluindo status real, status efetivo e ações permitidas por campanha.
-- A validação fail-closed agora reprova plano legado sem metadata, plano com ação operacional incompleta (`N/A`), plano que tenta pausar campanha já pausada e plano com ação incompatível com o status real da campanha.
-- O endpoint de aprovação do plano agora recarrega o plano salvo, recompõe o contexto determinístico, revalida o contrato e só então permite aprovar e gerar filhas. Se o plano estiver incompleto, ele é travado no servidor mesmo que a UI falhe.
-- A execução de conjuntos filhos Meta ganhou reforço para excluir automaticamente clientes em público frio e bloquear aprovação se o público de clientes não existir.
-
-### Evidência da auditoria real
-- Último plano auditado: `83cddf94-6422-4cd5-828a-1388f4c89f3c`.
-- O payload salvo vinha sem `contract`, sem `approval_status`, sem `strategic_plan_preflight`, sem `schema_version` e sem metadata canônica — por isso o painel ainda mostrava um plano operacional em formato legado.
-- Os adsets frios do plano real (`Broad` e `LAL`) estavam sem `audience_exclusions`, sem `excluded_audience_ids` e sem `targeting.excluded_custom_audiences`.
-
-### Critério de aceite técnico desta onda
-- Plano novo salvo com metadata canônica obrigatória.
-- Plano legado ou incompleto não fica aprovável.
-- Pausa em campanha já pausada é invalidada pelo snapshot real.
-- Público frio/prospecção sem exclusão por adset fica bloqueado ou com pendência técnica explícita.
-- Aprovação server-side revalida sempre; não confia só no front.
-
----
-
-## Onda G.4 — Persistência canônica obrigatória do Plano Estratégico (2026-06-13)
-
-### Diagnóstico fechado (auditoria end-to-end no tenant Respeite o Homem, conta `act_251893833881780`)
-- **Plano real auditado:** `94b75318-3b48-4ddd-a186-f228c01697b9` (status na fila: `pending_approval`).
-- O guard canônico e o validador eram chamados em memória, mas o payload final retornado ao caminho de persistência **descartava** metadata, contract, campaign_account_snapshot, source_flow, analysis_run_id e o enriquecimento de exclusão por adset, porque o handler do `strategic_plan` montava um objeto manual com apenas alguns campos do plano normalizado.
-- Resultado: o banco recebia um plano sem versionamento, sem `is_approvable`, sem `validation_status`, sem `audience_exclusions`/`excluded_audience_ids`/`targeting.excluded_custom_audiences` por adset — exatamente o sintoma reportado no painel.
-- **Público de clientes:** confirmado existente, ativo e vinculado à conta (`120244679266150057` — `Clientes - Atualizado 07/06/2026`). Não era falta de acesso ao público; era perda do enriquecimento no caminho de persistência.
-
-### Ajustes aplicados
-- O handler do `strategic_plan` no estrategista agora persiste o plano canônico **completo** (espalhando todo o `normalizedPlan` devolvido pelo guard), preservando metadata, contract, snapshot da conta, fluxo de origem, identificador da rodada de análise e o enriquecimento de exclusão por adset.
-- Adicionado **fallback determinístico do preflight** no momento da resposta: se o preflight pré-montado para a conta não estiver disponível, o handler reconstrói o preflight usando o resolver real do público de clientes antes de validar, garantindo que nenhum plano salvo escape do guard.
-- Reforçada a regra: quando o público de clientes existe, todo conjunto frio/prospecção é salvo com `audience_exclusions.customers=true` + `excluded_audience_ids` + `targeting.excluded_custom_audiences`. Quando o público não existe, é salvo com `pending_dependency='customer_audience_not_detected'` e o plano fica `incomplete`/não aprovável.
-- Campanha já pausada continua bloqueada de receber ação de pausa pelo Campaign Account Snapshot, e ação operacional com produto/público `N/A` continua invalidando o plano (regras da Onda G.3, agora alcançando efetivamente o registro persistido).
-- Blindagem adicional no momento do `INSERT`: antes de gravar `strategic_plan`, o fluxo agora revalida o `action_data` final e reimpõe o payload canônico (metadata + contract + preflight + snapshot + exclusão por adset). Assim, mesmo que algum retorno intermediário ainda venha achatado, o registro salvo não entra mais na fila como plano legado mascarado de novo plano.
-- Teste de persistência lógica adicionado para simular exatamente o shape salvo na fila e garantir que o objeto final continua carregando metadados obrigatórios e exclusão por conjunto frio.
-
-### Validação técnica
-- Suíte de regressão do plano estratégico: **53 testes verdes** (contrato, preflight, normalização canônica, fluxo two-step).
-- Nenhuma publicação executada. Nenhuma campanha real alterada. Nenhuma proposta filha gerada automaticamente.
-
-### Como validar no painel
-1. Rodar **Nova análise inicial** na conta Meta do tenant Respeite o Homem.
-2. No novo Plano Estratégico, abrir o modal e conferir que cada conjunto de TOF/frio/prospecção exibe a exclusão de clientes com nome do público (ou pendência explícita quando o público não existir).
-3. Confirmar que nenhuma ação de orçamento ficou marcada como incompleta apenas por ausência de sinal de fit; quando a IA omitir esse campo, o plano deve nascer com fallback determinístico reaproveitado do preflight.
-4. Confirmar que nenhuma campanha já pausada aparece com sugestão de “Pausar campanha”.
-5. Confirmar que o botão **“Aprovar plano”** só fica habilitado quando o plano carrega metadata canônica válida; planos legados/incompletos exibem o banner “Plano incompleto” com o botão desabilitado.
-
----
-
-## Onda H.1 + H.2 — Lifecycle canônico + Propostas filhas detalhadas sem execução (2026-06-14)
-
-### Status
-✅ Aplicado. Pendente de validação operacional pelo usuário no tenant Respeite o Homem.
-
-### Por que entrar agora
-A base canônica do plano (Onda G.4) está sólida — `schema_version=strategic_plan_v2`, `is_approvable`, `contract.ok`, `source_flow` corretos; planos legados travados como `incomplete`. Sintoma restante: ao aprovar o Plano Estratégico, o sistema invocava o estrategista para "implementar o plano aprovado", e esse caminho gerava criativos imediatamente, tentava criar lookalike e marcava o plano como executado. Auditado no plano `d5ca39cb-6d6b-4af6-99f3-35876378df0c` (5 criativos gerados + 1 lookalike falhado por duplicidade).
-
-### H.1 — Lifecycle canônico e bloqueio de execução
-
-- Plano aprovado nunca mais marca status legado `executed`. Status legado vira `approved`; `action_data.lifecycle.status` recebe `plan_approved` (versão `h1_v1`). `executed` fica reservado para implementação final (Onda H.4).
-- Killswitch server-side no estrategista: o trigger `implement_approved_plan` foi descontinuado e retorna imediatamente sem chamar LLM, sem chamada à Meta, sem geração de criativo, sem criação de público/lookalike/catálogo. Caminhos legados que ainda chamem esse trigger ficam bloqueados em servidor — não dependem de UI.
-- Guard server-side adicional: ações de tipo `campaign_proposal` ainda não são aprováveis (Onda H.3); a função de execução devolve erro PT-BR claro caso seja chamada por qualquer caminho.
-
-### H.2 — Propostas filhas detalhadas
-
-- Após o plano ser validado e marcado como aprovado, um novo módulo determinístico gera 1 registro por ação planejada, do tipo `campaign_proposal`, em `status='pending_approval'` (UI legada já reconhece e mostra na fila), com `action_data.lifecycle.status='campaign_proposal_pending_review'`.
-- Cada proposta filha carrega snapshot completo para revisão individual: campanha (nome, objetivo, orçamento, tipo, intenção, produto, funil, racional, UTM, fit), conjuntos (público, exclusões, lookalikes, catálogos, posicionamentos, otimização, pendências) e criativos planejados (formato, ângulo, copy, headline, CTA, link final, prompt visual — todos com `generation_status='planned_only'`, nenhum asset gerado).
-- Classificação automática em 5 tipos: criação, ajuste, pausa, ajuste de orçamento, reativação.
-- Vínculo obrigatório: `parent_action_id=plano`, `planned_action_index`, `analysis_run_id` herdado.
-- Dedup garantida pelo índice único parcial já existente `idx_aaa_child_dedup_plan_action (parent_action_id, planned_action_index)`. Segundo clique não duplica; conta como `proposals_already_existed` na resposta.
-- Resposta da função informa, em PT-BR, quantas propostas foram criadas, quantas já existiam, lista de erros e contadores explícitos `executed=false`, `meta_mutations=0`, `creatives_generated=0`, `audiences_created=0`.
-
-### UI
-
-- Card de proposta filha é reconhecido com rótulo "Proposta de Campanha". Botão **Aprovar** fica desabilitado com tooltip "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão" (Onda H.3). Botão **Rejeitar** continua ativo.
-- Card do Plano Estratégico não muda visualmente.
-
-### O que NÃO foi feito (proposital)
-
-- H.3 (aprovação individual + resolução de públicos/catálogos), H.4 (geração de criativos + Revisão Final + implementação PAUSED), H.5 (área Aprendizados e Decisões editável) ficam para entregas seguintes.
-- Nenhuma migração de banco (índice único já existia; lifecycle vive dentro de `action_data`).
-- Nenhuma chamada nova à Meta. Nenhum novo cron. Sem Google/TikTok.
-
-### Validação técnica
-
-- Suíte nova `ads-campaign-proposals-h2.test.ts`: **6/6 testes verdes** (vínculo, snapshot, classificação, ausência de planned_actions, restrição de tipo único `campaign_proposal`, função pura sem efeitos).
-- Suíte Onda G (`ads-strategic-plan-preflight`, `ads-quality-gate-creative-test-override`, `ads-funnel-budget-model`): **13/13 verdes** após o ajuste.
-- Build TS pendente de pipeline (mudanças são tipadas).
-- Nenhuma proposta filha foi gerada em produção durante a entrega; nenhuma campanha real alterada.
-
-### Como validar no painel
-
-1. No tenant Respeite o Homem, rodar uma nova análise estratégica completa.
-2. Conferir que o novo plano carrega metadata canônica e está aprovável.
-3. Clicar em **Aprovar plano** e confirmar que:
-   - o plano não vira "executed" — fica "aprovado";
-   - aparecem N novos cards "Proposta de Campanha" na fila pendente, um por ação do plano;
-   - nenhum criativo novo foi gerado;
-   - nenhum público novo foi criado;
-   - nenhum lookalike novo foi tentado;
-   - nenhuma campanha real foi alterada na Meta.
-4. Clicar em **Aprovar plano** uma segunda vez por erro: confirmar que não duplica as propostas filhas e a resposta mostra "já existiam".
-5. Clicar em **Aprovar** dentro de uma proposta de campanha: confirmar que o botão está desabilitado com a mensagem "Aguardando próxima etapa". A rejeição continua funcionando.
-
----
-
-# Onda H.2.1 — Propostas filhas com identidade da conta + pendências por objetivo (entregue 2026-06-14)
-
-## Por que
-As propostas de campanha nasciam com vários campos vazios (página do FB, IG, pixel, evento, atribuição, CTA padrão, UTM, posicionamentos, idade/local default) e sem nenhum anúncio planejado quando a estratégia não detalhava. Resultado: o usuário não conseguia entender o que estava sendo proposto. O LLM não deveria precisar inventar identidade de conta — isso já está cadastrado.
-
-## O que mudou (sem mudar UX nem regra de aprovação)
-- **Backend — Account Defaults**: novo resolvedor `accountDefaults.ts` que cruza `ads_meta_production_config` + `tenant_meta_integrations` (assets OAuth) e devolve identidade pronta (página, IG, pixel, CAPI, evento, atribuição, CTA, UTM, idade, gênero, país, posicionamentos, formato padrão).
-- **Backend — Contrato de objetivo Meta**: novo `objectiveFieldContract.ts` mapeia, por objetivo (Vendas, Leads, Tráfego, Reconhecimento, Engajamento, Mensagens, App), os campos obrigatórios em cada nível (Identidade / Campanha / Conjunto / Anúncio). Função pura `computePendingFields()` devolve a lista de pendências em PT-BR.
-- **Backend — Builder de propostas**: `buildCampaignProposalsFromApprovedPlan` agora aceita `account_defaults` no contexto, injeta `identity{}`, herda defaults nos snapshots de campanha e conjunto, sintetiza pelo menos 1 criativo placeholder por conjunto quando a estratégia não trouxe, e grava `pending_fields[]` + `meta_step_checklist[]` + `objective_contract_label_pt` no `action_data`.
-- **Backend — Executor**: `ads-autopilot-execute-approved` resolve `account_defaults` antes de chamar o builder. Versão `v4.2.2-h21`.
-- **UI — sem nova tela**: a aba **Campanha** do modal ganhou o bloco "Identidade e rastreamento da conta" (página, IG, pixel, CAPI, evento padrão, atribuição, CTA, UTM). A **Visão Geral** ganhou "Passo a passo Meta — o que já está preenchido" (status por etapa) e "Campos pendentes" (lista em PT-BR).
-
-## O que NÃO mudou
-- Aprovar plano continua **não executando** nada (Onda H.1).
-- `campaign_proposal` continua **não aprovável individualmente** (gate da H.3).
-- Sem chamada à Meta, sem consumo de crédito, sem geração de criativo final, sem criação de público.
-
-## Testes
-- `src/test/ads-campaign-proposals-h21.test.ts` — 4 testes (identidade injetada; placeholders por conjunto; pending_fields/checklist; herança de defaults).
-- Suítes anteriores (H.2 + dialeto v1) seguem 100% verdes (10/10).
-
-## Como validar no painel
-1. Recusar plano atual e rodar nova análise.
-2. Aprovar o novo plano (continua só gerando propostas, sem executar).
-3. Abrir uma proposta de campanha:
-   - **Visão Geral** mostra "Passo a passo Meta" com status por etapa e "Campos pendentes".
-   - **Campanha** mostra "Identidade e rastreamento da conta" preenchida (página, IG, pixel, CAPI, evento, atribuição, CTA, UTM).
-   - **Conjuntos** mostra idade/gênero/local/posicionamentos vindos da conta quando a IA omitiu.
-   - **Anúncios** lista 1 placeholder por conjunto quando a estratégia não detalhou criativos.
-4. Confirmar que botão "Aprovar" da proposta continua desabilitado com a mensagem de próxima etapa.
-
----
-
-# Onda H.3 — Aprovação individual da Proposta de Campanha (entregue 2026-06-14)
-
-## Status
-✅ Implementado. Aguardando validação operacional do usuário no tenant Respeite o Homem.
-
-## O que muda no fluxo do usuário
-- Cada card de **Proposta de Campanha** filha do plano agora tem o botão **"Aprovar proposta de campanha"** habilitado quando os dados críticos de publicação estão preenchidos.
-- Aprovar 1 proposta **não publica nada na Meta**, **não gera criativo**, **não consome crédito** e **não cria público/catálogo**. Apenas marca a proposta como aprovada e a coloca na fila para as próximas etapas (geração de criativos → revisão final → publicação agendada para 00:01 BRT).
-- Se faltarem dados críticos, a UI mostra exatamente o que falta em PT-BR (ex.: Página do Facebook, Pixel, Orçamento diário, Conjunto de anúncios) e o botão fica com o rótulo "Faltam dados para aprovar".
-
-## Gate publish-critical (servidor — fonte da verdade)
-Bloqueia aprovação se faltar qualquer um:
-- Nome da campanha
-- Objetivo
-- Orçamento diário (> 0)
-- Pelo menos 1 conjunto de anúncios
-- Página do Facebook conectada na conta
-- Pixel conectado (quando objetivo é Vendas/Leads/Conversão)
-- Público de Clientes sincronizado (quando funil é frio/prospecção)
-
-Pendências ad-level (copy, headline, link, criativo final) **NÃO** bloqueiam aqui — entram na Onda H.4 (geração de criativos + revisão final).
-
-## Efeito no banco
-- Proposta aprovada vai para `status='approved'` com `action_data.lifecycle.status='campaign_creatives_generation_pending'` e timestamp de aprovação.
-- Insight gerado para o usuário: "Proposta de Campanha Aprovada" descrevendo a próxima janela 00:01 BRT.
-
-## O que NÃO faz
-- Não chama Meta (zero mutação).
-- Não cria campanha real, conjunto, anúncio, público, lookalike, catálogo.
-- Não gera criativo.
-- Não consome crédito.
-
-## Próximas ondas
-- **H.4 — Geração de criativos + Revisão Final + Publicação agendada 00:01 BRT**: ao aprovar a proposta, o sistema enfileira geração de imagens/vídeos para cada criativo planejado, exibe tela de revisão final com tudo renderizado, e publica em modo ATIVO com `start_time` na próxima janela 00:01 BRT (já suportado pelo helper `getSchedulingParams()` no executor).
-- **H.5 — Aprendizados Editáveis**: ao concluir uma campanha aprovada, a IA registra hipóteses, ganhos e perdas em `ads_ai_learnings`; usuário pode editar, aprovar ou rejeitar cada aprendizado para alimentar análises futuras.
-
-## Como validar no painel
-1. Abrir uma Proposta de Campanha filha do último Plano aprovado.
-2. Conferir que o botão "Aprovar proposta de campanha" está habilitado (ou rotulado "Faltam dados para aprovar" listando o que falta).
-3. Clicar em Aprovar: a proposta sai da fila pendente e ganha estado de aprovada.
-4. Conferir aviso/insight de "Proposta de Campanha Aprovada" com referência à próxima janela 00:01 BRT.
-5. Confirmar que **nada apareceu na Meta** (nenhuma campanha nova, nenhum conjunto, nenhum anúncio, nenhum criativo novo, nenhum público novo).
-
----
-
-# Onda H.4.1 — Disparo automático da geração de criativos ao aprovar a Proposta (entregue 2026-06-14)
-
-## Status
-✅ Backend implementado. Aguardando validação operacional e aprovação de UX das próximas sub-ondas.
-
-## O que muda no fluxo
-Quando você aprova uma **Proposta de Campanha** (H.3), o sistema agora enfileira automaticamente um job de geração de imagem por anúncio planejado, usando o motor unificado de criativos do sistema. Nada é enviado à Meta. Nenhuma campanha real é criada. Apenas os criativos entram na fila de geração.
-
-## Lifecycle
-- Aprovação com criativos planejados → `lifecycle.status = 'campaign_creatives_generating'` + lista de `creative_jobs` (id, índice, produto, status) gravada na proposta.
-- Aprovação sem criativos planejados → `lifecycle.status = 'campaign_creatives_generation_pending'` (segue exigindo revisão manual).
-- Versão do lifecycle: `h41_v1`.
-
-## Restrições mantidas
-- Zero chamada à Meta.
-- Zero criação de campanha/conjunto/anúncio.
-- Zero criação de público/lookalike/catálogo.
-- O crédito é consumido somente pela geração de imagem em si (motor já existente).
-
-## Próximas sub-ondas (dependem de aprovação tua de UX)
-- **H.4.2 — Revisão Final**: tela mostrando campanha + conjuntos + anúncios com criativos gerados, com botão único "Publicar agendado para a próxima janela 00:01 BRT". Decisão pendente: aba no modal existente OU página dedicada.
-- **H.4.3 — Publicação real na Meta**: cria campanha, conjuntos, anúncios e criativos reais com `start_time` na próxima janela 00:01 BRT (status ACTIVE, nunca PAUSED). Idempotência por chave de aprovação. Reconciliação dos IDs Meta.
-- **H.5 — Aprendizados editáveis**: área para revisar/editar/aprovar/rejeitar hipóteses e ganhos/perdas que a IA registra por campanha. Decisão pendente: aba nova na página de Ads OU página separada no menu lateral.
-
-## Como validar
-1. Aprovar uma Proposta de Campanha que tenha anúncios planejados.
-2. Conferir que aparece a mensagem "N criativo(s) entraram na fila de geração" no insight.
-3. Conferir nos jobs de criativo que cada anúncio planejado virou um job com status "queued"/"processing"/"ready".
-4. Conferir que nenhuma campanha nova apareceu na Meta.
+## Auditoria atual
+
+**Bugs reais no motor de prontidão (causando falsos bloqueadores no Respeite o Homem):**
+
+1. O motor exige **Evento de conversão** e **Janela de atribuição** vindos de uma tabela de "configuração de produção" que está vazia — então sempre bloqueia, mesmo com integração Meta 100% ativa.
+2. **Evento de conversão** está como campo manual; deveria ser derivado do objetivo da campanha (venda → Compra, lead → Lead, tráfego → Visualização de conteúdo).
+3. **Janela de atribuição** está como campo manual; deveria usar o padrão do Meta (7 dias clique / 1 dia visualização para venda).
+4. **Claims permitidas** bloqueia para qualquer produto; deveria bloquear só em categoria sensível (cosmético, suplemento).
+5. **Tom de voz**, **Diferenciais do produto** e **Restrições da marca** estão como bloqueadores; devem virar avisos (não bloqueiam).
+6. Telas adicionadas na rodada anterior (Página/Instagram/Pixel/Evento/Janela manuais por conta de anúncios) **viraram retrabalho** do que já existe na integração Meta — devem sair.
+
+**Soft items que permanecem como bloqueadores reais:**
+- Promessa principal aprovada (sempre)
+- Claims permitidas (só em categoria sensível)
+- Categoria regulatória do produto (já existe no cadastro)
+- Logo, paleta e imagem principal do produto (já existem nas configurações da loja e cadastro do produto)
+
+## Plano
+
+### 1. Corrigir o motor de prontidão
+- Ler **Conexão, Conta, Página, Instagram, Pixel, API de Conversões** direto da integração Meta ativa. Zero dependência da tabela "configuração de produção".
+- **Evento de conversão**: derivar do objetivo da campanha. Venda → Compra. Lead → Lead. Tráfego → Visualização de conteúdo. Sem bloqueio e sem campo manual.
+- **Janela de atribuição**: assumir padrão do Meta (7 dias clique / 1 dia visualização para venda). Sem bloqueio e sem campo manual.
+- **UTM**: cair em padrão da plataforma quando proposta/conta não definir. Sem bloqueio.
+
+### 2. Ajustar regras de marca e produto
+- **Promessa principal**: continua bloqueador.
+- **Claims permitidas**: bloqueia só se a categoria do produto for sensível (cosmético, suplemento). Fora disso, aviso.
+- **Tom de voz**, **Diferenciais**, **Restrições/claims proibidas**: viram aviso (não bloqueiam).
+
+### 3. Alinhar o motor estratégico (geração de propostas)
+- O mesmo recorte vale para o gerador de propostas: quando a tabela de produção não tiver dados, usar derivação por objetivo + padrão Meta. Garante que proposta nasce já com evento e janela corretos, sem exigir formulário manual.
+
+### 4. Limpar telas que viraram retrabalho
+- Remover do card da conta de anúncios os campos manuais de Página, Instagram, Pixel, Evento de conversão e Janela de atribuição.
+- Manter o card de **Regras da marca** (promessa, claims, tom de voz, restrições) — global e override por conta. Esses são contexto estratégico real.
+- O card de bloqueios na proposta mostra no máximo 3 itens + botão "Ver todos" (regra já existente, garantir).
+
+### 5. Validação técnica no Respeite o Homem
+- Confirmar que, com integração Meta ativa + promessa cadastrada, as propostas atuais saem de "configurações pendentes" para "pronta para gerar".
+- Listar exatamente quais propostas ficam liberadas e quais ainda têm bloqueador real, com o motivo em linguagem clara.
+
+### 6. Documentação e anti-regressão
+- Atualizar o doc do Gestor de Tráfego e o mapa de UI refletindo: motor lê da integração Meta; evento e janela são automáticos; lista enxuta de bloqueadores soft.
+- Atualizar a regra anti-regressão para impedir que Página/Pixel/Evento/Janela voltem a ser tratados como campo manual.
+
+### Fora do escopo (precisa sua aprovação separada)
+- Adicionar campo "Diferenciais do produto" no cadastro de produto. Hoje continua como aviso e não bloqueia nada.
+
+### Detalhes técnicos (opcional)
+- `creativeReadinessGate.ts`: remover bloqueio de `conversion_event_set` e `attribution_window_set` (passam a ser sempre `true` no payload). Bloqueios de claims, tom, diferenciais e restrições viram avisos exceto promessa principal e claims em categoria sensível.
+- `readinessLoader.ts`: deriva evento/janela a partir de `campaign.objective` quando `ads_meta_production_config` não tem o registro. Mantém a tabela só como override avançado.
+- `accountDefaults.ts` e `campaignProposals.ts`: fallback equivalente para o motor estratégico (mesma derivação por objetivo).
+- `MetaProductionConfigCard.tsx` e `AdsAccountConfig.tsx`: remover seções de Página/Instagram/Pixel/Evento/Janela. Manter override de UTM como avançado opcional.
