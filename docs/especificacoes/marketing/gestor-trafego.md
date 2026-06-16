@@ -4064,3 +4064,28 @@ Os estados de criativo e revisão final entram nas Ondas H.4 e H.5.
 - Botão **Aprovar** desabilitado com tooltip claro até H.3.
 - Botão **Rejeitar** disponível normalmente.
 
+
+---
+
+## 14 — Onda H.4.1 — Fluxo de Prontidão e Geração de Criativos (2026-06-16)
+
+### Regra de negócio
+- Propostas filhas em `campaign_proposal_approved` / `structure_approved_awaiting_creatives` exibem um **card de prontidão** abaixo do card da proposta na aba **Propostas aprovadas**.
+- O card resume, em PT-BR de negócio, o que ainda falta para gerar criativos. Itens avaliados: promessa principal aprovada, claims permitidas, claims proibidas, restrições "não fazer", observações de compliance, confirmação de "sem restrições adicionais", imagem do produto, categoria do produto, faixa de preço/serviço, configuração Meta (conta, página, pixel, CAPI), formato planejado e mapeamento de preço por formato.
+- Quando há **bloqueadores**, o card é amarelo, lista cada pendência com **link para a tela de origem do dado**, e o botão de gerar criativos fica **oculto**.
+- Quando tudo está pronto, o card é azul e o botão **"Gerar criativos"** fica visível, com o **custo estimado em créditos** exibido ao lado.
+- O clique no botão **abre obrigatoriamente um diálogo de confirmação** com as frases: "Isso iniciará processamento de IA" e "Nada será enviado ao Meta agora". Fechar/cancelar o diálogo **não consome créditos**.
+- Só após o clique humano em "Confirmar" os criativos são enfileirados. O servidor **re-valida a prontidão** antes de enfileirar (fail-closed) — o navegador não pode burlar.
+
+### Anti-processamento e idempotência
+- Abrir a aba, navegar entre propostas, abrir/fechar o diálogo e atualizar a tela **não disparam nenhuma chamada de IA**.
+- O enfileiramento é **idempotente por `proposal_action_id`**: duplo clique não dobra custo nem cria criativos duplicados.
+- Após confirmação, a proposta avança para `campaign_creatives_generating` e o card passa a refletir o progresso.
+
+### Custo
+- O custo é calculado a partir de `service_pricing` usando a chave correta do formato planejado (ex.: `single_image` → `image_single`). Se o preço não estiver mapeado, o card cai em modo pendência ("Configuração de preço ausente") e bloqueia a geração até resolução.
+
+### Anti-regressão
+- Nenhum botão na fila pode disparar geração sem passar pelo diálogo de confirmação humana.
+- O motor de prontidão é a fonte única de verdade para liberar o botão; cliente e servidor consultam o mesmo motor.
+- Pendências devem ser sempre apresentadas em linguagem de negócio. Nomes técnicos de campo, tabela, hook ou função ficam proibidos no corpo do card.
