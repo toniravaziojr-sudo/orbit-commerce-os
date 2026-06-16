@@ -4071,7 +4071,10 @@ Os estados de criativo e revisão final entram nas Ondas H.4 e H.5.
 
 ### Regra de negócio
 - Propostas filhas em `campaign_proposal_approved` / `structure_approved_awaiting_creatives` exibem um **card de prontidão** abaixo do card da proposta na aba **Propostas aprovadas**.
-- O card resume, em PT-BR de negócio, o que ainda falta para gerar criativos. Itens avaliados: promessa principal aprovada, claims permitidas, claims proibidas, restrições "não fazer", observações de compliance, confirmação de "sem restrições adicionais", imagem do produto, categoria do produto, faixa de preço/serviço, configuração Meta (conta, página, pixel, CAPI), formato planejado e mapeamento de preço por formato.
+- O card resume, em PT-BR de negócio, o que ainda falta para gerar criativos. **Bloqueadores reais (poucos):** promessa principal aprovada, categoria regulatória do produto, logo, paleta de cores, imagem principal do produto, claims permitidas (apenas se categoria for cosmético ou suplemento), restrições do produto (apenas em categoria sensível). **Avisos (não bloqueiam):** tom de comunicação, diferenciais/benefícios, claims proibidas/restrições da marca.
+- **Conexão Meta, Conta de anúncios, Página, Instagram, Pixel e API de Conversões** são lidos diretamente da integração Meta ativa. Não há formulário manual.
+- **Evento de conversão** e **Janela de atribuição** são derivados automaticamente do objetivo da campanha (venda → Compra com janela 7 dias clique + 1 dia visualização; lead → Lead com 7 dias clique; tráfego/engajamento/reconhecimento → Visualização de conteúdo com 1 dia clique). Não há campo manual.
+- **UTM** cai em padrão da plataforma quando a proposta/conta não definir. Não bloqueia.
 - Quando há **bloqueadores**, o card é amarelo, lista cada pendência com **link para a tela de origem do dado**, e o botão de gerar criativos fica **oculto**.
 - Quando tudo está pronto, o card é azul e o botão **"Gerar criativos"** fica visível, com o **custo estimado em créditos** exibido ao lado.
 - O clique no botão **abre obrigatoriamente um diálogo de confirmação** com as frases: "Isso iniciará processamento de IA" e "Nada será enviado ao Meta agora". Fechar/cancelar o diálogo **não consome créditos**.
