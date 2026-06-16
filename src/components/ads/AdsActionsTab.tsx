@@ -42,6 +42,8 @@ const ACTION_ICONS: Record<string, any> = {
   allocate_budget: TrendingUp,
   report_insight: Bot,
   strategic_plan: Bot,
+  campaign_proposal: Bot,
+  activate_campaign: TrendingUp,
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -53,6 +55,8 @@ const ACTION_LABELS: Record<string, string> = {
   allocate_budget: "Alocou Orçamento",
   report_insight: "Insight",
   strategic_plan: "Plano Estratégico",
+  campaign_proposal: "Proposta de Campanha",
+  activate_campaign: "Ativar Campanha",
 };
 
 /** Returns dynamic label considering reuse from Drive */
