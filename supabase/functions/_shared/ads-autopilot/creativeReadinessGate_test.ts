@@ -155,20 +155,26 @@ Deno.test("11 [Teste] bloqueia quando variação não tem formato real", () => {
   expectBlocker("creative.0.format", i);
 });
 
-Deno.test("12 [Criação] passa com formato image_single mas bloqueia se briefing falta", () => {
+Deno.test("12 descrição do produto vazia NÃO bloqueia (vira aviso — prompt estratégico é soberano)", () => {
   const i = baseInput();
   i.product.description = null;
-  expectBlocker("product.description", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.description"));
 });
 
-Deno.test("13 blocked sem descrição de produto", () => {
+Deno.test("13 descrição em branco NÃO bloqueia (vira aviso)", () => {
   const i = baseInput(); i.product.description = "";
-  expectBlocker("product.description", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.description"));
 });
 
-Deno.test("14 blocked sem promessa principal aprovada", () => {
+Deno.test("14 promessa principal ausente NÃO bloqueia (vira aviso — prompt é soberano)", () => {
   const i = baseInput(); i.brand.approved_main_promise = null;
-  expectBlocker("brand.approved_main_promise", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "brand.approved_main_promise"));
 });
 
 Deno.test("15 diferenciais/benefícios viraram AVISO (não bloqueia)", () => {
@@ -223,14 +229,18 @@ Deno.test("21 categoria fechada (lista antiga) NÃO bloqueia mais", () => {
   assertEquals(r.status, "ready");
 });
 
-Deno.test("22 blocked sem TIPO do produto (campo livre da IA)", () => {
+Deno.test("22 tipo do produto ausente NÃO bloqueia (vira aviso — prompt é soberano)", () => {
   const i = baseInput(); i.product.ai_product_type = null;
-  expectBlocker("product.ai_product_type", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.ai_product_type"));
 });
 
-Deno.test("22b blocked sem FUNÇÃO do produto (campo livre da IA)", () => {
+Deno.test("22b função do produto ausente NÃO bloqueia (vira aviso)", () => {
   const i = baseInput(); i.product.ai_main_function = null;
-  expectBlocker("product.ai_main_function", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.ai_main_function"));
 });
 
 

@@ -17,6 +17,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 7. **Memória limitada a governança + 2 últimos assuntos** — Rotação obrigatória; nunca guardar regra de sistema que não esteja nos docs.
 
 ## Memories
+- [Supremacia do Prompt Estratégico](mem://constraints/strategic-prompt-supremacy) — Gestor de Tráfego v6.20: prompt estratégico do lojista é fonte de verdade máxima sobre regras manuais, função de produto e diretrizes de plataforma. Conflitos viram avisos não-bloqueantes acima do campo de prompt em Configurações da IA. `creativeReadinessGate` só bloqueia falhas técnicas reais.
 - [Dashboard por Canal](mem://features/command-center/dashboard-by-channel-standard) — Sub-abas do Dashboard (Geral, Loja Virtual, ML, Shopee, TikTok). Visibilidade por `marketplace_connections.is_active`. Filtro único em `lib/dashboard/channelFilter.ts`. Marketplaces exibem "Em breve" para Ads. Selo de fonte em cada card.
 - [Marketplaces — Padrão Canônico](mem://features/marketplaces/canonical-flow-standard) — Mercado Livre é golden path. Todo marketplace novo (Shopee, TikTok, etc.) reusa mesmo contrato de conexão, sync, PVs, fiscal, logística, atendimento e dashboard.
 - [PV Status Shipment Mirror Preserves Active](mem://constraints/pv-status-shipment-mirror-preserves-active) — Espelho PV→Objeto: só remove objeto em status terminais (cancelado, expirado, estornado, devolvido, chargeback). Conclusão/NF criada/pendente NUNCA remove. Reconciliação 15m cobre PV manual/duplicado sem order_id.

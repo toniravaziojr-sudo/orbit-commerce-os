@@ -218,15 +218,19 @@ A página `/ads` utiliza 3 abas de nível superior:
 
 > **v5.6:** A aba "Configurações Gerais" no Gestor de Tráfego permite definir regras de fallback que se aplicam a **todas as contas** que não possuem configurações exclusivas. O registro `channel='global'` na tabela `ads_autopilot_configs` armazena essas configurações.
 
-#### Hierarquia de Prioridade (INVIOLÁVEL)
+#### Hierarquia de Autoridade (Supremacia do Prompt Estratégico — v6.20)
+
+A partir desta versão a ordem de prioridade é fixa e o **prompt estratégico do lojista é a fonte de verdade máxima**. Toda regra automática abaixo dele é tratada como recomendação e **nunca bloqueia** uma ação por conflito editorial.
 
 | Prioridade | Fonte | Descrição |
 |------------|-------|-----------|
-| **1 (máxima)** | Configurações manuais da conta | ROI, ROAS thresholds, estratégia, funil, orçamento por conta |
-| **2** | Prompt de instruções (IA) | Direcionamento estratégico sugestivo — NÃO sobrepõe configs manuais |
-| **3 (fallback)** | Configurações Gerais (global) | Aplicadas a contas SEM regras exclusivas |
+| **1 (máxima)** | Prompt estratégico do lojista (global e por conta) | Vence qualquer regra ou diretriz abaixo. Conflitos viram avisos, não bloqueios. |
+| **2** | Configurações manuais do lojista | ROI, ROAS, orçamento, splits, estratégia, funil. |
+| **3** | Funções/categorias declaradas dos produtos | Contexto para inferência de categoria e diretrizes. |
+| **4** | Diretrizes comerciais das plataformas (Meta/Google/TikTok) | Consultivas — geram aviso quando contrariadas no prompt. |
+| **5 (fallback)** | Templates e defaults do sistema | Aplicados apenas quando nada acima existe. |
 
-> **Regra do Prompt:** O prompt estratégico (user_instructions) é **sugestivo**. Se houver conflito entre o prompt e uma configuração manual (ex: ROI, estratégia, splits), a configuração manual SEMPRE prevalece. O prompt serve para fornecer contexto, expertise e direcionamento detalhado à IA.
+> **Regra do Prompt (v6.20 — Supremacia):** O prompt estratégico vence qualquer regra automática. Se houver conflito com configuração manual, função do produto ou diretriz de plataforma, o sistema **avisa o lojista** no bloco "Avisos do prompt estratégico" (logo acima do campo de prompt em Configurações da IA) mas **executa o que o prompt manda**. A decisão sobre seguir com o risco é do lojista. Memória de governança: `mem://constraints/strategic-prompt-supremacy`.
 
 #### Campos Globais
 
@@ -828,11 +832,13 @@ Campanhas que falham repetidamente após 2 ciclos de reteste → pausa indefinid
 
 > **Nota anterior (v5.6):** As regras de pausa por timing de 3d/7d são agora implementadas pelo Motor Estrategista na análise semanal. O Guardião foca no controle diário intraday.
 
-### Hierarquia Prompt vs Configurações Manuais (v5.6)
+### Hierarquia Prompt vs Configurações Manuais (v6.20 — Supremacia do Prompt)
 
-O prompt estratégico (`user_instructions`) é **sugestivo**:
-- Se houver conflito entre o prompt e configurações manuais (ROI, orçamento, estratégia, splits), as **configurações manuais SEMPRE prevalecem**
-- A IA exibe aviso no sistema de que as instruções são sugestivas e não sobrepõem configs numéricas
+O prompt estratégico (`user_instructions`) é **soberano**:
+- Vence qualquer configuração manual, função declarada de produto ou diretriz de plataforma.
+- Conflitos viram **avisos** no bloco "Avisos do prompt estratégico" da tela de Configurações da IA (acima do campo de prompt). Nada é bloqueado.
+- A trava de prontidão criativa (`creativeReadinessGate`) só bloqueia por falhas técnicas reais (sem conexão, sem produto/imagem/preço, sem UTM/orçamento/público). Itens editoriais (descrição, tipo/função do produto, promessa, claims, restrições) viram avisos.
+- Memória de governança: `mem://constraints/strategic-prompt-supremacy`.
 
 ### Preview de Ações (StructuredProposalModal + inline)
 
