@@ -44,6 +44,10 @@ const formSchema = z.object({
   visual_style_guidelines: z.string().optional(),
   banned_claims: z.string().optional(),
   do_not_do: z.string().optional(),
+  approved_main_promise: z.string().optional(),
+  allowed_claims: z.string().optional(),
+  compliance_notes: z.string().optional(),
+  no_additional_restrictions_confirmed: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -81,21 +85,30 @@ export function BrandContextEditor() {
       visual_style_guidelines: "",
       banned_claims: "",
       do_not_do: "",
+      approved_main_promise: "",
+      allowed_claims: "",
+      compliance_notes: "",
+      no_additional_restrictions_confirmed: false,
     },
   });
 
   // Update form when data loads
   useEffect(() => {
     if (brandContext) {
+      const bc = brandContext as any;
       form.reset({
-        brand_summary: brandContext.brand_summary || "",
-        tone_of_voice: brandContext.tone_of_voice || "",
-        visual_style_guidelines: brandContext.visual_style_guidelines || "",
-        banned_claims: brandContext.banned_claims?.join(", ") || "",
-        do_not_do: brandContext.do_not_do?.join(", ") || "",
+        brand_summary: bc.brand_summary || "",
+        tone_of_voice: bc.tone_of_voice || "",
+        visual_style_guidelines: bc.visual_style_guidelines || "",
+        banned_claims: bc.banned_claims?.join(", ") || "",
+        do_not_do: bc.do_not_do?.join(", ") || "",
+        approved_main_promise: bc.approved_main_promise || "",
+        allowed_claims: bc.allowed_claims?.join(", ") || "",
+        compliance_notes: bc.compliance_notes || "",
+        no_additional_restrictions_confirmed: bc.no_additional_restrictions_confirmed ?? false,
       });
-      if (brandContext.packshot_url) {
-        setPackshotPreview(brandContext.packshot_url);
+      if (bc.packshot_url) {
+        setPackshotPreview(bc.packshot_url);
       }
     }
   }, [brandContext, form]);
@@ -105,20 +118,23 @@ export function BrandContextEditor() {
     mutationFn: async (values: FormValues) => {
       if (!currentTenant?.id) throw new Error("Tenant não encontrado");
 
-      const banned_claims = values.banned_claims
-        ? values.banned_claims.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
-      const do_not_do = values.do_not_do
-        ? values.do_not_do.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
+      const splitCsv = (v: string | undefined) =>
+        v ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const banned_claims = splitCsv(values.banned_claims);
+      const do_not_do = splitCsv(values.do_not_do);
+      const allowed_claims = splitCsv(values.allowed_claims);
 
-      const payload = {
+      const payload: any = {
         tenant_id: currentTenant.id,
         brand_summary: values.brand_summary || null,
         tone_of_voice: values.tone_of_voice || null,
         visual_style_guidelines: values.visual_style_guidelines || null,
         banned_claims,
         do_not_do,
+        allowed_claims,
+        approved_main_promise: values.approved_main_promise || null,
+        compliance_notes: values.compliance_notes || null,
+        no_additional_restrictions_confirmed: values.no_additional_restrictions_confirmed ?? false,
         manually_edited_at: new Date().toISOString(),
       };
 
