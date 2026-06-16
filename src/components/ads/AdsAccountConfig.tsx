@@ -184,23 +184,12 @@ function AccountConfigCard({
 
   const handleSave = () => {
     setPromptAnalysisTrigger((n) => n + 1);
-    // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
-    const brandPersist = brandComplianceToPersist(brandOverride);
-    const brandHasContent =
-      !!brandPersist.approved_main_promise ||
-      brandPersist.allowed_claims.length > 0 ||
-      brandPersist.banned_claims.length > 0 ||
-      brandPersist.do_not_do.length > 0 ||
-      !!brandPersist.compliance_notes ||
-      brandPersist.no_additional_restrictions_confirmed;
-
+    // Override de marca foi descontinuado em 2026-06-16. Removemos qualquer
+    // brand_overrides legado em chat_overrides para evitar dado órfão.
     const existingOverrides = (config?.chat_overrides as any) || {};
     const nextOverrides = { ...existingOverrides };
-    if (brandHasContent) {
-      nextOverrides.brand_overrides = brandPersist;
-    } else {
-      delete nextOverrides.brand_overrides;
-    }
+    delete nextOverrides.brand_overrides;
+
 
     onSave(accountId, {
       budget_mode: budgetMode,
