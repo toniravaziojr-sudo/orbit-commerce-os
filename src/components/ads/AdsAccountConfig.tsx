@@ -585,6 +585,12 @@ function AccountConfigCard({
         {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
         <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
 
+        {/* Padrões da Meta da conta (página, pixel, evento de conversão, janela…) */}
+        {channel === "meta" && (
+          <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName} />
+        )}
+
+
         {/* Validation warnings */}
         {!validation.valid && (
           <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 space-y-1">
