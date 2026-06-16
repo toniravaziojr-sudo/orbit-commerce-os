@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 export interface BrandComplianceValue {
+  tone_of_voice: string;
   approved_main_promise: string;
   allowed_claims: string; // CSV
   banned_claims: string; // CSV
@@ -19,6 +20,7 @@ export interface BrandComplianceValue {
 }
 
 export const EMPTY_BRAND_COMPLIANCE: BrandComplianceValue = {
+  tone_of_voice: "",
   approved_main_promise: "",
   allowed_claims: "",
   banned_claims: "",
