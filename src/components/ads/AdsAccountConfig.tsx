@@ -33,6 +33,13 @@ import { useMetaIntegrationAssetsStatus } from "@/hooks/useMetaIntegrationAssets
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
+import {
+  BrandComplianceFieldsBlock,
+  brandComplianceToPersist,
+  brandCompliancePersistToForm,
+  EMPTY_BRAND_COMPLIANCE,
+  type BrandComplianceValue,
+} from "./BrandComplianceFieldsBlock";
 
 interface AdAccount {
   id: string;
@@ -132,6 +139,12 @@ function AccountConfigCard({
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
   const [showActivationDialog, setShowActivationDialog] = useState(false);
 
+  // H.4.0 — override de marca por conta de anúncios (vazio = herda do global)
+  const initialBrandOverride = (config?.chat_overrides as any)?.brand_overrides ?? null;
+  const [brandOverride, setBrandOverride] = useState<BrandComplianceValue>(
+    brandCompliancePersistToForm(initialBrandOverride)
+  );
+
   useEffect(() => {
     if (config) {
       setBudgetMode(config.budget_mode || "monthly");
@@ -144,7 +157,7 @@ function AccountConfigCard({
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      
+      setBrandOverride(brandCompliancePersistToForm((config.chat_overrides as any)?.brand_overrides ?? null));
     }
   }, [config]);
 
@@ -177,6 +190,24 @@ function AccountConfigCard({
   const validation = isAccountConfigComplete(currentFormConfig);
 
   const handleSave = () => {
+    // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
+    const brandPersist = brandComplianceToPersist(brandOverride);
+    const brandHasContent =
+      !!brandPersist.approved_main_promise ||
+      brandPersist.allowed_claims.length > 0 ||
+      brandPersist.banned_claims.length > 0 ||
+      brandPersist.do_not_do.length > 0 ||
+      !!brandPersist.compliance_notes ||
+      brandPersist.no_additional_restrictions_confirmed;
+
+    const existingOverrides = (config?.chat_overrides as any) || {};
+    const nextOverrides = { ...existingOverrides };
+    if (brandHasContent) {
+      nextOverrides.brand_overrides = brandPersist;
+    } else {
+      delete nextOverrides.brand_overrides;
+    }
+
     onSave(accountId, {
       budget_mode: budgetMode,
       budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
@@ -189,6 +220,7 @@ function AccountConfigCard({
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
       human_approval_mode: "approve_high_impact",
+      chat_overrides: Object.keys(nextOverrides).length ? nextOverrides : null,
     } as any);
   };
 
@@ -548,6 +580,9 @@ function AccountConfigCard({
             Mínimo 10 caracteres. ({instructions.trim().length}/10)
           </p>
         </div>
+
+        {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
+        <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
 
         {/* Validation warnings */}
         {!validation.valid && (

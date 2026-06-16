@@ -10,6 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
+import {
+  BrandComplianceFieldsBlock,
+  brandComplianceToPersist,
+  brandCompliancePersistToForm,
+  EMPTY_BRAND_COMPLIANCE,
+  type BrandComplianceValue,
+} from "./BrandComplianceFieldsBlock";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface AdsGlobalConfigProps {
   globalConfig: AutopilotConfig | null;
@@ -28,6 +39,62 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
   const [autonomyMode, setAutonomyMode] = useState<"off" | "technical_only">(
     (globalConfig?.autonomy_mode === "technical_only" ? "technical_only" : "off")
   );
+
+  const { currentTenant } = useAuth();
+  const qc = useQueryClient();
+  const tenantId = currentTenant?.id;
+
+  // Bloco de marca (H.4.0) — fonte de verdade global
+  const { data: brandRow } = useQuery({
+    queryKey: ["tenant-brand-context-h4", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      const { data, error } = await supabase
+        .from("tenant_brand_context")
+        .select("approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+  const [brand, setBrand] = useState<BrandComplianceValue>(EMPTY_BRAND_COMPLIANCE);
+  const [savingBrand, setSavingBrand] = useState(false);
+  useEffect(() => {
+    setBrand(brandCompliancePersistToForm(brandRow));
+  }, [brandRow]);
+
+  const handleSaveBrand = async () => {
+    if (!tenantId) return;
+    setSavingBrand(true);
+    try {
+      const patch = brandComplianceToPersist(brand);
+      const { data: existing } = await supabase
+        .from("tenant_brand_context")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (existing) {
+        const { error } = await supabase
+          .from("tenant_brand_context")
+          .update({ ...patch, manually_edited_at: new Date().toISOString() })
+          .eq("tenant_id", tenantId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("tenant_brand_context")
+          .insert({ tenant_id: tenantId, ...patch, manually_edited_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+      toast.success("Promessas, claims e restrições da marca salvas");
+      qc.invalidateQueries({ queryKey: ["tenant-brand-context-h4", tenantId] });
+    } catch (e: any) {
+      toast.error("Erro ao salvar marca: " + (e?.message || ""));
+    } finally {
+      setSavingBrand(false);
+    }
+  };
 
   useEffect(() => {
     if (globalConfig) {
@@ -199,6 +266,17 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
 
             <Button onClick={handleSave} disabled={isSaving} className="w-full">
               {isSaving ? "Salvando..." : "Salvar Configuração Global"}
+            </Button>
+
+            {/* H.4.0 — Bloco de marca: promessas, claims e restrições */}
+            <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
+            <Button
+              onClick={handleSaveBrand}
+              disabled={savingBrand || !tenantId}
+              variant="secondary"
+              className="w-full"
+            >
+              {savingBrand ? "Salvando marca..." : "Salvar promessas, claims e restrições"}
             </Button>
           </CardContent>
         </CollapsibleContent>
