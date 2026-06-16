@@ -630,6 +630,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           regulatory_category: data.regulatory_category || null,
           commercial_restrictions: data.commercial_restrictions || null,
           no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
+          ai_product_type: data.ai_product_type || null,
+          ai_main_function: data.ai_main_function || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
