@@ -23,6 +23,7 @@ import {
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
 import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
+import { classifyH3Approval } from "../_shared/ads-autopilot/h3StructureGate.ts";
 
 // ===== VERSION =====
 const VERSION = "v4.5.0-h3"; // Onda H.3: aprovação ESTRUTURAL idempotente (zero criativo, zero IA, zero Meta)
