@@ -408,6 +408,75 @@ export function BrandContextEditor() {
 
               <Separator />
 
+              <div className="flex items-center gap-2 text-foreground">
+                <span className="text-sm font-semibold">Promessa e claims aprovados</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Fonte de verdade que a IA usa para gerar criativos. Sem isso, a IA não pode
+                montar oferta. Não preencher aqui significa bloquear a geração de criativos.
+              </p>
+
+              <FormField
+                control={form.control}
+                name="approved_main_promise"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Promessa principal aprovada</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder='Ex: "Cabelos mais fortes em 30 dias, sem química agressiva"'
+                        className="min-h-[60px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      A frase central que pode ser usada nos criativos. A IA não inventa promessa — só usa esta.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="allowed_claims"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Claims permitidos</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex: hidrata, fortalece a raiz, reduz queda visível"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Separados por vírgula. A IA só pode usar claims desta lista.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="compliance_notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações comerciais ou de compliance</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ex: evitar comparação com concorrentes; não citar diagnósticos médicos"
+                        className="min-h-[60px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator />
+
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-4 w-4" />
                 <span className="text-sm font-medium">Restrições</span>
@@ -418,7 +487,7 @@ export function BrandContextEditor() {
                 name="banned_claims"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Claims Proibidos</FormLabel>
+                    <FormLabel>Claims proibidos</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Ex: resultados médicos, antes/depois, cura"
@@ -438,7 +507,7 @@ export function BrandContextEditor() {
                 name="do_not_do"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Não Fazer</FormLabel>
+                    <FormLabel>Não fazer</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Ex: inventar rótulos, alterar cores do produto, mostrar mãos"
@@ -452,6 +521,33 @@ export function BrandContextEditor() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="no_additional_restrictions_confirmed"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/30">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={!!field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-input"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="cursor-pointer">
+                        Confirmo que não há restrições adicionais para esta marca
+                      </FormLabel>
+                      <FormDescription>
+                        Marque apenas se você revisou e tem certeza de que não há outras
+                        restrições comerciais ou legais além das listadas acima.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
 
               <div className="flex justify-end pt-4">
                 <Button type="submit" disabled={saveMutation.isPending}>
