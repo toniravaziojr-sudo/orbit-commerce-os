@@ -40,7 +40,7 @@ import {
   EMPTY_BRAND_COMPLIANCE,
   type BrandComplianceValue,
 } from "./BrandComplianceFieldsBlock";
-import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
+// MetaProductionConfigCard removido: ativos vêm da integração Meta ativa.
 
 interface AdAccount {
   id: string;
