@@ -566,8 +566,6 @@ function AccountConfigCard({
           </p>
         </div>
 
-        {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
-        <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
 
         {/* Página, Pixel, Instagram, Evento de conversão e Janela de atribuição
             vêm 100% da integração Meta ativa (status mostrado acima). Evento e
