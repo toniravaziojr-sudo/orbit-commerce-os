@@ -57,6 +57,8 @@ function baseInput(): CreativeReadinessInput {
       benefits: ["fortalece raiz", "reduz queda"],
       is_physical: true,
       primary_image_url: "https://cdn/prod.png",
+      ai_product_type: "Shampoo",
+      ai_main_function: "para queda capilar",
       regulatory_category: "cosmetic_hair",
       commercial_restrictions: "Não usar termos médicos",
       no_additional_restrictions_confirmed: false,
