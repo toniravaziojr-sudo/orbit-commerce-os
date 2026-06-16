@@ -393,60 +393,12 @@ export function evaluateCreativeReadiness(
     });
   }
 
-  // Tom de voz — aviso (opcional)
-  if (isBlank(input.brand.tone_of_voice)) {
-    warn({
-      field: "brand.tone_of_voice", label_pt: "Tom de comunicação",
-      reason_pt: "Sem tom de comunicação definido a IA usa um padrão neutro. Recomenda-se definir.",
-      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-      action_label: "Definir tom",
-      severity: "warning", node_type: "brand", node_id: null,
-    });
-  }
-
-  // Promessa principal — AVISO (Supremacia do Prompt Estratégico).
-  // O prompt estratégico do lojista é soberano; promessa cadastrada é reforço opcional.
-  if (isBlank(input.brand.approved_main_promise)) {
-    warn({
-      field: "brand.approved_main_promise",
-      label_pt: "Promessa principal aprovada",
-      reason_pt: "Sem promessa cadastrada a IA usa o que estiver no prompt estratégico e na descrição. Recomenda-se cadastrar uma promessa de referência.",
-      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-      action_label: "Cadastrar promessa",
-      severity: "warning", node_type: "brand", node_id: null,
-    });
-  }
-
-  // Claims permitidas — sempre aviso. A IA cruza tipo+função do produto com a
-  // Base Global de Diretrizes Comerciais (Meta/Google/TikTok) na geração.
-  // Claims declaradas pelo lojista são apenas reforço opcional.
-  if (arrEmpty(input.brand.allowed_claims)) {
-    warn({
-      field: "brand.allowed_claims",
-      label_pt: "Claims permitidas",
-      reason_pt: "Sem claims declaradas a IA usa a descrição do produto e as diretrizes da plataforma. Recomenda-se cadastrar.",
-      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-      action_label: "Cadastrar claims",
-      severity: "warning", node_type: "brand", node_id: null,
-    });
-  }
+  // Regras editoriais de marca (tom, promessa, claims, restrições) foram
+  // descontinuadas em 2026-06-16. A IA se baseia 100% no prompt estratégico
+  // do lojista + diretrizes das plataformas + feedbacks de propostas. Não há
+  // mais aviso nem bloqueio por falta desses campos.
 
 
-  // Claims proibidas/restrições — aviso (opcional)
-  const hasBrandRestrictionDeclared =
-    !arrEmpty(input.brand.banned_claims) ||
-    !arrEmpty(input.brand.do_not_do) ||
-    input.brand.no_additional_restrictions_confirmed;
-  if (!hasBrandRestrictionDeclared) {
-    warn({
-      field: "brand.restrictions",
-      label_pt: "Claims proibidas/restrições",
-      reason_pt: "Sem restrições declaradas a IA assume que não há limites adicionais. Recomenda-se declarar ou confirmar.",
-      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-      action_label: "Declarar restrições",
-      severity: "warning", node_type: "brand", node_id: null,
-    });
-  }
 
   // ---- Custo estimado ----------------------------------------------------
   const cost = computeCostEstimate(input);
