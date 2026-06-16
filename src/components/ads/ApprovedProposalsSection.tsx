@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Rocket, Sparkles, AlertTriangle, RefreshCw, Eye } from "lucide-react";
 import { useApprovedProposalsAwaitingPublish, type ApprovedProposalRow } from "@/hooks/useApprovedProposalsAwaitingPublish";
 import { FinalReviewModal } from "./FinalReviewModal";
+import { CreativeReadinessCard } from "./CreativeReadinessCard";
 
 interface Props {
   channelFilter?: string;
@@ -55,65 +56,54 @@ export function ApprovedProposalsSection({ channelFilter }: Props) {
           : [];
 
         return (
-          <Card key={p.id} className="border-border/60">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                {isGenerating ? <Loader2 className="h-5 w-5 text-primary animate-spin" /> :
-                  isFailed ? <AlertTriangle className="h-5 w-5 text-destructive" /> :
-                  isStructureOnly ? <Sparkles className="h-5 w-5 text-primary" /> :
-                  <Rocket className="h-5 w-5 text-primary" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h4 className="text-sm font-semibold truncate">{campaignName}</h4>
-                  <Badge variant={meta.tone} className="text-[10px]">{meta.label}</Badge>
+          <div key={p.id} className="space-y-2">
+            <Card className="border-border/60">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {isGenerating ? <Loader2 className="h-5 w-5 text-primary animate-spin" /> :
+                    isFailed ? <AlertTriangle className="h-5 w-5 text-destructive" /> :
+                    isStructureOnly ? <Sparkles className="h-5 w-5 text-primary" /> :
+                    <Rocket className="h-5 w-5 text-primary" />}
                 </div>
-                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span>R$ {(budget / 100).toFixed(2)}/dia</span>
-                  {!isStructureOnly && (
-                    <>
-                      <span>·</span>
-                      <span>{totalJobs} criativo(s)</span>
-                    </>
-                  )}
-                  {isStructureOnly && pendingAccountCfg.length > 0 && (
-                    <>
-                      <span>·</span>
-                      <span>{pendingAccountCfg.length} pendência(s) de conta Meta</span>
-                    </>
-                  )}
-                  {failureMsg && <><span>·</span><span className="text-destructive">{failureMsg}</span></>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-sm font-semibold truncate">{campaignName}</h4>
+                    <Badge variant={meta.tone} className="text-[10px]">{meta.label}</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                    <span>R$ {(budget / 100).toFixed(2)}/dia</span>
+                    {!isStructureOnly && (
+                      <>
+                        <span>·</span>
+                        <span>{totalJobs} criativo(s)</span>
+                      </>
+                    )}
+                    {failureMsg && <><span>·</span><span className="text-destructive">{failureMsg}</span></>}
+                  </div>
                 </div>
-                {isStructureOnly && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Estrutura aprovada. A geração de criativos será iniciada manualmente na próxima etapa.
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                {isReady && (
-                  <Button size="sm" onClick={() => setSelected(p)} disabled={isPublishing}>
-                    <Eye className="h-3.5 w-3.5 mr-1.5" /> Revisar e publicar
-                  </Button>
-                )}
-                {isGenerating && (
-                  <Button size="sm" variant="outline" disabled>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Aguardando criativos…
-                  </Button>
-                )}
-                {isFailed && (
-                  <Button size="sm" variant="outline" onClick={() => setSelected(p)}>
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Revisar
-                  </Button>
-                )}
-                {isStructureOnly && (
-                  <Button size="sm" variant="outline" disabled title="Disponível na próxima etapa (H.4.1)">
-                    Aguardando próxima etapa
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex gap-2 flex-shrink-0">
+                  {isReady && (
+                    <Button size="sm" onClick={() => setSelected(p)} disabled={isPublishing}>
+                      <Eye className="h-3.5 w-3.5 mr-1.5" /> Revisar e publicar
+                    </Button>
+                  )}
+                  {isGenerating && (
+                    <Button size="sm" variant="outline" disabled>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Aguardando criativos…
+                    </Button>
+                  )}
+                  {isFailed && (
+                    <Button size="sm" variant="outline" onClick={() => setSelected(p)}>
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Revisar
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            {isStructureOnly && (
+              <CreativeReadinessCard actionId={p.id} campaignName={campaignName} />
+            )}
+          </div>
         );
       })}
 
