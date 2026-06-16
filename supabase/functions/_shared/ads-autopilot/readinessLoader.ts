@@ -121,7 +121,7 @@ export async function loadCreativeReadiness(
   if (productId) {
     const { data } = await supabase
       .from("products")
-      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed")
+      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed, ai_product_type, ai_main_function")
       .eq("id", productId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -130,7 +130,7 @@ export async function loadCreativeReadiness(
   if (!productRow && campaign.product) {
     const { data } = await supabase
       .from("products")
-      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed")
+      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed, ai_product_type, ai_main_function")
       .eq("tenant_id", tenantId)
       .ilike("name", `%${String(campaign.product).trim()}%`)
       .limit(1)
@@ -275,6 +275,8 @@ export async function loadCreativeReadiness(
     benefits,
     is_physical: true,
     primary_image_url: primaryImageUrl,
+    ai_product_type: productRow?.ai_product_type ?? null,
+    ai_main_function: productRow?.ai_main_function ?? null,
     regulatory_category: (productRow?.regulatory_category as any) ?? null,
     commercial_restrictions: productRow?.commercial_restrictions ?? null,
     no_additional_restrictions_confirmed: Boolean(productRow?.no_additional_restrictions_confirmed),
@@ -347,7 +349,9 @@ function emptyInput(actionId: string): CreativeReadinessInput {
     },
     product: {
       id: "unknown", name: null, description: null, benefits: [],
-      is_physical: true, primary_image_url: null, regulatory_category: null,
+      is_physical: true, primary_image_url: null,
+      ai_product_type: null, ai_main_function: null,
+      regulatory_category: null,
       commercial_restrictions: null, no_additional_restrictions_confirmed: false,
     },
     pricing: { format_to_service_key: FORMAT_TO_SERVICE_KEY, table: {}, cost_table_version: COST_TABLE_VERSION },

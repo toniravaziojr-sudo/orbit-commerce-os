@@ -122,7 +122,11 @@ const productSchema = z.object({
   warranty_type: z.enum(['vendor', 'factory', 'none', '']).nullable().optional(),
   warranty_duration: z.string().max(50).nullable().optional(),
 
-  // H.4.0 — Prontidão para geração de criativos (compliance comercial)
+  // Contexto da IA para geração de criativos (livre, IA infere categoria)
+  ai_product_type: z.string().max(120).nullable().optional(),
+  ai_main_function: z.string().max(200).nullable().optional(),
+
+  // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
   no_additional_restrictions_confirmed: z.boolean().optional(),
@@ -318,7 +322,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       warranty_type: (product as any)?.warranty_type ?? '',
       warranty_duration: (product as any)?.warranty_duration ?? '',
 
-      // H.4.0 — Prontidão para geração de criativos
+      // Contexto da IA
+      ai_product_type: (product as any)?.ai_product_type ?? '',
+      ai_main_function: (product as any)?.ai_main_function ?? '',
+
+      // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
       commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
       no_additional_restrictions_confirmed:
@@ -554,7 +562,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ...restData } = data;
+        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ai_product_type: apt, ai_main_function: amf, ...restData } = data;
         await updateProduct.mutateAsync({ 
           id: product.id, 
           ...restData,
@@ -568,6 +576,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           regulatory_category: rc || null,
           commercial_restrictions: cr || null,
           no_additional_restrictions_confirmed: nrc ?? false,
+          ai_product_type: apt || null,
+          ai_main_function: amf || null,
         } as any);
         
         // Update related products and variants
@@ -620,6 +630,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           regulatory_category: data.regulatory_category || null,
           commercial_restrictions: data.commercial_restrictions || null,
           no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
+          ai_product_type: data.ai_product_type || null,
+          ai_main_function: data.ai_main_function || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
@@ -1781,87 +1793,60 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Categoria e restrições para geração de criativos</CardTitle>
+                  <CardTitle>Contexto para a IA gerar anúncios</CardTitle>
                   <CardDescription>
-                    Define como a IA pode falar deste produto nos anúncios. Produtos sem
-                    categoria ou sem restrições declaradas ficam bloqueados para geração.
+                    Descreva em poucas palavras o que é o produto e qual a função principal dele.
+                    A IA usa isso para entender a categoria, cruzar com as diretrizes das plataformas
+                    (Meta, Google, TikTok) e criar anúncios dentro das regras.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="regulatory_category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoria regulatória/comercial</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="ai_product_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de produto</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a categoria" />
-                            </SelectTrigger>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Shampoo, Suplemento, Fone de ouvido"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="cosmetic_hair">Cosmético / Capilar</SelectItem>
-                            <SelectItem value="supplement">Suplemento</SelectItem>
-                            <SelectItem value="other">Outro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Cosmético/capilar e suplemento exigem declaração explícita de restrições.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="commercial_restrictions"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Restrições comerciais ou legais deste produto</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            value={field.value ?? ''}
-                            placeholder="Ex: não prometer resultado em tempo determinado; não fazer comparação direta com fármacos"
-                            className="min-h-[80px]"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Texto livre. A IA respeita estas restrições ao gerar criativos.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="no_additional_restrictions_confirmed"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/30">
-                        <FormControl>
-                          <input
-                            type="checkbox"
-                            checked={!!field.value}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="mt-1 h-4 w-4 rounded border-input"
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel className="cursor-pointer">
-                            Confirmo que não há restrições adicionais para este produto
-                          </FormLabel>
                           <FormDescription>
-                            Marque apenas se revisou e não há outras restrições além das listadas acima.
+                            O que é o produto, em uma palavra ou expressão curta.
                           </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ai_main_function"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Função principal</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: para queda capilar, para ganho de massa, redução de ruído"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Para que serve, qual problema resolve.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </CardContent>
               </Card>
+
 
               <Card>
                 <CardHeader>

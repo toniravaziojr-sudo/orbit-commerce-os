@@ -16220,6 +16220,57 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_commercial_guidelines: {
+        Row: {
+          allowed_claims: string | null
+          created_at: string
+          id: string
+          inferred_category: string
+          last_change_at: string
+          last_verified_at: string
+          platform: string
+          prohibited_claims: string | null
+          required_disclaimers: string | null
+          sensitive_notes: string | null
+          source_url: string | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          allowed_claims?: string | null
+          created_at?: string
+          id?: string
+          inferred_category: string
+          last_change_at?: string
+          last_verified_at?: string
+          platform: string
+          prohibited_claims?: string | null
+          required_disclaimers?: string | null
+          sensitive_notes?: string | null
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          allowed_claims?: string | null
+          created_at?: string
+          id?: string
+          inferred_category?: string
+          last_change_at?: string
+          last_verified_at?: string
+          platform?: string
+          prohibited_claims?: string | null
+          required_disclaimers?: string | null
+          sensitive_notes?: string | null
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       platform_compatibility_alerts: {
         Row: {
           created_at: string
@@ -17339,6 +17390,8 @@ export type Database = {
       }
       products: {
         Row: {
+          ai_main_function: string | null
+          ai_product_type: string | null
           allow_backorder: boolean | null
           avg_rating: number | null
           barcode: string | null
@@ -17400,6 +17453,8 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          ai_main_function?: string | null
+          ai_product_type?: string | null
           allow_backorder?: boolean | null
           avg_rating?: number | null
           barcode?: string | null
@@ -17461,6 +17516,8 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          ai_main_function?: string | null
+          ai_product_type?: string | null
           allow_backorder?: boolean | null
           avg_rating?: number | null
           barcode?: string | null

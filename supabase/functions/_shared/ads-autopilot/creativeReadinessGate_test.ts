@@ -57,6 +57,8 @@ function baseInput(): CreativeReadinessInput {
       benefits: ["fortalece raiz", "reduz queda"],
       is_physical: true,
       primary_image_url: "https://cdn/prod.png",
+      ai_product_type: "Shampoo",
+      ai_main_function: "para queda capilar",
       regulatory_category: "cosmetic_hair",
       commercial_restrictions: "Não usar termos médicos",
       no_additional_restrictions_confirmed: false,
@@ -193,18 +195,13 @@ Deno.test("18 blocked sem imagem principal do produto (packshot da marca não su
   expectBlocker("product.primary_image_url", i);
 });
 
-Deno.test("19 claims permitidas: bloqueia só em categoria sensível", () => {
+Deno.test("19 claims permitidas viraram AVISO (não bloqueia mais, IA cruza com diretrizes globais)", () => {
   const i = baseInput();
   i.brand.allowed_claims = [];
-  i.product.regulatory_category = "other";
+  i.product.regulatory_category = "cosmetic_hair";
   const r = evaluateCreativeReadiness(i);
   assertEquals(r.status, "ready");
   assert(r.warnings.some((w) => w.field === "brand.allowed_claims"));
-
-  const j = baseInput();
-  j.brand.allowed_claims = [];
-  j.product.regulatory_category = "cosmetic_hair";
-  expectBlocker("brand.allowed_claims", j);
 });
 
 Deno.test("20 claims proibidas/restrições viraram AVISO (não bloqueia)", () => {
@@ -217,18 +214,25 @@ Deno.test("20 claims proibidas/restrições viraram AVISO (não bloqueia)", () =
   assert(r.warnings.some((w) => w.field === "brand.restrictions"));
 });
 
-Deno.test("21 categoria sensível sem restrições nem confirmação bloqueia", () => {
+Deno.test("21 categoria fechada (lista antiga) NÃO bloqueia mais", () => {
   const i = baseInput();
-  i.product.regulatory_category = "supplement";
+  i.product.regulatory_category = null;
   i.product.commercial_restrictions = null;
   i.product.no_additional_restrictions_confirmed = false;
-  expectBlocker("product.commercial_restrictions", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
 });
 
-Deno.test("22 blocked sem categoria regulatória", () => {
-  const i = baseInput(); i.product.regulatory_category = null;
-  expectBlocker("product.regulatory_category", i);
+Deno.test("22 blocked sem TIPO do produto (campo livre da IA)", () => {
+  const i = baseInput(); i.product.ai_product_type = null;
+  expectBlocker("product.ai_product_type", i);
 });
+
+Deno.test("22b blocked sem FUNÇÃO do produto (campo livre da IA)", () => {
+  const i = baseInput(); i.product.ai_main_function = null;
+  expectBlocker("product.ai_main_function", i);
+});
+
 
 Deno.test("23 blocked quando custo não é calculável (preço ausente)", () => {
   const i = baseInput();
