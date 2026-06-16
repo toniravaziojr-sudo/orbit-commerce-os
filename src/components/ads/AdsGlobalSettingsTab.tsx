@@ -11,6 +11,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 import { PROMPT_TEMPLATE_GLOBAL } from "./adsPromptTemplates";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  BrandComplianceFieldsBlock,
+  brandComplianceToPersist,
+  brandCompliancePersistToForm,
+  EMPTY_BRAND_COMPLIANCE,
+  type BrandComplianceValue,
+} from "./BrandComplianceFieldsBlock";
 
 interface AdsGlobalSettingsTabProps {
   globalConfig: AutopilotConfig | null;
