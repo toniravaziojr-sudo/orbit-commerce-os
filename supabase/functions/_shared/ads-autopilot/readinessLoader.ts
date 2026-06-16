@@ -275,6 +275,8 @@ export async function loadCreativeReadiness(
     benefits,
     is_physical: true,
     primary_image_url: primaryImageUrl,
+    ai_product_type: productRow?.ai_product_type ?? null,
+    ai_main_function: productRow?.ai_main_function ?? null,
     regulatory_category: (productRow?.regulatory_category as any) ?? null,
     commercial_restrictions: productRow?.commercial_restrictions ?? null,
     no_additional_restrictions_confirmed: Boolean(productRow?.no_additional_restrictions_confirmed),
