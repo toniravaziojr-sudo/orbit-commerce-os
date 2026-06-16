@@ -26,7 +26,27 @@ import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults
 import { classifyH3Approval } from "../_shared/ads-autopilot/h3StructureGate.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.5.0-h3"; // Onda H.3: aprovação ESTRUTURAL idempotente (zero criativo, zero IA, zero Meta)
+const VERSION = "v4.5.1-h3.1"; // Onda H.3.1: rastreabilidade (approved_by_user_id via JWT + insight idempotente em evidence)
+
+// Helper: extrai user_id do header Authorization (Bearer JWT) quando disponível.
+// Retorna null silenciosamente para chamadas internas/runner que não enviam JWT.
+async function extractUserIdFromAuthHeader(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) return null;
+    const token = authHeader.slice(7).trim();
+    if (!token) return null;
+    const anon = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+    );
+    const { data, error } = await anon.auth.getUser(token);
+    if (error || !data?.user?.id) return null;
+    return data.user.id;
+  } catch (_e) {
+    return null;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
