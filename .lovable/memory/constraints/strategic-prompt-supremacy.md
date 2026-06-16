@@ -32,9 +32,9 @@ Apenas falhas **técnicas reais** que impedem fisicamente a operação:
 ## Aplicação obrigatória
 
 - `creativeReadinessGate.ts` (Meta/Ads): itens editoriais como `product.description`, `product.ai_product_type`, `product.ai_main_function`, `brand.approved_main_promise`, `brand.allowed_claims`, `brand.restrictions` são `warning`, nunca `blocker`.
-- `ads-chat-v2` (modo estratégico): system prompt declara a hierarquia explícita; diretrizes de plataforma são tratadas como recomendação consultiva.
+- `ads-chat-v2` **e `ads-chat` (legado)** (modo estratégico): system prompt declara a hierarquia explícita; diretrizes de plataforma são tratadas como recomendação consultiva.
 - `guidelineResolver` e `platform_commercial_guidelines`: contexto consultivo. Quando o prompt do lojista contraria a diretriz, a proposta segue e registra o conflito como aviso.
-- UI: `AdsGlobalSettingsTab` e `AdsAccountConfig` mostram o aviso de supremacia logo acima do campo de prompt; o bloco "Avisos do prompt estratégico" (Fase 2) é renderizado nesse mesmo local.
+- UI: `AdsGlobalSettingsTab` e `AdsAccountConfig` mostram o aviso de supremacia logo acima do campo de prompt; o bloco "Avisos do prompt estratégico" (Fase 2 — `ai-prompt-conflict-analyze` + `ai_prompt_conflict_cache`) é renderizado nesse mesmo local.
 
 ## Doc formal
 
