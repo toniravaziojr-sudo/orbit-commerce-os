@@ -29,6 +29,8 @@ export interface AccountConfig {
   human_approval_mode: string;
   /** Fase C.4 — Execução automática diária por conta. 'off' | 'technical_only'. Default 'off'. */
   autonomy_mode: "off" | "technical_only";
+  /** H.4.0 — Overrides opcionais por conta (ex.: brand_overrides). Vazio = herda do global. */
+  chat_overrides?: Record<string, any> | null;
   created_at: string | null;
   updated_at: string | null;
 }
