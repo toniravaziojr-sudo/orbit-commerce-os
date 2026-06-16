@@ -234,16 +234,44 @@ Deno.serve(async (req) => {
 
     for (const creative of readyCreatives) {
       try {
-        // Upload imagem
-        const imgRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: creative.image_url, access_token: metaConn.access_token }),
-        });
-        const imgData = await imgRes.json();
-        if (imgData.error) throw new Error(`Upload imagem: ${imgData.error.message}`);
-        const imageHash = imgData?.images?.[Object.keys(imgData?.images || {})[0]]?.hash;
+        // Upload imagem — estratégia binária (multipart) para não depender da
+        // capability "image scraper" do app Meta. Fallback para URL caso o
+        // download falhe por algum motivo transitório.
+        let imageHash: string | null = null;
+        let uploadMode: "binary" | "url" = "binary";
+        try {
+          const dl = await fetch(creative.image_url);
+          if (!dl.ok) throw new Error(`download ${dl.status}`);
+          const blob = await dl.blob();
+          const contentType = blob.type || "image/png";
+          const ext = contentType.includes("jpeg") ? "jpg" : contentType.includes("webp") ? "webp" : "png";
+          const filename = `creative_${creative.creative_index + 1}.${ext}`;
+          const form = new FormData();
+          form.append("access_token", metaConn.access_token);
+          form.append(filename, new File([blob], filename, { type: contentType }));
+          const imgRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
+            method: "POST",
+            body: form,
+          });
+          const imgData = await imgRes.json();
+          if (imgData.error) throw new Error(`Upload binário: ${imgData.error.message}`);
+          imageHash = imgData?.images?.[filename]?.hash
+            || imgData?.images?.[Object.keys(imgData?.images || {})[0]]?.hash
+            || null;
+        } catch (binErr: any) {
+          console.warn(`[publish] Upload binário falhou, tentando URL: ${binErr?.message || binErr}`);
+          uploadMode = "url";
+          const imgRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: creative.image_url, access_token: metaConn.access_token }),
+          });
+          const imgData = await imgRes.json();
+          if (imgData.error) throw new Error(`Upload imagem: ${imgData.error.message}`);
+          imageHash = imgData?.images?.[Object.keys(imgData?.images || {})[0]]?.hash || null;
+        }
         if (!imageHash) throw new Error("Hash da imagem não retornado pela Meta.");
+        console.log(`[publish] Imagem ${creative.creative_index + 1} enviada via ${uploadMode}, hash=${imageHash}`);
 
         // Destination URL com UTM
         let destinationUrl = creative.planned.destination_url || null;
