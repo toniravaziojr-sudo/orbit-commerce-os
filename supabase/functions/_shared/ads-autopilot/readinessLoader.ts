@@ -349,7 +349,9 @@ function emptyInput(actionId: string): CreativeReadinessInput {
     },
     product: {
       id: "unknown", name: null, description: null, benefits: [],
-      is_physical: true, primary_image_url: null, regulatory_category: null,
+      is_physical: true, primary_image_url: null,
+      ai_product_type: null, ai_main_function: null,
+      regulatory_category: null,
       commercial_restrictions: null, no_additional_restrictions_confirmed: false,
     },
     pricing: { format_to_service_key: FORMAT_TO_SERVICE_KEY, table: {}, cost_table_version: COST_TABLE_VERSION },
