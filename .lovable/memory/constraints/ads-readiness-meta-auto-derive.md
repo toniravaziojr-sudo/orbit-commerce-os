@@ -23,3 +23,18 @@ A partir de 2026-06-16, o motor de prontidão H.4.1 (`creativeReadinessGate.ts` 
 - PROIBIDO bloquear geração de criativos por ausência de evento de conversão ou janela de atribuição. São sempre derivados.
 - PROIBIDO transformar tom de voz, diferenciais ou restrições genéricas em bloqueador sem categoria sensível.
 - Testes em `creativeReadinessGate_test.ts` cobrem: derivação automática (testes 05/06), aviso de diferenciais (15), bloqueador condicional de claims (19), aviso de restrições (20).
+
+## Fase 2 (2026-06-16) — Categoria livre + Diretrizes Globais
+
+- Cadastro de produto não tem mais campo fechado de categoria regulatória na UI. Apenas dois campos livres: `ai_product_type` e `ai_main_function` (em `products`).
+- Bloqueadores do gate H.4.1 agora exigem `ai_product_type` + `ai_main_function`. `regulatory_category` e `commercial_restrictions` legados ficam só por compatibilidade.
+- `brand.allowed_claims` foi rebaixado para aviso — não bloqueia mais.
+- Tabela global `platform_commercial_guidelines` (Meta/Google/TikTok × categoria inferida) é fonte única para geração de copy/criativo. RLS: leitura para authenticated, escrita só `platform_admin`.
+- Cron mensal `platform-guidelines-monthly-refresh` (dia 1, 03:00 UTC) usa Firecrawl + Lovable AI (`gemini-2.5-flash`) para detectar mudanças e marcar `status='review_needed'`. NUNCA bloqueia geração — serve versão anterior até admin aprovar.
+- Helper `_shared/ads-autopilot/guidelineResolver.ts`: `inferCategory(type, function)` por keyword matching determinístico (sem custo de LLM por request), `resolveGuidelinesForProduct` para consumo pelo motor de geração.
+- UI super-admin: `/platform/commercial-guidelines` (PlatformAdminGate). Tenant comum não vê.
+
+### Anti-regressão Fase 2
+- PROIBIDO reintroduzir dropdown fechado de categoria regulatória — quebra a base livre que alimenta as diretrizes globais.
+- PROIBIDO cron alterar diretriz sem revisão humana. `review_needed` é estado obrigatório quando muda algo.
+- PROIBIDO bloquear geração quando há diretriz em `review_needed`.
