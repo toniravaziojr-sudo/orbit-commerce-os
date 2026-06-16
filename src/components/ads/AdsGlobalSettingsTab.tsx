@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp, Power } from "lucide-react";
+import { Bot, DollarSign, Target, Zap, AlertTriangle, Info, Globe, ChevronDown, ChevronUp, Power, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 import { PROMPT_TEMPLATE_GLOBAL } from "./adsPromptTemplates";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  BrandComplianceFieldsBlock,
-  brandComplianceToPersist,
-  brandCompliancePersistToForm,
-  EMPTY_BRAND_COMPLIANCE,
-  type BrandComplianceValue,
-} from "./BrandComplianceFieldsBlock";
 import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 
 interface AdsGlobalSettingsTabProps {
@@ -72,53 +62,9 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [showTemplate, setShowTemplate] = useState(false);
   const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
-  // ── Marca (Promessa, Tom, Claims, Restrições) ──────────────────────────────
   const { currentTenant } = useAuth();
-  const qc = useQueryClient();
   const tenantId = currentTenant?.id;
-  const { data: brandRow } = useQuery({
-    queryKey: ["tenant-brand-context-h4", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      const { data, error } = await supabase
-        .from("tenant_brand_context")
-        .select("tone_of_voice, approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenantId,
-  });
-  const [brand, setBrand] = useState<BrandComplianceValue>(EMPTY_BRAND_COMPLIANCE);
-  const [savingBrand, setSavingBrand] = useState(false);
-  useEffect(() => { setBrand(brandCompliancePersistToForm(brandRow)); }, [brandRow]);
 
-  const handleSaveBrand = async () => {
-    if (!tenantId) return;
-    setSavingBrand(true);
-    try {
-      const patch = brandComplianceToPersist(brand);
-      const { data: existing } = await supabase
-        .from("tenant_brand_context").select("id").eq("tenant_id", tenantId).maybeSingle();
-      if (existing) {
-        const { error } = await supabase.from("tenant_brand_context")
-          .update({ ...patch, manually_edited_at: new Date().toISOString() })
-          .eq("tenant_id", tenantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("tenant_brand_context")
-          .insert({ tenant_id: tenantId, ...patch, manually_edited_at: new Date().toISOString() });
-        if (error) throw error;
-      }
-      toast.success("Configurações de marca salvas");
-      qc.invalidateQueries({ queryKey: ["tenant-brand-context-h4", tenantId] });
-    } catch (e: any) {
-      toast.error("Erro ao salvar marca: " + (e?.message || ""));
-    } finally {
-      setSavingBrand(false);
-    }
-  };
 
 
   useEffect(() => {
@@ -403,7 +349,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold flex items-center gap-2">
-                <Scale className="h-4 w-4 text-primary" />
+                <Target className="h-4 w-4 text-primary" />
                 Splits de Funil
               </Label>
               <div className="flex items-center gap-2">
@@ -459,7 +405,27 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               <Bot className="h-4 w-4 text-primary" />
               Prompt de Direcionamento Global
             </Label>
-            
+
+            <Alert className="border-primary/30 bg-primary/5">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <AlertTitle className="text-sm font-semibold">
+                Este prompt é a fonte de verdade da sua IA de anúncios
+              </AlertTitle>
+              <AlertDescription className="text-xs space-y-1 mt-1.5">
+                <p>
+                  Tudo que você escrever aqui tem prioridade sobre defaults do sistema, diretrizes
+                  das plataformas (Meta/Google/TikTok) e funções declaradas dos produtos. A IA usa
+                  este texto como base para criar propostas, criativos e decisões.
+                </p>
+                <p className="pt-1">
+                  <strong>Para refinar:</strong> não precisa cadastrar "regras de marca". Ajuste o
+                  prompt aqui e dê <strong>feedback nas propostas</strong> (aprovar/rejeitar com
+                  motivo). A IA aprende com cada feedback e o que ela aprende vira contexto
+                  permanente desta marca.
+                </p>
+              </AlertDescription>
+            </Alert>
+
             {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
             <StrategicPromptAlerts
               tenantId={tenantId}
@@ -467,6 +433,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               prompt={instructions}
               analysisTrigger={promptAnalysisTrigger}
             />
+
 
             <Textarea
               value={instructions}
@@ -527,28 +494,6 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         </CardContent>
       </Card>
 
-      {/* Bloco de Marca (Tom, Promessa, Claims, Restrições) */}
-      <Card className="border-primary/20">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Bot className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">Regras da Marca para Criativos</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Definem o que a IA pode e não pode dizer ou mostrar. Sem isso, a geração de criativos fica bloqueada.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
-          <Button onClick={handleSaveBrand} disabled={savingBrand || !tenantId} className="w-full">
-            {savingBrand ? "Salvando marca..." : "Salvar regras da marca"}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -841,7 +841,8 @@ Campanhas que falham repetidamente após 2 ciclos de reteste → pausa indefinid
 O prompt estratégico (`user_instructions`) é **soberano**:
 - Vence qualquer configuração manual, função declarada de produto ou diretriz de plataforma.
 - Conflitos viram **avisos** no bloco "Avisos do prompt estratégico" da tela de Configurações da IA (acima do campo de prompt). Nada é bloqueado.
-- A trava de prontidão criativa (`creativeReadinessGate`) só bloqueia por falhas técnicas reais (sem conexão, sem produto/imagem/preço, sem UTM/orçamento/público). Itens editoriais (descrição, tipo/função do produto, promessa, claims, restrições) viram avisos.
+- A trava de prontidão criativa (`creativeReadinessGate`) só bloqueia por falhas técnicas reais (sem conexão, sem produto/imagem/preço, sem UTM/orçamento/público). Itens editoriais (descrição, tipo/função do produto) viram avisos.
+- **Descontinuado em 2026-06-16:** o bloco "Regras da Marca para Criativos" (tom de voz, promessa principal aprovada, claims permitidas, claims proibidas, restrições, do_not_do) **não existe mais** no Gestor de Anúncios — nem na configuração global, nem por conta de anúncios. A IA usa exclusivamente o prompt estratégico + diretrizes das plataformas + feedback de propostas. Esses campos seguem em `tenant_brand_context` apenas para uso do **modo Vendas (WhatsApp)** como guardrail de promessas e termos proibidos.
 - Memória de governança: `mem://constraints/strategic-prompt-supremacy`.
 
 ### Preview de Ações (StructuredProposalModal + inline)

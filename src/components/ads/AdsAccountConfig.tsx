@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
@@ -33,13 +33,6 @@ import { useMetaIntegrationAssetsStatus } from "@/hooks/useMetaIntegrationAssets
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
-import {
-  BrandComplianceFieldsBlock,
-  brandComplianceToPersist,
-  brandCompliancePersistToForm,
-  EMPTY_BRAND_COMPLIANCE,
-  type BrandComplianceValue,
-} from "./BrandComplianceFieldsBlock";
 import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 // MetaProductionConfigCard removido: ativos vêm da integração Meta ativa.
 
@@ -142,11 +135,8 @@ function AccountConfigCard({
   const [showActivationDialog, setShowActivationDialog] = useState(false);
   const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
-  // H.4.0 — override de marca por conta de anúncios (vazio = herda do global)
-  const initialBrandOverride = (config?.chat_overrides as any)?.brand_overrides ?? null;
-  const [brandOverride, setBrandOverride] = useState<BrandComplianceValue>(
-    brandCompliancePersistToForm(initialBrandOverride)
-  );
+
+
 
   useEffect(() => {
     if (config) {
@@ -160,7 +150,7 @@ function AccountConfigCard({
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      setBrandOverride(brandCompliancePersistToForm((config.chat_overrides as any)?.brand_overrides ?? null));
+      
     }
   }, [config]);
 
@@ -194,23 +184,12 @@ function AccountConfigCard({
 
   const handleSave = () => {
     setPromptAnalysisTrigger((n) => n + 1);
-    // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
-    const brandPersist = brandComplianceToPersist(brandOverride);
-    const brandHasContent =
-      !!brandPersist.approved_main_promise ||
-      brandPersist.allowed_claims.length > 0 ||
-      brandPersist.banned_claims.length > 0 ||
-      brandPersist.do_not_do.length > 0 ||
-      !!brandPersist.compliance_notes ||
-      brandPersist.no_additional_restrictions_confirmed;
-
+    // Override de marca foi descontinuado em 2026-06-16. Removemos qualquer
+    // brand_overrides legado em chat_overrides para evitar dado órfão.
     const existingOverrides = (config?.chat_overrides as any) || {};
     const nextOverrides = { ...existingOverrides };
-    if (brandHasContent) {
-      nextOverrides.brand_overrides = brandPersist;
-    } else {
-      delete nextOverrides.brand_overrides;
-    }
+    delete nextOverrides.brand_overrides;
+
 
     onSave(accountId, {
       budget_mode: budgetMode,
@@ -499,6 +478,22 @@ function AccountConfigCard({
             Prompt Estratégico
           </Label>
 
+          <Alert className="border-primary/30 bg-primary/5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-sm font-semibold">
+              Este prompt é a fonte de verdade desta conta
+            </AlertTitle>
+            <AlertDescription className="text-xs space-y-1 mt-1.5">
+              <p>
+                O texto abaixo prevalece sobre o prompt global, sobre defaults do sistema e sobre as
+                diretrizes da plataforma. Para refinar o tom, evitar termos ou reforçar promessas,
+                ajuste o prompt e dê <strong>feedback nas propostas</strong> — a IA aprende e
+                incorpora ao contexto desta marca.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+
           {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
           <StrategicPromptAlerts
             tenantId={tenantId}
@@ -587,8 +582,6 @@ function AccountConfigCard({
           </p>
         </div>
 
-        {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
-        <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
 
         {/* Página, Pixel, Instagram, Evento de conversão e Janela de atribuição
             vêm 100% da integração Meta ativa (status mostrado acima). Evento e
