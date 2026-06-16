@@ -121,7 +121,7 @@ export async function loadCreativeReadiness(
   if (productId) {
     const { data } = await supabase
       .from("products")
-      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed")
+      .select("id, name, description, short_description, regulatory_category, commercial_restrictions, no_additional_restrictions_confirmed, ai_product_type, ai_main_function")
       .eq("id", productId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
