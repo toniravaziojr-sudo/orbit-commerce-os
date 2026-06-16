@@ -163,6 +163,7 @@ const PlatformSystemHealth = lazy(() => import("@/pages/platform/PlatformSystemH
 const PlatformExternalCosts = lazy(() => import("@/pages/platform/PlatformExternalCosts"));
 const PlatformCredits = lazy(() => import("@/pages/platform/PlatformCredits"));
 const PlatformResourceUsage = lazy(() => import("@/pages/platform/PlatformResourceUsage"));
+const PlatformCommercialGuidelines = lazy(() => import("@/pages/platform/PlatformCommercialGuidelines"));
 
 const Influencers = lazy(() => import("@/pages/Influencers"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
