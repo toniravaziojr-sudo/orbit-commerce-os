@@ -22,6 +22,7 @@ import {
   EMPTY_BRAND_COMPLIANCE,
   type BrandComplianceValue,
 } from "./BrandComplianceFieldsBlock";
+import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 
 interface AdsGlobalSettingsTabProps {
   globalConfig: AutopilotConfig | null;
