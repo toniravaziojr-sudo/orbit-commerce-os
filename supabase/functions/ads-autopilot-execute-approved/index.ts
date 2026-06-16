@@ -193,6 +193,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // H.3.1: captura o usuário aprovador a partir do JWT quando disponível.
+    // Chamadas do runner/cron não enviam JWT — nesse caso fica null sem inventar usuário.
+    const approverUserId: string | null = fromRunner ? null : await extractUserIdFromAuthHeader(req);
+
     // Aceita 'scheduled' apenas quando vindo do runner (re-execução agendada).
     const allowedStatuses = fromRunner
       ? ["pending_approval", "approved", "scheduled", "processing_runner"]
