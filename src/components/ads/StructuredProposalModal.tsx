@@ -251,6 +251,8 @@ export function StructuredProposalModal({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
   const [selected, setSelected] = useState<NodeId>("overview");
+  const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+
 
   const structure = useMemo(
     () =>
