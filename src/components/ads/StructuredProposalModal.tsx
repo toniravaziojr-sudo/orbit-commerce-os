@@ -16,9 +16,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   AlertTriangle,
   Bot,
@@ -240,6 +251,8 @@ export function StructuredProposalModal({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
   const [selected, setSelected] = useState<NodeId>("overview");
+  const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+
 
   const structure = useMemo(
     () =>
@@ -368,14 +381,18 @@ export function StructuredProposalModal({
     if (approveBlocked) return;
     // Onda H.3 — Confirmação explícita antes de aprovar estrutura (sem IA, sem Meta, sem publicar).
     if (isCampaignProposal) {
-      const ok = window.confirm(
-        "Aprovar a estrutura desta proposta de campanha?\n\nNenhum criativo será gerado e nada será publicado. A geração de criativos será iniciada manualmente na próxima etapa."
-      );
-      if (!ok) return;
+      setConfirmApproveOpen(true);
+      return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
+  const confirmApprove = () => {
+    setConfirmApproveOpen(false);
+    if (isStrategyStage) approveStrategy.mutate(action.id);
+    else onApprove(action.id);
+  };
+
 
   const approveLabel = approveLabelOverride ?? (
     isStrategyStage
@@ -589,7 +606,29 @@ export function StructuredProposalModal({
       {isStrategyStage && (
         <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} initialFocus={editorFocus} />
       )}
+
+      <AlertDialog open={confirmApproveOpen} onOpenChange={setConfirmApproveOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Aprovar estrutura da campanha?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              Nenhum criativo será gerado e nada será publicado agora. A geração de criativos será iniciada manualmente na próxima etapa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmApprove} className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Aprovar estrutura
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }
 
