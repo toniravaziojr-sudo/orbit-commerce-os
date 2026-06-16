@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass } from "lucide-react";
+import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass, GraduationCap } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -304,6 +304,10 @@ export default function AdsManager() {
             <Settings2 className="h-3.5 w-3.5" />
             Gerenciador
           </TabsTrigger>
+          <TabsTrigger value="ai-learnings" className="gap-2">
+            <GraduationCap className="h-3.5 w-3.5" />
+            Aprendizado da IA
+          </TabsTrigger>
           <TabsTrigger value="insights" className="gap-2">
             <Lightbulb className="h-3.5 w-3.5" />
             Insights
@@ -524,6 +528,24 @@ export default function AdsManager() {
               );
             })}
           </Tabs>
+        </TabsContent>
+
+        {/* === APRENDIZADO DA IA === */}
+        <TabsContent value="ai-learnings" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                Aprendizado da IA
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Aqui você ajusta o que a IA aprendeu sobre o seu negócio. Pode criar, editar, pausar ou remover qualquer aprendizado — ela usa isso ao analisar suas contas e propor ações.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <AdsAILearningsTab />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* === INSIGHTS === */}
