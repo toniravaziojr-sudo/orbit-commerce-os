@@ -40,22 +40,22 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
   const hintEmpty =
     mode === "override"
       ? "Deixe vazio para herdar das Configurações Globais."
-      : "Fonte de verdade que a IA usa para gerar criativos.";
+      : "Estas regras orientam a IA na hora de gerar os criativos.";
 
   return (
     <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 text-primary" />
         <Label className="text-sm font-semibold">
-          Promessas, claims e restrições da marca {mode === "override" ? "(override desta conta)" : ""}
+          Regras da marca para criativos {mode === "override" ? "(específicas desta conta)" : ""}
         </Label>
       </div>
       <p className="text-[11px] text-muted-foreground -mt-2">
-        Define o que a IA pode e não pode dizer nos criativos. Sem isso, a geração de criativos fica bloqueada. {hintEmpty}
+        Definem o que a IA pode e não pode dizer ou mostrar nos criativos. Sem isso, a geração fica bloqueada. {hintEmpty}
       </p>
 
       <div className="space-y-2">
-        <Label className="text-xs font-semibold">Promessa principal aprovada</Label>
+        <Label className="text-xs font-semibold">Promessa principal da marca</Label>
         <Textarea
           value={value.approved_main_promise}
           onChange={(e) => set("approved_main_promise", e.target.value)}
@@ -63,28 +63,29 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
           placeholder='Ex: "Cabelos mais fortes em 30 dias, sem química agressiva"'
         />
         <p className="text-[11px] text-muted-foreground">
-          A IA não inventa promessa — usa esta. {mode === "override" && "Vazio = usa a global."}
+          Frase-chave que a IA vai usar como promessa central — ela não inventa outra. {mode === "override" && "Vazio = usa a global."}
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs font-semibold">Claims permitidas</Label>
+        <Label className="text-xs font-semibold">Benefícios que a IA pode usar</Label>
         <Input
           value={value.allowed_claims}
           onChange={(e) => set("allowed_claims", e.target.value)}
           placeholder="Ex: hidrata, fortalece a raiz, reduz queda visível"
         />
-        <p className="text-[11px] text-muted-foreground">Separadas por vírgula.</p>
+        <p className="text-[11px] text-muted-foreground">Lista de benefícios liberados, separados por vírgula.</p>
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs font-semibold">Observações comerciais ou de compliance</Label>
+        <Label className="text-xs font-semibold">Regras comerciais e da marca</Label>
         <Textarea
           value={value.compliance_notes}
           onChange={(e) => set("compliance_notes", e.target.value)}
           rows={2}
           placeholder="Ex: evitar comparação com concorrentes; não citar diagnósticos médicos"
         />
+        <p className="text-[11px] text-muted-foreground">Observações gerais que a IA deve respeitar.</p>
       </div>
 
       <div className="pt-2 border-t border-primary/10 space-y-4">
@@ -94,24 +95,24 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-semibold">Claims proibidas</Label>
+          <Label className="text-xs font-semibold">Frases que a IA não pode usar</Label>
           <Input
             value={value.banned_claims}
             onChange={(e) => set("banned_claims", e.target.value)}
-            placeholder="Ex: resultados médicos, antes/depois, cura"
+            placeholder="Ex: cura, resultado médico, antes e depois"
           />
-          <p className="text-[11px] text-muted-foreground">Separadas por vírgula. A IA evitará esses termos.</p>
+          <p className="text-[11px] text-muted-foreground">Separadas por vírgula. A IA evitará esses termos nos criativos.</p>
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-semibold">Não fazer</Label>
+          <Label className="text-xs font-semibold">O que evitar nos criativos</Label>
           <Textarea
             value={value.do_not_do}
             onChange={(e) => set("do_not_do", e.target.value)}
             rows={2}
-            placeholder="Ex: inventar rótulos, alterar cores do produto, mostrar mãos"
+            placeholder="Ex: comparar com concorrente, mostrar mãos, mudar a cor do produto"
           />
-          <p className="text-[11px] text-muted-foreground">Separados por vírgula.</p>
+          <p className="text-[11px] text-muted-foreground">Restrições visuais ou de abordagem, separadas por vírgula.</p>
         </div>
 
         <label className="flex items-start gap-3 rounded-md border bg-background p-3 cursor-pointer">
@@ -126,7 +127,7 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
               Confirmo que não há restrições adicionais
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Marcar libera a geração de criativos mesmo sem listar claims proibidas ou regras de "não fazer".
+              Marque para liberar a geração de criativos mesmo sem listar frases proibidas ou itens a evitar.
             </p>
           </div>
         </label>
