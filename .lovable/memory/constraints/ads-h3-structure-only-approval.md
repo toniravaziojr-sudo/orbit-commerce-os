@@ -11,10 +11,12 @@ Aprovar uma proposta `campaign_proposal_v1_1` significa **aprovar APENAS sua est
 ## O que H.3 FAZ
 - `ads_autopilot_actions.status`: `pending_approval` → `approved`.
 - `approved_at` carimbado.
+- **`approved_by_user_id` carimbado quando a chamada veio do painel autenticado** (H.3.1). A função extrai o `user.id` do JWT (`Authorization: Bearer …`) via `anon.auth.getUser(token)`. Chamadas internas/runner/cron sem JWT mantêm `approved_by_user_id = null` — nunca inventar usuário, nunca usar owner do tenant como fallback.
 - `action_data.lifecycle.status` = **`structure_approved_awaiting_creatives`** (novo, único de H.3).
 - `action_data.lifecycle.proposal_approved_at` carimbado.
 - `action_data.lifecycle.pending_account_config` = lista das pendências `account_config` (não bloqueantes).
-- 1 insight informativo, idempotente por `metadata.idempotency_key = "h3_structure_approved:<action_id>"`.
+- 1 insight informativo em `ads_autopilot_insights`, **idempotente por `evidence->>'idempotency_key' = 'h3_structure_approved:<action_id>'`**. A tabela NÃO possui coluna `metadata` — usar `evidence` (jsonb). Atributos obrigatórios em `evidence`: `idempotency_key`, `event_type='h3_structure_approved'`, `proposal_id`, `lifecycle_status`, `approved_by_user_id`.
+- Snapshot `campaign` / `adsets` / `planned_creatives` / `campaign_plan` preservado, sem mutação destrutiva.
 - Snapshot `campaign` / `adsets` / `planned_creatives` / `campaign_plan` preservado, sem mutação destrutiva.
 
 ## O que H.3 NÃO FAZ (proibido)

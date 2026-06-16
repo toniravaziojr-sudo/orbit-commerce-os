@@ -26,7 +26,27 @@ import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults
 import { classifyH3Approval } from "../_shared/ads-autopilot/h3StructureGate.ts";
 
 // ===== VERSION =====
-const VERSION = "v4.5.0-h3"; // Onda H.3: aprovação ESTRUTURAL idempotente (zero criativo, zero IA, zero Meta)
+const VERSION = "v4.5.1-h3.1"; // Onda H.3.1: rastreabilidade (approved_by_user_id via JWT + insight idempotente em evidence)
+
+// Helper: extrai user_id do header Authorization (Bearer JWT) quando disponível.
+// Retorna null silenciosamente para chamadas internas/runner que não enviam JWT.
+async function extractUserIdFromAuthHeader(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) return null;
+    const token = authHeader.slice(7).trim();
+    if (!token) return null;
+    const anon = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+    );
+    const { data, error } = await anon.auth.getUser(token);
+    if (error || !data?.user?.id) return null;
+    return data.user.id;
+  } catch (_e) {
+    return null;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -173,6 +193,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // H.3.1: captura o usuário aprovador a partir do JWT quando disponível.
+    // Chamadas do runner/cron não enviam JWT — nesse caso fica null sem inventar usuário.
+    const approverUserId: string | null = fromRunner ? null : await extractUserIdFromAuthHeader(req);
+
     // Aceita 'scheduled' apenas quando vindo do runner (re-execução agendada).
     const allowedStatuses = fromRunner
       ? ["pending_approval", "approved", "scheduled", "processing_runner"]
@@ -286,13 +310,21 @@ Deno.serve(async (req) => {
         creative_jobs_enqueued_at: currentLifecycle.creative_jobs_enqueued_at || null,
       };
 
-      const { error: updErr } = await supabase.from("ads_autopilot_actions").update({
+      const updatePayload: Record<string, any> = {
         status: "approved",
         approved_at: nowIso,
-        // approved_by intencionalmente não é setado aqui: a função roda com service_role
-        // e o usuário aprovador é capturado pela camada de UI/feedback (subfase A.2).
         action_data: { ...propData, lifecycle: updatedLifecycle },
-      }).eq("id", action_id);
+      };
+      // H.3.1: grava aprovador real quando JWT do usuário está disponível.
+      // Nunca inventa usuário; chamadas sem JWT (runner/cron) ficam com null.
+      if (approverUserId) {
+        updatePayload.approved_by_user_id = approverUserId;
+      }
+
+      const { error: updErr } = await supabase
+        .from("ads_autopilot_actions")
+        .update(updatePayload)
+        .eq("id", action_id);
 
       if (updErr) {
         console.error(`[ads-autopilot-execute-approved][${VERSION}] H.3 update failed:`, updErr.message);
@@ -303,14 +335,20 @@ Deno.serve(async (req) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // ---- Insight (com proteção idempotente por proposta) -----------------
+      // ---- Insight (idempotente por proposta) ------------------------------
+      // H.3.1: a tabela ads_autopilot_insights NÃO tem coluna `metadata`.
+      // A chave de idempotência e os atributos estruturados ficam em `evidence` (jsonb).
       const insightKey = `h3_structure_approved:${action_id}`;
-      const { data: existingInsight } = await supabase
+      const { data: existingInsight, error: existingErr } = await supabase
         .from("ads_autopilot_insights")
         .select("id")
         .eq("tenant_id", tenant_id)
-        .contains("metadata", { idempotency_key: insightKey })
+        .contains("evidence", { idempotency_key: insightKey })
         .maybeSingle();
+
+      if (existingErr) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] H.3 insight lookup failed (non-blocking):`, existingErr.message);
+      }
 
       if (!existingInsight) {
         const campaign = propData.campaign || {};
@@ -318,18 +356,27 @@ Deno.serve(async (req) => {
         const pendingNote = gate.account_config_pending.length > 0
           ? ` Existem ${gate.account_config_pending.length} pendência(s) de configuração da conta Meta que só serão exigidas na revisão final/publicação.`
           : "";
-        await supabase.from("ads_autopilot_insights").insert({
+        const { error: insErr } = await supabase.from("ads_autopilot_insights").insert({
           tenant_id,
           channel: action.channel || "meta",
           ad_account_id: adAccountIdProp,
           title: "✅ Estrutura da campanha aprovada",
-          body: `Estrutura da campanha "${campaign.name || "(sem nome)"}" aprovada — aguardando geração manual de criativos na próxima etapa.${pendingNote}`,
+          body: `Estrutura da campanha aprovada — aguardando geração manual de criativos. Campanha: "${campaign.name || "(sem nome)"}".${pendingNote}`,
           category: "strategy",
           priority: "low",
           sentiment: "positive",
           status: "open",
-          metadata: { idempotency_key: insightKey, proposal_id: action_id, lifecycle_status: H3_LIFECYCLE_STATUS },
+          evidence: {
+            idempotency_key: insightKey,
+            event_type: "h3_structure_approved",
+            proposal_id: action_id,
+            lifecycle_status: H3_LIFECYCLE_STATUS,
+            approved_by_user_id: approverUserId,
+          },
         });
+        if (insErr) {
+          console.error(`[ads-autopilot-execute-approved][${VERSION}] H.3 insight insert failed (non-blocking):`, insErr.message);
+        }
       }
 
       console.log(`[ads-autopilot-execute-approved][${VERSION}] H.3 structure approved: ${action_id} (pending_account_config=${gate.account_config_pending.length})`);
