@@ -112,14 +112,16 @@ Deno.test("04 blocked sem Pixel", () => {
   expectBlocker("meta.pixel", i);
 });
 
-Deno.test("05 blocked sem evento de conversão", () => {
+Deno.test("05 evento de conversão NÃO é mais bloqueador (derivado do objetivo)", () => {
   const i = baseInput(); i.meta.conversion_event_set = false;
-  expectBlocker("meta.conversion_event", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
 });
 
-Deno.test("06 blocked sem janela de atribuição", () => {
+Deno.test("06 janela de atribuição NÃO é mais bloqueador (padrão Meta)", () => {
   const i = baseInput(); i.meta.attribution_window_set = false;
-  expectBlocker("meta.attribution_window", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
 });
 
 Deno.test("07 blocked sem UTM", () => {
