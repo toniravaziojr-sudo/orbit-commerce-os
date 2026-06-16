@@ -193,6 +193,7 @@ function AccountConfigCard({
   const validation = isAccountConfigComplete(currentFormConfig);
 
   const handleSave = () => {
+    setPromptAnalysisTrigger((n) => n + 1);
     // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
     const brandPersist = brandComplianceToPersist(brandOverride);
     const brandHasContent =
