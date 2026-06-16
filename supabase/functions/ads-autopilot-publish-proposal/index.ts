@@ -114,7 +114,8 @@ Deno.serve(async (req) => {
     }
 
     // Carrega creative_jobs do banco para obter output_urls
-    const jobIds = creativeJobsMeta.map((j: any) => j.job_id).filter(Boolean);
+    // Aceita tanto { job_id, creative_index } quanto { id, planned_creative_index }
+    const jobIds = creativeJobsMeta.map((j: any) => j.job_id || j.id).filter(Boolean);
     const { data: jobs } = await supabase
       .from("creative_jobs")
       .select("id, status, output_urls, product_id, prompt")
@@ -122,13 +123,15 @@ Deno.serve(async (req) => {
 
     const readyCreatives: Array<{ creative_index: number; image_url: string; product_id: string | null; planned: any }> = [];
     for (const meta of creativeJobsMeta) {
-      const job = (jobs || []).find((j: any) => j.id === meta.job_id);
+      const jobId = meta.job_id || meta.id;
+      const creativeIndex = (typeof meta.creative_index === "number") ? meta.creative_index : (meta.planned_creative_index ?? 0);
+      const job = (jobs || []).find((j: any) => j.id === jobId);
       if (!job || job.status !== "succeeded") continue;
       const url = Array.isArray(job.output_urls) && job.output_urls.length > 0 ? job.output_urls[0] : null;
       if (!url) continue;
-      const planned = plannedCreatives[meta.creative_index] || {};
+      const planned = plannedCreatives[creativeIndex] || {};
       readyCreatives.push({
-        creative_index: meta.creative_index,
+        creative_index: creativeIndex,
         image_url: url,
         product_id: job.product_id || planned.product_id || null,
         planned,
