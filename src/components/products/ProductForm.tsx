@@ -562,7 +562,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ...restData } = data;
+        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ai_product_type: apt, ai_main_function: amf, ...restData } = data;
         await updateProduct.mutateAsync({ 
           id: product.id, 
           ...restData,
@@ -576,6 +576,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           regulatory_category: rc || null,
           commercial_restrictions: cr || null,
           no_additional_restrictions_confirmed: nrc ?? false,
+          ai_product_type: apt || null,
+          ai_main_function: amf || null,
         } as any);
         
         // Update related products and variants
