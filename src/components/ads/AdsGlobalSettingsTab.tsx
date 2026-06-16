@@ -142,6 +142,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const splitValid = funnelSplitMode === "ai_decides" || splitTotal === 100;
 
   const handleSave = () => {
+    setPromptAnalysisTrigger((n) => n + 1);
     onSave({
       channel: "global",
       budget_mode: budgetMode,
