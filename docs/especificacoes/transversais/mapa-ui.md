@@ -686,3 +686,10 @@ Mesma tela, mesmo modal — **sem rotas novas**:
 - Quando a ação possui `adsets[]`, essa indicação canônica também aparece **junto de cada conjunto**, porque a exclusão obrigatória é validada e executada no nível do adset.
 - Recusar o plano e rodar nova análise inicial continuam sendo os caminhos válidos.
 - O servidor também bloqueia: tentativa direta de aprovar devolve mensagem amigável em PT-BR e não dispara geração de propostas filhas.
+
+### Gestor de Tráfego IA — Onda H.3: aprovação estrutural da Proposta de Campanha (rev 2026-06-16)
+
+- `/ads` → modal `StructuredProposalModal` quando `action_type=campaign_proposal`: trava H.2 removida. O botão **"Aprovar proposta de campanha"** fica habilitado quando não há pendência estrutural H.2 (`pending_fields` com `phase=h2_structural`). Pendências `account_config` (Página, Pixel, evento de conversão padrão, janela de atribuição, UTM template) **NÃO bloqueiam** — aparecem como aviso amarelo no rodapé e ficam registradas em `lifecycle.pending_account_config` para serem exigidas na revisão final/publicação.
+- Antes de aprovar, o modal exige confirmação explícita ("Aprovar a estrutura desta proposta de campanha? Nenhum criativo será gerado e nada será publicado."). Rodapé sempre exibe a nota: "Aprovar estrutura não gera criativos e não publica."
+- Após aprovar, a proposta aparece na seção **"Propostas aprovadas em andamento"** com badge "Estrutura aprovada — aguardando criativos" e botão **"Aguardando próxima etapa"** (desabilitado, informativo). Não abre Revisão Final, não enfileira `creative_jobs`, não chama Meta. A geração de criativos é a próxima onda (H.4.1) com segundo gesto explícito.
+- Backend: `ads-autopilot-execute-approved` v4.5.0-h3 substitui o ramo `campaign_proposal` por aprovação estrutural idempotente usando `classifyH3Approval`. Detalhe em `.lovable/memory/constraints/ads-h3-structure-only-approval.md`.
