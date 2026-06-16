@@ -182,11 +182,11 @@ Deno.test("17 blocked sem paleta", () => {
   expectBlocker("brand.palette", i);
 });
 
-Deno.test("18 blocked sem referência visual confiável", () => {
+Deno.test("18 blocked sem imagem principal do produto (packshot da marca não substitui)", () => {
   const i = baseInput();
   i.product.primary_image_url = null;
-  i.brand.packshot_url = null;
-  expectBlocker("brand.visual_reference", i);
+  i.brand.packshot_url = "https://cdn/pack.png"; // mesmo com packshot, deve bloquear
+  expectBlocker("product.primary_image_url", i);
 });
 
 Deno.test("19 blocked sem claims permitidas", () => {
