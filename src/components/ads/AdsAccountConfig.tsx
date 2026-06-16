@@ -135,11 +135,8 @@ function AccountConfigCard({
   const [showActivationDialog, setShowActivationDialog] = useState(false);
   const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
-  // H.4.0 — override de marca por conta de anúncios (vazio = herda do global)
-  const initialBrandOverride = (config?.chat_overrides as any)?.brand_overrides ?? null;
-  const [brandOverride, setBrandOverride] = useState<BrandComplianceValue>(
-    brandCompliancePersistToForm(initialBrandOverride)
-  );
+
+
 
   useEffect(() => {
     if (config) {
