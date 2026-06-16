@@ -572,8 +572,8 @@ export default function AdsManager() {
             isTogglingGlobal={autopilot.toggleChannel.isPending}
           />
 
-          {/* Aprendizados da IA — Onda F */}
-          <AdsAILearningsTab />
+          {/* Aprendizado da IA foi promovido a aba principal (Onda 1) */}
+
 
           
           
