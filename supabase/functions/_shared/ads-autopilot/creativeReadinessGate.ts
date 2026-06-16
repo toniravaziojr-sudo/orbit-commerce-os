@@ -167,6 +167,7 @@ export function evaluateCreativeReadiness(
   const warnings: CreativeReadinessIssue[] = [];
 
   const push = (i: CreativeReadinessIssue) => blockers.push(i);
+  const warn = (i: CreativeReadinessIssue) => warnings.push({ ...i, severity: "warning" });
 
   // ---- Bloco Meta / canal ------------------------------------------------
   if (!input.meta.oauth_active) {
