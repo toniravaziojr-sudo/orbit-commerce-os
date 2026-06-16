@@ -10,6 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
+import {
+  BrandComplianceFieldsBlock,
+  brandComplianceToPersist,
+  brandCompliancePersistToForm,
+  EMPTY_BRAND_COMPLIANCE,
+  type BrandComplianceValue,
+} from "./BrandComplianceFieldsBlock";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface AdsGlobalConfigProps {
   globalConfig: AutopilotConfig | null;
