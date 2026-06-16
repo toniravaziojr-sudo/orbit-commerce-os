@@ -1781,6 +1781,90 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
               <Card>
                 <CardHeader>
+                  <CardTitle>Categoria e restrições para geração de criativos</CardTitle>
+                  <CardDescription>
+                    Define como a IA pode falar deste produto nos anúncios. Produtos sem
+                    categoria ou sem restrições declaradas ficam bloqueados para geração.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="regulatory_category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoria regulatória/comercial</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a categoria" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="cosmetic_hair">Cosmético / Capilar</SelectItem>
+                            <SelectItem value="supplement">Suplemento</SelectItem>
+                            <SelectItem value="other">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Cosmético/capilar e suplemento exigem declaração explícita de restrições.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="commercial_restrictions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Restrições comerciais ou legais deste produto</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="Ex: não prometer resultado em tempo determinado; não fazer comparação direta com fármacos"
+                            className="min-h-[80px]"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Texto livre. A IA respeita estas restrições ao gerar criativos.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="no_additional_restrictions_confirmed"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/30">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-input"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="cursor-pointer">
+                            Confirmo que não há restrições adicionais para este produto
+                          </FormLabel>
+                          <FormDescription>
+                            Marque apenas se revisou e não há outras restrições além das listadas acima.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle>Informação Regulatória</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
