@@ -606,7 +606,29 @@ export function StructuredProposalModal({
       {isStrategyStage && (
         <ProposalStructuredEditor action={action} open={editorOpen} onOpenChange={setEditorOpen} initialFocus={editorFocus} />
       )}
+
+      <AlertDialog open={confirmApproveOpen} onOpenChange={setConfirmApproveOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Aprovar estrutura da campanha?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              Nenhum criativo será gerado e nada será publicado agora. A geração de criativos será iniciada manualmente na próxima etapa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmApprove} className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Aprovar estrutura
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }
 
