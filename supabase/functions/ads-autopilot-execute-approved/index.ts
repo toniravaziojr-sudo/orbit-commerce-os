@@ -310,13 +310,21 @@ Deno.serve(async (req) => {
         creative_jobs_enqueued_at: currentLifecycle.creative_jobs_enqueued_at || null,
       };
 
-      const { error: updErr } = await supabase.from("ads_autopilot_actions").update({
+      const updatePayload: Record<string, any> = {
         status: "approved",
         approved_at: nowIso,
-        // approved_by intencionalmente não é setado aqui: a função roda com service_role
-        // e o usuário aprovador é capturado pela camada de UI/feedback (subfase A.2).
         action_data: { ...propData, lifecycle: updatedLifecycle },
-      }).eq("id", action_id);
+      };
+      // H.3.1: grava aprovador real quando JWT do usuário está disponível.
+      // Nunca inventa usuário; chamadas sem JWT (runner/cron) ficam com null.
+      if (approverUserId) {
+        updatePayload.approved_by_user_id = approverUserId;
+      }
+
+      const { error: updErr } = await supabase
+        .from("ads_autopilot_actions")
+        .update(updatePayload)
+        .eq("id", action_id);
 
       if (updErr) {
         console.error(`[ads-autopilot-execute-approved][${VERSION}] H.3 update failed:`, updErr.message);
@@ -327,14 +335,20 @@ Deno.serve(async (req) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // ---- Insight (com proteção idempotente por proposta) -----------------
+      // ---- Insight (idempotente por proposta) ------------------------------
+      // H.3.1: a tabela ads_autopilot_insights NÃO tem coluna `metadata`.
+      // A chave de idempotência e os atributos estruturados ficam em `evidence` (jsonb).
       const insightKey = `h3_structure_approved:${action_id}`;
-      const { data: existingInsight } = await supabase
+      const { data: existingInsight, error: existingErr } = await supabase
         .from("ads_autopilot_insights")
         .select("id")
         .eq("tenant_id", tenant_id)
-        .contains("metadata", { idempotency_key: insightKey })
+        .contains("evidence", { idempotency_key: insightKey })
         .maybeSingle();
+
+      if (existingErr) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] H.3 insight lookup failed (non-blocking):`, existingErr.message);
+      }
 
       if (!existingInsight) {
         const campaign = propData.campaign || {};
@@ -342,18 +356,27 @@ Deno.serve(async (req) => {
         const pendingNote = gate.account_config_pending.length > 0
           ? ` Existem ${gate.account_config_pending.length} pendência(s) de configuração da conta Meta que só serão exigidas na revisão final/publicação.`
           : "";
-        await supabase.from("ads_autopilot_insights").insert({
+        const { error: insErr } = await supabase.from("ads_autopilot_insights").insert({
           tenant_id,
           channel: action.channel || "meta",
           ad_account_id: adAccountIdProp,
           title: "✅ Estrutura da campanha aprovada",
-          body: `Estrutura da campanha "${campaign.name || "(sem nome)"}" aprovada — aguardando geração manual de criativos na próxima etapa.${pendingNote}`,
+          body: `Estrutura da campanha aprovada — aguardando geração manual de criativos. Campanha: "${campaign.name || "(sem nome)"}".${pendingNote}`,
           category: "strategy",
           priority: "low",
           sentiment: "positive",
           status: "open",
-          metadata: { idempotency_key: insightKey, proposal_id: action_id, lifecycle_status: H3_LIFECYCLE_STATUS },
+          evidence: {
+            idempotency_key: insightKey,
+            event_type: "h3_structure_approved",
+            proposal_id: action_id,
+            lifecycle_status: H3_LIFECYCLE_STATUS,
+            approved_by_user_id: approverUserId,
+          },
         });
+        if (insErr) {
+          console.error(`[ads-autopilot-execute-approved][${VERSION}] H.3 insight insert failed (non-blocking):`, insErr.message);
+        }
       }
 
       console.log(`[ads-autopilot-execute-approved][${VERSION}] H.3 structure approved: ${action_id} (pending_account_config=${gate.account_config_pending.length})`);
