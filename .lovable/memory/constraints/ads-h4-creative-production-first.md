@@ -19,7 +19,10 @@ Onda H.4.0 (Production-First). Aprovação estrutural (H.3) NÃO autoriza geraç
 9. Diálogo de geração precisa ser final, não provisório. Só aparece com status=ready. Sempre mostra custo numérico + frases "Isso iniciará processamento de IA" e "Nada será enviado ao Meta".
 10. Regeneração individual é H.4.2: tem confirmação própria, custo próprio, limite de 3 por criativo, idempotência. Botão fake é proibido.
 11. Estados oficiais do funil: estrutura aprovada–configurações pendentes / pronta para gerar / gerando / criativos prontos para revisão / publicação bloqueada / pronta para publicação.
-12. Mudanças visíveis na seção de propostas aprovadas (botão de gerar, diálogo, card de bloqueio) precisam de aprovação explícita do usuário antes de virar código.
+12. Card de bloqueios na UI: mostrar os **3 primeiros** bloqueadores; quando houver mais de 3, exibir botão "Ver todos". Nunca listar tudo de uma vez.
+13. Linguagem da UI: "imagem principal do produto" (não "packshot"), "promessas permitidas/proibidas" (não "claims" quando possível), "regras comerciais e de anúncios" (não "compliance"). Termos técnicos só no código/contrato interno.
+14. Configurações Meta básicas (Página do Facebook, Pixel, evento de conversão, janela de atribuição, UTM, conexão/conta válida) são **bloqueadores**, nunca apenas avisos. Sem qualquer um deles, status = "Estrutura aprovada — configurações pendentes" e botão "Gerar criativos" não aparece.
+15. Mudanças visíveis na seção de propostas aprovadas (botão de gerar, diálogo, card de bloqueio) precisam de aprovação explícita do usuário antes de virar código.
 
 ## Anti-regressão
 
