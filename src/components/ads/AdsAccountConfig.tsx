@@ -190,6 +190,24 @@ function AccountConfigCard({
   const validation = isAccountConfigComplete(currentFormConfig);
 
   const handleSave = () => {
+    // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
+    const brandPersist = brandComplianceToPersist(brandOverride);
+    const brandHasContent =
+      !!brandPersist.approved_main_promise ||
+      brandPersist.allowed_claims.length > 0 ||
+      brandPersist.banned_claims.length > 0 ||
+      brandPersist.do_not_do.length > 0 ||
+      !!brandPersist.compliance_notes ||
+      brandPersist.no_additional_restrictions_confirmed;
+
+    const existingOverrides = (config?.chat_overrides as any) || {};
+    const nextOverrides = { ...existingOverrides };
+    if (brandHasContent) {
+      nextOverrides.brand_overrides = brandPersist;
+    } else {
+      delete nextOverrides.brand_overrides;
+    }
+
     onSave(accountId, {
       budget_mode: budgetMode,
       budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
@@ -202,6 +220,7 @@ function AccountConfigCard({
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
       human_approval_mode: "approve_high_impact",
+      chat_overrides: Object.keys(nextOverrides).length ? nextOverrides : null,
     } as any);
   };
 
