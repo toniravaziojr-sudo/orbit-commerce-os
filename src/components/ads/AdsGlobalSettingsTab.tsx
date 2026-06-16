@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp, Power } from "lucide-react";
+import { Bot, DollarSign, Target, Zap, AlertTriangle, Info, Globe, ChevronDown, ChevronUp, Power, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 import { PROMPT_TEMPLATE_GLOBAL } from "./adsPromptTemplates";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  BrandComplianceFieldsBlock,
-  brandComplianceToPersist,
-  brandCompliancePersistToForm,
-  EMPTY_BRAND_COMPLIANCE,
-  type BrandComplianceValue,
-} from "./BrandComplianceFieldsBlock";
 import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 
 interface AdsGlobalSettingsTabProps {
