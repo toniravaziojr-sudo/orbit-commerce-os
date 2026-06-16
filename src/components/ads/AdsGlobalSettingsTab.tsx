@@ -62,53 +62,9 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [showTemplate, setShowTemplate] = useState(false);
   const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
-  // ── Marca (Promessa, Tom, Claims, Restrições) ──────────────────────────────
   const { currentTenant } = useAuth();
-  const qc = useQueryClient();
   const tenantId = currentTenant?.id;
-  const { data: brandRow } = useQuery({
-    queryKey: ["tenant-brand-context-h4", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      const { data, error } = await supabase
-        .from("tenant_brand_context")
-        .select("tone_of_voice, approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenantId,
-  });
-  const [brand, setBrand] = useState<BrandComplianceValue>(EMPTY_BRAND_COMPLIANCE);
-  const [savingBrand, setSavingBrand] = useState(false);
-  useEffect(() => { setBrand(brandCompliancePersistToForm(brandRow)); }, [brandRow]);
 
-  const handleSaveBrand = async () => {
-    if (!tenantId) return;
-    setSavingBrand(true);
-    try {
-      const patch = brandComplianceToPersist(brand);
-      const { data: existing } = await supabase
-        .from("tenant_brand_context").select("id").eq("tenant_id", tenantId).maybeSingle();
-      if (existing) {
-        const { error } = await supabase.from("tenant_brand_context")
-          .update({ ...patch, manually_edited_at: new Date().toISOString() })
-          .eq("tenant_id", tenantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("tenant_brand_context")
-          .insert({ tenant_id: tenantId, ...patch, manually_edited_at: new Date().toISOString() });
-        if (error) throw error;
-      }
-      toast.success("Configurações de marca salvas");
-      qc.invalidateQueries({ queryKey: ["tenant-brand-context-h4", tenantId] });
-    } catch (e: any) {
-      toast.error("Erro ao salvar marca: " + (e?.message || ""));
-    } finally {
-      setSavingBrand(false);
-    }
-  };
 
 
   useEffect(() => {
