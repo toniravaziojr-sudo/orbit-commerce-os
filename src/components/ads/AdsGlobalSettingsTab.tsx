@@ -393,7 +393,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold flex items-center gap-2">
-                <Scale className="h-4 w-4 text-primary" />
+                <Target className="h-4 w-4 text-primary" />
                 Splits de Funil
               </Label>
               <div className="flex items-center gap-2">
