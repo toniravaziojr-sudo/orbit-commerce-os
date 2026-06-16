@@ -258,7 +258,7 @@ export async function loadCreativeReadiness(
     proposal_kind: ad.kind === "campaign_test_proposal" ? "test" : "creation",
     campaign_objective: campaign.objective ?? campaign.platform_objective ?? null,
     destination_url: planned[0]?.destination_url ?? null,
-    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? utmFromProduction ?? utmFromGlobal ?? null,
+    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? utmFromGlobal ?? null,
     budget_amount_cents: campaign.daily_budget_cents ?? null,
     audience_defined: adsets.some((a: any) => a.audience || a.targeting),
     placements_defined: adsets.some((a: any) => Array.isArray(a.placements) && a.placements.length > 0),
