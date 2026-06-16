@@ -386,53 +386,66 @@ export function evaluateCreativeReadiness(
     });
   }
 
-  // Tom de voz
+  // Tom de voz — aviso (opcional)
   if (isBlank(input.brand.tone_of_voice)) {
-    push({
+    warn({
       field: "brand.tone_of_voice", label_pt: "Tom de comunicação",
-      reason_pt: "Defina o tom de comunicação da marca.",
-      where_to_fix: "Configurações > Marca > Tom de voz",
+      reason_pt: "Sem tom de comunicação definido a IA usa um padrão neutro. Recomenda-se definir.",
+      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
       action_label: "Definir tom",
-      severity: "blocker", node_type: "brand", node_id: null,
+      severity: "warning", node_type: "brand", node_id: null,
     });
   }
 
-  // Claims e promessa (fonte de verdade dedicada)
+  // Promessa principal — bloqueador (sempre obrigatório)
   if (isBlank(input.brand.approved_main_promise)) {
     push({
       field: "brand.approved_main_promise",
       label_pt: "Promessa principal aprovada",
       reason_pt: "Cadastre a promessa principal aprovada para a marca.",
-      where_to_fix: "Configurações > Marca > Promessa e claims",
+      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
       action_label: "Cadastrar promessa",
       severity: "blocker", node_type: "brand", node_id: null,
     });
   }
+
+  // Claims permitidas — bloqueia apenas em categorias sensíveis
   if (arrEmpty(input.brand.allowed_claims)) {
-    push({
-      field: "brand.allowed_claims",
-      label_pt: "Claims permitidas",
-      reason_pt: "Cadastre ao menos uma claim permitida.",
-      where_to_fix: "Configurações > Marca > Promessa e claims",
-      action_label: "Cadastrar claims",
-      severity: "blocker", node_type: "brand", node_id: null,
-    });
+    const isSensitive = input.product.regulatory_category && SENSITIVE_CATEGORIES.has(input.product.regulatory_category);
+    if (isSensitive) {
+      push({
+        field: "brand.allowed_claims",
+        label_pt: "Claims permitidas",
+        reason_pt: "Categoria sensível: cadastre ao menos uma claim permitida antes de gerar.",
+        where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
+        action_label: "Cadastrar claims",
+        severity: "blocker", node_type: "brand", node_id: null,
+      });
+    } else {
+      warn({
+        field: "brand.allowed_claims",
+        label_pt: "Claims permitidas",
+        reason_pt: "Sem claims permitidas a IA usa só a descrição do produto. Recomenda-se cadastrar.",
+        where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
+        action_label: "Cadastrar claims",
+        severity: "warning", node_type: "brand", node_id: null,
+      });
+    }
   }
 
-  // Claims proibidas / restrições da marca: precisa ter algo declarado OU confirmação explícita
+  // Claims proibidas/restrições — aviso (opcional)
   const hasBrandRestrictionDeclared =
     !arrEmpty(input.brand.banned_claims) ||
     !arrEmpty(input.brand.do_not_do) ||
     input.brand.no_additional_restrictions_confirmed;
   if (!hasBrandRestrictionDeclared) {
-    push({
+    warn({
       field: "brand.restrictions",
       label_pt: "Claims proibidas/restrições",
-      reason_pt:
-        "Declare claims proibidas/restrições ou confirme explicitamente que não há restrições adicionais.",
-      where_to_fix: "Configurações > Marca > Promessa e claims",
+      reason_pt: "Sem restrições declaradas a IA assume que não há limites adicionais. Recomenda-se declarar ou confirmar.",
+      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
       action_label: "Declarar restrições",
-      severity: "blocker", node_type: "brand", node_id: null,
+      severity: "warning", node_type: "brand", node_id: null,
     });
   }
 
