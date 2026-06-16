@@ -496,11 +496,11 @@ function AccountConfigCard({
             Prompt Estratégico
           </Label>
 
-          {/* Prompt Priority Alert */}
-          <Alert className="border-amber-500/30 bg-amber-500/5 py-2">
-            <Info className="h-3.5 w-3.5 text-amber-600" />
-            <AlertDescription className="text-[11px] text-amber-700 dark:text-amber-400">
-              O prompt é <strong>sugestivo</strong>. As configurações manuais (ROI, orçamento, estratégia) <strong>sempre prevalecem</strong> em caso de conflito.
+          {/* Supremacia do Prompt Estratégico — espaço reservado para avisos de conflito (Fase 2) */}
+          <Alert className="border-primary/30 bg-primary/5 py-2">
+            <Info className="h-3.5 w-3.5 text-primary" />
+            <AlertDescription className="text-[11px] text-foreground/80">
+              Seu prompt estratégico tem <strong>prioridade máxima</strong>. O sistema avisa aqui sobre conflitos com políticas das plataformas ou com o cadastro dos produtos, mas <strong>não bloqueia</strong> — a decisão é sua.
             </AlertDescription>
           </Alert>
 

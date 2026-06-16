@@ -311,13 +311,17 @@ export function evaluateCreativeReadiness(
   }
 
   // ---- Bloco Produto / oferta --------------------------------------------
+  // Regra "Supremacia do Prompt Estratégico" (mem://constraints/strategic-prompt-supremacy):
+  // descrição, tipo e função principal do produto NÃO bloqueiam. Quando ausentes,
+  // a IA cai no prompt estratégico + nome/diferenciais do produto. Viram apenas avisos
+  // para que o lojista saiba que está abrindo mão de contexto opcional.
   if (isBlank(input.product.description)) {
-    push({
+    warn({
       field: "product.description", label_pt: "Descrição do produto",
-      reason_pt: "O produto/oferta precisa de descrição suficiente para a IA.",
+      reason_pt: "Sem descrição cadastrada a IA usa só o nome e os diferenciais. Recomenda-se descrever o produto.",
       where_to_fix: "Cadastro de produto > Descrição",
       action_label: "Abrir produto",
-      severity: "blocker", node_type: "product", node_id: input.product.id,
+      severity: "warning", node_type: "product", node_id: input.product.id,
     });
   }
   if (arrEmpty(input.product.benefits)) {
@@ -330,25 +334,25 @@ export function evaluateCreativeReadiness(
     });
   }
   // Contexto da IA: tipo do produto + função principal (texto livre).
-  // Sem isso a IA não consegue inferir categoria nem cruzar com diretrizes globais.
+  // Sem isso a IA perde contexto, mas não bloqueia — o prompt estratégico é soberano.
   if (isBlank(input.product.ai_product_type)) {
-    push({
+    warn({
       field: "product.ai_product_type",
       label_pt: "Tipo do produto",
-      reason_pt: "Descreva o tipo do produto (ex.: Shampoo, Suplemento) para a IA entender o contexto.",
+      reason_pt: "Sem o tipo cadastrado a IA não cruza este produto com as diretrizes das plataformas. Recomenda-se descrever (ex.: Shampoo, Suplemento).",
       where_to_fix: "Cadastro de produto > Contexto para a IA",
       action_label: "Descrever tipo",
-      severity: "blocker", node_type: "product", node_id: input.product.id,
+      severity: "warning", node_type: "product", node_id: input.product.id,
     });
   }
   if (isBlank(input.product.ai_main_function)) {
-    push({
+    warn({
       field: "product.ai_main_function",
       label_pt: "Função principal do produto",
-      reason_pt: "Descreva a função principal (ex.: para queda capilar) para a IA inferir a categoria.",
+      reason_pt: "Sem a função cadastrada a IA tem menos contexto para inferir categoria. Recomenda-se descrever (ex.: para queda capilar).",
       where_to_fix: "Cadastro de produto > Contexto para a IA",
       action_label: "Descrever função",
-      severity: "blocker", node_type: "product", node_id: input.product.id,
+      severity: "warning", node_type: "product", node_id: input.product.id,
     });
   }
 
@@ -400,15 +404,16 @@ export function evaluateCreativeReadiness(
     });
   }
 
-  // Promessa principal — bloqueador (sempre obrigatório)
+  // Promessa principal — AVISO (Supremacia do Prompt Estratégico).
+  // O prompt estratégico do lojista é soberano; promessa cadastrada é reforço opcional.
   if (isBlank(input.brand.approved_main_promise)) {
-    push({
+    warn({
       field: "brand.approved_main_promise",
       label_pt: "Promessa principal aprovada",
-      reason_pt: "Cadastre a promessa principal aprovada para a marca.",
+      reason_pt: "Sem promessa cadastrada a IA usa o que estiver no prompt estratégico e na descrição. Recomenda-se cadastrar uma promessa de referência.",
       where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
       action_label: "Cadastrar promessa",
-      severity: "blocker", node_type: "brand", node_id: null,
+      severity: "warning", node_type: "brand", node_id: null,
     });
   }
 
