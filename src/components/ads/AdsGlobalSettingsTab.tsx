@@ -503,8 +503,47 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             </p>
           </div>
 
+          {/* Padrão de UTM Global */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" />
+              Padrão de UTM (rastreamento de cliques)
+            </Label>
+            <Input
+              value={utmTemplate}
+              onChange={(e) => setUtmTemplate(e.target.value)}
+              placeholder="Ex: utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Modelo padrão aplicado a todas as campanhas. Cada conta pode sobrescrever individualmente.
+            </p>
+          </div>
+
           <Button onClick={handleSave} disabled={isSaving} className="w-full">
             {isSaving ? "Salvando..." : "Salvar Configurações Globais"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Bloco de Marca (Tom, Promessa, Claims, Restrições) */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Regras da Marca para Criativos</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Definem o que a IA pode e não pode dizer ou mostrar. Sem isso, a geração de criativos fica bloqueada.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
+          <Button onClick={handleSaveBrand} disabled={savingBrand || !tenantId} className="w-full">
+            {savingBrand ? "Salvando marca..." : "Salvar regras da marca"}
           </Button>
         </CardContent>
       </Card>
