@@ -457,14 +457,13 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               Prompt de Direcionamento Global
             </Label>
             
-            {/* Supremacia do Prompt Estratégico — espaço reservado para avisos de conflito (Fase 2) */}
-            <Alert className="border-primary/30 bg-primary/5 py-2">
-              <Info className="h-3.5 w-3.5 text-primary" />
-              <AlertDescription className="text-[11px] text-foreground/80">
-                Seu prompt estratégico tem <strong>prioridade máxima</strong> sobre regras automáticas, funções declaradas dos produtos e diretrizes das plataformas.
-                O sistema vai <strong>avisar</strong> aqui se algo no prompt conflitar com políticas das plataformas ou com o cadastro dos produtos, mas <strong>não bloqueia nada</strong> — a decisão é sua.
-              </AlertDescription>
-            </Alert>
+            {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
+            <StrategicPromptAlerts
+              tenantId={tenantId}
+              scope="global"
+              prompt={instructions}
+              analysisTrigger={promptAnalysisTrigger}
+            />
 
             <Textarea
               value={instructions}
