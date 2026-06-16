@@ -163,6 +163,7 @@ const PlatformSystemHealth = lazy(() => import("@/pages/platform/PlatformSystemH
 const PlatformExternalCosts = lazy(() => import("@/pages/platform/PlatformExternalCosts"));
 const PlatformCredits = lazy(() => import("@/pages/platform/PlatformCredits"));
 const PlatformResourceUsage = lazy(() => import("@/pages/platform/PlatformResourceUsage"));
+const PlatformCommercialGuidelines = lazy(() => import("@/pages/platform/PlatformCommercialGuidelines"));
 
 const Influencers = lazy(() => import("@/pages/Influencers"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
@@ -519,6 +520,7 @@ const App = () => {
                    <Route path="/platform/tools" element={<PlatformTools />} />
                    <Route path="/platform/system-health" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformSystemHealth /></PlatformAdminGate>} />
                    <Route path="/platform/external-costs" element={<PlatformExternalCosts />} />
+                   <Route path="/platform/commercial-guidelines" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformCommercialGuidelines /></PlatformAdminGate>} />
                    <Route path="/platform/credits" element={<PlatformCredits />} />
                    <Route path="/platform/recursos-em-uso" element={<PlatformResourceUsage />} />
                    <Route path="/saude-do-sistema" element={<Navigate to="/platform/system-health" replace />} />

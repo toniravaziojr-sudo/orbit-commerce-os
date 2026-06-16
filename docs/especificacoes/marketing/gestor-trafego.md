@@ -4092,3 +4092,31 @@ Os estados de criativo e revisão final entram nas Ondas H.4 e H.5.
 - Nenhum botão na fila pode disparar geração sem passar pelo diálogo de confirmação humana.
 - O motor de prontidão é a fonte única de verdade para liberar o botão; cliente e servidor consultam o mesmo motor.
 - Pendências devem ser sempre apresentadas em linguagem de negócio. Nomes técnicos de campo, tabela, hook ou função ficam proibidos no corpo do card.
+
+## 15 — Onda H.4.1 Fase 2 — Categoria por IA + Diretrizes Comerciais Globais (2026-06-16)
+
+### Mudança no cadastro de produto
+- O antigo campo fechado de "categoria regulatória" foi **removido da interface**. O lojista preenche apenas dois campos livres no cadastro: **Tipo de produto** (ex: "Shampoo", "Suplemento", "Tênis") e **Função principal** (ex: "para queda capilar", "para ganho de massa").
+- A IA infere a categoria automaticamente a partir desses dois campos. Categorias antigas no banco ficam preservadas só para compatibilidade — não são usadas em decisão nova.
+
+### Base global de Diretrizes Comerciais
+- Existe uma base **global da plataforma** (não por tenant) com as regras comerciais de Meta, Google e TikTok por categoria inferida (cosmético, suplemento, moda, eletrônico, pet, alimento, infantil, etc.).
+- Cada diretriz tem: o que é permitido, o que é proibido, disclaimers obrigatórios, notas de sensibilidade e a URL oficial da política.
+- A base é **fonte única de verdade** para qualquer geração de copy/criativo. Restrições manuais do produto/marca viraram apenas **avisos**, nunca bloqueadores.
+
+### Atualização mensal automática
+- Um agendamento mensal (dia 1, 03:00 UTC) varre as URLs oficiais com Firecrawl, compara com a versão atual usando IA e detecta mudanças.
+- Quando detecta mudança: marca a diretriz como **"revisão pendente"** e registra a proposta de novo texto. **A geração de campanhas continua funcionando com a versão anterior** — nada é aplicado sem aprovação humana.
+- Quando não detecta mudança: renova a data de verificação automaticamente.
+- O cron **nunca** altera capacidade comercial sozinho. Sempre passa por revisão.
+
+### Painel super-admin
+- Tela dedicada em **Plataforma → Diretrizes Comerciais** lista todas as diretrizes por plataforma e categoria, mostra status (Ativa / Revisão pendente), versão e data da última verificação.
+- Botões: **Carregar baseline** (popula seed inicial) e **Verificar agora** (dispara refresh manual).
+- Cada diretriz tem botão **Editar** que abre diálogo para ajustar texto e aprovar — ao salvar, a versão incrementa e o status volta para Ativa.
+
+### Anti-regressão
+- Categoria regulatória **não pode** voltar como campo fechado obrigatório. Se voltar, a IA perde a base livre que alimenta as diretrizes globais.
+- Cron mensal **não pode** bloquear geração. Sempre serve a versão anterior até admin aprovar.
+- Lojista **não vê** o painel de diretrizes — é restrito à plataforma.
+
