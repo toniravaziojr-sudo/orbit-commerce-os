@@ -164,6 +164,7 @@ const joinCsv = (a: string[] | null | undefined): string =>
 /** Converte o estado do form para o formato persistido no banco (arrays + nulls). */
 export function brandComplianceToPersist(v: BrandComplianceValue) {
   return {
+    tone_of_voice: v.tone_of_voice.trim() || null,
     approved_main_promise: v.approved_main_promise.trim() || null,
     allowed_claims: splitCsv(v.allowed_claims),
     banned_claims: splitCsv(v.banned_claims),
@@ -177,6 +178,7 @@ export function brandComplianceToPersist(v: BrandComplianceValue) {
 export function brandCompliancePersistToForm(row: any | null | undefined): BrandComplianceValue {
   if (!row) return { ...EMPTY_BRAND_COMPLIANCE };
   return {
+    tone_of_voice: row.tone_of_voice || "",
     approved_main_promise: row.approved_main_promise || "",
     allowed_claims: joinCsv(row.allowed_claims),
     banned_claims: joinCsv(row.banned_claims),
