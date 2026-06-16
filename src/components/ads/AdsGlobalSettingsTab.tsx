@@ -70,6 +70,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   );
 
   const [showTemplate, setShowTemplate] = useState(false);
+  const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
   // ── Marca (Promessa, Tom, Claims, Restrições) ──────────────────────────────
   const { currentTenant } = useAuth();
