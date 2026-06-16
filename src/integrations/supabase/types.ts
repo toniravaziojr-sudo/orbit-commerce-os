@@ -3328,9 +3328,9 @@ export type Database = {
       }
       ai_prompt_conflict_cache: {
         Row: {
-          ad_account_id: string | null
+          ad_account_id: string
           alerts: Json
-          channel: string | null
+          channel: string
           created_at: string
           id: string
           ignored_keys: Json
@@ -3341,9 +3341,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          ad_account_id?: string | null
+          ad_account_id?: string
           alerts?: Json
-          channel?: string | null
+          channel?: string
           created_at?: string
           id?: string
           ignored_keys?: Json
@@ -3354,9 +3354,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          ad_account_id?: string | null
+          ad_account_id?: string
           alerts?: Json
-          channel?: string | null
+          channel?: string
           created_at?: string
           id?: string
           ignored_keys?: Json
