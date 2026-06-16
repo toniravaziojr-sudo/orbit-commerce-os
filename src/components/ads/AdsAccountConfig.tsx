@@ -585,10 +585,9 @@ function AccountConfigCard({
         {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
         <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
 
-        {/* Padrões da Meta da conta (página, pixel, evento de conversão, janela…) */}
-        {channel === "meta" && (
-          <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName} />
-        )}
+        {/* Página, Pixel, Instagram, Evento de conversão e Janela de atribuição
+            vêm 100% da integração Meta ativa (status mostrado acima). Evento e
+            janela são derivados automaticamente do objetivo da campanha. */}
 
 
         {/* Validation warnings */}
