@@ -51,7 +51,7 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
       if (!tenantId) return null;
       const { data, error } = await supabase
         .from("tenant_brand_context")
-        .select("approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
+        .select("tone_of_voice, approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
         .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
