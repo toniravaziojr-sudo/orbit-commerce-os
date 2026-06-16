@@ -40,6 +40,7 @@ import {
   EMPTY_BRAND_COMPLIANCE,
   type BrandComplianceValue,
 } from "./BrandComplianceFieldsBlock";
+import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
 
 interface AdAccount {
   id: string;
@@ -583,6 +584,12 @@ function AccountConfigCard({
 
         {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
         <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
+
+        {/* Padrões da Meta da conta (página, pixel, evento de conversão, janela…) */}
+        {channel === "meta" && (
+          <MetaProductionConfigCard adAccountId={accountId} adAccountLabel={accountName} />
+        )}
+
 
         {/* Validation warnings */}
         {!validation.valid && (

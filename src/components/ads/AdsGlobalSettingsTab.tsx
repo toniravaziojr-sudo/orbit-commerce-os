@@ -11,6 +11,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 import { PROMPT_TEMPLATE_GLOBAL } from "./adsPromptTemplates";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  BrandComplianceFieldsBlock,
+  brandComplianceToPersist,
+  brandCompliancePersistToForm,
+  EMPTY_BRAND_COMPLIANCE,
+  type BrandComplianceValue,
+} from "./BrandComplianceFieldsBlock";
 
 interface AdsGlobalSettingsTabProps {
   globalConfig: AutopilotConfig | null;
@@ -53,8 +64,60 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [autonomyMode, setAutonomyMode] = useState<"off" | "technical_only">(
     globalConfig?.autonomy_mode === "technical_only" ? "technical_only" : "off"
   );
-  
+  const [utmTemplate, setUtmTemplate] = useState(
+    String((globalConfig?.safety_rules as any)?.default_utm_template ?? "")
+  );
+
   const [showTemplate, setShowTemplate] = useState(false);
+
+  // ── Marca (Promessa, Tom, Claims, Restrições) ──────────────────────────────
+  const { currentTenant } = useAuth();
+  const qc = useQueryClient();
+  const tenantId = currentTenant?.id;
+  const { data: brandRow } = useQuery({
+    queryKey: ["tenant-brand-context-h4", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      const { data, error } = await supabase
+        .from("tenant_brand_context")
+        .select("tone_of_voice, approved_main_promise, allowed_claims, banned_claims, do_not_do, compliance_notes, no_additional_restrictions_confirmed")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+  const [brand, setBrand] = useState<BrandComplianceValue>(EMPTY_BRAND_COMPLIANCE);
+  const [savingBrand, setSavingBrand] = useState(false);
+  useEffect(() => { setBrand(brandCompliancePersistToForm(brandRow)); }, [brandRow]);
+
+  const handleSaveBrand = async () => {
+    if (!tenantId) return;
+    setSavingBrand(true);
+    try {
+      const patch = brandComplianceToPersist(brand);
+      const { data: existing } = await supabase
+        .from("tenant_brand_context").select("id").eq("tenant_id", tenantId).maybeSingle();
+      if (existing) {
+        const { error } = await supabase.from("tenant_brand_context")
+          .update({ ...patch, manually_edited_at: new Date().toISOString() })
+          .eq("tenant_id", tenantId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("tenant_brand_context")
+          .insert({ tenant_id: tenantId, ...patch, manually_edited_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+      toast.success("Configurações de marca salvas");
+      qc.invalidateQueries({ queryKey: ["tenant-brand-context-h4", tenantId] });
+    } catch (e: any) {
+      toast.error("Erro ao salvar marca: " + (e?.message || ""));
+    } finally {
+      setSavingBrand(false);
+    }
+  };
+
 
   useEffect(() => {
     if (globalConfig) {
@@ -69,7 +132,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
       setFunnelSplits((globalConfig.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
       setAutonomyMode(globalConfig.autonomy_mode === "technical_only" ? "technical_only" : "off");
-      
+      setUtmTemplate(String((globalConfig.safety_rules as any)?.default_utm_template ?? ""));
     }
   }, [globalConfig]);
 
@@ -95,6 +158,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         min_roi_cold: parseFloat(minRoiCold || "0") || null,
         min_roi_warm: parseFloat(minRoiWarm || "0") || null,
         roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
+        default_utm_template: utmTemplate.trim() || null,
       },
     });
   };
@@ -439,8 +503,47 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             </p>
           </div>
 
+          {/* Padrão de UTM Global */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" />
+              Padrão de UTM (rastreamento de cliques)
+            </Label>
+            <Input
+              value={utmTemplate}
+              onChange={(e) => setUtmTemplate(e.target.value)}
+              placeholder="Ex: utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Modelo padrão aplicado a todas as campanhas. Cada conta pode sobrescrever individualmente.
+            </p>
+          </div>
+
           <Button onClick={handleSave} disabled={isSaving} className="w-full">
             {isSaving ? "Salvando..." : "Salvar Configurações Globais"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Bloco de Marca (Tom, Promessa, Claims, Restrições) */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Regras da Marca para Criativos</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Definem o que a IA pode e não pode dizer ou mostrar. Sem isso, a geração de criativos fica bloqueada.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
+          <Button onClick={handleSaveBrand} disabled={savingBrand || !tenantId} className="w-full">
+            {savingBrand ? "Salvando marca..." : "Salvar regras da marca"}
           </Button>
         </CardContent>
       </Card>

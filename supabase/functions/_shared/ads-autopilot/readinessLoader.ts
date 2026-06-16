@@ -190,25 +190,65 @@ export async function loadCreativeReadiness(
   brand.palette_defined = Boolean(store?.primary_color && store?.secondary_color);
 
   // ---- Meta production -----------------------------------------------------
+  // Fonte primária: ativos selecionados nas integrações Meta. Fallback: registro
+  // específico de "configuração de produção" caso o lojista tenha sobrescrito.
   const { data: metaProd } = await supabase
     .from("ads_meta_production_config")
-    .select("ad_account_id, facebook_page_id, pixel_id, default_conversion_event, attribution_window")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  const { data: metaInteg } = await supabase
+    .select("ad_account_id, facebook_page_id, pixel_id, default_conversion_event, attribution_window, default_utm_params")
+    .eq("tenant_id", tenantId);
+  const { data: metaIntegRows } = await supabase
     .from("tenant_meta_integrations")
-    .select("status, selected_assets")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+    .select("integration_id, status, selected_assets")
+    .eq("tenant_id", tenantId);
+
+  const integByKind: Record<string, any> = {};
+  for (const row of metaIntegRows || []) {
+    integByKind[(row as any).integration_id] = row;
+  }
+  const anuncios = integByKind["anuncios"];
+  const pixelInteg = integByKind["pixel_facebook"];
+  const capiInteg = integByKind["conversions_api"];
+
+  const anyMetaActive = (metaIntegRows || []).some(
+    (r: any) => r?.status === "active" || r?.status === "connected",
+  );
+
+  const adAccountFromInteg = Array.isArray(anuncios?.selected_assets?.ad_accounts)
+    && anuncios.selected_assets.ad_accounts.length > 0;
+  const pageFromInteg = Array.isArray(anuncios?.selected_assets?.pages)
+    && anuncios.selected_assets.pages.length > 0;
+  const pixelFromInteg =
+    !!pixelInteg?.selected_assets?.pixel?.id ||
+    !!capiInteg?.selected_assets?.pixel?.id;
+
+  // Match production config row to the proposal's ad_account when possible.
+  const proposalAdAccountId =
+    (campaign as any)?.ad_account_id ||
+    (anuncios?.selected_assets?.ad_accounts?.[0]?.id ?? null);
+  const prodRow =
+    (metaProd || []).find((r: any) => r.ad_account_id === proposalAdAccountId) ||
+    (metaProd || [])[0] || null;
 
   const meta: MetaIntegrationInput = {
-    oauth_active: (metaInteg?.status || "") === "connected",
-    ad_account_valid: Boolean(metaProd?.ad_account_id),
-    facebook_page_linked: Boolean(metaProd?.facebook_page_id),
-    pixel_configured: Boolean(metaProd?.pixel_id),
-    conversion_event_set: Boolean(metaProd?.default_conversion_event),
-    attribution_window_set: Boolean(metaProd?.attribution_window),
+    oauth_active: anyMetaActive,
+    ad_account_valid: adAccountFromInteg || !!prodRow?.ad_account_id,
+    facebook_page_linked: pageFromInteg || !!prodRow?.facebook_page_id,
+    pixel_configured: pixelFromInteg || !!prodRow?.pixel_id,
+    conversion_event_set: !!prodRow?.default_conversion_event,
+    attribution_window_set: !!prodRow?.attribution_window,
   };
+
+  // ---- UTM fallback: proposta → conta → global -----------------------------
+  const { data: globalCfg } = await supabase
+    .from("ads_autopilot_configs")
+    .select("safety_rules")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "global")
+    .maybeSingle();
+  const utmFromProduction =
+    (prodRow?.default_utm_params as any)?.template || null;
+  const utmFromGlobal =
+    (globalCfg?.safety_rules as any)?.default_utm_template || null;
 
   // ---- planned_creatives normalizadas -------------------------------------
   const plannedCreatives: PlannedCreativeInput[] = planned.map((pc, i) => ({
@@ -225,7 +265,7 @@ export async function loadCreativeReadiness(
     proposal_kind: ad.kind === "campaign_test_proposal" ? "test" : "creation",
     campaign_objective: campaign.objective ?? campaign.platform_objective ?? null,
     destination_url: planned[0]?.destination_url ?? null,
-    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? null,
+    utm_template: planned[0]?.utm_template ?? campaign.utm_base ?? utmFromProduction ?? utmFromGlobal ?? null,
     budget_amount_cents: campaign.daily_budget_cents ?? null,
     audience_defined: adsets.some((a: any) => a.audience || a.targeting),
     placements_defined: adsets.some((a: any) => Array.isArray(a.placements) && a.placements.length > 0),

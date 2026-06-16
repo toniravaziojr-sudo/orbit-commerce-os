@@ -192,6 +192,26 @@ export function MetaProductionConfigCard({ adAccountId, adAccountLabel }: Props)
               </SelectContent>
             </Select>
           </Field>
+          <Field label="Janela de atribuição">
+            <Select
+              value={form.attribution_window || ""}
+              onValueChange={(v) => update("attribution_window", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Escolha a janela" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1d_click">1 dia após o clique</SelectItem>
+                <SelectItem value="7d_click">7 dias após o clique</SelectItem>
+                <SelectItem value="7d_click_1d_view">7 dias clique + 1 dia visualização (padrão Meta)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Padrão de UTM desta conta (opcional)" fullWidth>
+            <Input
+              placeholder="Ex: utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}"
+              value={(form.default_utm_params as any)?.template || ""}
+              onChange={(e) => update("default_utm_params", { ...(form.default_utm_params || {}), template: e.target.value } as any)}
+            />
+          </Field>
         </Section>
 
         {/* Campanha */}

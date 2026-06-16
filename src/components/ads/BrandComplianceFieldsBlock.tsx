@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 export interface BrandComplianceValue {
+  tone_of_voice: string;
   approved_main_promise: string;
   allowed_claims: string; // CSV
   banned_claims: string; // CSV
@@ -19,6 +20,7 @@ export interface BrandComplianceValue {
 }
 
 export const EMPTY_BRAND_COMPLIANCE: BrandComplianceValue = {
+  tone_of_voice: "",
   approved_main_promise: "",
   allowed_claims: "",
   banned_claims: "",
@@ -53,6 +55,18 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
       <p className="text-[11px] text-muted-foreground -mt-2">
         Definem o que a IA pode e não pode dizer ou mostrar nos criativos. Sem isso, a geração fica bloqueada. {hintEmpty}
       </p>
+
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold">Tom de comunicação</Label>
+        <Input
+          value={value.tone_of_voice}
+          onChange={(e) => set("tone_of_voice", e.target.value)}
+          placeholder='Ex: "Direto, masculino, sem firulas, com humor leve"'
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Define o jeito de falar da marca nos criativos. {mode === "override" && "Vazio = usa o global."}
+        </p>
+      </div>
 
       <div className="space-y-2">
         <Label className="text-xs font-semibold">Promessa principal da marca</Label>
@@ -150,6 +164,7 @@ const joinCsv = (a: string[] | null | undefined): string =>
 /** Converte o estado do form para o formato persistido no banco (arrays + nulls). */
 export function brandComplianceToPersist(v: BrandComplianceValue) {
   return {
+    tone_of_voice: v.tone_of_voice.trim() || null,
     approved_main_promise: v.approved_main_promise.trim() || null,
     allowed_claims: splitCsv(v.allowed_claims),
     banned_claims: splitCsv(v.banned_claims),
@@ -163,6 +178,7 @@ export function brandComplianceToPersist(v: BrandComplianceValue) {
 export function brandCompliancePersistToForm(row: any | null | undefined): BrandComplianceValue {
   if (!row) return { ...EMPTY_BRAND_COMPLIANCE };
   return {
+    tone_of_voice: row.tone_of_voice || "",
     approved_main_promise: row.approved_main_promise || "",
     allowed_claims: joinCsv(row.allowed_claims),
     banned_claims: joinCsv(row.banned_claims),
