@@ -322,7 +322,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       warranty_type: (product as any)?.warranty_type ?? '',
       warranty_duration: (product as any)?.warranty_duration ?? '',
 
-      // H.4.0 — Prontidão para geração de criativos
+      // Contexto da IA
+      ai_product_type: (product as any)?.ai_product_type ?? '',
+      ai_main_function: (product as any)?.ai_main_function ?? '',
+
+      // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
       commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
       no_additional_restrictions_confirmed:
