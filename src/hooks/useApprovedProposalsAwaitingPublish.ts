@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { showErrorToast } from "@/lib/error-toast";
 
 export const AWAITING_PUBLISH_LIFECYCLE = [
+  "structure_approved_awaiting_creatives", // Onda H.3 — estrutura aprovada, sem criativos ainda
   "campaign_creatives_generating",
   "campaign_creatives_ready",
   "campaign_creatives_failed",
