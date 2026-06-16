@@ -17,6 +17,7 @@ interface Props {
 }
 
 const LIFECYCLE_LABEL: Record<string, { label: string; tone: "default" | "secondary" | "destructive" | "outline" }> = {
+  structure_approved_awaiting_creatives: { label: "Estrutura aprovada — aguardando criativos", tone: "outline" },
   campaign_creatives_generating: { label: "Gerando criativos…", tone: "secondary" },
   campaign_creatives_ready: { label: "Pronto para publicar", tone: "default" },
   campaign_creatives_failed: { label: "Falha na geração", tone: "destructive" },
