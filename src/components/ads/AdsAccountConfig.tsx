@@ -499,13 +499,15 @@ function AccountConfigCard({
             Prompt Estratégico
           </Label>
 
-          {/* Supremacia do Prompt Estratégico — espaço reservado para avisos de conflito (Fase 2) */}
-          <Alert className="border-primary/30 bg-primary/5 py-2">
-            <Info className="h-3.5 w-3.5 text-primary" />
-            <AlertDescription className="text-[11px] text-foreground/80">
-              Seu prompt estratégico tem <strong>prioridade máxima</strong>. O sistema avisa aqui sobre conflitos com políticas das plataformas ou com o cadastro dos produtos, mas <strong>não bloqueia</strong> — a decisão é sua.
-            </AlertDescription>
-          </Alert>
+          {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
+          <StrategicPromptAlerts
+            tenantId={tenantId}
+            scope="account"
+            channel={channel}
+            adAccountId={accountId}
+            prompt={instructions}
+            analysisTrigger={promptAnalysisTrigger}
+          />
 
           <div className="flex gap-2">
             <Textarea
