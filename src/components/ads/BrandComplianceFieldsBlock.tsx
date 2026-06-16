@@ -57,6 +57,18 @@ export function BrandComplianceFieldsBlock({ value, onChange, mode }: Props) {
       </p>
 
       <div className="space-y-2">
+        <Label className="text-xs font-semibold">Tom de comunicação</Label>
+        <Input
+          value={value.tone_of_voice}
+          onChange={(e) => set("tone_of_voice", e.target.value)}
+          placeholder='Ex: "Direto, masculino, sem firulas, com humor leve"'
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Define o jeito de falar da marca nos criativos. {mode === "override" && "Vazio = usa o global."}
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <Label className="text-xs font-semibold">Promessa principal da marca</Label>
         <Textarea
           value={value.approved_main_promise}
