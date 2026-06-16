@@ -122,7 +122,11 @@ const productSchema = z.object({
   warranty_type: z.enum(['vendor', 'factory', 'none', '']).nullable().optional(),
   warranty_duration: z.string().max(50).nullable().optional(),
 
-  // H.4.0 — Prontidão para geração de criativos (compliance comercial)
+  // Contexto da IA para geração de criativos (livre, IA infere categoria)
+  ai_product_type: z.string().max(120).nullable().optional(),
+  ai_main_function: z.string().max(200).nullable().optional(),
+
+  // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
   no_additional_restrictions_confirmed: z.boolean().optional(),
