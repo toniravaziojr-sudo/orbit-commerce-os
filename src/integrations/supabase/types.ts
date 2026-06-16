@@ -241,6 +241,69 @@ export type Database = {
           },
         ]
       }
+      ads_ai_warnings: {
+        Row: {
+          ad_account_id: string | null
+          campaign_ref: string | null
+          channel: string
+          context: Json
+          converted_to_action_id: string | null
+          created_at: string
+          creative_ref: string | null
+          description: string
+          first_signal_at: string
+          id: string
+          last_signal_at: string
+          severity: string
+          signal_count: number
+          status: string
+          tenant_id: string
+          title: string
+          trend: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          campaign_ref?: string | null
+          channel: string
+          context?: Json
+          converted_to_action_id?: string | null
+          created_at?: string
+          creative_ref?: string | null
+          description: string
+          first_signal_at?: string
+          id?: string
+          last_signal_at?: string
+          severity?: string
+          signal_count?: number
+          status?: string
+          tenant_id: string
+          title: string
+          trend?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          campaign_ref?: string | null
+          channel?: string
+          context?: Json
+          converted_to_action_id?: string | null
+          created_at?: string
+          creative_ref?: string | null
+          description?: string
+          first_signal_at?: string
+          id?: string
+          last_signal_at?: string
+          severity?: string
+          signal_count?: number
+          status?: string
+          tenant_id?: string
+          title?: string
+          trend?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ads_autopilot_account_configs: {
         Row: {
           ad_account_id: string

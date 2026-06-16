@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass, GraduationCap } from "lucide-react";
+import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass, GraduationCap, Bell } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,8 +17,8 @@ import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
 import { useAdsInsights } from "@/hooks/useAdsInsights";
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
+import { useAdsAIWarnings } from "@/hooks/useAdsAIWarnings";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
-import { AdsAIGlobalAnalysisButton } from "@/components/ads/AdsAIGlobalAnalysisButton";
 import { AdsChannelIntegrationAlert } from "@/components/ads/AdsChannelIntegrationAlert";
 import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
@@ -26,8 +26,8 @@ import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
-import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
 import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
+import { AdsWarningsTab } from "@/components/ads/AdsWarningsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 import { ACTIVE_PENDING_STATUSES } from "@/hooks/useAdsPendingActions";
 
@@ -285,6 +285,7 @@ export default function AdsManager() {
   const channelData = getChannelData();
   const globalConfig = autopilot.globalConfig;
   const openInsightsCount = adsInsights.insights.filter(i => i.status === "open").length;
+  const warningsCount = useAdsAIWarnings().unseenCount;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -308,6 +309,15 @@ export default function AdsManager() {
             <GraduationCap className="h-3.5 w-3.5" />
             Aprendizado da IA
           </TabsTrigger>
+          <TabsTrigger value="warnings" className="gap-2">
+            <Bell className="h-3.5 w-3.5" />
+            Avisos
+            {warningsCount > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs bg-amber-500/20 text-amber-600">
+                {warningsCount}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="insights" className="gap-2">
             <Lightbulb className="h-3.5 w-3.5" />
             Insights
@@ -317,13 +327,9 @@ export default function AdsManager() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="global-settings" className="gap-2">
-            <Bot className="h-3.5 w-3.5" />
-            Configurações Gerais
-          </TabsTrigger>
           <TabsTrigger value="global-chat" className="gap-2">
             <MessageCircle className="h-3.5 w-3.5" />
-            Chat IA
+            Chat IA Global
           </TabsTrigger>
         </TabsList>
 
@@ -345,13 +351,6 @@ export default function AdsManager() {
 
         {/* === GERENCIADOR DE ANÚNCIOS === */}
         <TabsContent value="manager" className="space-y-4">
-          <AdsAIGlobalAnalysisButton
-            metaAccountsCount={accountConfigs.getAIEnabledAccounts("meta").length}
-            hasOtherChannels={
-              accountConfigs.getAIEnabledAccounts("google").length > 0 ||
-              accountConfigs.getAIEnabledAccounts("tiktok").length > 0
-            }
-          />
           <Tabs value={activeChannel} onValueChange={setActiveChannel}>
             <TabsList>
               <TabsTrigger value="meta" className="gap-2">
@@ -457,10 +456,6 @@ export default function AdsManager() {
                       </TabsTrigger>
                       <TabsTrigger value="reports">Relatórios</TabsTrigger>
                       <TabsTrigger value="roi">ROI Real</TabsTrigger>
-                      <TabsTrigger value="account-chat" className="gap-2">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Chat IA
-                      </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="campaigns">
@@ -516,13 +511,6 @@ export default function AdsManager() {
                       />
                     </TabsContent>
 
-                    <TabsContent value="account-chat">
-                      <AdsChatTab
-                        scope="account"
-                        adAccountId={channelSelectedAccounts[0] || integration.adAccounts[0]?.id}
-                        channel={channel}
-                      />
-                    </TabsContent>
                   </Tabs>
                 </TabsContent>
               );
@@ -560,35 +548,9 @@ export default function AdsManager() {
           />
         </TabsContent>
 
-        {/* === CONFIGURAÇÕES GERAIS === */}
-        <TabsContent value="global-settings" className="space-y-6">
-          <AdsGlobalSettingsTab
-            globalConfig={globalConfig}
-            onSave={(config) => autopilot.saveConfig.mutate(config)}
-            isSaving={autopilot.saveConfig.isPending}
-            hasAccountOverrides={accountConfigs.configs.length > 0}
-            isGlobalEnabled={globalConfig?.is_enabled || false}
-            onToggleGlobal={(enabled) => autopilot.toggleChannel.mutate({ channel: "global", enabled })}
-            isTogglingGlobal={autopilot.toggleChannel.isPending}
-          />
-
-          {/* Aprendizado da IA foi promovido a aba principal (Onda 1) */}
-
-
-          
-          
-          {/* Aguardando Aprovação (global - all channels) */}
-          <Card className="border-amber-500/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Hourglass className="h-4 w-4 text-amber-500" />
-                Aguardando Aprovação (Todas as contas)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AdsPendingApprovalTab />
-            </CardContent>
-          </Card>
+        {/* === AVISOS === */}
+        <TabsContent value="warnings">
+          <AdsWarningsTab />
         </TabsContent>
 
         {/* === CHAT IA GLOBAL === */}
