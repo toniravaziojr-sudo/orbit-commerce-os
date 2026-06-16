@@ -527,6 +527,23 @@ A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** à
 - IDs da Meta (`meta_campaign_id`, `meta_adset_id`, `meta_ad_id`) são registrados em `rollback_data` para reversão futura
 - **Fallbacks**: Campos não especificados pela IA usam defaults sensatos (`geo_locations` → `{countries: ["BR"]}`, `billing_event` → `"IMPRESSIONS"`, `conversion_event` → inferido do objetivo)
 
+#### Upload binário de imagens para a Meta (v6.21 — 2026-06-16)
+
+A partir de 2026-06-16, toda imagem enviada ao endpoint `/adimages` é transmitida em **multipart/form-data com os bytes brutos** da imagem, nunca por URL pública. Motivo: o upload por URL exige a capacidade *image scraper* na conta de anúncios — capacidade que a Meta concede de forma inconsistente e que vinha bloqueando publicações com erro genérico "capability". O upload binário não depende dessa capacidade e é o modo recomendado pela documentação oficial da Meta (Marketing API — Ad Images).
+
+**Fluxo:**
+1. Edge `ads-autopilot-publish-proposal` baixa a imagem do criativo (URL pública do Drive/Storage do tenant) via `fetch`.
+2. Monta `FormData` com o blob da imagem e envia para `POST /{ad_account_id}/adimages` com o access token da conta.
+3. Captura o `image_hash` retornado e usa em `object_story_spec.link_data.image_hash` ao criar o `adcreative`.
+4. **Fallback controlado**: em falha de download (rede/CDN), tenta uma única vez o upload por URL e registra o evento em `lifecycle.events` para observabilidade.
+
+**Proibido:**
+- Reintroduzir upload exclusivo por URL como caminho principal.
+- Publicar criativo sem `image_hash` validado.
+- Esconder a falha de download — sempre registrar no lifecycle da proposta.
+
+Regra anti-regressão registrada em `mem://constraints/meta-adimages-binary-upload`.
+
 #### Filtragem de Insights (v2.0.0)
 
 Insights gerados pela IA (`report_insight`) são filtrados para remover "context dumps" técnicos. A IA é instruída a:
