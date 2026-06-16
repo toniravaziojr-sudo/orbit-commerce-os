@@ -412,29 +412,20 @@ export function evaluateCreativeReadiness(
     });
   }
 
-  // Claims permitidas — bloqueia apenas em categorias sensíveis
+  // Claims permitidas — sempre aviso. A IA cruza tipo+função do produto com a
+  // Base Global de Diretrizes Comerciais (Meta/Google/TikTok) na geração.
+  // Claims declaradas pelo lojista são apenas reforço opcional.
   if (arrEmpty(input.brand.allowed_claims)) {
-    const isSensitive = input.product.regulatory_category && SENSITIVE_CATEGORIES.has(input.product.regulatory_category);
-    if (isSensitive) {
-      push({
-        field: "brand.allowed_claims",
-        label_pt: "Claims permitidas",
-        reason_pt: "Categoria sensível: cadastre ao menos uma claim permitida antes de gerar.",
-        where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-        action_label: "Cadastrar claims",
-        severity: "blocker", node_type: "brand", node_id: null,
-      });
-    } else {
-      warn({
-        field: "brand.allowed_claims",
-        label_pt: "Claims permitidas",
-        reason_pt: "Sem claims permitidas a IA usa só a descrição do produto. Recomenda-se cadastrar.",
-        where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
-        action_label: "Cadastrar claims",
-        severity: "warning", node_type: "brand", node_id: null,
-      });
-    }
+    warn({
+      field: "brand.allowed_claims",
+      label_pt: "Claims permitidas",
+      reason_pt: "Sem claims declaradas a IA usa a descrição do produto e as diretrizes da plataforma. Recomenda-se cadastrar.",
+      where_to_fix: "Gestor de Tráfego > Configurações > Regras da marca",
+      action_label: "Cadastrar claims",
+      severity: "warning", node_type: "brand", node_id: null,
+    });
   }
+
 
   // Claims proibidas/restrições — aviso (opcional)
   const hasBrandRestrictionDeclared =
