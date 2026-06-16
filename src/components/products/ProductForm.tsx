@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle, Sparkles } from 'lucide-react';
 import { ProductAIVisionSection } from './ai-vision/ProductAIVisionSection';
@@ -121,6 +121,11 @@ const productSchema = z.object({
   regulatory_conama: z.string().max(100).nullable().optional(),
   warranty_type: z.enum(['vendor', 'factory', 'none', '']).nullable().optional(),
   warranty_duration: z.string().max(50).nullable().optional(),
+
+  // H.4.0 — Prontidão para geração de criativos (compliance comercial)
+  regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
+  commercial_restrictions: z.string().max(2000).nullable().optional(),
+  no_additional_restrictions_confirmed: z.boolean().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -312,6 +317,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       regulatory_conama: (product as any)?.regulatory_info?.conama ?? '',
       warranty_type: (product as any)?.warranty_type ?? '',
       warranty_duration: (product as any)?.warranty_duration ?? '',
+
+      // H.4.0 — Prontidão para geração de criativos
+      regulatory_category: (product as any)?.regulatory_category ?? '',
+      commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
+      no_additional_restrictions_confirmed:
+        (product as any)?.no_additional_restrictions_confirmed ?? false,
     },
   });
 
@@ -543,7 +554,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, ...restData } = data;
+        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ...restData } = data;
         await updateProduct.mutateAsync({ 
           id: product.id, 
           ...restData,
@@ -554,6 +565,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           },
           warranty_type: wt || null,
           warranty_duration: wd || null,
+          regulatory_category: rc || null,
+          commercial_restrictions: cr || null,
+          no_additional_restrictions_confirmed: nrc ?? false,
         } as any);
         
         // Update related products and variants
@@ -603,9 +617,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           },
           warranty_type: data.warranty_type || null,
           warranty_duration: data.warranty_duration || null,
+          regulatory_category: data.regulatory_category || null,
+          commercial_restrictions: data.commercial_restrictions || null,
+          no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
-        });
+        } as any);
 
         // Save pending data using the new product ID
         const productResult = result as { id: string } | undefined;
@@ -1756,6 +1773,90 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         </FormControl>
                         <FormDescription>Código adicional para integração fiscal</FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Categoria e restrições para geração de criativos</CardTitle>
+                  <CardDescription>
+                    Define como a IA pode falar deste produto nos anúncios. Produtos sem
+                    categoria ou sem restrições declaradas ficam bloqueados para geração.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="regulatory_category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoria regulatória/comercial</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a categoria" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="cosmetic_hair">Cosmético / Capilar</SelectItem>
+                            <SelectItem value="supplement">Suplemento</SelectItem>
+                            <SelectItem value="other">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Cosmético/capilar e suplemento exigem declaração explícita de restrições.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="commercial_restrictions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Restrições comerciais ou legais deste produto</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="Ex: não prometer resultado em tempo determinado; não fazer comparação direta com fármacos"
+                            className="min-h-[80px]"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Texto livre. A IA respeita estas restrições ao gerar criativos.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="no_additional_restrictions_confirmed"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/30">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={!!field.value}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-input"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="cursor-pointer">
+                            Confirmo que não há restrições adicionais para este produto
+                          </FormLabel>
+                          <FormDescription>
+                            Marque apenas se revisou e não há outras restrições além das listadas acima.
+                          </FormDescription>
+                        </div>
                       </FormItem>
                     )}
                   />

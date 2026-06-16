@@ -44,6 +44,10 @@ const formSchema = z.object({
   visual_style_guidelines: z.string().optional(),
   banned_claims: z.string().optional(),
   do_not_do: z.string().optional(),
+  approved_main_promise: z.string().optional(),
+  allowed_claims: z.string().optional(),
+  compliance_notes: z.string().optional(),
+  no_additional_restrictions_confirmed: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -81,21 +85,30 @@ export function BrandContextEditor() {
       visual_style_guidelines: "",
       banned_claims: "",
       do_not_do: "",
+      approved_main_promise: "",
+      allowed_claims: "",
+      compliance_notes: "",
+      no_additional_restrictions_confirmed: false,
     },
   });
 
   // Update form when data loads
   useEffect(() => {
     if (brandContext) {
+      const bc = brandContext as any;
       form.reset({
-        brand_summary: brandContext.brand_summary || "",
-        tone_of_voice: brandContext.tone_of_voice || "",
-        visual_style_guidelines: brandContext.visual_style_guidelines || "",
-        banned_claims: brandContext.banned_claims?.join(", ") || "",
-        do_not_do: brandContext.do_not_do?.join(", ") || "",
+        brand_summary: bc.brand_summary || "",
+        tone_of_voice: bc.tone_of_voice || "",
+        visual_style_guidelines: bc.visual_style_guidelines || "",
+        banned_claims: bc.banned_claims?.join(", ") || "",
+        do_not_do: bc.do_not_do?.join(", ") || "",
+        approved_main_promise: bc.approved_main_promise || "",
+        allowed_claims: bc.allowed_claims?.join(", ") || "",
+        compliance_notes: bc.compliance_notes || "",
+        no_additional_restrictions_confirmed: bc.no_additional_restrictions_confirmed ?? false,
       });
-      if (brandContext.packshot_url) {
-        setPackshotPreview(brandContext.packshot_url);
+      if (bc.packshot_url) {
+        setPackshotPreview(bc.packshot_url);
       }
     }
   }, [brandContext, form]);
@@ -105,20 +118,23 @@ export function BrandContextEditor() {
     mutationFn: async (values: FormValues) => {
       if (!currentTenant?.id) throw new Error("Tenant não encontrado");
 
-      const banned_claims = values.banned_claims
-        ? values.banned_claims.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
-      const do_not_do = values.do_not_do
-        ? values.do_not_do.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
+      const splitCsv = (v: string | undefined) =>
+        v ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const banned_claims = splitCsv(values.banned_claims);
+      const do_not_do = splitCsv(values.do_not_do);
+      const allowed_claims = splitCsv(values.allowed_claims);
 
-      const payload = {
+      const payload: any = {
         tenant_id: currentTenant.id,
         brand_summary: values.brand_summary || null,
         tone_of_voice: values.tone_of_voice || null,
         visual_style_guidelines: values.visual_style_guidelines || null,
         banned_claims,
         do_not_do,
+        allowed_claims,
+        approved_main_promise: values.approved_main_promise || null,
+        compliance_notes: values.compliance_notes || null,
+        no_additional_restrictions_confirmed: values.no_additional_restrictions_confirmed ?? false,
         manually_edited_at: new Date().toISOString(),
       };
 
@@ -392,6 +408,75 @@ export function BrandContextEditor() {
 
               <Separator />
 
+              <div className="flex items-center gap-2 text-foreground">
+                <span className="text-sm font-semibold">Promessa e claims aprovados</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Fonte de verdade que a IA usa para gerar criativos. Sem isso, a IA não pode
+                montar oferta. Não preencher aqui significa bloquear a geração de criativos.
+              </p>
+
+              <FormField
+                control={form.control}
+                name="approved_main_promise"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Promessa principal aprovada</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder='Ex: "Cabelos mais fortes em 30 dias, sem química agressiva"'
+                        className="min-h-[60px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      A frase central que pode ser usada nos criativos. A IA não inventa promessa — só usa esta.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="allowed_claims"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Claims permitidos</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex: hidrata, fortalece a raiz, reduz queda visível"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Separados por vírgula. A IA só pode usar claims desta lista.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="compliance_notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações comerciais ou de compliance</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ex: evitar comparação com concorrentes; não citar diagnósticos médicos"
+                        className="min-h-[60px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator />
+
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-4 w-4" />
                 <span className="text-sm font-medium">Restrições</span>
@@ -402,7 +487,7 @@ export function BrandContextEditor() {
                 name="banned_claims"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Claims Proibidos</FormLabel>
+                    <FormLabel>Claims proibidos</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Ex: resultados médicos, antes/depois, cura"
@@ -422,7 +507,7 @@ export function BrandContextEditor() {
                 name="do_not_do"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Não Fazer</FormLabel>
+                    <FormLabel>Não fazer</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Ex: inventar rótulos, alterar cores do produto, mostrar mãos"
@@ -436,6 +521,33 @@ export function BrandContextEditor() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="no_additional_restrictions_confirmed"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/30">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={!!field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-input"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="cursor-pointer">
+                        Confirmo que não há restrições adicionais para esta marca
+                      </FormLabel>
+                      <FormDescription>
+                        Marque apenas se você revisou e tem certeza de que não há outras
+                        restrições comerciais ou legais além das listadas acima.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
 
               <div className="flex justify-end pt-4">
                 <Button type="submit" disabled={saveMutation.isPending}>

@@ -17344,6 +17344,7 @@ export type Database = {
           barcode: string | null
           brand: string | null
           cest: string | null
+          commercial_restrictions: string | null
           compare_at_price: number | null
           cost_price: number | null
           created_at: string
@@ -17364,6 +17365,7 @@ export type Database = {
           meta_retailer_id: string | null
           name: string
           ncm: string | null
+          no_additional_restrictions_confirmed: boolean
           origin_code: string | null
           price: number
           product_format: string | null
@@ -17371,6 +17373,9 @@ export type Database = {
           promotion_end_date: string | null
           promotion_start_date: string | null
           published_at: string | null
+          regulatory_category:
+            | Database["public"]["Enums"]["product_regulatory_category"]
+            | null
           regulatory_info: Json | null
           requires_shipping: boolean | null
           review_count: number | null
@@ -17400,6 +17405,7 @@ export type Database = {
           barcode?: string | null
           brand?: string | null
           cest?: string | null
+          commercial_restrictions?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
@@ -17420,6 +17426,7 @@ export type Database = {
           meta_retailer_id?: string | null
           name: string
           ncm?: string | null
+          no_additional_restrictions_confirmed?: boolean
           origin_code?: string | null
           price: number
           product_format?: string | null
@@ -17427,6 +17434,9 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          regulatory_category?:
+            | Database["public"]["Enums"]["product_regulatory_category"]
+            | null
           regulatory_info?: Json | null
           requires_shipping?: boolean | null
           review_count?: number | null
@@ -17456,6 +17466,7 @@ export type Database = {
           barcode?: string | null
           brand?: string | null
           cest?: string | null
+          commercial_restrictions?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
@@ -17476,6 +17487,7 @@ export type Database = {
           meta_retailer_id?: string | null
           name?: string
           ncm?: string | null
+          no_additional_restrictions_confirmed?: boolean
           origin_code?: string | null
           price?: number
           product_format?: string | null
@@ -17483,6 +17495,9 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          regulatory_category?:
+            | Database["public"]["Enums"]["product_regulatory_category"]
+            | null
           regulatory_info?: Json | null
           requires_shipping?: boolean | null
           review_count?: number | null
@@ -21208,13 +21223,17 @@ export type Database = {
       }
       tenant_brand_context: {
         Row: {
+          allowed_claims: string[]
+          approved_main_promise: string | null
           auto_generated_at: string | null
           banned_claims: string[] | null
           brand_summary: string | null
+          compliance_notes: string | null
           created_at: string | null
           do_not_do: string[] | null
           id: string
           manually_edited_at: string | null
+          no_additional_restrictions_confirmed: boolean
           packshot_url: string | null
           products_focus: Json | null
           tenant_id: string
@@ -21223,13 +21242,17 @@ export type Database = {
           visual_style_guidelines: string | null
         }
         Insert: {
+          allowed_claims?: string[]
+          approved_main_promise?: string | null
           auto_generated_at?: string | null
           banned_claims?: string[] | null
           brand_summary?: string | null
+          compliance_notes?: string | null
           created_at?: string | null
           do_not_do?: string[] | null
           id?: string
           manually_edited_at?: string | null
+          no_additional_restrictions_confirmed?: boolean
           packshot_url?: string | null
           products_focus?: Json | null
           tenant_id: string
@@ -21238,13 +21261,17 @@ export type Database = {
           visual_style_guidelines?: string | null
         }
         Update: {
+          allowed_claims?: string[]
+          approved_main_promise?: string | null
           auto_generated_at?: string | null
           banned_claims?: string[] | null
           brand_summary?: string | null
+          compliance_notes?: string | null
           created_at?: string | null
           do_not_do?: string[] | null
           id?: string
           manually_edited_at?: string | null
+          no_additional_restrictions_confirmed?: boolean
           packshot_url?: string | null
           products_focus?: Json | null
           tenant_id?: string
@@ -26614,6 +26641,7 @@ export type Database = {
         | "awaiting_payment"
         | "paid"
         | "chargeback_lost"
+      product_regulatory_category: "cosmetic_hair" | "supplement" | "other"
       shipping_provider_kind: "gateway" | "contract" | "manual"
       shipping_routing_reason:
         | "customer_choice"
@@ -27016,6 +27044,7 @@ export const Constants = {
         "paid",
         "chargeback_lost",
       ],
+      product_regulatory_category: ["cosmetic_hair", "supplement", "other"],
       shipping_provider_kind: ["gateway", "contract", "manual"],
       shipping_routing_reason: [
         "customer_choice",
