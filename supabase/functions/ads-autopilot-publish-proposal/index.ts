@@ -231,14 +231,16 @@ Deno.serve(async (req) => {
     const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).maybeSingle();
     const { data: primaryDomain } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenant_id).eq("is_primary", true).eq("status", "verified").maybeSingle();
     const storeHost = primaryDomain?.domain || `${tenantInfo?.slug}.shops.comandocentral.com.br`;
+    const uploadEvents: Array<{ ts: string; creative_index: number; mode: "binary" | "url"; fallback_reason?: string; image_hash?: string | null }> = [];
 
     for (const creative of readyCreatives) {
       try {
         // Upload imagem — estratégia binária (multipart) para não depender da
-        // capability "image scraper" do app Meta. Fallback para URL caso o
-        // download falhe por algum motivo transitório.
+        // capability "image scraper" do app Meta. Fallback para URL apenas se
+        // o download falhar — registrado em lifecycle.events para auditoria.
         let imageHash: string | null = null;
         let uploadMode: "binary" | "url" = "binary";
+        let fallbackReason: string | undefined;
         try {
           const dl = await fetch(creative.image_url);
           if (!dl.ok) throw new Error(`download ${dl.status}`);
@@ -259,7 +261,8 @@ Deno.serve(async (req) => {
             || imgData?.images?.[Object.keys(imgData?.images || {})[0]]?.hash
             || null;
         } catch (binErr: any) {
-          console.warn(`[publish] Upload binário falhou, tentando URL: ${binErr?.message || binErr}`);
+          fallbackReason = binErr?.message || String(binErr);
+          console.warn(`[publish] Upload binário falhou, tentando URL: ${fallbackReason}`);
           uploadMode = "url";
           const imgRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
             method: "POST",
@@ -271,7 +274,15 @@ Deno.serve(async (req) => {
           imageHash = imgData?.images?.[Object.keys(imgData?.images || {})[0]]?.hash || null;
         }
         if (!imageHash) throw new Error("Hash da imagem não retornado pela Meta.");
+        uploadEvents.push({
+          ts: new Date().toISOString(),
+          creative_index: creative.creative_index,
+          mode: uploadMode,
+          fallback_reason: fallbackReason,
+          image_hash: imageHash,
+        });
         console.log(`[publish] Imagem ${creative.creative_index + 1} enviada via ${uploadMode}, hash=${imageHash}`);
+
 
         // Destination URL com UTM
         let destinationUrl = creative.planned.destination_url || null;
@@ -361,6 +372,16 @@ Deno.serve(async (req) => {
           ads_created: createdAdIds,
           scheduled_start_time: scheduling.start_time || null,
           scheduling_mode: scheduling.start_time ? "scheduled_next_window" : "immediate",
+          events: [
+            ...(Array.isArray(lifecycle.events) ? lifecycle.events : []),
+            ...uploadEvents.map(ev => ({
+              kind: ev.mode === "url" ? "adimage_upload_fallback_url" : "adimage_upload_binary",
+              ts: ev.ts,
+              creative_index: ev.creative_index,
+              image_hash: ev.image_hash,
+              ...(ev.fallback_reason ? { fallback_reason: ev.fallback_reason } : {}),
+            })),
+          ],
         },
       },
       rollback_data: {
