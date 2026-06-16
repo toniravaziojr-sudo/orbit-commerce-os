@@ -267,6 +267,17 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
             <Button onClick={handleSave} disabled={isSaving} className="w-full">
               {isSaving ? "Salvando..." : "Salvar Configuração Global"}
             </Button>
+
+            {/* H.4.0 — Bloco de marca: promessas, claims e restrições */}
+            <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
+            <Button
+              onClick={handleSaveBrand}
+              disabled={savingBrand || !tenantId}
+              variant="secondary"
+              className="w-full"
+            >
+              {savingBrand ? "Salvando marca..." : "Salvar promessas, claims e restrições"}
+            </Button>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
