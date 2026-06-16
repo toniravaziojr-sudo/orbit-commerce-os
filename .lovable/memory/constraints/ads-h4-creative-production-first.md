@@ -13,7 +13,7 @@ Onda H.4.0 (Production-First). Aprovação estrutural (H.3) NÃO autoriza geraç
 3. Custo precisa ser calculável via `service_pricing` ativo. "Custo a apurar" é proibido — se a tabela não cobrir o formato, bloquear.
 4. Briefing completo é obrigatório: produto/oferta com descrição + diferenciais + categoria regulatória.
 5. Claims e promessa: fonte de verdade dedicada em `tenant_brand_context` (`allowed_claims`, `approved_main_promise`, `banned_claims`, `do_not_do`). IA não pode inventar nem inferir.
-6. Identidade visual mínima: logo + paleta + (imagem do produto OU packshot da marca).
+6. Identidade visual mínima: logo + paleta + **imagem principal válida do produto/kit usado na campanha**. Packshot da marca sozinho NÃO satisfaz — a imagem precisa estar relacionada ao produto/kit/oferta. UI deve usar a expressão "imagem principal do produto" (nunca "packshot").
 7. Categorias sensíveis (`cosmetic_hair`, `supplement`): exigem `commercial_restrictions` ou `no_additional_restrictions_confirmed=true` no produto.
 8. H.4.1 NÃO publica nem fala com Meta. Apenas insere `creative_jobs` controlados e mostra criativos para revisão.
 9. Diálogo de geração precisa ser final, não provisório. Só aparece com status=ready. Sempre mostra custo numérico + frases "Isso iniciará processamento de IA" e "Nada será enviado ao Meta".
