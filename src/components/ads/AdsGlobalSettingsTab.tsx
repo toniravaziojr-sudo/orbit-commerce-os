@@ -405,7 +405,27 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               <Bot className="h-4 w-4 text-primary" />
               Prompt de Direcionamento Global
             </Label>
-            
+
+            <Alert className="border-primary/30 bg-primary/5">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <AlertTitle className="text-sm font-semibold">
+                Este prompt é a fonte de verdade da sua IA de anúncios
+              </AlertTitle>
+              <AlertDescription className="text-xs space-y-1 mt-1.5">
+                <p>
+                  Tudo que você escrever aqui tem prioridade sobre defaults do sistema, diretrizes
+                  das plataformas (Meta/Google/TikTok) e funções declaradas dos produtos. A IA usa
+                  este texto como base para criar propostas, criativos e decisões.
+                </p>
+                <p className="pt-1">
+                  <strong>Para refinar:</strong> não precisa cadastrar "regras de marca". Ajuste o
+                  prompt aqui e dê <strong>feedback nas propostas</strong> (aprovar/rejeitar com
+                  motivo). A IA aprende com cada feedback e o que ela aprende vira contexto
+                  permanente desta marca.
+                </p>
+              </AlertDescription>
+            </Alert>
+
             {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
             <StrategicPromptAlerts
               tenantId={tenantId}
@@ -413,6 +433,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               prompt={instructions}
               analysisTrigger={promptAnalysisTrigger}
             />
+
 
             <Textarea
               value={instructions}
