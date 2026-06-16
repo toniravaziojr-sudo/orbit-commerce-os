@@ -517,7 +517,7 @@ A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** à
 |---|---|---|
 | 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo, `special_ad_categories` e scheduling nativo |
 | 2 | Criar AdSet | `POST /{ad_account_id}/adsets` com targeting completo (`geo_locations`, `interests`, `behaviors`, `excluded_audiences`, `publisher_platforms`, `position_types`, `device_platforms`), `optimization_goal`, `billing_event`, `conversion_event` (promoted_object) e `bid_amount_cents` |
-| 3 | Upload de Imagem | `POST /{ad_account_id}/adimages` com URL do criativo |
+| 3 | Upload de Imagem | `POST /{ad_account_id}/adimages` em **multipart/form-data com bytes da imagem** (download da URL pública → upload binário). Fallback por URL apenas em falha transitória de download. Retorna `image_hash` usado no criativo. |
 | 4 | Criar Anúncio | `POST /{ad_account_id}/ads` com `ad_creative_id`, `destination_url` + UTM params e `status` scheduling |
 
 **Regras:**
