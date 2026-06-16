@@ -473,28 +473,6 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         </CardContent>
       </Card>
 
-      {/* Bloco de Marca (Tom, Promessa, Claims, Restrições) */}
-      <Card className="border-primary/20">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Bot className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">Regras da Marca para Criativos</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Definem o que a IA pode e não pode dizer ou mostrar. Sem isso, a geração de criativos fica bloqueada.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <BrandComplianceFieldsBlock value={brand} onChange={setBrand} mode="global" />
-          <Button onClick={handleSaveBrand} disabled={savingBrand || !tenantId} className="w-full">
-            {savingBrand ? "Salvando marca..." : "Salvar regras da marca"}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
