@@ -139,6 +139,12 @@ function AccountConfigCard({
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
   const [showActivationDialog, setShowActivationDialog] = useState(false);
 
+  // H.4.0 — override de marca por conta de anúncios (vazio = herda do global)
+  const initialBrandOverride = (config?.chat_overrides as any)?.brand_overrides ?? null;
+  const [brandOverride, setBrandOverride] = useState<BrandComplianceValue>(
+    brandCompliancePersistToForm(initialBrandOverride)
+  );
+
   useEffect(() => {
     if (config) {
       setBudgetMode(config.budget_mode || "monthly");
@@ -151,7 +157,7 @@ function AccountConfigCard({
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      
+      setBrandOverride(brandCompliancePersistToForm((config.chat_overrides as any)?.brand_overrides ?? null));
     }
   }, [config]);
 
