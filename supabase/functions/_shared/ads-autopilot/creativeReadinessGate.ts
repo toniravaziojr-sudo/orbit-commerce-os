@@ -385,18 +385,20 @@ export function evaluateCreativeReadiness(
       severity: "blocker", node_type: "brand", node_id: null,
     });
   }
-  const hasReliableImage =
-    (input.product.is_physical && !isBlank(input.product.primary_image_url)) ||
-    !isBlank(input.brand.packshot_url) ||
-    (!input.product.is_physical && !isBlank(input.product.primary_image_url));
+  // Decisão H.4.0 final do usuário: imagem precisa ser do produto/kit da campanha.
+  // Packshot da marca isolado NÃO satisfaz — a imagem deve estar relacionada
+  // ao produto/kit/oferta da campanha. Se o produto já tem imagem válida,
+  // não bloqueia por falta de packshot da marca.
+  const hasReliableImage = !isBlank(input.product.primary_image_url);
   if (!hasReliableImage) {
     push({
-      field: "brand.visual_reference", label_pt: "Imagem de referência",
+      field: "product.primary_image_url",
+      label_pt: "Imagem principal do produto",
       reason_pt:
-        "É preciso pelo menos uma imagem confiável do produto ou packshot da marca.",
-      where_to_fix: "Cadastro de produto OU Configurações > Marca > Packshot",
-      action_label: "Enviar imagem",
-      severity: "blocker", node_type: "brand", node_id: null,
+        "Envie uma imagem principal válida do produto ou kit usado nesta campanha.",
+      where_to_fix: "Cadastro de produto > Imagem principal",
+      action_label: "Enviar imagem do produto",
+      severity: "blocker", node_type: "product", node_id: input.product.id,
     });
   }
 
