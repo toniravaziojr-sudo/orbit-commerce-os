@@ -48,7 +48,11 @@ export function ApprovedProposalsSection({ channelFilter }: Props) {
         const isReady = lc === "campaign_creatives_ready";
         const isFailed = lc === "campaign_creatives_failed" || lc === "campaign_implementation_failed";
         const isGenerating = lc === "campaign_creatives_generating";
+        const isStructureOnly = lc === "structure_approved_awaiting_creatives";
         const failureMsg = p.action_data?.lifecycle?.failure_message_pt;
+        const pendingAccountCfg = Array.isArray(p.action_data?.lifecycle?.pending_account_config)
+          ? p.action_data.lifecycle.pending_account_config
+          : [];
 
         return (
           <Card key={p.id} className="border-border/60">
@@ -56,6 +60,7 @@ export function ApprovedProposalsSection({ channelFilter }: Props) {
               <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
                 {isGenerating ? <Loader2 className="h-5 w-5 text-primary animate-spin" /> :
                   isFailed ? <AlertTriangle className="h-5 w-5 text-destructive" /> :
+                  isStructureOnly ? <Sparkles className="h-5 w-5 text-primary" /> :
                   <Rocket className="h-5 w-5 text-primary" />}
               </div>
               <div className="flex-1 min-w-0">
@@ -65,10 +70,25 @@ export function ApprovedProposalsSection({ channelFilter }: Props) {
                 </div>
                 <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                   <span>R$ {(budget / 100).toFixed(2)}/dia</span>
-                  <span>·</span>
-                  <span>{totalJobs} criativo(s)</span>
+                  {!isStructureOnly && (
+                    <>
+                      <span>·</span>
+                      <span>{totalJobs} criativo(s)</span>
+                    </>
+                  )}
+                  {isStructureOnly && pendingAccountCfg.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{pendingAccountCfg.length} pendência(s) de conta Meta</span>
+                    </>
+                  )}
                   {failureMsg && <><span>·</span><span className="text-destructive">{failureMsg}</span></>}
                 </div>
+                {isStructureOnly && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Estrutura aprovada. A geração de criativos será iniciada manualmente na próxima etapa.
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 {isReady && (
@@ -84,6 +104,11 @@ export function ApprovedProposalsSection({ channelFilter }: Props) {
                 {isFailed && (
                   <Button size="sm" variant="outline" onClick={() => setSelected(p)}>
                     <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Revisar
+                  </Button>
+                )}
+                {isStructureOnly && (
+                  <Button size="sm" variant="outline" disabled title="Disponível na próxima etapa (H.4.1)">
+                    Aguardando próxima etapa
                   </Button>
                 )}
               </div>
