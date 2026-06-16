@@ -381,14 +381,18 @@ export function StructuredProposalModal({
     if (approveBlocked) return;
     // Onda H.3 — Confirmação explícita antes de aprovar estrutura (sem IA, sem Meta, sem publicar).
     if (isCampaignProposal) {
-      const ok = window.confirm(
-        "Aprovar a estrutura desta proposta de campanha?\n\nNenhum criativo será gerado e nada será publicado. A geração de criativos será iniciada manualmente na próxima etapa."
-      );
-      if (!ok) return;
+      setConfirmApproveOpen(true);
+      return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
+  const confirmApprove = () => {
+    setConfirmApproveOpen(false);
+    if (isStrategyStage) approveStrategy.mutate(action.id);
+    else onApprove(action.id);
+  };
+
 
   const approveLabel = approveLabelOverride ?? (
     isStrategyStage
