@@ -309,65 +309,97 @@ export function StructuredProposalModal({
     ? ((planContract?.errors as any[]) || []).filter((e: any) => e.severity === "blocker")
     : [];
 
-  // Onda H.3 — Aprovação individual da proposta de campanha habilitada.
-  // Gate mínimo no cliente apenas para feedback imediato; o servidor revalida.
+  // Onda H.3 — Aprovação ESTRUTURAL da proposta de campanha.
+  // Blockers = pending_fields com phase=h2_structural (+ defesa em profundidade).
+  // pending_fields com phase=account_config NÃO bloqueiam: viram aviso e só serão
+  // exigidos na revisão final / publicação (H.4.2 / H.5).
   const isCampaignProposal = action.action_type === "campaign_proposal";
   const cpData: any = isCampaignProposal ? (data as any) : {};
   const cpCampaign = cpData?.campaign || {};
-  const cpIdentity = cpData?.identity || {};
   const cpAdsets = Array.isArray(cpData?.adsets) ? cpData.adsets : [];
-  const cpObjective = String(cpCampaign?.objective || "").toLowerCase();
-  const cpNeedsPixel = /sale|lead|convers|purchase|outcome_sales|outcome_leads/.test(cpObjective) || !cpObjective;
-  const cpCriticalBlockers: string[] = [];
-  if (isCampaignProposal) {
-    if (!cpCampaign?.name) cpCriticalBlockers.push("Nome da campanha");
-    if (!cpCampaign?.objective) cpCriticalBlockers.push("Objetivo");
-    if (!cpCampaign?.daily_budget_cents) cpCriticalBlockers.push("Orçamento diário");
-    if (cpAdsets.length === 0) cpCriticalBlockers.push("Conjunto de anúncios");
-    if (!cpIdentity?.facebook_page_id) cpCriticalBlockers.push("Página do Facebook");
-    if (cpNeedsPixel && !cpIdentity?.pixel_id) cpCriticalBlockers.push("Pixel");
-  }
-  const approveBlockedByCampaignProposalH3 = isCampaignProposal && cpCriticalBlockers.length > 0;
+  const cpPlannedCreatives = Array.isArray(cpData?.planned_creatives) ? cpData.planned_creatives : [];
+  const cpPendingFields: any[] = Array.isArray(cpData?.pending_fields) ? cpData.pending_fields : [];
 
-  // Onda H.2 — Interruptor de etapa (default OFF) — espelha o guard do backend.
-  // Aprovar campaign_proposal fica bloqueado até a validação visual da H.2.
-  const H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED = true;
-  const approveBlockedByH2Lock = isCampaignProposal && H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED;
+  const cpStructuralBlockers: string[] = [];
+  const cpAccountConfigPending: Array<{ level: string; field: string; label_pt: string }> = [];
+  if (isCampaignProposal) {
+    // Defesa em profundidade — itens críticos sempre conferidos.
+    if (!cpCampaign?.name) cpStructuralBlockers.push("Nome da campanha");
+    if (!cpCampaign?.objective) cpStructuralBlockers.push("Objetivo");
+    const budgetMode = String(cpCampaign?.budget_mode || "").toUpperCase();
+    if (budgetMode !== "ABO" && !cpCampaign?.daily_budget_cents) {
+      cpStructuralBlockers.push("Orçamento diário da campanha");
+    }
+    if (cpAdsets.length === 0) cpStructuralBlockers.push("Conjunto de anúncios");
+    if (cpPlannedCreatives.length === 0) cpStructuralBlockers.push("Anúncio planejado vinculado a um conjunto");
+    if (cpData?.contract_validation_status === "blocked") {
+      cpStructuralBlockers.push(cpData?.unsupported_reason || "Proposta fora do escopo suportado");
+    }
+    // Pending fields classificados pelo contrato H.2.2/H.2.3.
+    for (const pf of cpPendingFields) {
+      const label = pf.label_pt || pf.field;
+      const where = pf.level === "adset" ? `Conjunto ${typeof pf.index === "number" ? pf.index + 1 : ""}`.trim() :
+                    pf.level === "ad"    ? `Anúncio ${typeof pf.index === "number" ? pf.index + 1 : ""}`.trim() :
+                    pf.level === "campaign" ? "Campanha" :
+                    pf.level === "identity" ? "Identidade" : "";
+      const msg = where ? `${where} — ${label}` : label;
+      if (pf.phase === "h2_structural") {
+        if (!cpStructuralBlockers.includes(msg)) cpStructuralBlockers.push(msg);
+      } else if (pf.phase === "account_config") {
+        cpAccountConfigPending.push({ level: pf.level, field: pf.field, label_pt: label });
+      } else if (pf.phase && pf.phase !== "h4_future") {
+        // Fase desconhecida → bloquear por segurança.
+        cpStructuralBlockers.push(`${msg} (classificação pendente)`);
+      }
+    }
+  }
+  const approveBlockedByCampaignProposalH3 = isCampaignProposal && cpStructuralBlockers.length > 0;
+  const showH3AccountConfigNotice = isCampaignProposal && !approveBlockedByCampaignProposalH3 && cpAccountConfigPending.length > 0;
+
+  // Onda H.3 — Trava H.2 removida: aprovação estrutural liberada.
+  // (Mantido como `false` por documentação; o ramo de UI já não usa mais.)
+  const H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED = false;
+  const approveBlockedByH2Lock = false;
 
   const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3 || approveBlockedByH2Lock;
 
   const isApproving = approveStrategy.isPending || approvingId === action.id;
   const handleApprove = () => {
     if (approveBlocked) return;
+    // Onda H.3 — Confirmação explícita antes de aprovar estrutura (sem IA, sem Meta, sem publicar).
+    if (isCampaignProposal) {
+      const ok = window.confirm(
+        "Aprovar a estrutura desta proposta de campanha?\n\nNenhum criativo será gerado e nada será publicado. A geração de criativos será iniciada manualmente na próxima etapa."
+      );
+      if (!ok) return;
+    }
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
 
-  const approveLabel = approveLabelOverride ?? (approveBlockedByH2Lock
-    ? "Aguardando próxima etapa"
-    : isStrategyStage
+  const approveLabel = approveLabelOverride ?? (
+    isStrategyStage
       ? approveBlocked
         ? "Ajuste necessário antes de aprovar"
         : "Aprovar estratégia e gerar criativos"
       : approveBlockedByContract
         ? "Plano incompleto — não aprovável"
         : approveBlockedByCampaignProposalH3
-          ? "Faltam dados para aprovar"
+          ? "Faltam dados estruturais"
           : isCampaignProposal
             ? "Aprovar proposta de campanha"
             : "Aprovar");
 
-  const approveBlockedReason = approveBlockedByH2Lock
-    ? "A aprovação individual desta proposta de campanha será habilitada na próxima etapa do fluxo de revisão."
-    : approveBlockedByContract
-      ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
-      : approveBlockedByFit
-        ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
-        : approveBlockedByGates
-          ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
-          : approveBlockedByCampaignProposalH3
-            ? `Faltam dados críticos: ${cpCriticalBlockers.join(", ")}. Ajuste antes de aprovar.`
-            : null;
+  const approveBlockedReason = approveBlockedByContract
+    ? `Plano incompleto: ${contractBlockerErrors.length} pendência(s) obrigatória(s). Recuse e rode uma nova análise.`
+    : approveBlockedByFit
+      ? fitData?.fit.user_message || "Bloqueado por adequação produto × público."
+      : approveBlockedByGates
+        ? completeness.summary || compatibility.summary || "Há bloqueios pendentes nas validações."
+        : approveBlockedByCampaignProposalH3
+          ? `Faltam dados estruturais: ${cpStructuralBlockers.slice(0, 5).join(" • ")}${cpStructuralBlockers.length > 5 ? ` • +${cpStructuralBlockers.length - 5}` : ""}.`
+          : null;
+
 
 
   return (
@@ -493,6 +525,26 @@ export function StructuredProposalModal({
               <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{approveBlockedReason}</span>
+              </div>
+            )}
+            {showH3AccountConfigNotice && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Existem {cpAccountConfigPending.length} pendência(s) de configuração da conta Meta
+                  ({cpAccountConfigPending.slice(0, 3).map((p) => p.label_pt).join(", ")}
+                  {cpAccountConfigPending.length > 3 ? "…" : ""}).
+                  Elas <strong>não bloqueiam esta aprovação</strong>, mas bloquearão a revisão final/publicação.
+                </span>
+              </div>
+            )}
+            {isCampaignProposal && !approveBlocked && (
+              <div className="flex items-start gap-2 rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                <span>
+                  Aprovar estrutura <strong>não gera criativos</strong> e <strong>não publica</strong>.
+                  A geração de criativos será iniciada manualmente na próxima etapa.
+                </span>
               </div>
             )}
             <div className="flex items-center gap-2">

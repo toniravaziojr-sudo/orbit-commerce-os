@@ -1,8 +1,16 @@
 ---
-name: Ads H.2 — Trava temporária de aprovação de campaign_proposal
-description: Enquanto H.2 (revisão visual) não é validada, aprovação de campaign_proposal fica bloqueada na UI e no backend. H.3/H.4.1 permanecem implementadas, apenas trancadas atrás de um interruptor de etapa.
+name: Ads H.2 — Trava temporária de aprovação de campaign_proposal [SUPERSEDED]
+description: SUPERSEDED por ads-h3-structure-only-approval (Onda H.3, 2026-06-16). Histórico mantido para auditoria.
 type: constraint
 ---
+
+> ⚠️ **SUPERSEDED em 2026-06-16 pela Onda H.3.**
+> A trava `H2_CAMPAIGN_PROPOSAL_APPROVAL_LOCKED` foi removida. A aprovação de `campaign_proposal` é agora **structure-only** (não cria criativos, não chama Meta, não publica). Veja `ads-h3-structure-only-approval`.
+> O texto abaixo é histórico.
+
+---
+
+
 
 # Regra (2026-06-15)
 
