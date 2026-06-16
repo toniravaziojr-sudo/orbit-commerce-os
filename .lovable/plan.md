@@ -1,54 +1,132 @@
-## Auditoria atual
+## Objetivo
 
-**Bugs reais no motor de prontidão (causando falsos bloqueadores no Respeite o Homem):**
+Simplificar o Gestor de Tráfego eliminando o "cérebro global" duplicado, mantendo a IA por conta de anúncios. Promover "Aprendizado da IA" a aba principal. Transformar insights em propostas acionáveis. Sem regressão no fluxo de campanhas.
 
-1. O motor exige **Evento de conversão** e **Janela de atribuição** vindos de uma tabela de "configuração de produção" que está vazia — então sempre bloqueia, mesmo com integração Meta 100% ativa.
-2. **Evento de conversão** está como campo manual; deveria ser derivado do objetivo da campanha (venda → Compra, lead → Lead, tráfego → Visualização de conteúdo).
-3. **Janela de atribuição** está como campo manual; deveria usar o padrão do Meta (7 dias clique / 1 dia visualização para venda).
-4. **Claims permitidas** bloqueia para qualquer produto; deveria bloquear só em categoria sensível (cosmético, suplemento).
-5. **Tom de voz**, **Diferenciais do produto** e **Restrições da marca** estão como bloqueadores; devem virar avisos (não bloqueiam).
-6. Telas adicionadas na rodada anterior (Página/Instagram/Pixel/Evento/Janela manuais por conta de anúncios) **viraram retrabalho** do que já existe na integração Meta — devem sair.
+## Princípios
 
-**Soft items que permanecem como bloqueadores reais:**
-- Promessa principal aprovada (sempre)
-- Claims permitidas (só em categoria sensível)
-- Categoria regulatória do produto (já existe no cadastro)
-- Logo, paleta e imagem principal do produto (já existem nas configurações da loja e cadastro do produto)
+- O que é por conta de anúncios continua por conta (orçamento, ROI, instruções, autonomia, modo estratégico, regras de funil, prompt estratégico).
+- O que continua global, **sem aparecer como aba de configuração**: Visão Geral (consolidada), Chat IA Global (responde sobre qualquer conta) e UTMs (aplicadas automaticamente pelo sistema com base no tenant, sem UI).
+- IA só gera proposta quando tem ação concreta. Sinal solto vira contexto interno da IA, nunca proposta.
+- Limpeza do tenant Respeite o Homem feita junto da Onda 1 para o usuário testar do zero.
 
-## Plano
+## Pontos sensíveis identificados na auditoria (decisões de fluxo já tomadas)
 
-### 1. Corrigir o motor de prontidão
-- Ler **Conexão, Conta, Página, Instagram, Pixel, API de Conversões** direto da integração Meta ativa. Zero dependência da tabela "configuração de produção".
-- **Evento de conversão**: derivar do objetivo da campanha. Venda → Compra. Lead → Lead. Tráfego → Visualização de conteúdo. Sem bloqueio e sem campo manual.
-- **Janela de atribuição**: assumir padrão do Meta (7 dias clique / 1 dia visualização para venda). Sem bloqueio e sem campo manual.
-- **UTM**: cair em padrão da plataforma quando proposta/conta não definir. Sem bloqueio.
+1. **Prompt estratégico global** existe hoje em paralelo ao prompt por conta. Some na Onda 2; quem tinha prompt global terá o conteúdo migrado para cada conta de anúncios ativa (a IA já tratava ambos com hierarquia de supremacia, então não há perda de regra — só consolidação no lugar correto).
+2. **Trava de execução simultânea** hoje é por tenant (impede a IA rodar dois ciclos ao mesmo tempo na casa toda). Passa a ser por conta de anúncios, permitindo que contas distintas rodem em paralelo sem se atrapalhar.
+3. **"Replicação inteligente entre contas"** (hoje só roda no primeiro start global) some. Em troca, ao ativar a IA numa conta nova, ela usa os Aprendizados da IA do tenant como base (a aba nova garante isso). Resultado prático equivalente, sem precisar do conceito global.
 
-### 2. Ajustar regras de marca e produto
-- **Promessa principal**: continua bloqueador.
-- **Claims permitidas**: bloqueia só se a categoria do produto for sensível (cosmético, suplemento). Fora disso, aviso.
-- **Tom de voz**, **Diferenciais**, **Restrições/claims proibidas**: viram aviso (não bloqueiam).
+---
 
-### 3. Alinhar o motor estratégico (geração de propostas)
-- O mesmo recorte vale para o gerador de propostas: quando a tabela de produção não tiver dados, usar derivação por objetivo + padrão Meta. Garante que proposta nasce já com evento e janela corretos, sem exigir formulário manual.
+## ONDA 1 — Aprendizado da IA + Limpeza do tenant
 
-### 4. Limpar telas que viraram retrabalho
-- Remover do card da conta de anúncios os campos manuais de Página, Instagram, Pixel, Evento de conversão e Janela de atribuição.
-- Manter o card de **Regras da marca** (promessa, claims, tom de voz, restrições) — global e override por conta. Esses são contexto estratégico real.
-- O card de bloqueios na proposta mostra no máximo 3 itens + botão "Ver todos" (regra já existente, garantir).
+**Entrega visual**
 
-### 5. Validação técnica no Respeite o Homem
-- Confirmar que, com integração Meta ativa + promessa cadastrada, as propostas atuais saem de "configurações pendentes" para "pronta para gerar".
-- Listar exatamente quais propostas ficam liberadas e quais ainda têm bloqueador real, com o motivo em linguagem clara.
+Abas principais ficam:
+1. Visão Geral
+2. Gerenciador (Meta / Google / TikTok)
+3. Aprendizado da IA  ← nova posição
+4. Chat IA Global
 
-### 6. Documentação e anti-regressão
-- Atualizar o doc do Gestor de Tráfego e o mapa de UI refletindo: motor lê da integração Meta; evento e janela são automáticos; lista enxuta de bloqueadores soft.
-- Atualizar a regra anti-regressão para impedir que Página/Pixel/Evento/Janela voltem a ser tratados como campo manual.
+(Insights e Configurações Gerais saem só nas Ondas 2 e 3, para isolar risco.)
 
-### Fora do escopo (precisa sua aprovação separada)
-- Adicionar campo "Diferenciais do produto" no cadastro de produto. Hoje continua como aviso e não bloqueia nada.
+**Aprendizado da IA**
 
-### Detalhes técnicos (opcional)
-- `creativeReadinessGate.ts`: remover bloqueio de `conversion_event_set` e `attribution_window_set` (passam a ser sempre `true` no payload). Bloqueios de claims, tom, diferenciais e restrições viram avisos exceto promessa principal e claims em categoria sensível.
-- `readinessLoader.ts`: deriva evento/janela a partir de `campaign.objective` quando `ads_meta_production_config` não tem o registro. Mantém a tabela só como override avançado.
-- `accountDefaults.ts` e `campaignProposals.ts`: fallback equivalente para o motor estratégico (mesma derivação por objetivo).
-- `MetaProductionConfigCard.tsx` e `AdsAccountConfig.tsx`: remover seções de Página/Instagram/Pixel/Evento/Janela. Manter override de UTM como avançado opcional.
+- Promovida ao topo, com lista, criar, editar, ativar, pausar, arquivar e remover.
+- Já existe pronta dentro de Configurações Gerais; apenas movida para o nível principal e ganha um cabeçalho explicando "Aqui você ajusta o que a IA aprendeu sobre o seu negócio".
+
+**Limpeza do tenant Respeite o Homem**
+
+Apaga apenas: propostas pendentes/aprovadas/publicadas/recusadas, sessões da IA, análises executadas, insights, feedbacks, conversas do chat de tráfego.
+
+Preserva: conexão Meta, conta de anúncios e suas configurações, aprendizados da IA, memória aprendida, prompt estratégico, métricas históricas reais.
+
+**Validação Onda 1**
+- Aba "Aprendizado da IA" aparece como aba principal e abre direto na lista.
+- Criar, editar, pausar e remover aprendizado funciona.
+- Tenant Respeite o Homem zera as 6 categorias acima e mantém o restante.
+- Fluxo de criar proposta → aprovar → publicar continua funcionando (smoke test rápido).
+
+---
+
+## ONDA 2 — Remover o conceito global
+
+**Entrega visual**
+
+Sai a aba "Configurações Gerais". Sai a aba "Chat IA" interna de cada conta. Sai o botão "Analisar todas as contas (global)" do Gerenciador.
+
+Abas finais:
+1. Visão Geral
+2. Gerenciador (Meta / Google / TikTok)
+3. Aprendizado da IA
+4. Chat IA Global
+
+Dentro de cada conta, as subabas continuam: Campanhas, Ações da IA, Aguardando Ação, Relatórios, ROI Real.
+
+**Migração de configurações**
+
+| Hoje em Configurações Gerais | Destino |
+|---|---|
+| Orçamento total da casa | Removido. Cada conta tem o seu. |
+| ROI alvo / ROI mínimo / Limite ROAS | Já existe por conta. Removido do global. |
+| Instruções para a IA / Modo estratégico / Divisão de funil / Autonomia | Já existem por conta. Removidos. |
+| Prompt estratégico global | Migrado para o prompt da conta (uma vez, na Onda 2). Some do nível global. |
+| UTM padrão | Removido da UI. Sistema aplica automaticamente UTMs do tenant em qualquer URL de anúncio. |
+| "Aguardando Aprovação (consolidado de todos os canais)" | Removido. Cada conta já tem sua aba "Aguardando Ação". |
+
+**Chat IA Global**
+
+Mantido. Enxerga todas as contas conectadas e responde sobre o consolidado ou sobre uma conta específica quando solicitado.
+
+**O que para de rodar**
+
+- Análise inicial global (substituída pela análise por conta na ativação da IA).
+- Trava de execução por tenant (vira por conta).
+- Toggle "IA global ligada/desligada". A IA opera ligada/desligada por conta apenas.
+
+**Validação Onda 2**
+- Configurações Gerais e Chat por conta não aparecem mais.
+- Todas as configurações importantes seguem editáveis dentro de cada conta.
+- Prompt estratégico aparece consolidado dentro de cada conta (sem perda do conteúdo que estava no global).
+- UTMs aplicadas automaticamente nas URLs de novos anúncios sem tela.
+- Fluxo proposta → aprovação → publicação íntegro em uma conta de teste.
+- Chat IA Global responde corretamente perguntas sobre uma conta específica.
+
+---
+
+## ONDA 3 — Insights viram propostas acionáveis
+
+**Comportamento novo**
+
+- A aba Insights some.
+- A IA continua coletando sinais (CTR caindo, ROI baixo, criativo saturado, gasto fora da meta) como contexto interno.
+- Esses sinais só viram item visível ao usuário quando a IA consegue formular uma ação concreta (pausar, ajustar verba, trocar criativo, criar variação, etc.). Aí nasce como proposta na aba "Aguardando Ação" da conta correspondente.
+- Sinal sem ação concreta fica como contexto que a IA usa para próximas decisões e para o Chat IA Global responder quando perguntado.
+
+**O que para de rodar**
+- Geração semanal de insights "puramente diagnósticos".
+- Botão manual "Gerar insights agora".
+
+**O que passa a rodar**
+- O ciclo da IA por conta passa a ser a única fonte de propostas. Quando detecta um sinal, decide se há ação dentro das regras estabelecidas; se sim, gera proposta; se não, apenas registra como aprendizado/contexto.
+
+**Validação Onda 3**
+- Aba Insights some sem quebrar navegação.
+- Em uma conta de teste, forçar um cenário de queda de performance: ou nasce proposta concreta em "Aguardando Ação", ou nada — nunca insight órfão.
+- Aprendizados gerados pela IA aparecem na aba "Aprendizado da IA" e o usuário consegue ajustar/remover.
+
+---
+
+## Documentação atualizada em cada onda
+
+- Especificação do Gestor de Tráfego (Layer 3): novas abas, ausência do global, novo fluxo Insights→Proposta, UTM automática, prompt estratégico só por conta.
+- Mapa de UI (Layer 3 transversal): registrar "Aprendizado da IA" como aba principal; remover "Configurações Gerais", "Insights" e "Chat IA por conta".
+- Memória de governança: vedado reintroduzir conceito de "IA global" no Gestor de Tráfego (anti-regressão).
+
+## Fora de escopo
+- Mudanças em métricas, gráficos, ROI real, relatórios.
+- Mudanças no fluxo de publicação Meta.
+- Mudanças em conexões e contas de anúncios.
+
+## Aprovação
+
+Confirma o plano? Começo pela Onda 1 (Aprendizado da IA promovido + limpeza do Respeite o Homem). Ondas 2 e 3 só após você validar a anterior.
