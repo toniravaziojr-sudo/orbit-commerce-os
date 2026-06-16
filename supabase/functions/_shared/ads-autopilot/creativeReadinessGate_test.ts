@@ -169,9 +169,11 @@ Deno.test("14 blocked sem promessa principal aprovada", () => {
   expectBlocker("brand.approved_main_promise", i);
 });
 
-Deno.test("15 blocked sem diferenciais/benefícios", () => {
+Deno.test("15 diferenciais/benefícios viraram AVISO (não bloqueia)", () => {
   const i = baseInput(); i.product.benefits = [];
-  expectBlocker("product.benefits", i);
+  const r = evaluateCreativeReadiness(i);
+  assertEquals(r.status, "ready");
+  assert(r.warnings.some((w) => w.field === "product.benefits"));
 });
 
 Deno.test("16 blocked sem logo", () => {
