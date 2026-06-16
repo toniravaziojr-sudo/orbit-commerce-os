@@ -520,6 +520,7 @@ const App = () => {
                    <Route path="/platform/tools" element={<PlatformTools />} />
                    <Route path="/platform/system-health" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformSystemHealth /></PlatformAdminGate>} />
                    <Route path="/platform/external-costs" element={<PlatformExternalCosts />} />
+                   <Route path="/platform/commercial-guidelines" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformCommercialGuidelines /></PlatformAdminGate>} />
                    <Route path="/platform/credits" element={<PlatformCredits />} />
                    <Route path="/platform/recursos-em-uso" element={<PlatformResourceUsage />} />
                    <Route path="/saude-do-sistema" element={<Navigate to="/platform/system-health" replace />} />
