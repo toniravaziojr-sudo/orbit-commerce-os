@@ -26632,7 +26632,12 @@ export type Database = {
         | "bot"
         | "resolved"
         | "spam"
-      creative_job_status: "queued" | "running" | "succeeded" | "failed"
+      creative_job_status:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
       creative_type:
         | "ugc_client_video"
         | "ugc_ai_video"
@@ -27026,7 +27031,13 @@ export const Constants = {
         "resolved",
         "spam",
       ],
-      creative_job_status: ["queued", "running", "succeeded", "failed"],
+      creative_job_status: [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+      ],
       creative_type: [
         "ugc_client_video",
         "ugc_ai_video",
