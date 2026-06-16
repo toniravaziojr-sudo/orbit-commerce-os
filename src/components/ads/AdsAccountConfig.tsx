@@ -33,13 +33,6 @@ import { useMetaIntegrationAssetsStatus } from "@/hooks/useMetaIntegrationAssets
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { AdsAIActivationDialog, AdsAIManualAnalysisButton } from "./AdsAIActivationDialog";
-import {
-  BrandComplianceFieldsBlock,
-  brandComplianceToPersist,
-  brandCompliancePersistToForm,
-  EMPTY_BRAND_COMPLIANCE,
-  type BrandComplianceValue,
-} from "./BrandComplianceFieldsBlock";
 import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 // MetaProductionConfigCard removido: ativos vêm da integração Meta ativa.
 
