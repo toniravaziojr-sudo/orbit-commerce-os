@@ -3326,6 +3326,48 @@ export type Database = {
           },
         ]
       }
+      ai_prompt_conflict_cache: {
+        Row: {
+          ad_account_id: string
+          alerts: Json
+          channel: string
+          created_at: string
+          id: string
+          ignored_keys: Json
+          model_used: string | null
+          prompt_hash: string
+          scope: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string
+          alerts?: Json
+          channel?: string
+          created_at?: string
+          id?: string
+          ignored_keys?: Json
+          model_used?: string | null
+          prompt_hash: string
+          scope: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          alerts?: Json
+          channel?: string
+          created_at?: string
+          id?: string
+          ignored_keys?: Json
+          model_used?: string | null
+          prompt_hash?: string
+          scope?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_signal_candidates: {
         Row: {
           canonical_concept: string | null

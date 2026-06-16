@@ -231,6 +231,8 @@ A partir desta versão a ordem de prioridade é fixa e o **prompt estratégico d
 | **5 (fallback)** | Templates e defaults do sistema | Aplicados apenas quando nada acima existe. |
 
 > **Regra do Prompt (v6.20 — Supremacia):** O prompt estratégico vence qualquer regra automática. Se houver conflito com configuração manual, função do produto ou diretriz de plataforma, o sistema **avisa o lojista** no bloco "Avisos do prompt estratégico" (logo acima do campo de prompt em Configurações da IA) mas **executa o que o prompt manda**. A decisão sobre seguir com o risco é do lojista. Memória de governança: `mem://constraints/strategic-prompt-supremacy`.
+>
+> **Fase 2 (v6.20.1 — Analisador ativo):** O bloco "Avisos do prompt estratégico" agora é alimentado pelo motor `ai-prompt-conflict-analyze`, que cruza o prompt salvo com (a) diretrizes comerciais ativas das plataformas e (b) funções/categorias declaradas dos produtos do tenant. Resultados ficam em `ai_prompt_conflict_cache` com chave `(tenant, scope, channel, ad_account_id, prompt_hash)` — análise é executada uma vez por hash de prompt para evitar custo recorrente. Avisos têm severidade `informativo`/`atencao`/`critico`, origem `platform_guideline`/`product_function`/`product_category`/`compliance` e podem ser ignorados individualmente pelo lojista (persistido em `ignored_keys`). Nenhum aviso bloqueia salvamento, geração ou execução.
 
 #### Campos Globais
 

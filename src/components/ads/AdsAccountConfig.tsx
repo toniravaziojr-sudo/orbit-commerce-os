@@ -40,6 +40,7 @@ import {
   EMPTY_BRAND_COMPLIANCE,
   type BrandComplianceValue,
 } from "./BrandComplianceFieldsBlock";
+import { StrategicPromptAlerts } from "./StrategicPromptAlerts";
 // MetaProductionConfigCard removido: ativos vêm da integração Meta ativa.
 
 interface AdAccount {
@@ -139,6 +140,7 @@ function AccountConfigCard({
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
   const [showActivationDialog, setShowActivationDialog] = useState(false);
+  const [promptAnalysisTrigger, setPromptAnalysisTrigger] = useState(0);
 
   // H.4.0 — override de marca por conta de anúncios (vazio = herda do global)
   const initialBrandOverride = (config?.chat_overrides as any)?.brand_overrides ?? null;
@@ -191,6 +193,7 @@ function AccountConfigCard({
   const validation = isAccountConfigComplete(currentFormConfig);
 
   const handleSave = () => {
+    setPromptAnalysisTrigger((n) => n + 1);
     // Persiste override de marca apenas se houver algum campo preenchido — vazio = herda do global.
     const brandPersist = brandComplianceToPersist(brandOverride);
     const brandHasContent =
@@ -496,13 +499,15 @@ function AccountConfigCard({
             Prompt Estratégico
           </Label>
 
-          {/* Supremacia do Prompt Estratégico — espaço reservado para avisos de conflito (Fase 2) */}
-          <Alert className="border-primary/30 bg-primary/5 py-2">
-            <Info className="h-3.5 w-3.5 text-primary" />
-            <AlertDescription className="text-[11px] text-foreground/80">
-              Seu prompt estratégico tem <strong>prioridade máxima</strong>. O sistema avisa aqui sobre conflitos com políticas das plataformas ou com o cadastro dos produtos, mas <strong>não bloqueia</strong> — a decisão é sua.
-            </AlertDescription>
-          </Alert>
+          {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
+          <StrategicPromptAlerts
+            tenantId={tenantId}
+            scope="account"
+            channel={channel}
+            adAccountId={accountId}
+            prompt={instructions}
+            analysisTrigger={promptAnalysisTrigger}
+          />
 
           <div className="flex gap-2">
             <Textarea
