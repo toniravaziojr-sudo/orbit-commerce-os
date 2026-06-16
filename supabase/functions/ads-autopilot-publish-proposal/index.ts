@@ -372,6 +372,16 @@ Deno.serve(async (req) => {
           ads_created: createdAdIds,
           scheduled_start_time: scheduling.start_time || null,
           scheduling_mode: scheduling.start_time ? "scheduled_next_window" : "immediate",
+          events: [
+            ...(Array.isArray(lifecycle.events) ? lifecycle.events : []),
+            ...uploadEvents.map(ev => ({
+              kind: ev.mode === "url" ? "adimage_upload_fallback_url" : "adimage_upload_binary",
+              ts: ev.ts,
+              creative_index: ev.creative_index,
+              image_hash: ev.image_hash,
+              ...(ev.fallback_reason ? { fallback_reason: ev.fallback_reason } : {}),
+            })),
+          ],
         },
       },
       rollback_data: {
