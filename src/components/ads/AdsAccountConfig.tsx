@@ -478,6 +478,22 @@ function AccountConfigCard({
             Prompt Estratégico
           </Label>
 
+          <Alert className="border-primary/30 bg-primary/5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-sm font-semibold">
+              Este prompt é a fonte de verdade desta conta
+            </AlertTitle>
+            <AlertDescription className="text-xs space-y-1 mt-1.5">
+              <p>
+                O texto abaixo prevalece sobre o prompt global, sobre defaults do sistema e sobre as
+                diretrizes da plataforma. Para refinar o tom, evitar termos ou reforçar promessas,
+                ajuste o prompt e dê <strong>feedback nas propostas</strong> — a IA aprende e
+                incorpora ao contexto desta marca.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+
           {/* Supremacia do Prompt Estratégico — Fase 2: avisos de conflito reais */}
           <StrategicPromptAlerts
             tenantId={tenantId}
