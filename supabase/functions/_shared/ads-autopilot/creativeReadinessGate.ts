@@ -122,6 +122,10 @@ export interface ProductInput {
   benefits: string[]; // diferenciais/benefícios principais
   is_physical: boolean;
   primary_image_url: string | null; // imagem do produto
+  /** Contexto livre que a IA usa para inferir categoria e cruzar com diretrizes globais. */
+  ai_product_type: string | null;
+  ai_main_function: string | null;
+  /** Compatibilidade com cadastros antigos — não é mais usado como bloqueador. */
   regulatory_category: "cosmetic_hair" | "supplement" | "other" | null;
   commercial_restrictions: string | null;
   no_additional_restrictions_confirmed: boolean;
