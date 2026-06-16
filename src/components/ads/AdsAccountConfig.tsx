@@ -150,7 +150,7 @@ function AccountConfigCard({
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      setBrandOverride(brandCompliancePersistToForm((config.chat_overrides as any)?.brand_overrides ?? null));
+      
     }
   }, [config]);
 
