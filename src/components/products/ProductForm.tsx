@@ -121,6 +121,11 @@ const productSchema = z.object({
   regulatory_conama: z.string().max(100).nullable().optional(),
   warranty_type: z.enum(['vendor', 'factory', 'none', '']).nullable().optional(),
   warranty_duration: z.string().max(50).nullable().optional(),
+
+  // H.4.0 — Prontidão para geração de criativos (compliance comercial)
+  regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
+  commercial_restrictions: z.string().max(2000).nullable().optional(),
+  no_additional_restrictions_confirmed: z.boolean().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -312,6 +317,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       regulatory_conama: (product as any)?.regulatory_info?.conama ?? '',
       warranty_type: (product as any)?.warranty_type ?? '',
       warranty_duration: (product as any)?.warranty_duration ?? '',
+
+      // H.4.0 — Prontidão para geração de criativos
+      regulatory_category: (product as any)?.regulatory_category ?? '',
+      commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
+      no_additional_restrictions_confirmed:
+        (product as any)?.no_additional_restrictions_confirmed ?? false,
     },
   });
 
@@ -543,7 +554,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, ...restData } = data;
+        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ...restData } = data;
         await updateProduct.mutateAsync({ 
           id: product.id, 
           ...restData,
@@ -554,6 +565,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           },
           warranty_type: wt || null,
           warranty_duration: wd || null,
+          regulatory_category: rc || null,
+          commercial_restrictions: cr || null,
+          no_additional_restrictions_confirmed: nrc ?? false,
         } as any);
         
         // Update related products and variants
@@ -603,9 +617,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           },
           warranty_type: data.warranty_type || null,
           warranty_duration: data.warranty_duration || null,
+          regulatory_category: data.regulatory_category || null,
+          commercial_restrictions: data.commercial_restrictions || null,
+          no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
-        });
+        } as any);
 
         // Save pending data using the new product ID
         const productResult = result as { id: string } | undefined;
