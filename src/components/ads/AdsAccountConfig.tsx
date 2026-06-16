@@ -581,6 +581,9 @@ function AccountConfigCard({
           </p>
         </div>
 
+        {/* H.4.0 — Override de marca por conta (vazio herda do global) */}
+        <BrandComplianceFieldsBlock value={brandOverride} onChange={setBrandOverride} mode="override" />
+
         {/* Validation warnings */}
         {!validation.valid && (
           <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 space-y-1">
