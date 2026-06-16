@@ -317,12 +317,12 @@ export function evaluateCreativeReadiness(
     });
   }
   if (arrEmpty(input.product.benefits)) {
-    push({
+    warn({
       field: "product.benefits", label_pt: "Diferenciais/benefícios",
-      reason_pt: "Liste pelo menos um diferencial ou benefício principal.",
+      reason_pt: "Sem diferenciais cadastrados a IA usa só a descrição. Recomenda-se listar pelo menos um benefício.",
       where_to_fix: "Cadastro de produto > Diferenciais",
       action_label: "Editar diferenciais",
-      severity: "blocker", node_type: "product", node_id: input.product.id,
+      severity: "warning", node_type: "product", node_id: input.product.id,
     });
   }
   if (!input.product.regulatory_category) {
