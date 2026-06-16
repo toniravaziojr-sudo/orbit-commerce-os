@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const tenantId: string | undefined = body.tenant_id;
     const scope: "global" | "account" = body.scope === "account" ? "account" : "global";
-    const channel: string | null = body.channel ?? null;
-    const adAccountId: string | null = body.ad_account_id ?? null;
+    const channel: string = (body.channel ?? "").toString();
+    const adAccountId: string = (body.ad_account_id ?? "").toString();
     const prompt: string = (body.prompt ?? "").toString();
     const action: "analyze" | "toggle_ignore" = body.action === "toggle_ignore" ? "toggle_ignore" : "analyze";
 
