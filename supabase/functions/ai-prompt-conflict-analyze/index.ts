@@ -86,11 +86,10 @@ Deno.serve(async (req) => {
     }
 
     // ── Cache hit ─────────────────────────────────────────────────────────
-    const cacheQuery = admin.from("ai_prompt_conflict_cache").select("*")
-      .eq("tenant_id", tenantId).eq("scope", scope).eq("prompt_hash", promptHash);
-    if (channel) cacheQuery.eq("channel", channel); else cacheQuery.is("channel", null);
-    if (adAccountId) cacheQuery.eq("ad_account_id", adAccountId); else cacheQuery.is("ad_account_id", null);
-    const { data: cached } = await cacheQuery.maybeSingle();
+    const { data: cached } = await admin.from("ai_prompt_conflict_cache").select("*")
+      .eq("tenant_id", tenantId).eq("scope", scope)
+      .eq("channel", channel).eq("ad_account_id", adAccountId)
+      .eq("prompt_hash", promptHash).maybeSingle();
     if (cached) {
       return json(200, { success: true, prompt_hash: promptHash, alerts: cached.alerts ?? [], ignored_keys: cached.ignored_keys ?? [], cached: true });
     }
