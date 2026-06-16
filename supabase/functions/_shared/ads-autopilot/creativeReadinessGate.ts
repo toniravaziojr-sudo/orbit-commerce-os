@@ -329,30 +329,29 @@ export function evaluateCreativeReadiness(
       severity: "warning", node_type: "product", node_id: input.product.id,
     });
   }
-  if (!input.product.regulatory_category) {
+  // Contexto da IA: tipo do produto + função principal (texto livre).
+  // Sem isso a IA não consegue inferir categoria nem cruzar com diretrizes globais.
+  if (isBlank(input.product.ai_product_type)) {
     push({
-      field: "product.regulatory_category", label_pt: "Categoria regulatória",
-      reason_pt: "Defina a categoria regulatória/comercial do produto.",
-      where_to_fix: "Cadastro de produto > Categoria regulatória",
-      action_label: "Definir categoria",
+      field: "product.ai_product_type",
+      label_pt: "Tipo do produto",
+      reason_pt: "Descreva o tipo do produto (ex.: Shampoo, Suplemento) para a IA entender o contexto.",
+      where_to_fix: "Cadastro de produto > Contexto para a IA",
+      action_label: "Descrever tipo",
       severity: "blocker", node_type: "product", node_id: input.product.id,
     });
-  } else if (SENSITIVE_CATEGORIES.has(input.product.regulatory_category)) {
-    const hasProductRestriction =
-      !isBlank(input.product.commercial_restrictions) ||
-      input.product.no_additional_restrictions_confirmed;
-    if (!hasProductRestriction) {
-      push({
-        field: "product.commercial_restrictions",
-        label_pt: "Restrições do produto",
-        reason_pt:
-          "Categoria sensível: declare restrições ou confirme explicitamente que não há restrições adicionais.",
-        where_to_fix: "Cadastro de produto > Restrições",
-        action_label: "Declarar restrições",
-        severity: "blocker", node_type: "product", node_id: input.product.id,
-      });
-    }
   }
+  if (isBlank(input.product.ai_main_function)) {
+    push({
+      field: "product.ai_main_function",
+      label_pt: "Função principal do produto",
+      reason_pt: "Descreva a função principal (ex.: para queda capilar) para a IA inferir a categoria.",
+      where_to_fix: "Cadastro de produto > Contexto para a IA",
+      action_label: "Descrever função",
+      severity: "blocker", node_type: "product", node_id: input.product.id,
+    });
+  }
+
 
   // Identidade visual mínima: logo + paleta + imagem confiável
   if (isBlank(input.brand.logo_url)) {
