@@ -527,6 +527,26 @@ export function StructuredProposalModal({
                 <span>{approveBlockedReason}</span>
               </div>
             )}
+            {showH3AccountConfigNotice && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Existem {cpAccountConfigPending.length} pendência(s) de configuração da conta Meta
+                  ({cpAccountConfigPending.slice(0, 3).map((p) => p.label_pt).join(", ")}
+                  {cpAccountConfigPending.length > 3 ? "…" : ""}).
+                  Elas <strong>não bloqueiam esta aprovação</strong>, mas bloquearão a revisão final/publicação.
+                </span>
+              </div>
+            )}
+            {isCampaignProposal && !approveBlocked && (
+              <div className="flex items-start gap-2 rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                <span>
+                  Aprovar estrutura <strong>não gera criativos</strong> e <strong>não publica</strong>.
+                  A geração de criativos será iniciada manualmente na próxima etapa.
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
