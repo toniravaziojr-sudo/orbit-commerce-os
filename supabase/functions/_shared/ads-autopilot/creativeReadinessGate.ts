@@ -211,26 +211,9 @@ export function evaluateCreativeReadiness(
       severity: "blocker", node_type: "platform", node_id: "meta",
     });
   }
-  if (!input.meta.conversion_event_set) {
-    push({
-      field: "meta.conversion_event",
-      label_pt: "Evento de conversão",
-      reason_pt: "Defina o evento de conversão padrão antes de gerar criativos.",
-      where_to_fix: "Integrações > Meta > Configuração de produção",
-      action_label: "Definir evento",
-      severity: "blocker", node_type: "platform", node_id: "meta",
-    });
-  }
-  if (!input.meta.attribution_window_set) {
-    push({
-      field: "meta.attribution_window",
-      label_pt: "Janela de atribuição",
-      reason_pt: "Defina a janela de atribuição antes de gerar criativos.",
-      where_to_fix: "Integrações > Meta > Configuração de produção",
-      action_label: "Definir janela",
-      severity: "blocker", node_type: "platform", node_id: "meta",
-    });
-  }
+  // Evento de conversão e Janela de atribuição: derivados automaticamente pelo
+  // loader a partir do objetivo da campanha + padrão Meta. Não há campo manual
+  // nem bloqueio. Mantidos no contrato apenas para retrocompatibilidade.
 
   // ---- Bloco Campanha / proposta -----------------------------------------
   if (isBlank(input.proposal.utm_template)) {
