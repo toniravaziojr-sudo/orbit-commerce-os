@@ -40,6 +40,7 @@ import {
   EMPTY_BRAND_COMPLIANCE,
   type BrandComplianceValue,
 } from "./BrandComplianceFieldsBlock";
+import { MetaProductionConfigCard } from "./MetaProductionConfigCard";
 
 interface AdAccount {
   id: string;
