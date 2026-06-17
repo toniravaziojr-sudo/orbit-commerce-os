@@ -86,7 +86,7 @@ export function AdsAIActivationDialog({
             Como você quer ativar a IA?
           </DialogTitle>
           <DialogDescription>
-            Escolha o modo de ativação. Você pode rodar uma análise inicial agora
+            Escolha o modo de ativação. Você pode rodar uma análise estratégica agora
             ou apenas ligar a IA para seguir o fluxo normal.
           </DialogDescription>
         </DialogHeader>
