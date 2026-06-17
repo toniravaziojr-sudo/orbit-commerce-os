@@ -75,7 +75,8 @@ async function writeLearningDirect(service: any, params: {
       title,
       description: params.description,
       category: params.category,
-      status: params.source_type === "manual" ? "active" : "suggested",
+      // Onda 3.3 — Aprendizados nascem ATIVOS por padrão.
+      status: "active",
       source_type: params.source_type,
       source_action_id: params.source_action_id,
       source_feedback_id: params.source_feedback_id,
