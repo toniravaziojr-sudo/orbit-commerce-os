@@ -82,6 +82,43 @@ function fail(error: string, status = 200) {
   });
 }
 
+// Vigia preguiçoso: marca como falha qualquer execução "running" deste tenant
+// parada há mais de STUCK_RUN_MS. Evita travamento eterno quando a função morre
+// por tempo limite sem conseguir atualizar o status.
+const STUCK_RUN_MS = 8 * 60 * 1000;
+async function expireStuckRuns(supabase: any, tenantId: string) {
+  try {
+    const cutoff = new Date(Date.now() - STUCK_RUN_MS).toISOString();
+    await supabase
+      .from("ads_ai_analysis_runs")
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message: "Execução interrompida por tempo limite — vigia automático",
+      })
+      .eq("tenant_id", tenantId)
+      .eq("status", "running")
+      .lt("started_at", cutoff);
+  } catch (e) {
+    console.warn(`[${VERSION}] expireStuckRuns failed`, (e as any)?.message || e);
+  }
+}
+
+// EdgeRuntime.waitUntil tipagem
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
+function runInBackground(p: Promise<unknown>) {
+  try {
+    // @ts-ignore — EdgeRuntime existe no runtime Supabase
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(p);
+      return;
+    }
+  } catch (_e) { /* fallback abaixo */ }
+  // Fallback (sem EdgeRuntime): apenas detacha; engole erro pra não derrubar.
+  p.catch((e) => console.error(`[${VERSION}] background error`, e?.message || e));
+}
+
 interface RunAccountInput {
   supabase: any;
   tenantId: string;
