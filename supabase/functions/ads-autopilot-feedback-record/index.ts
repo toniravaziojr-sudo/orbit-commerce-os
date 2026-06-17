@@ -218,7 +218,9 @@ Deno.serve(async (req) => {
     const observation = (input.observation || "").trim();
     const reasonText = (input.reason_text || "").trim();
     const candidate = [reasonText, observation].filter(Boolean).join(" — ").slice(0, 200);
-    const meaningful = candidate.length >= 12 || input.should_become_preference === true;
+    const meaningful = input.decision === "needs_revision"
+      ? candidate.length >= 8
+      : candidate.length >= 12 || input.should_become_preference === true;
     if (meaningful) {
       const decisionToSource: Record<string, string> = {
         approved: "approval",
@@ -265,11 +267,63 @@ Deno.serve(async (req) => {
         );
         if (le) {
           console.warn("[ads-autopilot-feedback-record] learnings write failed:", le?.message);
+          const direct = await writeLearningDirect(service, {
+            tenant_id: input.tenant_id,
+            title: titleFromContext,
+            description: observation || reasonText || null,
+            category: categoryGuess,
+            source_type: sourceType,
+            source_action_id: input.action_id || null,
+            source_feedback_id: inserted.id,
+            metadata: {
+              decision: input.decision,
+              reason_codes: input.reason_codes,
+              ads_platform: input.ads_platform,
+              fallback: "feedback_record_direct_write_after_invoke_error",
+            },
+          });
+          learning_action = (direct as any)?.action || null;
         } else {
           learning_action = (lr as any)?.action || null;
+          if (!learning_action || (lr as any)?.success === false) {
+            const direct = await writeLearningDirect(service, {
+              tenant_id: input.tenant_id,
+              title: titleFromContext,
+              description: observation || reasonText || null,
+              category: categoryGuess,
+              source_type: sourceType,
+              source_action_id: input.action_id || null,
+              source_feedback_id: inserted.id,
+              metadata: {
+                decision: input.decision,
+                reason_codes: input.reason_codes,
+                ads_platform: input.ads_platform,
+                fallback: "feedback_record_direct_write_after_empty_response",
+                original_response: lr || null,
+              },
+            });
+            learning_action = (direct as any)?.action || learning_action;
+          }
         }
       } catch (e: any) {
         console.warn("[ads-autopilot-feedback-record] learnings write threw:", e?.message);
+        const direct = await writeLearningDirect(service, {
+          tenant_id: input.tenant_id,
+          title: titleFromContext,
+          description: observation || reasonText || null,
+          category: categoryGuess,
+          source_type: sourceType,
+          source_action_id: input.action_id || null,
+          source_feedback_id: inserted.id,
+          metadata: {
+            decision: input.decision,
+            reason_codes: input.reason_codes,
+            ads_platform: input.ads_platform,
+            fallback: "feedback_record_direct_write_after_throw",
+            original_error: e?.message || String(e),
+          },
+        });
+        learning_action = (direct as any)?.action || null;
       }
     }
   } catch (lerr: any) {
