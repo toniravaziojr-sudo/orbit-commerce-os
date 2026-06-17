@@ -646,11 +646,29 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     };
   }
 
-  // Auto-cura: catálogo dinâmico sem catálogo Meta detectado → injetar pending_dependency
-  // determinística para evitar bloqueio do plano inteiro por falha do LLM em declarar a pendência.
-  // Mesmo padrão usado acima para `customer_audience_not_detected`.
+  // Auto-cura A: rebaixar `catalog_*` quando o estrategista NÃO preencheu nenhum
+  // campo de catálogo. Isso indica que a intenção real era prospecção/retargeting
+  // comum (vídeo/imagem estática) e o prefixo `catalog_` foi um erro de rotulagem
+  // do LLM. Sem essa auto-cura, o plano inteiro caía em "incompleto".
+  const csIncoming = (action.catalog_setup && typeof action.catalog_setup === "object")
+    ? action.catalog_setup
+    : null;
+  const csHasAnyField = csIncoming
+    ? Object.keys(csIncoming).some((k) => csIncoming[k] !== undefined && csIncoming[k] !== null && csIncoming[k] !== "")
+    : false;
+  let campaignTypeFinal = campaignType;
+  let demotedFromCatalog = false;
+  if (isCatalogType(campaignType) && !csHasAnyField) {
+    if (campaignType === "catalog_prospecting") campaignTypeFinal = "prospecting";
+    else if (campaignType === "catalog_retargeting") campaignTypeFinal = "retargeting";
+    demotedFromCatalog = true;
+  }
+
+  // Auto-cura B: catálogo dinâmico sem catálogo Meta detectado → injetar
+  // pending_dependency determinística para evitar bloqueio do plano inteiro
+  // por falha do LLM em declarar a pendência.
   let catalogSetup = action.catalog_setup;
-  if (isCatalogType(campaignType) && !preflight.catalog_availability?.catalog_detected) {
+  if (isCatalogType(campaignTypeFinal) && !preflight.catalog_availability?.catalog_detected) {
     const cs = (catalogSetup && typeof catalogSetup === "object") ? catalogSetup : {};
     if (cs.pending_dependency !== "catalog_not_connected") {
       catalogSetup = {
@@ -662,13 +680,14 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
 
   return {
     ...action,
-    campaign_type: campaignType,
+    campaign_type: campaignTypeFinal,
     campaign_intent: campaignIntent,
     funnel_stage: funnelStage,
     affected_funnel: affectedFunnel,
     funnel: action?.funnel ?? affectedFunnel,
     audience_exclusions: audienceExclusions,
     ...(catalogSetup !== undefined ? { catalog_setup: catalogSetup } : {}),
+    ...(demotedFromCatalog ? { campaign_type_auto_demoted_from_catalog: true } : {}),
   };
 }
 
