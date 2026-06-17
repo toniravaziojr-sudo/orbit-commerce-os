@@ -5064,7 +5064,44 @@ Deno.serve(async (req) => {
       return ok({ trigger, tenants_processed: results.length, results });
     }
 
-    // Manual invocation (with optional account filter)
+    // Manual invocation (with optional account filter). For long strategic analysis,
+    // return immediately and let the strategist close ads_ai_analysis_runs itself.
+    if (body.run_async === true && body.analysis_run_id && trigger === "start") {
+      runInBackground((async () => {
+        try {
+          const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
+          try {
+            await chargeAfter({
+              tenantId,
+              serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+              units: { tokens_in: 30000, tokens_out: 8000 },
+              jobId: crypto.randomUUID(),
+              feature: "ads-autopilot-strategist",
+              metadata: { trigger, target_account_id: targetAccountId, async: true, analysis_run_id: body.analysis_run_id },
+            });
+          } catch (e) { console.warn("[ads-autopilot-strategist] async charge skipped", String(e)); }
+          console.log(`[ads-autopilot-strategist][${VERSION}] async start done`, { tenantId, targetAccountId, result });
+        } catch (e: any) {
+          console.error(`[ads-autopilot-strategist][${VERSION}] async start failed`, e?.message || e);
+          try {
+            await supabase
+              .from("ads_ai_analysis_runs")
+              .update({
+                status: "failed",
+                finished_at: new Date().toISOString(),
+                diagnosis_summary: "Não foi possível concluir a análise estratégica.",
+                strategy_summary: "",
+                error_message: classifyStrategistError(e),
+              })
+              .eq("id", body.analysis_run_id);
+          } catch (closeErr: any) {
+            console.error(`[ads-autopilot-strategist][${VERSION}] async failure close failed`, closeErr?.message || closeErr);
+          }
+        }
+      })());
+      return ok({ accepted: true, status: "running", analysis_run_id: body.analysis_run_id });
+    }
+
     const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
     try {
       await chargeAfter({
