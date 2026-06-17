@@ -71,7 +71,7 @@ async function attachObservationIfEligible(
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v1.50.0"; // Onda I (perf): poda inteligente de campanhas/adsets/ads no prompt + insights 365d account-scoped
 // ===================
 
 const corsHeaders = {
@@ -968,7 +968,13 @@ async function buildDeepHistoricalFromLocalData(
 
     // Fetch all entities from local cache (already synced)
     // Paginated fetch helper — PostgREST caps at 1000 rows per request (v1.42.0)
-    async function fetchAllPaginated(table: string, selectCols: string, filters: Record<string, string>, orderCol?: string) {
+    async function fetchAllPaginated(
+      table: string,
+      selectCols: string,
+      filters: Record<string, string>,
+      orderCol?: string,
+      opts?: { gte?: { col: string; value: string }; inFilter?: { col: string; values: string[] } },
+    ) {
       const PAGE_SIZE = 1000;
       const allRows: any[] = [];
       let offset = 0;
@@ -976,6 +982,8 @@ async function buildDeepHistoricalFromLocalData(
       while (hasMore) {
         let q = supabase.from(table).select(selectCols);
         for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+        if (opts?.gte) q = q.gte(opts.gte.col, opts.gte.value);
+        if (opts?.inFilter && opts.inFilter.values.length > 0) q = q.in(opts.inFilter.col, opts.inFilter.values);
         if (orderCol) q = q.order(orderCol, { ascending: false });
         q = q.range(offset, offset + PAGE_SIZE - 1);
         const { data, error } = await q;
@@ -1000,18 +1008,30 @@ async function buildDeepHistoricalFromLocalData(
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
     ]);
 
-    // Fetch ALL insights with pagination — fixes PostgREST 1000-row cap (v1.42.0)
+
+    // Onda I (perf): limita o histórico profundo à janela útil (365 dias) e filtra
+    // por meta_campaign_id da conta (evita carregar insights de outras contas do
+    // mesmo tenant). Para contas com 1 ano+ de operação isso reduz drasticamente
+    // o payload sem perder contexto estratégico relevante.
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const accountCampIds = ((campaignsRes.data as any[]) || [])
+      .map((c: any) => c.meta_campaign_id)
+      .filter(Boolean);
     const allInsights = await fetchAllPaginated(
       "meta_ad_insights",
       "meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start",
       { tenant_id: tenantId },
-      "date_start"
+      "date_start",
+      {
+        gte: { col: "date_start", value: oneYearAgo },
+        ...(accountCampIds.length > 0 ? { inFilter: { col: "meta_campaign_id", values: accountCampIds } } : {}),
+      },
     );
 
     const campaigns = campaignsRes.data || [];
     const adsets = adsetsRes.data || [];
     const ads = adsRes.data || [];
-    console.log(`[ads-autopilot-strategist][${VERSION}] Insights fetched: ${allInsights.length} rows (paginated)`);
+    console.log(`[ads-autopilot-strategist][${VERSION}] Insights fetched: ${allInsights.length} rows (paginated, last 365d, account-scoped)`);
 
     if (campaigns.length === 0) {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No campaigns in local DB for ${adAccountId}`);
@@ -2112,36 +2132,71 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   const fmtNum = (v: any) => v != null ? String(v) : "-";
   const fmtPct = (v: any) => v != null ? Number(v).toFixed(2) + "%" : "-";
   
-  // CAMPAIGNS - ALL of them in compact format (v1.35.0: added Freq, CPM, PageView, ATC, IC)
+  // CAMPAIGNS — Onda I (perf): poda inteligente para evitar prompts gigantes.
+  // Contas grandes (200+ campanhas pausadas históricas) faziam Round 1 estourar
+  // o teto de tempo da resposta da IA. Mantém TODAS as ativas + top 40 pausadas
+  // por relevância (conversões 30d → spend 30d → ordem natural). As demais
+  // pausadas viram uma linha AGREGADO_PAUSADAS com totais para não esconder
+  // contexto e poupar tokens.
   const campaignHeaders = "ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | Freq30d | CPM30d | PV30d | ATC30d | IC30d | ROAS7d | CPA7d | Spend7d | Conv7d | CTR7d | Freq7d";
-  const campaignRows = campaignData.map((c: any) => {
+  const PAUSED_CAMPAIGN_DETAIL_LIMIT = 40;
+  const activeCampaignData = campaignData.filter((c: any) => (c.status || "").toUpperCase() === "ACTIVE");
+  const pausedCampaignData = campaignData.filter((c: any) => (c.status || "").toUpperCase() !== "ACTIVE");
+  const pausedSorted = [...pausedCampaignData].sort((a: any, b: any) => {
+    const ac = (a.perf_30d?.conversions ?? 0) - (b.perf_30d?.conversions ?? 0);
+    if (ac !== 0) return -ac;
+    const as = (a.perf_30d?.spend ?? 0) - (b.perf_30d?.spend ?? 0);
+    return -as;
+  });
+  const pausedDetailed = pausedSorted.slice(0, PAUSED_CAMPAIGN_DETAIL_LIMIT);
+  const pausedSummarized = pausedSorted.slice(PAUSED_CAMPAIGN_DETAIL_LIMIT);
+  const displayedCampaigns = [...activeCampaignData, ...pausedDetailed];
+  const rowFor = (c: any) => {
     const p30 = c.perf_30d || {};
     const p7 = c.perf_7d || {};
     return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p30.frequency)} | ${fmtCents(p30.cpm)} | ${fmtNum(p30.page_views)} | ${fmtNum(p30.atc)} | ${fmtNum(p30.ic)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)} | ${fmtPct(p7.ctr)} | ${fmtNum(p7.frequency)}`;
-  }).join("\n");
+  };
+  let campaignRows = displayedCampaigns.map(rowFor).join("\n");
+  if (pausedSummarized.length > 0) {
+    const agg = pausedSummarized.reduce((acc: any, c: any) => {
+      const p30 = c.perf_30d || {};
+      acc.spend += p30.spend || 0;
+      acc.conv += p30.conversions || 0;
+      return acc;
+    }, { spend: 0, conv: 0 });
+    campaignRows += `\nAGREGADO_PAUSADAS | (${pausedSummarized.length} pausadas não detalhadas — top performers acima) | PAUSED | - | - | - | - | - | ${agg.spend.toFixed(2)} | ${agg.conv} | - | - | - | - | - | - | - | - | - | - | - | -`;
+  }
 
-  // ADSETS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  // ADSETS — Onda I (perf): ativos + pausados apenas das campanhas detalhadas,
+  // limitado a 30 (antes 50) para reduzir tokens sem perder contexto relevante.
   const activeCampaignIds = new Set(activeCampaigns.map((c: any) => c.meta_campaign_id || c.id));
+  const detailedCampaignIds = new Set(displayedCampaigns.map((c: any) => c.id));
   const activeAdsets = accountAdsets.filter((as: any) => activeCampaignIds.has(as.meta_campaign_id));
-  const pausedAdsets = accountAdsets.filter((as: any) => !activeCampaignIds.has(as.meta_campaign_id));
-  // Keep top 50 paused adsets by name relevance (most recent usually)
-  const selectedPausedAdsets = pausedAdsets.slice(0, 50);
+  const pausedAdsets = accountAdsets.filter((as: any) =>
+    !activeCampaignIds.has(as.meta_campaign_id) && detailedCampaignIds.has(as.meta_campaign_id)
+  );
+  const selectedPausedAdsets = pausedAdsets.slice(0, 30);
   const filteredAdsets = [...activeAdsets, ...selectedPausedAdsets];
-  
+
   const adsetHeaders = "ID | Nome | Status | EffStatus | CampaignID | BudgetDia | BudgetLife | OptGoal | BillingEvt | BidCents";
-  const adsetRows = filteredAdsets.map((as: any) => 
+  const adsetRows = filteredAdsets.map((as: any) =>
     `${as.meta_adset_id} | ${as.name} | ${as.status} | ${as.effective_status} | ${as.meta_campaign_id} | ${fmtCents(as.daily_budget_cents)} | ${fmtCents(as.lifetime_budget_cents)} | ${as.optimization_goal || "-"} | ${as.billing_event || "-"} | ${fmtNum(as.bid_amount_cents)}`
   ).join("\n");
 
-  // ADS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  // ADS — Onda I (perf): só ads de adsets/campanhas ativos OU de campanhas pausadas detalhadas.
   const activeAdsetIds = new Set(activeAdsets.map((as: any) => as.meta_adset_id));
+  const detailedAdsetIds = new Set(filteredAdsets.map((as: any) => as.meta_adset_id));
   const activeAds = accountAds.filter((ad: any) => activeAdsetIds.has(ad.meta_adset_id) || activeCampaignIds.has(ad.meta_campaign_id));
-  const pausedAds = accountAds.filter((ad: any) => !activeAdsetIds.has(ad.meta_adset_id) && !activeCampaignIds.has(ad.meta_campaign_id));
-  const selectedPausedAds = pausedAds.slice(0, 50);
+  const pausedAds = accountAds.filter((ad: any) =>
+    !activeAdsetIds.has(ad.meta_adset_id) &&
+    !activeCampaignIds.has(ad.meta_campaign_id) &&
+    (detailedAdsetIds.has(ad.meta_adset_id) || detailedCampaignIds.has(ad.meta_campaign_id))
+  );
+  const selectedPausedAds = pausedAds.slice(0, 30);
   const filteredAds = [...activeAds, ...selectedPausedAds];
-  
+
   const adHeaders = "ID | Nome | Status | EffStatus | AdSetID | CampaignID";
-  const adRows = filteredAds.map((ad: any) => 
+  const adRows = filteredAds.map((ad: any) =>
     `${ad.meta_ad_id} | ${ad.name} | ${ad.status} | ${ad.effective_status} | ${ad.meta_adset_id} | ${ad.meta_campaign_id}`
   ).join("\n");
 
@@ -2167,7 +2222,7 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
     return `\n## APRENDIZADOS ATIVOS DA IA (${ll.length}) — REGRAS APROVADAS PELO USUÁRIO, RESPEITE:\n${lines}\n`;
   })();
 
-  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
+  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaignData.length} ativas, ${pausedCampaignData.length} pausadas — exibidas: ${displayedCampaigns.length} detalhadas${pausedSummarized.length ? ` + ${pausedSummarized.length} pausadas agregadas em AGREGADO_PAUSADAS` : ""})
 ${campaignHeaders}
 ${campaignRows}
 ${learningsBlock}

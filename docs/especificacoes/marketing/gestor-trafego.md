@@ -4353,3 +4353,20 @@ O Editor Estruturado (`two_step_v1 strategy`) **continua** usando `ads-autopilot
 
 Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; original vira `superseded`; nova versão vinculada como filha; feedback estruturado e aprendizado registrados.
 
+
+---
+
+## Onda I — Performance da Análise Estratégica (v1.50.0)
+
+**Contexto.** Contas com 200+ campanhas históricas (mesmo todas pausadas) estouravam o tempo de resposta da IA em Round 1 do estrategista (>150s → 504). A causa era o tamanho do prompt: a lista completa de campanhas/conjuntos/anúncios + 6.000+ linhas de histórico inflavam o payload de entrada do modelo.
+
+**O que mudou.**
+
+1. **Poda inteligente de campanhas no prompt.** O bloco `## CAMPANHAS` agora detalha 100% das ativas + até 40 pausadas escolhidas por relevância (mais conversões 30d, depois mais gasto 30d). As demais pausadas viram uma linha agregada `AGREGADO_PAUSADAS` com totais — a IA continua sabendo que existem, mas não recebe linha-a-linha.
+2. **Conjuntos e anúncios escopados.** Conjuntos pausados caem para no máximo 30 (antes 50) e só de campanhas detalhadas. Anúncios pausados seguem a mesma regra.
+3. **Histórico profundo limitado a 365 dias e filtrado por conta.** O fetch de `meta_ad_insights` (usado em `buildDeepHistoricalFromLocalData`) agora filtra por `date_start >= hoje - 365d` e por `meta_campaign_id` da conta analisada. Antes carregava todos os insights do tenant inteiro, sem corte temporal.
+4. **Cabeçalho informativo.** O título do bloco `## CAMPANHAS` declara explicitamente quantas foram detalhadas e quantas estão no agregado, para a IA não inferir cobertura parcial como ausência.
+
+**O que NÃO mudou.** Bloco `## DADOS HISTÓRICOS COMPLETOS DA CONTA` (top campanhas/adsets/ads por conversões) segue idêntico. Toda decisão estratégica continua baseada em dados reais. A análise continua rodando em segundo plano (`EdgeRuntime.waitUntil`) sem teto de tempo da resposta HTTP.
+
+**Resultado esperado.** Round 1 da análise inicial volta a caber no tempo de resposta da IA mesmo em contas grandes; tempo de execução cai proporcionalmente ao tamanho da conta.
