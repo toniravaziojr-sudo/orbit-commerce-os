@@ -1183,37 +1183,115 @@ function AdSection({
    Átomos visuais
    =========================================================================== */
 
-function TreeItem({
-  icon, label, active, onClick, indent,
-}: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; indent?: boolean }) {
+function WizardStepper({
+  steps,
+  currentIdx,
+  onSelect,
+}: {
+  steps: { id: StepId; label: string; icon: typeof Eye }[];
+  currentIdx: number;
+  onSelect: (idx: number) => void;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "shrink-0 md:w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors",
-        indent && "md:pl-6",
-        active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-      )}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-      {active && <ChevronRight className="h-3 w-3 ml-auto hidden md:inline" />}
-    </button>
+    <div className="border-b border-border/40 bg-muted/20 px-3 py-2 overflow-x-auto shrink-0">
+      <ol className="flex items-center gap-1 min-w-max">
+        {steps.map((s, i) => {
+          const Icon = s.icon;
+          const isActive = i === currentIdx;
+          const isDone = i < currentIdx;
+          return (
+            <li key={s.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onSelect(i)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground font-semibold"
+                    : isDone
+                      ? "bg-primary/10 text-primary hover:bg-primary/15"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                )}
+                aria-current={isActive ? "step" : undefined}
+              >
+                <span
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold",
+                    isActive
+                      ? "bg-primary-foreground/20"
+                      : isDone
+                        ? "bg-primary/20"
+                        : "bg-muted/60",
+                  )}
+                >
+                  {isDone ? <Check className="h-3 w-3" /> : i + 1}
+                </span>
+                <Icon className="h-3.5 w-3.5" />
+                <span className="whitespace-nowrap">{s.label}</span>
+              </button>
+              {i < steps.length - 1 && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
-function TreeGroupLabel({ label }: { label: string }) {
+function ItemChips({
+  label,
+  items,
+  activeIdx,
+  onSelect,
+}: {
+  label: string;
+  items: string[];
+  activeIdx: number;
+  onSelect: (idx: number) => void;
+}) {
   return (
-    <p className="hidden md:block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2.5 mt-3 mb-1">
-      {label}
-    </p>
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-2.5 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
+        {label}:
+      </span>
+      {items.map((name, i) => {
+        const isActive = i === activeIdx;
+        return (
+          <button
+            key={`${label}-${i}`}
+            type="button"
+            onClick={() => onSelect(i)}
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-xs transition-colors",
+              isActive
+                ? "bg-primary text-primary-foreground font-semibold"
+                : "bg-background text-muted-foreground border border-border/40 hover:text-foreground",
+            )}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function TreeEmpty({ label }: { label: string }) {
-  return <p className="hidden md:block text-[10px] text-muted-foreground/60 italic px-3 py-1">{label}</p>;
+function PublishStepPlaceholder() {
+  return (
+    <div className="rounded-md border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center">
+      <Send className="h-6 w-6 mx-auto text-muted-foreground/60 mb-2" />
+      <p className="text-sm font-medium mb-1">Etapa de publicação</p>
+      <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+        Esta etapa será habilitada em breve. Aqui você terá o resumo final da campanha
+        e o botão para publicar diretamente na plataforma escolhida. Por enquanto,
+        a aprovação continua sendo feita pelo botão no rodapé.
+      </p>
+    </div>
+  );
 }
+
 
 function Block({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
