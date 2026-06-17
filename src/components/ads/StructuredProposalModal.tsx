@@ -1190,34 +1190,142 @@ function CampaignSection({
   );
 }
 
-function AdSetSection({ adSet, blockers }: { adSet: AdSetNode | null; blockers: GateIssue[] }) {
+function AdSetSection({
+  adSet,
+  blockers,
+  editable = false,
+  onPatch,
+}: {
+  adSet: AdSetNode | null;
+  blockers: GateIssue[];
+  editable?: boolean;
+  onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(adSet?.name || "");
+  const [draftAge, setDraftAge] = useState(adSet?.age_range || "");
+  const [draftGender, setDraftGender] = useState(adSet?.gender || "all");
+  const [draftLocation, setDraftLocation] = useState(adSet?.location || "");
+  const [draftBudget, setDraftBudget] = useState(
+    adSet?.daily_budget_cents != null ? (adSet.daily_budget_cents / 100).toFixed(2) : "",
+  );
+  const [saving, setSaving] = useState(false);
+
   if (!adSet) return <p className="text-sm text-muted-foreground">Conjunto não encontrado.</p>;
   const placements = adSet.placements.map((p) => tr("placement", p) || p);
   const pendingFields = new Set(blockers.map((b) => b.field));
   const isPending = (field: string) => pendingFields.has(field);
+
+  const startEdit = () => {
+    setDraftName(adSet.name || "");
+    setDraftAge(adSet.age_range || "");
+    setDraftGender(adSet.gender || "all");
+    setDraftLocation(adSet.location || "");
+    setDraftBudget(adSet.daily_budget_cents != null ? (adSet.daily_budget_cents / 100).toFixed(2) : "");
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!onPatch) return;
+    const patch: Record<string, any> = {};
+    if (draftName.trim() && draftName.trim() !== (adSet.name || "")) patch.name = draftName.trim();
+    if (draftAge.trim() !== (adSet.age_range || "")) patch.age_range = draftAge.trim() || null;
+    if (draftGender !== (adSet.gender || "all")) patch.gender = draftGender;
+    if (draftLocation.trim() !== (adSet.location || "")) patch.location = draftLocation.trim() || null;
+    const b = Number(String(draftBudget).replace(",", "."));
+    if (Number.isFinite(b) && b > 0) {
+      const cents = Math.round(b * 100);
+      if (cents !== adSet.daily_budget_cents) patch.daily_budget_cents = cents;
+    }
+    if (Object.keys(patch).length === 0) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    await onPatch(patch);
+    setSaving(false);
+    setEditing(false);
+  };
+
   return (
     <div className="space-y-4">
       <Block title={adSet.name || "Conjunto"} icon={<Layers className="h-3.5 w-3.5 text-primary" />}>
-        <DetailGrid>
-          <Detail label="Etapa do funil" value={tr("funnel", adSet.funnel_stage)} />
-          <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} pendingField={isPending("adset.0.audience_type")} />
-          <Detail label="Idade" value={adSet.age_range} pendingField={isPending(`adset.${blockers[0]?.node_id ?? 0}.age_range`) || (!adSet.age_range && blockers.some(b => b.field.endsWith(".age_range")))} />
-          <Detail label="Gênero" value={adSet.gender} pendingField={!adSet.gender && blockers.some(b => b.field.endsWith(".gender"))} />
-          <Detail label="Região" value={adSet.location} pendingField={!adSet.location && blockers.some(b => b.field.endsWith(".location"))} />
-          <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} pendingField={!adSet.optimization_goal && blockers.some(b => b.field.endsWith(".optimization_goal"))} />
-          <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} pendingField={(!adSet.conversion_event || adSet.conversion_event === "requires_user_input") && blockers.some(b => b.field.endsWith(".conversion_event"))} />
-          <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} pendingField={placements.length === 0 && blockers.some(b => b.field.endsWith(".placements"))} />
-          <Detail label="Orçamento" value={formatBudgetBRL(adSet.daily_budget_cents)} />
-          {adSet.targeting_summary && <Detail label="Resumo de segmentação" value={adSet.targeting_summary} fullWidth />}
-          {adSet.schedule && (adSet.schedule.start || adSet.schedule.end) && (
-            <Detail
-              label="Período de veiculação"
-              value={`${adSet.schedule.start || "—"} até ${adSet.schedule.end || "—"}`}
-              fullWidth
-            />
-          )}
-        </DetailGrid>
+        {editable && !editing && (
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 text-xs">
+              <Pencil className="h-3 w-3 mr-1" /> Editar
+            </Button>
+          </div>
+        )}
+        {editable && editing ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <Label className="text-[11px] text-muted-foreground">Nome do conjunto</Label>
+              <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Faixa etária (ex.: 25-55)</Label>
+              <Input value={draftAge} onChange={(e) => setDraftAge(e.target.value)} placeholder="25-55" className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Gênero</Label>
+              <Select value={draftGender} onValueChange={setDraftGender}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="male">Masculino</SelectItem>
+                  <SelectItem value="female">Feminino</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-[11px] text-muted-foreground">Região / localização</Label>
+              <Input value={draftLocation} onChange={(e) => setDraftLocation(e.target.value)} placeholder="Brasil, São Paulo, ..." className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Orçamento diário (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={draftBudget}
+                onChange={(e) => setDraftBudget(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2 flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <DetailGrid>
+            <Detail label="Etapa do funil" value={tr("funnel", adSet.funnel_stage)} />
+            <Detail label="Tipo de público" value={tr("audience_type", adSet.audience_type)} pendingField={isPending("adset.0.audience_type")} />
+            <Detail label="Idade" value={adSet.age_range} pendingField={isPending(`adset.${blockers[0]?.node_id ?? 0}.age_range`) || (!adSet.age_range && blockers.some(b => b.field.endsWith(".age_range")))} />
+            <Detail label="Gênero" value={adSet.gender} pendingField={!adSet.gender && blockers.some(b => b.field.endsWith(".gender"))} />
+            <Detail label="Região" value={adSet.location} pendingField={!adSet.location && blockers.some(b => b.field.endsWith(".location"))} />
+            <Detail label="Meta de otimização" value={tr("optimization_goal", adSet.optimization_goal)} pendingField={!adSet.optimization_goal && blockers.some(b => b.field.endsWith(".optimization_goal"))} />
+            <Detail label="Evento de conversão" value={tr("conversion_event", adSet.conversion_event)} pendingField={(!adSet.conversion_event || adSet.conversion_event === "requires_user_input") && blockers.some(b => b.field.endsWith(".conversion_event"))} />
+            <Detail label="Posicionamentos" value={placements.length ? placements.join(", ") : null} pendingField={placements.length === 0 && blockers.some(b => b.field.endsWith(".placements"))} />
+            <Detail label="Orçamento" value={formatBudgetBRL(adSet.daily_budget_cents)} />
+            {adSet.targeting_summary && <Detail label="Resumo de segmentação" value={adSet.targeting_summary} fullWidth />}
+            {adSet.schedule && (adSet.schedule.start || adSet.schedule.end) && (
+              <Detail
+                label="Período de veiculação"
+                value={`${adSet.schedule.start || "—"} até ${adSet.schedule.end || "—"}`}
+                fullWidth
+              />
+            )}
+          </DetailGrid>
+        )}
       </Block>
+
 
       {(adSet.inclusions.length > 0 || adSet.exclusions.length > 0 || adSet.customer_exclusion_label) && (
         <Block title="Inclusões e exclusões" icon={<Users className="h-3.5 w-3.5 text-primary" />}>
