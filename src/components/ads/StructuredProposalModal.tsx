@@ -587,6 +587,34 @@ export function StructuredProposalModal({
                 </span>
               </div>
             )}
+
+            {/* Voltar / Avançar — navegação do passo a passo (Fase 1) */}
+            {!overviewOnly && (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
+                  disabled={stepIdx === 0 || isApproving || !!rejectingId}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Voltar
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Etapa {stepIdx + 1} de {WIZARD_STEPS.length} — {WIZARD_STEPS[stepIdx].label}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
+                  disabled={stepIdx >= WIZARD_STEPS.length - 1 || isApproving || !!rejectingId}
+                >
+                  Avançar
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
