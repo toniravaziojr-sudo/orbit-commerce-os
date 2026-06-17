@@ -240,6 +240,17 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   const displayCount = campaigns.length + orphanAdsetGroups.size;
 
   if (displayCount === 0) {
+    if (adjustingId) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-3" />
+          <p className="text-sm font-medium">Ajustando proposta…</p>
+          <p className="text-xs text-muted-foreground/70 mt-1 max-w-[320px]">
+            A IA está gerando uma nova versão com seu feedback. Isso pode levar alguns minutos.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/40 mb-3">
