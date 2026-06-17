@@ -370,15 +370,16 @@ function normalizeProspectingAdsetCustomerExclusion(adset: any, preflight: Strat
       ? currentExcludedCustomAudiences
       : [...currentExcludedCustomAudiences, { id: customerId, name: customerName || "Clientes" }];
 
+    const { pending_dependency: _pendingDep, ...restExclusion } = currentExclusion;
     return {
       ...adset,
       audience_exclusions: {
-        ...currentExclusion,
+        ...restExclusion,
         customers: true,
         customer_audience_detected: true,
         customer_audience_id: customerId,
         customer_audience_name: customerName,
-        reason: String(currentExclusion?.reason || "").trim() || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais.",
+        reason: String(restExclusion?.reason || "").trim() || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais.",
       },
       excluded_audience_ids: normalizedExcludedIds,
       targeting: {
@@ -386,6 +387,7 @@ function normalizeProspectingAdsetCustomerExclusion(adset: any, preflight: Strat
         excluded_custom_audiences: normalizedExcludedCustomAudiences,
       },
     };
+
   }
 
   return {
