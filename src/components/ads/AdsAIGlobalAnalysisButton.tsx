@@ -29,6 +29,7 @@ interface Props {
 export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const { run, hasRunning, latestRun } = useAdsAIAnalysisRun({
     platform: "meta",
     scope: "global",
@@ -45,8 +46,16 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
     const payload = resp?.data || resp;
     if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
       setRecentOpen(true);
+    } else if (!payload?.skipped) {
+      setProgressOpen(true);
     }
   };
+
+  useEffect(() => {
+    if (progressOpen && !hasRunning && !run.isPending) {
+      setProgressOpen(false);
+    }
+  }, [progressOpen, hasRunning, run.isPending]);
 
   const summary = latestRun?.diagnosis_summary;
 
