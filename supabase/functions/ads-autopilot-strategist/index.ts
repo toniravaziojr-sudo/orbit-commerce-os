@@ -2678,7 +2678,7 @@ ${config.user_instructions || "Nenhuma."}
 - Keywords: Use EXACT e PHRASE para maior controle. BROAD apenas com dados suficientes.
 - Quality Score: Monitorar e otimizar (>7 bom, <5 ação necessária)
 - NUNCA delete campanhas — apenas pause
-- Responda SEMPRE em Português do Brasil
+- IDIOMA OBRIGATÓRIO: TODOS os textos livres em **Português do Brasil**, linguagem simples e executiva. PROIBIDO inglês, anglicismos ou jargão técnico em qualquer campo exibido ao lojista.
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
 ${context.products.slice(0, 20).map((p: any) => {
