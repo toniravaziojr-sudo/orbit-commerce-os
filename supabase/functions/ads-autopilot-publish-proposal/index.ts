@@ -306,9 +306,10 @@ Deno.serve(async (req) => {
           destinationUrl = u.toString();
         } catch { /* ignore */ }
 
-        const copyText = creative.planned.copy || creative.planned.primary_text || "Conheça nosso produto.";
-        const headline = creative.planned.headline || campaign.name || "Confira";
-        const ctaType = creative.planned.cta || identity.default_cta || "SHOP_NOW";
+        const ov2 = overridesMap[String(creative.creative_index)] || {};
+        const copyText = ov2.copy || creative.planned.copy || creative.planned.primary_text || "Conheça nosso produto.";
+        const headline = ov2.headline || creative.planned.headline || campaign.name || "Confira";
+        const ctaType = ov2.cta || creative.planned.cta || identity.default_cta || "SHOP_NOW";
 
         const creativeBody = {
           name: `[AI] Creative ${creative.creative_index + 1} - ${new Date().toISOString().split("T")[0]}`,
