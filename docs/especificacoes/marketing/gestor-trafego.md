@@ -956,6 +956,7 @@ Todo plano que possa virar aprovável deve passar por:
 - retorna `approval_status='incomplete'` quando o contrato ficar incompleto;
 - anexa `action_data.contract`, `action_data.approval_status` e `action_data.metadata` para UI + servidor lerem a mesma fonte;
 - anexa `campaign_account_snapshot` com status real/effective_status/allowed_actions por campanha existente.
+- **auto-cura de vínculo com campanha existente** (jun/2026): em ações operacionais sobre campanha existente (`pause_campaign`, `adjust_budget`, `scale`, `optimize`, `maintain`, `monitor`, `reduce_budget`, `reactivate`, `request_review`), o guard tenta completar `existing_campaign_id` automaticamente quando a IA preenche apenas o nome da campanha (`existing_campaign_name` / `campaign_name`). A resolução só ocorre quando há **match único e inequívoco** contra `preflight.active_campaigns_summary`. Em caso de nome ausente ou duplicado, o bloqueio `existing_campaign_required` permanece e o plano fica como **Plano incompleto**. Ações resolvidas automaticamente são marcadas com `existing_campaign_id_auto_resolved=true` para auditoria. Complementarmente, a ferramenta `strategic_plan` da IA Estrategista (Meta) passou a exigir explicitamente os campos `existing_campaign_id` (ID literal da coluna ID da tabela CAMPANHAS) e `existing_campaign_name` (nome exato) em toda ação sobre campanha existente.
 
 #### Metadata obrigatória do plano salvo
 
