@@ -260,7 +260,9 @@ export function StructuredProposalModal({
   const { approveStrategy } = useAdsPendingActions();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
-  const [selected, setSelected] = useState<NodeId>("overview");
+  const [stepIdx, setStepIdx] = useState(0);
+  const [adsetIdx, setAdsetIdx] = useState(0);
+  const [adIdx, setAdIdx] = useState(0);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
 
 
