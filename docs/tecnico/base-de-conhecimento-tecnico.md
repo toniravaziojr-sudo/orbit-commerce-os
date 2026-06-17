@@ -1387,6 +1387,16 @@ Reagendado com **anon key hardcoded** no header — mesmo padrão dos jobs saud�
 - Padrão obrigatório: anon key hardcoded no header (validação real do papel acontece dentro da edge function).
 - Referência canônica: `scheduler-tick-job`.
 
+## 2026-06-17 — Ads: ajuste gerava plano válido com tarja residual e sem aprendizado
+
+**Sintoma:** após pedir ajuste em um plano estratégico, a nova versão era criada, mas a UI continuava exibindo "Plano incompleto" e a aba "Aprendizado da IA" ficava vazia.
+
+**Causa raiz:** o fluxo de ajuste tinha dois efeitos colaterais frágeis: (1) a nova versão recebia vínculo e lifecycle depois da validação, mas esse pós-processamento não recanonizava todos os sinais que a UI usa para decidir aprovabilidade; (2) o feedback dependia exclusivamente de uma chamada interna para gravar o aprendizado. Quando essa chamada não confirmava a escrita, o feedback existia, mas o aprendizado não aparecia.
+
+**Regra derivada:** fluxo de ajuste de proposta deve ser transacional do ponto de vista do usuário: feedback útil precisa virar aprendizado visível antes da resposta, e a nova versão precisa sair com espelho canônico único de aprovação. Contrato válido + sem pendência obrigatória nunca pode coexistir com metadado interno de plano inválido.
+
+**Aplicação obrigatória:** o registrador de feedback deve ter fallback direto de escrita/reforço de aprendizado. O orquestrador de ajuste deve normalizar `status`, aprovação interna, validação e aprovabilidade depois de adicionar vínculo de revisão/lifecycle.
+
 ---
 
 ## 2026-04-28 — Login OAuth (Google) não registrava em `auth_login_attempts`
