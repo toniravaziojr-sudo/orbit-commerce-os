@@ -346,16 +346,13 @@ export function runCreateCampaignQualityGate(
     details.cold_budget_cents = budget;
   }
 
-  // 8) Frente 1 — Pública Fria deve excluir o público de Clientes/Compradores.
-  //    Requer:
-  //      a) `input.customerAudience` informado (chamador resolveu o público do sistema);
-  //      b) se found=true, seu meta_audience_id presente em excluded_audience_ids;
-  //      c) se found=false, bloqueia com pré-requisito ausente.
-  //    Fail-safe: se chamador não informar customerAudience, não bloqueia
-  //    (preserva compatibilidade com callers antigos), mas registra detalhe.
+  // 8) Frente 1 (revisada 2026-06-17) — Exclusão de Clientes em Público Frio.
+  //    Mudou de bloqueio para RECOMENDAÇÃO. A IA continua sempre propondo a
+  //    exclusão em campanhas frias (regra do strategist). Aqui apenas registramos
+  //    o status para observabilidade e aprendizado — nunca empurramos para
+  //    reason_codes (não bloqueia aprovação nem publicação).
   if (isCold(args)) {
     const ca = input.customerAudience;
-    // Onda G.5 — Override de teste criativo: intenção declarada + justificativa.
     const overrideReasonRaw = (args as any).exclusion_override_reason;
     const overrideReason = typeof overrideReasonRaw === "string" ? overrideReasonRaw.trim() : "";
     const isCreativeTestOverride =
@@ -371,26 +368,19 @@ export function runCreateCampaignQualityGate(
     } else if (ca === undefined || ca === null) {
       details.customer_audience_check = "skipped_no_resolver_input";
     } else if (!ca.found || !ca.meta_audience_id) {
-      reason_codes.push("cold_audience_requires_customer_exclusion");
-      details.customer_audience_status = "missing_in_account";
+      // Antes bloqueava. Agora apenas registra como observação.
+      details.customer_audience_status = "missing_in_account_advisory";
       details.customer_audience_hint =
-        "Crie ou sincronize o público de Clientes antes de propor campanhas frias.";
+        "Recomendado: sincronizar o público de Clientes para excluir compradores em campanhas frias.";
     } else {
       const excluded = (args as any).excluded_audience_ids as Array<any> | undefined;
       const excludedIds = Array.isArray(excluded)
         ? excluded.map((e) => String(e?.id ?? e)).filter(Boolean)
         : [];
       const has = excludedIds.includes(String(ca.meta_audience_id));
-      if (!has) {
-        reason_codes.push("cold_audience_requires_customer_exclusion");
-        details.customer_audience_status = "exclusion_not_applied";
-        details.customer_audience_id = ca.meta_audience_id;
-        details.customer_audience_name = ca.audience_name || null;
-      } else {
-        details.customer_audience_status = "exclusion_applied";
-        details.customer_audience_id = ca.meta_audience_id;
-        details.customer_audience_name = ca.audience_name || null;
-      }
+      details.customer_audience_status = has ? "exclusion_applied" : "exclusion_removed_by_user";
+      details.customer_audience_id = ca.meta_audience_id;
+      details.customer_audience_name = ca.audience_name || null;
     }
   }
 

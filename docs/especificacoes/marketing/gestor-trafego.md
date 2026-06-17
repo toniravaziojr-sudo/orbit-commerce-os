@@ -1003,9 +1003,17 @@ Regras do snapshot:
 - campanha ativa aceita `maintain`, `reduce_budget`, `pause_campaign`, `monitor` ou `request_review`;
 - status desconhecido só aceita `request_review`.
 
-#### Regra obrigatória de exclusão de clientes em frio/prospecção
+#### Exclusão de clientes — padrão da IA, override do usuário (atualizado 2026-06-17)
 
-Quando o público de clientes/compradores existe no preflight, toda ação de aquisição/prospecção passa a carregar no nível da ação **e de cada adset frio/prospecção**:
+**Regra de negócio:**
+
+- **Público frio / topo de funil / prospecção:** a IA **sempre** propõe a exclusão do público de Clientes/Compradores como padrão de estruturação. Quando o público existe na conta Meta, a exclusão é auto-injetada na publicação.
+- **Override do usuário:** se o usuário remover ou ajustar a exclusão durante a revisão da proposta, o sistema **respeita a decisão e publica normalmente**. Não há bloqueio.
+- **Quando o público de Clientes não está sincronizado na conta:** vira recomendação informativa, **não bloqueia**. A campanha fria publica sem exclusão e o usuário fica ciente de que o público precisa ser sincronizado para a exclusão funcionar nas próximas.
+- **Remarketing e demais públicos:** a IA decide livremente excluir ou não, conforme a estratégia da campanha (ex.: "visitantes 30d excluindo clientes" para captar engajados que ainda não compraram; "compradores 90d sem exclusão" para upsell). Nunca obrigatório.
+- **Aprendizado:** quando o usuário remove a exclusão padrão em uma campanha fria, o sistema registra o override no log da ação. O ciclo de aprendizado da IA usa o histórico real publicado por conta para ajustar futuras propostas a esse tenant.
+
+**Payload padrão da IA em conjunto frio (quando o público existe):**
 
 ```json
 "audience_exclusions": {
@@ -1017,16 +1025,12 @@ Quando o público de clientes/compradores existe no preflight, toda ação de aq
 }
 ```
 
-Quando o público não existe, a ação e cada adset frio/prospecção ficam com pendência explícita:
+**Status registrado no Quality Gate (apenas observabilidade, nunca bloqueia):**
 
-```json
-"audience_exclusions": {
-  "customers": false,
-  "customer_audience_detected": false,
-  "pending_dependency": "customer_audience_not_detected",
-  "reason": "Campanha de aquisição/prospecção exige público de clientes/compradores para exclusão antes da aprovação."
-}
-```
+- `exclusion_applied` — usuário manteve a exclusão padrão.
+- `exclusion_removed_by_user` — usuário removeu durante a revisão (override consciente).
+- `missing_in_account_advisory` — público de Clientes não sincronizado na conta (recomendação informativa).
+- `exclusion_overridden_creative_test` — campanha de teste criativo com justificativa explícita.
 
 #### Fail-closed
 
@@ -1038,6 +1042,8 @@ Quando o público não existe, a ação e cada adset frio/prospecção ficam com
 - **não gera propostas filhas**;
 - **não habilita** o botão `Aprovar plano`;
 - planos antigos/legados continuam visíveis para recusa/arquivo, mas não ficam válidos por migração automática.
+
+**Nota:** ausência de exclusão de clientes em campanha fria **não** é mais critério de fail-closed (revisado em 2026-06-17). Veja a seção "Exclusão de clientes — padrão da IA, override do usuário" acima.
 
 #### Approval endpoint (revalidação obrigatória)
 
@@ -1051,20 +1057,13 @@ Antes de aprovar um plano, `ads-autopilot-execute-approved`:
 
 Se o contrato continuar inválido, o endpoint responde com erro em PT-BR e não gera propostas filhas.
 
-#### Preservação da exclusão nas filhas
-
-- A aprovação do plano só avança quando a exclusão canônica por adset estiver preservada no payload validado.
-- Na execução de `create_adset`, o executor Meta revalida público frio e injeta/bloqueia a exclusão de clientes antes da chamada externa.
-- Se o público de clientes não existir naquele momento, o conjunto falha em modo seguro e a ação não é executada.
-
-#### Renderização obrigatória no card e no modal
+#### Renderização no card e no modal
 
 Card compacto, modal estruturado e conteúdo do plano leem a mesma fonte canônica e mostram, para ações frias/prospecção:
 
-- **Exclui clientes/compradores**; ou
-- **Pendência: público de clientes não detectado**.
+- **Exclui clientes/compradores** (quando a exclusão está aplicada); ou
+- **Sem exclusão de clientes** (quando o usuário removeu ou o público não está sincronizado — informativo, não bloqueante).
 
-Essa indicação não depende mais de texto livre em `target_audience`.
 
 **Componentes:**
 - `StructuredProposalModal.tsx` — modal único, aceita `overviewOnly`, `titleOverride`, `approveLabelOverride`.
