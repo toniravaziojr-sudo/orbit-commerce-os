@@ -567,7 +567,7 @@ export function StructuredProposalModal({
                     adSets={adSets}
                     ads={ads}
                     channel={action.channel}
-                    onPublish={handleApprove}
+                    onPublish={isCampaignProposal ? confirmApprove : handleApprove}
                     isPublishing={isApproving}
                     publishBlocked={approveBlocked}
                     publishBlockedReason={approveBlockedReason}
@@ -613,12 +613,11 @@ export function StructuredProposalModal({
                 </span>
               </div>
             )}
-            {isCampaignProposal && !approveBlocked && (
+            {isCampaignProposal && !approveBlocked && stepIdx < WIZARD_STEPS.length - 1 && (
               <div className="flex items-start gap-2 rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
                 <span>
-                  Aprovar estrutura <strong>não gera criativos</strong> e <strong>não publica</strong>.
-                  A geração de criativos será iniciada manualmente na próxima etapa.
+                  Revise cada etapa. A campanha só vai ao ar quando você clicar em <strong>Publicar na Meta</strong> na última etapa — esta ação substitui a aprovação.
                 </span>
               </div>
             )}
