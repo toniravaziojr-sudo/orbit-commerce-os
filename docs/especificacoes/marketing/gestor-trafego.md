@@ -74,6 +74,15 @@ Quando o usuário clica em **Ajustar proposta** e escreve sua sugestão, a IA é
 - A sugestão escrita pelo usuário **sempre** é persistida como aprendizado, independente de o motor gerar nova versão ou não.
 - Modo `revision` no Estrategista **deve** manter `tool_choice = required` no round 1. Reverter isso reabre o bug de "ajuste sem resposta".
 
+## Onda 3.2 (2026-06-17) — Dialog primário permanece atrás do secundário
+
+Ao abrir uma ação secundária a partir do modal completo de proposta — **Ajustar proposta**, **Recusar proposta** ou confirmação de **Aprovar plano/campanha** — o modal primário da proposta deve permanecer aberto no fundo. Fechar ou cancelar o secundário deve devolver o usuário ao mesmo modal primário, sem exigir reabertura manual da proposta.
+
+**Anti-regressão**
+
+- Botões secundários dentro do modal completo não podem fechar o modal primário antes de abrir o dialog seguinte.
+- O fechamento do modal primário só deve ocorrer por ação explícita de fechar a própria proposta ou após conclusão real do fluxo principal, quando a lista for atualizada.
+
 
 
 
@@ -3602,7 +3611,7 @@ Antes, o card da fila tinha 3 ações (Aprovar e gerar criativos / Ajustar / Rej
 3. **Rodapé fixo do modal** — único lugar onde Aprovar / Ajustar / Recusar aparecem:
    - **Aprovar estratégia e gerar criativos** (Etapa 1) ou **Aprovar** (legacy). Bloqueado se Quality Gate ou Product/Funnel Fit Gate negarem.
    - **Ajustar proposta** — comportamento varia por tipo:
-       - **Plano Estratégico** (`strategic_plan`) e ações sem hierarquia → fecha o modal e abre o diálogo de **sugestão por texto livre**; ao confirmar, dispara a edge function canônica `ads-autopilot-request-adjustment` (ver §15). A IA gera uma nova proposta com base na descrição do usuário, **sem** rejeitar o plano original.
+        - **Plano Estratégico** (`strategic_plan`) e ações sem hierarquia → abre o diálogo de **sugestão por texto livre** por cima do modal primário, sem fechar a proposta no fundo; ao cancelar/fechar o secundário, o usuário volta para a proposta já aberta. Ao confirmar, dispara a edge function canônica `ads-autopilot-request-adjustment` (ver §15). A IA gera uma nova proposta com base na descrição do usuário, **sem** rejeitar o plano original.
        - **Etapa 1 do two-step** (estratégia com estrutura) → abre o **Editor Estruturado** (Frente 4.3) reorganizado em Campanha / Conjunto / Anúncio / Feedback. Esse caminho usa `ads-autopilot-revise-proposal` (inalterado).
    - **Recusar proposta** — reaproveita o fluxo "Não quero" / "Quero outra proposta" existente. Recusa NUNCA é equivalente a ajuste (ver §15).
 
