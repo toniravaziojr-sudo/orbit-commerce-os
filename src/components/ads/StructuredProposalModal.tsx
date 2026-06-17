@@ -1033,7 +1033,27 @@ function OverviewSection({
   );
 }
 
-function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNode; channel: string; identity?: any }) {
+function CampaignSection({
+  campaign,
+  channel,
+  identity,
+  editable = false,
+  onPatch,
+}: {
+  campaign: CampaignNode;
+  channel: string;
+  identity?: any;
+  editable?: boolean;
+  onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(campaign.name || "");
+  const [draftBudget, setDraftBudget] = useState(
+    campaign.daily_budget_cents != null ? (campaign.daily_budget_cents / 100).toFixed(2) : "",
+  );
+  const [draftStatus, setDraftStatus] = useState(campaign.planned_status || "PAUSED");
+  const [saving, setSaving] = useState(false);
+
   const budgetMode = campaign.budget_mode || null;
   const budgetModeLabel = budgetMode === "CBO"
     ? "Orçamento na campanha (CBO)"
@@ -1041,18 +1061,99 @@ function CampaignSection({ campaign, channel, identity }: { campaign: CampaignNo
       ? "Orçamento nos conjuntos (ABO)"
       : null;
   const budgetLabel = budgetMode === "ABO" ? "Total planejado (soma dos conjuntos)" : "Orçamento diário";
+
+  const startEdit = () => {
+    setDraftName(campaign.name || "");
+    setDraftBudget(campaign.daily_budget_cents != null ? (campaign.daily_budget_cents / 100).toFixed(2) : "");
+    setDraftStatus(campaign.planned_status || "PAUSED");
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!onPatch) return;
+    const patch: Record<string, any> = {};
+    if (draftName.trim() && draftName.trim() !== (campaign.name || "")) patch.name = draftName.trim();
+    if (draftStatus && draftStatus !== campaign.planned_status) patch.planned_status = draftStatus;
+    if (budgetMode !== "ABO") {
+      const b = Number(String(draftBudget).replace(",", "."));
+      if (Number.isFinite(b) && b > 0) {
+        const cents = Math.round(b * 100);
+        if (cents !== campaign.daily_budget_cents) patch.daily_budget_cents = cents;
+      }
+    }
+    if (Object.keys(patch).length === 0) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    await onPatch(patch);
+    setSaving(false);
+    setEditing(false);
+  };
+
   return (
     <div className="space-y-4">
-      <Block title="Configurações da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}>
-        <DetailGrid>
-          <Detail label="Nome" value={campaign.name} />
-          <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
-          <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
-          <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
-          <Detail label="Tipo de orçamento" value={budgetModeLabel || tr("budget_type", campaign.budget_type)} />
-          <Detail label={budgetLabel} value={budgetMode === "ABO" && !campaign.daily_budget_cents ? "Definido nos conjuntos" : formatBudgetBRL(campaign.daily_budget_cents)} />
-          <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
-        </DetailGrid>
+      <Block
+        title="Configurações da campanha"
+        icon={<Megaphone className="h-3.5 w-3.5 text-primary" />}
+      >
+        {editable && !editing && (
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 text-xs">
+              <Pencil className="h-3 w-3 mr-1" /> Editar
+            </Button>
+          </div>
+        )}
+        {editable && editing ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <Label className="text-[11px] text-muted-foreground">Nome da campanha</Label>
+              <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} className="h-8 text-sm" />
+            </div>
+            {budgetMode !== "ABO" && (
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Orçamento diário (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={draftBudget}
+                  onChange={(e) => setDraftBudget(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+            )}
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Status inicial</Label>
+              <Select value={draftStatus} onValueChange={setDraftStatus}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAUSED">Pausada</SelectItem>
+                  <SelectItem value="ACTIVE">Ativa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2 flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <DetailGrid>
+            <Detail label="Nome" value={campaign.name} />
+            <Detail label="Objetivo" value={tr("objective", campaign.objective)} />
+            <Detail label="Canal" value={tr("platform", campaign.platform || channel)} />
+            <Detail label="Modo de compra" value={tr("buying_type", campaign.buying_type)} />
+            <Detail label="Tipo de orçamento" value={budgetModeLabel || tr("budget_type", campaign.budget_type)} />
+            <Detail label={budgetLabel} value={budgetMode === "ABO" && !campaign.daily_budget_cents ? "Definido nos conjuntos" : formatBudgetBRL(campaign.daily_budget_cents)} />
+            <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
+          </DetailGrid>
+        )}
       </Block>
       {identity && (
         <Block title="Identidade e rastreamento da conta" icon={<Target className="h-3.5 w-3.5 text-primary" />}>
