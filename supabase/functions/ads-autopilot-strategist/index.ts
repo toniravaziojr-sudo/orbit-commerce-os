@@ -71,7 +71,7 @@ async function attachObservationIfEligible(
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v1.50.0"; // Onda I (perf): poda inteligente de campanhas/adsets/ads no prompt + insights 365d account-scoped
 // ===================
 
 const corsHeaders = {
