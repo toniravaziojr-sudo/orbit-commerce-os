@@ -80,6 +80,46 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ============================================================================
+// PT-BR Language Guard (Onda 3.4 — 2026-06-17)
+// Texto livre exibido ao lojista (reasoning) NUNCA pode sair em inglês.
+// Se o detector pegar inglês, substituímos por um fallback PT-BR já existente
+// no próprio payload (rationale/diagnosis). Custo zero — sem chamada de IA.
+// ============================================================================
+const EN_STOPWORDS = new Set([
+  "the","and","for","with","this","that","from","your","you","are","was","were",
+  "have","has","but","not","new","testing","testing,","focus","converting","previous",
+  "visitors","added","products","cart","did","complete","purchases","leveraging",
+  "retargeting","enhance","customer","conversion","rates","redeploying","budget",
+  "priority","due","its","importance","business","strategy","acquiring","customers",
+  "maximizing","sales","effectiveness","creative","variations","identify","most",
+  "impactful","messaging","visuals","product","determine","scaling","potential",
+]);
+
+function looksEnglish(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const t = text.toLowerCase();
+  // Se tem qualquer caractere acentuado típico do PT-BR, assume PT.
+  if (/[áàâãéêíóôõúüç]/i.test(t)) return false;
+  const words = t.replace(/[^a-z\s]/g, " ").split(/\s+/).filter(w => w.length >= 3);
+  if (words.length < 6) return false;
+  let enHits = 0;
+  for (const w of words) if (EN_STOPWORDS.has(w)) enHits++;
+  // 2+ stopwords inglesas e nenhum acento → trata como inglês.
+  return enHits >= 2;
+}
+
+function ensurePortuguese(primary: string, fallbacks: Array<string | undefined | null>): string {
+  const p = (primary || "").trim();
+  if (p && !looksEnglish(p)) return p;
+  for (const f of fallbacks) {
+    const s = (f || "").trim();
+    if (s && !looksEnglish(s)) return s;
+  }
+  // Último recurso: devolve string vazia ao invés de inglês visível.
+  return "";
+}
+
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
 
 function runInBackground(promise: Promise<unknown>) {
