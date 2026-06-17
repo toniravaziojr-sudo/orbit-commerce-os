@@ -4212,3 +4212,32 @@ O Estrategista pode (indevidamente) devolver o nome do produto da campanha como 
 - Validação após qualquer mexida no Estrategista ou no expansor: gerar plano com pelo menos uma campanha multi-produto, aprovar, e conferir que todas as propostas filhas saem com link de destino preenchido (sem "Link de destino" na lista de pendências).
 
 
+
+---
+
+## 16 — Onda H.4.2 + H.4.3 — Revisão Final com Edição Real e Aprendizado (2026-06-17)
+
+### Regra de negócio
+- Após gerar criativos, a proposta avança automaticamente para **"Pronta para revisão final"** quando todos os criativos planejados terminam (status terminal).
+- Na revisão final, **para cada criativo**, o lojista tem controle real antes de publicar:
+  - **Imagem:** aceitar a gerada pela IA, **regenerar com feedback** (motivo obrigatório), **substituir por upload do computador** ou **escolher do Meu Drive**.
+  - **Copy** (título, texto principal, CTA/descrição): **editar à mão** ou **regenerar com feedback** (motivo obrigatório).
+- O botão **"Publicar no Meta"** só ativa quando **todos os criativos** da proposta tiverem imagem e copy aprovados pelo lojista.
+- Toda regeneração (criativo OU copy) exige **campo de feedback explicando o porquê e como deve ser**, e esse feedback é gravado como **aprendizado da IA** (vai para a base de aprendizados, alimentando propostas futuras).
+
+### Aumentar Ticket como insumo da Estrategista (ferramenta opcional)
+- Antes de propor campanhas que dependam de oferta combinada (upgrade, combo, cross-sell, compre junto), a Estrategista **sempre tenta** casar a ideia com **Order Bump / Upsell / Cross-sell / Compre Junto** ativos do tenant.
+- Se houver oferta compatível: a campanha é amarrada à oferta (mesmos produtos, mesmo link, desconto correto).
+- Se **não houver** oferta compatível: a Estrategista **ignora silenciosamente** esse tipo de campanha e escolhe outra ideia válida (frio para carro-chefe, remarketing, reativação). **Sem bloqueio para o lojista. Sem pedido para cadastrar.**
+- Campanhas de público frio para produto carro-chefe **sempre excluem** a base de clientes existentes por padrão.
+
+### Vínculo proposta ↔ criativo (correção estrutural)
+- O vínculo `proposta → criativo` é gravado no momento da **criação do job** de imagem e **não pode mais ser perdido** durante a geração.
+- Quando todos os jobs ligados a uma proposta entram em status terminal (sucesso ou falha), um gatilho de banco vira o ciclo da proposta para "criativos prontos para revisão" automaticamente.
+
+### Anti-regressão
+- Proibido voltar com fluxo onde a geração da imagem sobrescreve o marcador de vínculo do criativo com a proposta.
+- Proibido publicar no Meta sem que o lojista tenha aprovado imagem **e** copy de cada criativo na tela de revisão final.
+- Proibido regenerar imagem ou copy sem feedback do lojista (campo obrigatório).
+- Proibido bloquear o lojista por ausência de ofertas do módulo Aumentar Ticket — quando ausentes, a IA simplesmente busca outra ideia.
+
