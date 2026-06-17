@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { Megaphone, Lightbulb, Wallet, ArrowRight, AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
+import { Megaphone, Bell, Wallet, ArrowRight, AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAdsInsights } from "@/hooks/useAdsInsights";
+import { useAdsAIWarnings } from "@/hooks/useAdsAIWarnings";
 import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
@@ -14,11 +14,10 @@ function formatCurrency(cents: number) {
 
 export function AdsAlertsWidget() {
   const navigate = useNavigate();
-  const { insights } = useAdsInsights();
+  const { unseenCount: openWarnings } = useAdsAIWarnings();
   const balance = useAdsBalanceMonitor();
   const { pendingCount } = useAdsPendingActions();
 
-  const openInsights = insights.filter(i => i.status === "open");
   const hasLowBalance = balance.lowBalanceCount > 0;
   const hasZeroBalance = balance.zeroBalanceCount > 0;
 
