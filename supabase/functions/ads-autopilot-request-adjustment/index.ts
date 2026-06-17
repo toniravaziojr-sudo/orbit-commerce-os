@@ -49,6 +49,37 @@ function lifecycleForAction(actionType: string): string {
   return "proposal_needs_adjustment";
 }
 
+function hasPendingDependencyDeep(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((entry) => hasPendingDependencyDeep(entry));
+  const obj = value as Record<string, unknown>;
+  if (String(obj.pending_dependency || "").trim().length > 0) return true;
+  return Object.values(obj).some((entry) => hasPendingDependencyDeep(entry));
+}
+
+function normalizeStrategicPlanApprovalMirror(actionData: any, currentStatus: string): { actionData: any; status: string } {
+  if (!actionData || actionData.type !== "strategic_plan") return { actionData, status: currentStatus };
+  const contract = actionData.contract || {};
+  const contractOk = contract.ok === true && Number(contract.blockers_count || 0) === 0 && Array.isArray(contract.errors) && contract.errors.length === 0;
+  const topLevelPending = currentStatus === "pending_approval" || actionData.approval_status === "pending_approval";
+  const hasPendingDependency = hasPendingDependencyDeep(actionData?.planned_actions || []);
+  if (!contractOk || !topLevelPending || hasPendingDependency) return { actionData, status: currentStatus };
+
+  return {
+    status: "pending_approval",
+    actionData: {
+      ...actionData,
+      approval_status: "pending_approval",
+      metadata: {
+        ...(actionData.metadata || {}),
+        validation_status: "valid",
+        validation_errors: [],
+        is_approvable: true,
+      },
+    },
+  };
+}
+
 async function extractUserId(req: Request, anonClient: any): Promise<string | null> {
   try {
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
