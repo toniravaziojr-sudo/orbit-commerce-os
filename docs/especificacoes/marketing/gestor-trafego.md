@@ -3846,16 +3846,18 @@ O modal de proposta usa `strategy` — assim, "evento de conversão pendente" de
 - Plano inválido não aprova, não gera propostas filhas e não altera campanha real.
 
 
-## Onda E — Modo Piloto vs Modo Piloto Inicial (10/06/2026)
+## Onda E — Análise Estratégica: Modo Piloto vs Modo Piloto Inicial (10/06/2026)
+
+> **Nota de nomenclatura (rev 2026-06-17):** o recurso era chamado "Análise inicial" e passou a se chamar **"Análise estratégica"** em toda a interface (card da conta, botão global, diálogos e mensagens). O nome técnico interno foi mantido por compatibilidade. "Modo Piloto Inicial" continua sendo o nome do modo de ativação que dispara essa análise.
 
 ### E.1 — Ativação com duas opções
 Ao ligar o switch da IA pela primeira vez, abre um diálogo perguntando:
 - **Modo Piloto:** ativa a IA e segue o fluxo normal a partir de agora. Não chama IA, não cria execução de análise.
-- **Modo Piloto Inicial (Recomendado):** ativa a IA e roda uma análise estratégica inicial da conta, como se um gestor de tráfego estivesse começando agora. Cria propostas na fila Aguardando Ação. Não publica, não gera criativo final automaticamente.
+- **Modo Piloto Inicial (Recomendado):** ativa a IA e roda uma análise estratégica da conta, como se um gestor de tráfego estivesse começando agora. Cria propostas na fila Aguardando Ação. Não publica, não gera criativo final automaticamente.
 
 O disparo automático de Strategist no toggle foi removido — IA só roda quando o usuário escolhe explicitamente.
 
-### E.2 — Botão manual "Rodar análise inicial agora"
+### E.2 — Botão manual "Rodar análise estratégica agora"
 Exibido no card da conta Meta quando a IA está ativa. Confirmação obrigatória. Bloqueia execução duplicada e pede nova confirmação se a última análise tiver menos de 24h.
 
 ### E.3 — Persistência (`ads_ai_analysis_runs`)
