@@ -162,6 +162,7 @@ interface ManualProps {
 export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: ManualProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const { run, hasRunning, latestRun } = useAdsAIAnalysisRun({
     platform,
     adAccountId,
@@ -180,11 +181,21 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
     const payload = resp?.data || resp;
     if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
       setRecentOpen(true);
+    } else if (!payload?.skipped) {
+      // Abre o popup de progresso assim que a execução foi aceita.
+      setProgressOpen(true);
     }
   };
 
   const isRunning = hasRunning;
   const runningRun = isRunning ? latestRun : null;
+
+  // Fecha o popup automaticamente quando a execução termina.
+  useEffect(() => {
+    if (progressOpen && !isRunning && !run.isPending) {
+      setProgressOpen(false);
+    }
+  }, [progressOpen, isRunning, run.isPending]);
 
   return (
     <div className="space-y-2">
