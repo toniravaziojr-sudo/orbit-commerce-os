@@ -23,10 +23,8 @@ Onda H.4.0 (Production-First). Aprovação estrutural (H.3) NÃO autoriza geraç
 13. Linguagem da UI: "imagem principal do produto" (não "packshot"), "promessas permitidas/proibidas" (não "claims" quando possível), "regras comerciais e de anúncios" (não "compliance"). Termos técnicos só no código/contrato interno.
 14. Configurações Meta básicas (Página do Facebook, Pixel, evento de conversão, janela de atribuição, UTM, conexão/conta válida) são **bloqueadores**, nunca apenas avisos. Sem qualquer um deles, status = "Estrutura aprovada — configurações pendentes" e botão "Gerar criativos" não aparece.
 15. Mudanças visíveis na seção de propostas aprovadas (botão de gerar, diálogo, card de bloqueio) precisam de aprovação explícita do usuário antes de virar código.
-16. **Localização única dos campos de marca H.4.0:** o bloco "Promessas, claims e restrições da marca" vive no Gestor de Anúncios em duas camadas:
-    - **Global (tenant):** `AdsGlobalConfig` → grava em `tenant_brand_context` (campos `approved_main_promise`, `allowed_claims`, `banned_claims`, `do_not_do`, `compliance_notes`, `no_additional_restrictions_confirmed`).
-    - **Override por conta de anúncios:** `AdsAccountConfig` → grava em `ads_autopilot_account_configs.chat_overrides.brand_overrides` (mesmo schema). Vazio = herda do global.
-    Editor antigo `BrandContextEditor` foi removido. PROIBIDO reintroduzir tela alternativa para esses campos.
+16. **Campos de marca para criativos foram removidos do Gestor de Anúncios em 2026-06-17 (v6.20 final).** PROIBIDO reintroduzir `BrandComplianceFieldsBlock`, `AdsGlobalConfig`, `BrandContextEditor` ou qualquer UI equivalente de "Regras da Marca" / "Promessa e claims aprovados" / "Configuração Global de IA" no módulo Ads. Refino editorial é feito pelo prompt estratégico (global e por conta) + feedback nas propostas. Tabela `tenant_brand_context` segue viva só para o modo Vendas (WhatsApp).
+17. (removido — não há mais resolução de override por conta para campos de marca, pois esses campos não existem mais no Ads.)
 17. **Resolução do BrandInput no loader (server-side):** o loader que prepara `evaluateCreativeReadiness` deve mesclar **campo a campo**: para cada campo da marca, usar o valor do override da conta se preenchido; caso contrário, cair no global. UI nunca decide essa precedência.
 
 ## Anti-regressão
