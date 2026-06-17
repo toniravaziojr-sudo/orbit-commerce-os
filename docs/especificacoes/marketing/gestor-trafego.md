@@ -3969,6 +3969,7 @@ O feedback inline no card (selo "Analisando agora" + tempo decorrido) é mantido
 - o Motor Estratégico responde imediatamente "em processamento" e passa a ser responsável por finalizar a própria rodada;
 - a rodada recebe sinal de vida durante coleta de contexto e chamada da IA;
 - se a IA ou provedor externo exceder o tempo por tentativa, o erro é fechado na rodada com mensagem de negócio, sem deixar execução presa;
+- a análise estratégica inicial usa apenas a ferramenta de plano estratégico, sem ferramentas auxiliares de landing page, e sem cascata de fallback caro entre provedores; isso reduz tempo e custo sem reduzir a profundidade do diagnóstico;
 - a UI continua apenas acompanhando a fonte de verdade da rodada, sem iniciar processamento oculto ao carregar a tela.
 
 **Garantia v1.3.3:** nenhuma análise estratégica manual deve depender de uma única chamada HTTP longa para concluir. O padrão oficial é: iniciar rápido → processar pesado em background → fechar a rodada pela própria etapa pesada → UI acompanha por consulta.
