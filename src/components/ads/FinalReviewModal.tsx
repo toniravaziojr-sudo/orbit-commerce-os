@@ -224,15 +224,20 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
                   Aguardando {stillRunning.length} criativo(s) terminarem antes de poder publicar.
                 </div>
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {readyJobs.map((j: any, i: number) => (
-                  <div key={j.id} className="rounded-md border overflow-hidden bg-muted/20">
-                    <img src={j.output_urls[0]} alt={`Criativo ${i + 1}`} className="w-full aspect-square object-cover" />
-                    <div className="p-2 text-[11px] truncate">{j.product_name || `Criativo ${i + 1}`}</div>
-                  </div>
+              <div className="space-y-4">
+                {readyCards.map((card, i) => (
+                  <CreativeReviewCard
+                    key={card.job.id}
+                    index={i}
+                    tenantId={proposal.tenant_id}
+                    actionId={proposal.id}
+                    creativeIndex={card.creative_index}
+                    effective={card.effective}
+                    onChanged={refreshAfterChange}
+                  />
                 ))}
-                {readyJobs.length === 0 && stillRunning.length === 0 && (
-                  <div className="col-span-full text-sm text-muted-foreground p-4 text-center border rounded-md">
+                {readyCards.length === 0 && stillRunning.length === 0 && (
+                  <div className="text-sm text-muted-foreground p-4 text-center border rounded-md">
                     Nenhum criativo pronto para publicar.
                   </div>
                 )}
