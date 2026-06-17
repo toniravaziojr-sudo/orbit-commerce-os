@@ -58,8 +58,10 @@ Quando o usuário clica em **Ajustar proposta** e escreve sua sugestão, a IA é
 1. **Sugestão vira aprendizado primeiro.** Antes de chamar a IA, o pedido de ajuste é gravado como aprendizado vinculado à proposta original (decisão = `needs_revision`). Fica disponível em "Aprendizado da IA" e nas próximas análises automaticamente. A gravação é **síncrona** (espera concluir).
 2. **Motor Estratégico em modo revisão com ferramenta obrigatória.** A chamada ao Estrategista força o uso de ferramenta (`tool_choice = required`) no primeiro turno do modo `revision`. A IA não pode responder só em texto — precisa produzir a nova proposta via tool call (`create_campaign`, `create_adset`, `strategic_plan` etc., conforme o tipo da proposta original).
 3. **Retentativa interna automática.** Se mesmo com `tool_choice = required` a IA não devolver nova versão na primeira passagem, o sistema faz uma 2ª chamada imediata com instrução reforçada anexada ao feedback do usuário. Só depois disso aciona o fallback.
-4. **Fallback seguro (raro).** Se as duas tentativas falharem por erro real da IA (timeout, créditos, indisponibilidade), a proposta original **volta para "Aguardando aprovação"** e o usuário vê uma mensagem de negócio clara. Nunca fica órfão.
-5. **Banner de progresso anti-flicker.** A tela de "IA analisando sua conta" rastreia internamente quais análises já foram exibidas e não reabre o banner em ciclos seguintes do poll.
+4. **Aprendizado com fallback interno.** Se a chamada dedicada de escrita de aprendizado falhar ou voltar sem confirmação, o próprio registrador de feedback cria/reforça o aprendizado diretamente antes de responder. Portanto, ajuste com feedback útil não pode terminar sem item visível em "Aprendizado da IA".
+5. **Espelho de aprovação canônico.** Ao vincular a nova versão, o sistema recalcula os sinais usados pela UI (`status`, aprovação interna, validação e aprovabilidade) como um único espelho. Se o contrato está válido, sem pendências obrigatórias e a nova versão está aguardando decisão, a UI não pode manter tarja residual de "Plano incompleto".
+6. **Fallback seguro (raro).** Se as duas tentativas falharem por erro real da IA (timeout, créditos, indisponibilidade), a proposta original **volta para "Aguardando aprovação"** e o usuário vê uma mensagem de negócio clara. Nunca fica órfão.
+7. **Banner de progresso anti-flicker.** A tela de "IA analisando sua conta" rastreia internamente quais análises já foram exibidas e não reabre o banner em ciclos seguintes do poll.
 
 **Estados visíveis ao usuário**
 
@@ -72,6 +74,7 @@ Quando o usuário clica em **Ajustar proposta** e escreve sua sugestão, a IA é
 
 - O caminho "Ajustar" **nunca** marca a proposta como `rejected`. Só "Recusar" faz isso.
 - A sugestão escrita pelo usuário **sempre** é persistida como aprendizado, independente de o motor gerar nova versão ou não.
+- Nova versão válida não pode carregar metadados contraditórios: contrato válido + sem pendência obrigatória = aprovável na UI, sem tarja de plano incompleto.
 - Modo `revision` no Estrategista **deve** manter `tool_choice = required` no round 1. Reverter isso reabre o bug de "ajuste sem resposta".
 
 ## Onda 3.2 (2026-06-17) — Dialog primário permanece atrás do secundário

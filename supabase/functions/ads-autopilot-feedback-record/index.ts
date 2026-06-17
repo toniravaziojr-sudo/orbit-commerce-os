@@ -23,6 +23,71 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function normLearningTitle(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function writeLearningDirect(service: any, params: {
+  tenant_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  source_type: string;
+  source_action_id: string | null;
+  source_feedback_id: string;
+  metadata: Record<string, unknown>;
+}) {
+  const title = String(params.title || "").trim().slice(0, 200);
+  if (title.length < 6) return { success: false, error: "empty_or_too_short_title" };
+
+  const normalized = normLearningTitle(title);
+  const { data: same, error: sameErr } = await service
+    .from("ads_ai_learnings")
+    .select("id, title, evidence_count, confidence, status")
+    .eq("tenant_id", params.tenant_id)
+    .eq("category", params.category)
+    .neq("status", "archived");
+
+  if (sameErr) return { success: false, error: "learning_lookup_failed", details: sameErr.message };
+
+  const hit = (same || []).find((r: any) => normLearningTitle(r.title) === normalized);
+  if (hit) {
+    const newEvidence = Math.min(999, Number(hit.evidence_count || 0) + 1);
+    const newConfidence = Math.min(1, Number(hit.confidence || 0.5) + 0.05);
+    const { error: updErr } = await service
+      .from("ads_ai_learnings")
+      .update({ evidence_count: newEvidence, confidence: newConfidence })
+      .eq("id", hit.id);
+    if (updErr) return { success: false, error: "learning_reinforce_failed", details: updErr.message };
+    return { success: true, action: "reinforced", learning_id: hit.id, evidence_count: newEvidence };
+  }
+
+  const { data: inserted, error: insErr } = await service
+    .from("ads_ai_learnings")
+    .insert({
+      tenant_id: params.tenant_id,
+      title,
+      description: params.description,
+      category: params.category,
+      status: params.source_type === "manual" ? "active" : "suggested",
+      source_type: params.source_type,
+      source_action_id: params.source_action_id,
+      source_feedback_id: params.source_feedback_id,
+      metadata: params.metadata,
+    })
+    .select("id, status")
+    .single();
+
+  if (insErr) return { success: false, error: "learning_insert_failed", details: insErr.message };
+  return { success: true, action: "created", learning_id: inserted.id, status: inserted.status };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -153,7 +218,9 @@ Deno.serve(async (req) => {
     const observation = (input.observation || "").trim();
     const reasonText = (input.reason_text || "").trim();
     const candidate = [reasonText, observation].filter(Boolean).join(" — ").slice(0, 200);
-    const meaningful = candidate.length >= 12 || input.should_become_preference === true;
+    const meaningful = input.decision === "needs_revision"
+      ? candidate.length >= 8
+      : candidate.length >= 12 || input.should_become_preference === true;
     if (meaningful) {
       const decisionToSource: Record<string, string> = {
         approved: "approval",
@@ -200,11 +267,63 @@ Deno.serve(async (req) => {
         );
         if (le) {
           console.warn("[ads-autopilot-feedback-record] learnings write failed:", le?.message);
+          const direct = await writeLearningDirect(service, {
+            tenant_id: input.tenant_id,
+            title: titleFromContext,
+            description: observation || reasonText || null,
+            category: categoryGuess,
+            source_type: sourceType,
+            source_action_id: input.action_id || null,
+            source_feedback_id: inserted.id,
+            metadata: {
+              decision: input.decision,
+              reason_codes: input.reason_codes,
+              ads_platform: input.ads_platform,
+              fallback: "feedback_record_direct_write_after_invoke_error",
+            },
+          });
+          learning_action = (direct as any)?.action || null;
         } else {
           learning_action = (lr as any)?.action || null;
+          if (!learning_action || (lr as any)?.success === false) {
+            const direct = await writeLearningDirect(service, {
+              tenant_id: input.tenant_id,
+              title: titleFromContext,
+              description: observation || reasonText || null,
+              category: categoryGuess,
+              source_type: sourceType,
+              source_action_id: input.action_id || null,
+              source_feedback_id: inserted.id,
+              metadata: {
+                decision: input.decision,
+                reason_codes: input.reason_codes,
+                ads_platform: input.ads_platform,
+                fallback: "feedback_record_direct_write_after_empty_response",
+                original_response: lr || null,
+              },
+            });
+            learning_action = (direct as any)?.action || learning_action;
+          }
         }
       } catch (e: any) {
         console.warn("[ads-autopilot-feedback-record] learnings write threw:", e?.message);
+        const direct = await writeLearningDirect(service, {
+          tenant_id: input.tenant_id,
+          title: titleFromContext,
+          description: observation || reasonText || null,
+          category: categoryGuess,
+          source_type: sourceType,
+          source_action_id: input.action_id || null,
+          source_feedback_id: inserted.id,
+          metadata: {
+            decision: input.decision,
+            reason_codes: input.reason_codes,
+            ads_platform: input.ads_platform,
+            fallback: "feedback_record_direct_write_after_throw",
+            original_error: e?.message || String(e),
+          },
+        });
+        learning_action = (direct as any)?.action || null;
       }
     }
   } catch (lerr: any) {
