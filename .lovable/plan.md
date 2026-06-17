@@ -26,3 +26,12 @@ Na tela de revisão final, para cada criativo o lojista terá:
 - Etapa 1: em implementação
 - Etapa 2: em implementação
 - Etapa 3: próxima leva (UI maior, será entregue na sequência)
+
+## Correção 2026-06-17 — "Ajustar proposta" deixa de rejeitar o plano
+- Caminho oficial único de ajuste: o pedido do lojista para revisar uma proposta deixa de cair na trilha de recusa.
+- A proposta original passa a ser marcada como substituída (não rejeitada), com lifecycle de "ajuste solicitado" e histórico do pedido.
+- O texto do lojista é gravado como feedback formal de "precisa de revisão" e cria um aprendizado sugerido da IA.
+- A nova versão volta para a fila "Aguardando Ação", vinculada à versão anterior para auditoria.
+- Falhas (ex.: saldo de IA insuficiente) deixam o pedido marcado como falho e visível, sem esconder o problema.
+- Anti dupla chamada: nova solicitação dentro de 10 minutos retorna idempotente.
+- Docs e mapa de UI atualizados; memória anti-regressão registrada.

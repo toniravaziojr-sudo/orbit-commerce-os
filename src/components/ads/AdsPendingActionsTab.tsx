@@ -106,52 +106,48 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
     feedbackGate.requestRejection(action, () => runReject(id, reason, mode));
   };
 
-  // Direct strategist invocation for scoped revision (same as AdsPendingApprovalTab)
+  // Caminho oficial de "Ajustar proposta" — NÃO rejeita o plano.
+  // Toda a lógica (lifecycle, feedback estruturado, aprendizado sugerido e
+  // chamada ao Strategist) vive em ads-autopilot-request-adjustment.
   const handleAdjust = async (actionId: string, suggestion: string) => {
     setAdjustingId(actionId);
     try {
       const tenantId = currentTenant?.id;
       if (!tenantId) throw new Error("Tenant não selecionado");
 
-      const targetAction = pendingActions.find(a => a.id === actionId);
-      const actionData = (targetAction?.action_data || {}) as Record<string, any>;
-      const actionType = targetAction?.action_type || "unknown";
-
-      // 1. Reject the action with feedback
-      await rejectAction.mutateAsync({ actionId, reason: `Ajuste solicitado: ${suggestion}` });
-
-      // 2. Collect names of other pending campaigns so the strategist knows NOT to recreate them
-      const otherPendingNames = pendingActions
-        .filter(a => a.id !== actionId && a.action_type === "create_campaign" && a.status === "pending_approval")
-        .map(a => (a.action_data as any)?.campaign_name || (a.action_data as any)?.preview?.campaign_name)
-        .filter(Boolean);
-
-      // 3. Re-trigger strategist with scoped revision
-      const { data, error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
-        body: { 
-          tenant_id: tenantId, 
-          trigger: "revision",
-          revision_feedback: suggestion,
-          revision_action_id: actionId,
-          revision_action_type: actionType,
-          revision_action_data: {
-            campaign_name: actionData.campaign_name || actionData.preview?.campaign_name,
-            product_name: actionData.product_name,
-            funnel_stage: actionData.funnel_stage || actionData.preview?.funnel_stage,
-          },
-          other_pending_campaigns: otherPendingNames,
-        },
-      });
-      if (stratErr) console.error("Strategist re-trigger error:", stratErr);
-      if (data && !data.success) console.error("Strategist revision error:", data.error);
+      const { data, error } = await supabase.functions.invoke(
+        "ads-autopilot-request-adjustment",
+        { body: { tenant_id: tenantId, action_id: actionId, feedback: suggestion } },
+      );
+      if (error) throw error;
+      if (data && (data as any).success === false) {
+        const code = (data as any).error;
+        const map: Record<string, string> = {
+          feedback_too_short: "Descreva o ajuste com um pouco mais de detalhe.",
+          proposal_not_adjustable: "Esta proposta não pode mais ser ajustada.",
+          proposal_already_superseded: "Esta proposta já foi substituída por uma nova versão.",
+          proposal_not_found: "Proposta não encontrada.",
+          tenant_mismatch: "Proposta de outro tenant.",
+          strategist_revision_failed:
+            "Não foi possível gerar a nova versão. Verifique o saldo de IA e tente novamente.",
+        };
+        throw new Error(map[code] || (data as any).message || "Falha ao solicitar ajuste.");
+      }
 
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       queryClient.invalidateQueries({ queryKey: ["ads-pending-approval"] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
-      toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
+      queryClient.invalidateQueries({ queryKey: ["ads-ai-learnings"] });
+      if ((data as any)?.already_in_progress) {
+        toast.success("Já existe um ajuste em processamento para esta proposta.");
+      } else if ((data as any)?.new_action_id) {
+        toast.success("Nova versão gerada e disponível em Aguardando Ação.");
+      } else {
+        toast.success("Pedido de ajuste registrado.");
+      }
     } catch (err: any) {
-      showErrorToast(err, { module: 'anúncios', action: 'enviar' });
+      showErrorToast(err, { module: 'anúncios', action: 'ajustar proposta' });
     } finally {
       setAdjustingId(null);
     }
