@@ -1,37 +1,66 @@
-# Plano — Onda H.4 / H.5 (Gestor de Anúncios)
+# Passo a passo guiado de aprovação de campanha
 
-## Confirmações do usuário
-1. **Aumentar Ticket como ferramenta opcional.** A IA SEMPRE tenta casar a ideia com Order Bump / Upsell / Cross-sell / Compre Junto cadastrados. Se não houver oferta compatível, ela **ignora silenciosamente** e busca outra ideia válida — nunca bloqueia, nunca pede para o lojista cadastrar.
-2. **Feedback vira aprendizado.** Toda regeneração (criativo OU copy) exige campo de feedback explicando o porquê e como o lojista quer; cada feedback é gravado como aprendizado da IA, igual às etapas anteriores.
-3. **Ordem de execução** é decisão técnica, priorizando solidez, segurança e eficácia.
+## Decisões confirmadas pelo lojista
+1. **Etapa final publica direto** na Meta/Google/TikTok dentro do próprio dialog.
+2. **Geração de criativo na etapa de anúncios é um a um** — cada anúncio escolhe entre **Gerar com IA**, **Subir do meu computador** ou **Escolher do Drive**.
+3. **Edição da campanha aprovada só é possível antes da publicação.** Depois que entra na Meta, o ajuste é feito ou direto no painel da Meta, ou via chat com a IA (sem reabrir o dialog).
+4. **Upload do PC obrigatoriamente salva no Drive da loja** seguindo a regra de armazenamento atual (sem upload "solto" fora do Drive).
 
-## Ordem de execução (definida)
+## Como funciona hoje
+Modal com menu lateral livre (Visão Geral / Campanha / Conjuntos / Anúncios). Lojista clica em **Aprovar** e a proposta vai direto para "gerar criativos", sem revisão guiada nem edição manual. Não há campo para subir criativo próprio nem visualização do prompt antes de gerar. Publicação acontece em telas separadas (gerar → revisão final → publicar).
 
-### Etapa 1 — Vínculo proposta ↔ criativo (correção estrutural)
-Hoje a geração da imagem sobrescreve o "marcador" que liga o criativo à proposta, e a proposta não avança sozinha. Será corrigido na origem: o vínculo passa a ser gravado no momento da criação do job e não pode mais ser perdido durante a geração.
+## O problema
+Aprovação cega, sem revisão por nível. Ajustes só por meio de um editor lateral separado. Sem upload de criativo do PC ou do Drive. Publicação fragmentada.
 
-### Etapa 2 — Aumentar Ticket como insumo da Estrategista
-A Estrategista passa a ler as ofertas ativas do lojista antes de propor campanhas que dependam de oferta combinada (upgrade, combo, cross-sell). Se houver oferta compatível, a campanha é amarrada nela (mesmos produtos, mesmo link). Se não houver, a IA escolhe outro tipo de campanha. Sem bloqueio para o lojista. Também passa a aplicar automaticamente a regra "público frio para carro-chefe exclui clientes existentes".
+## O que eu faria
 
-### Etapa 3 — Revisão final com edição real (imagem + copy + aprendizado)
-Na tela de revisão final, para cada criativo o lojista terá:
+### Passo a passo único (5 etapas, mesmo dialog)
+```text
+[ 1. Visão geral ] → [ 2. Campanha ] → [ 3. Conjuntos ] → [ 4. Anúncios ] → [ 5. Publicar ]
+```
+- **Visão geral:** diagnóstico, objetivo, orçamento total, quantidade de conjuntos/anúncios.
+- **Campanha:** edita inline nome, objetivo, orçamento, datas, estratégia de lance.
+- **Conjuntos:** navega entre os conjuntos e edita público, idade, gênero, região, posicionamentos, exclusões, evento de conversão e orçamento. Cada conjunto precisa ser marcado como revisado.
+- **Anúncios:** para cada anúncio — edita título/copy/descrição/CTA/formato, mostra o **prompt visual** (editável) e oferece três caminhos para o criativo:
+  - **Gerar com IA** (consome créditos, com confirmação).
+  - **Subir do meu computador** (arquivo é salvo no Drive da loja, na pasta padrão de mídias do mês).
+  - **Escolher do Drive** (abre o seletor de arquivos do Drive já existente no sistema).
+  Ao escolher upload ou Drive, a geração por IA fica desativada para esse anúncio (sem gasto de crédito).
+- **Publicar:** resumo final + botão único **"Publicar na Meta"** (ou Google/TikTok). Confirmação explícita antes de enviar.
 
-- **Imagem:** aceitar a da IA / regenerar com feedback / substituir por upload do computador / escolher do Meu Drive.
-- **Copy (título, texto principal, descrição):** editar à mão / regenerar com feedback.
-- **Toda regeneração exige feedback obrigatório** (campo curto explicando o porquê). Esse feedback alimenta o aprendizado da IA.
-- Botão "Publicar no Meta" só fica ativo quando todos os criativos da proposta tiverem imagem + copy aprovados pelo lojista.
+### Edição inline em cada etapa
+Os campos passam a ser editáveis dentro do passo (sem abrir editor lateral). Salvar é local (rascunho) e só vai para a IA/Meta na publicação. O botão "Ajustar com a IA" continua disponível como atalho opcional.
 
-## Status
-- Correção emergencial aplicada antes da continuidade das etapas: fonte dos ativos Meta alinhada — análise estratégica e Estrategista passam a usar os ativos reais conectados pela integração como fonte primária; configuração interna fica apenas como override avançado.
-- Etapa 1: em implementação
-- Etapa 2: em implementação
-- Etapa 3: próxima leva (UI maior, será entregue na sequência)
+### Estado, segurança e custo
+- Avançar entre passos não consome IA.
+- Cada passo só libera o próximo quando passa nas validações mínimas (gates de completude, compatibilidade e UTM já existentes).
+- Voltar a qualquer passo sem perder o que foi editado.
+- Após publicar, o dialog não reabre em modo edição — ajustes pós-publicação seguem por painel nativo da Meta ou por chat com a IA.
 
-## Correção 2026-06-17 — "Ajustar proposta" deixa de rejeitar o plano
-- Caminho oficial único de ajuste: o pedido do lojista para revisar uma proposta deixa de cair na trilha de recusa.
-- A proposta original passa a ser marcada como substituída (não rejeitada), com lifecycle de "ajuste solicitado" e histórico do pedido.
-- O texto do lojista é gravado como feedback formal de "precisa de revisão" e cria um aprendizado sugerido da IA.
-- A nova versão volta para a fila "Aguardando Ação", vinculada à versão anterior para auditoria.
-- Falhas (ex.: saldo de IA insuficiente) deixam o pedido marcado como falho e visível, sem esconder o problema.
-- Anti dupla chamada: nova solicitação dentro de 10 minutos retorna idempotente.
-- Docs e mapa de UI atualizados; memória anti-regressão registrada.
+## Resultado final
+Lojista percorre um único dialog guiado, do diagnóstico ao "publicar agora", revisando e editando cada nível. Vê o prompt antes de gerar criativo, pode subir um criativo próprio do PC (que vai parar no Drive da loja) ou escolher do Drive, e finaliza com um botão claro de publicação.
+
+## Documentação que será atualizada
+- `docs/especificacoes/marketing/gestor-trafego.md` — nova seção "Passo a passo guiado de aprovação".
+- `docs/especificacoes/transversais/mapa-ui.md` — atualização da tela do Gestor de Tráfego IA.
+- Memória `.lovable/memory/constraints/ads-proposal-modal-unified.md` — substituir a regra de "modal único com menu lateral" pela regra do passo a passo guiado, incluindo a obrigatoriedade do upload do PC ir para o Drive.
+
+## Plano de execução em fases (para evitar retrabalho e gasto desnecessário)
+
+**Fase 1 — Esqueleto do passo a passo (somente UI/navegação).**
+Converter o menu lateral em estepador com Voltar/Avançar, sem mexer ainda em edição inline nem em criativo. Reaproveita as seções de leitura que já existem. Entrega: você consegue navegar pelos 5 passos no fluxo atual de proposta. Sem risco de quebrar lógica.
+
+**Fase 2 — Edição inline da Campanha e dos Conjuntos.**
+Transformar os campos das seções Campanha e Conjuntos em inputs editáveis salvando rascunho local. Validações em tempo real. Sem consumo de IA.
+
+**Fase 3 — Etapa de Anúncios com prompt visível + 3 caminhos de criativo.**
+Mostrar e editar o prompt visual; ligar os três botões: Gerar com IA / Subir do PC (com upload no Drive) / Escolher do Drive (usando o seletor de arquivos do Drive já existente). Desabilitar geração quando o lojista escolhe criativo próprio.
+
+**Fase 4 — Etapa final de publicação direta.**
+Resumo consolidado + botão "Publicar na Meta/Google/TikTok" dentro do dialog, com confirmação. Bloquear edição após publicar.
+
+**Fase 5 — Documentação + memória de anti-regressão.**
+Atualizar os 3 documentos acima, fechando o ciclo.
+
+## Próximo passo
+Começar pela **Fase 1** (esqueleto navegável). Quando estiver pronto e você validar a navegação, sigo para a Fase 2. Confirma esse fatiamento ou prefere que eu vá direto da Fase 1 até a Fase 3 antes de te chamar?
