@@ -4211,8 +4211,11 @@ Feedback: "${revisionFeedback}"
     }
   }
 
+  let fatalError: string | null = null;
+
   // Analyze each account with full pipeline
   for (const config of activeConfigs) {
+    await heartbeat("ai_round_start", { ad_account_id: config.ad_account_id });
     const prompt = buildStrategistPrompt(trigger, config, context);
     
     // Inject approved plan content into the prompt if available
@@ -4388,12 +4391,15 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           supabaseUrl,
           supabaseServiceKey,
           logPrefix: `[ads-autopilot-strategist][${VERSION}][R${round}]`,
+          maxRetries: trigger === "start" ? 0 : 3,
+          requestTimeoutMs: trigger === "start" ? 135_000 : 120_000,
         });
 
         if (!aiResponse.ok) {
           const errText = await aiResponse.text();
           console.error(`[ads-autopilot-strategist][${VERSION}] AI error round ${round}: ${aiResponse.status} ${errText}`);
-          break;
+          fatalError = `AI error ${aiResponse.status}: ${errText.substring(0, 300)}`;
+          throw new Error(fatalError);
         }
 
         const aiResult = await aiResponse.json();
@@ -4870,9 +4876,11 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
         });
       }
 
+      await heartbeat("account_completed", { ad_account_id: config.ad_account_id, total_planned: totalPlanned });
       console.log(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id}: ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected (${round} rounds)`);
     } catch (err: any) {
       console.error(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id} error:`, err.message);
+      fatalError = fatalError || err?.message || "account_failed";
     }
   }
 
@@ -4892,6 +4900,19 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
   }
 
   console.log(`[ads-autopilot-strategist][${VERSION}] ${trigger} completed: ${activeConfigs.length} accounts, ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected in ${durationMs}ms`);
+
+  if (analysisRunId) {
+    if (fatalError || totalPlanned === 0) {
+      await closeAnalysisRun("failed", {
+        error_message: classifyStrategistError(fatalError || "Nenhuma proposta foi gerada pela análise estratégica."),
+      });
+    } else {
+      await closeAnalysisRun("completed", {
+        diagnosis_summary: "Análise estratégica concluída. Veja as propostas na fila Aguardando Ação.",
+        strategy_summary: `Plano estratégico gerado com ${totalPlanned} proposta(s) para revisão humana.`,
+      });
+    }
+  }
 
   return {
     trigger,
