@@ -4266,11 +4266,14 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
 
         // Force tool calling for triggers that MUST produce tool calls
         // v1.43.0: implement_campaigns forces "required" on ALL rounds (not just round 1) to prevent AI from pausing to ask approval
+        // v1.44.0: revision DEVE produzir nova versão — força "required" no round 1.
+        //          O usuário não pode ficar sem retorno após pedir ajuste.
         const forceToolChoice = (trigger === "implement_campaigns")
           ? "required"
-          : (round === 1 && (trigger === "start" || trigger === "implement_approved_plan"))
+          : (round === 1 && (trigger === "start" || trigger === "implement_approved_plan" || trigger === "revision"))
             ? "required"
             : "auto";
+
 
         const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
           messages,

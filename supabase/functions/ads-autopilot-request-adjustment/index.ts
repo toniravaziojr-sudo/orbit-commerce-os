@@ -228,33 +228,78 @@ Deno.serve(async (req) => {
     .map((p: any) => p?.action_data?.campaign_name || p?.action_data?.preview?.campaign_name)
     .filter(Boolean);
 
-  const { data: stratResp, error: stratErr } = await service.functions.invoke(
-    "ads-autopilot-strategist",
-    {
-      body: {
-        tenant_id: tenantId,
-        trigger: "revision",
-        revision_feedback: feedback,
-        revision_action_id: original.id,
-        revision_action_type: original.action_type,
-        revision_action_data: {
-          campaign_name: data?.campaign_name || data?.preview?.campaign_name,
-          product_name: data?.product_name,
-          funnel_stage: data?.funnel_stage || data?.preview?.funnel_stage,
+  // Helper: invoca o Strategist em modo revisão. Retorna {resp, err, newChild}.
+  async function invokeStrategistRevision(extraReinforcement: string | null) {
+    const baseFeedback = feedback;
+    const reinforcedFeedback = extraReinforcement
+      ? `${baseFeedback}\n\n[INSTRUÇÃO OBRIGATÓRIA AO MOTOR ESTRATEGISTA]: ${extraReinforcement}`
+      : baseFeedback;
+    const { data: r, error: e } = await service.functions.invoke(
+      "ads-autopilot-strategist",
+      {
+        body: {
+          tenant_id: tenantId,
+          trigger: "revision",
+          revision_feedback: reinforcedFeedback,
+          revision_action_id: original.id,
+          revision_action_type: original.action_type,
+          revision_action_data: {
+            campaign_name: data?.campaign_name || data?.preview?.campaign_name,
+            product_name: data?.product_name,
+            funnel_stage: data?.funnel_stage || data?.preview?.funnel_stage,
+          },
+          other_pending_campaigns: otherPendingCampaigns,
+          adjustment_source_action_id: original.id,
+          adjustment_feedback_id: feedbackId,
+          force_new_version: true,
         },
-        other_pending_campaigns: otherPendingCampaigns,
-        adjustment_source_action_id: original.id,
-        adjustment_feedback_id: feedbackId,
       },
-    },
-  );
+    );
+    const failed = !!e || (r && (r as any).success === false);
+    let child: any = null;
+    if (!failed) {
+      const { data: newActions } = await service
+        .from("ads_autopilot_actions")
+        .select("id, action_type, action_data, status, created_at")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", watermark)
+        .in("status", ["pending_approval", "incomplete"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+      child =
+        (newActions || []).find((a: any) => a.action_type === original.action_type) ||
+        (newActions || [])[0] ||
+        null;
+    }
+    return { resp: r, err: e, failed, child };
+  }
 
-  const stratFailed =
-    !!stratErr || (stratResp && (stratResp as any).success === false);
+  const { data: otherPendingRaw2 } = await service
+    .from("ads_autopilot_actions")
+    .select("action_data")
+    .eq("tenant_id", tenantId)
+    .eq("action_type", "create_campaign")
+    .eq("status", "pending_approval");
+  // reaproveita otherPendingCampaigns calculado acima (escopo léxico)
+
+  // Primeira tentativa
+  let attempt = await invokeStrategistRevision(null);
+  // Retry obrigatório: se rodou sem erro mas não devolveu nova proposta,
+  // o usuário não pode ficar sem retorno. Forçamos uma 2ª passagem com
+  // instrução explícita para gerar a nova versão usando as tools.
+  if (!attempt.failed && !attempt.child) {
+    console.warn("[ads-autopilot-request-adjustment] retry: no new version on first pass");
+    attempt = await invokeStrategistRevision(
+      "Gere OBRIGATORIAMENTE uma nova versão completa da proposta usando as ferramentas disponíveis (create_campaign / create_adset / strategic_plan conforme o tipo da proposta original). NÃO responda apenas em texto. Aplique integralmente o feedback do usuário acima.",
+    );
+  }
+
+  const stratResp = attempt.resp;
+  const stratErr = attempt.err;
+  const stratFailed = attempt.failed;
+  const newChild = attempt.child;
 
   if (stratFailed) {
-    // Reverte o lifecycle para "needs_adjustment_failed" mas mantém superseded
-    // para auditoria. Não silenciar o erro.
     const failedEntry = (updatedData.adjustment_history || []).map((h: any, i: number, arr: any[]) =>
       i === arr.length - 1
         ? { ...h, status: "failed", error: stratErr?.message || (stratResp as any)?.error || "strategist_failed" }
@@ -263,6 +308,7 @@ Deno.serve(async (req) => {
     await service
       .from("ads_autopilot_actions")
       .update({
+        status: "pending_approval", // devolve a original para o usuário não ficar sem nada
         action_data: {
           ...updatedData,
           lifecycle: {
@@ -285,20 +331,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 5) Procura a nova proposta filha criada após o watermark e vincula
-  const { data: newActions } = await service
-    .from("ads_autopilot_actions")
-    .select("id, action_type, action_data, status, created_at")
-    .eq("tenant_id", tenantId)
-    .gte("created_at", watermark)
-    .in("status", ["pending_approval", "incomplete"])
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  const newChild =
-    (newActions || []).find((a: any) => a.action_type === original.action_type) ||
-    (newActions || [])[0] ||
-    null;
 
   if (newChild) {
     const childData: any = newChild.action_data || {};

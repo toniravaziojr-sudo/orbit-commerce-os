@@ -47,6 +47,35 @@
 
 Memória de governança: `mem://constraints/ads-no-global-and-avisos-not-proposals`.
 
+## Onda 3.1 (2026-06-17) — Ajuste de proposta sempre gera nova versão
+
+**Princípio inegociável**
+
+Quando o usuário clica em **Ajustar proposta** e escreve sua sugestão, a IA é **obrigada** a devolver uma nova versão da proposta na aba "Aguardando Ação", considerando integralmente o que foi pedido. Não existe o caso "a IA não conseguiu gerar".
+
+**Como o sistema garante isso**
+
+1. **Sugestão vira aprendizado primeiro.** Antes de chamar a IA, o pedido de ajuste é gravado como aprendizado vinculado à proposta original (decisão = `needs_revision`). Fica disponível em "Aprendizado da IA" e nas próximas análises automaticamente. A gravação é **síncrona** (espera concluir).
+2. **Motor Estratégico em modo revisão com ferramenta obrigatória.** A chamada ao Estrategista força o uso de ferramenta (`tool_choice = required`) no primeiro turno do modo `revision`. A IA não pode responder só em texto — precisa produzir a nova proposta via tool call (`create_campaign`, `create_adset`, `strategic_plan` etc., conforme o tipo da proposta original).
+3. **Retentativa interna automática.** Se mesmo com `tool_choice = required` a IA não devolver nova versão na primeira passagem, o sistema faz uma 2ª chamada imediata com instrução reforçada anexada ao feedback do usuário. Só depois disso aciona o fallback.
+4. **Fallback seguro (raro).** Se as duas tentativas falharem por erro real da IA (timeout, créditos, indisponibilidade), a proposta original **volta para "Aguardando aprovação"** e o usuário vê uma mensagem de negócio clara. Nunca fica órfão.
+5. **Banner de progresso anti-flicker.** A tela de "IA analisando sua conta" rastreia internamente quais análises já foram exibidas e não reabre o banner em ciclos seguintes do poll.
+
+**Estados visíveis ao usuário**
+
+- "Ajustando proposta…" durante o processamento (banner com spinner).
+- "Nova versão gerada e disponível em Aguardando Ação." (caminho normal).
+- "Já existe um ajuste em processamento para esta proposta." (anti-duplo clique, janela de 10 min).
+- Apenas em fallback raro: "Sua sugestão foi salva no Aprendizado. A proposta original voltou para aguardar decisão."
+
+**Anti-regressão**
+
+- O caminho "Ajustar" **nunca** marca a proposta como `rejected`. Só "Recusar" faz isso.
+- A sugestão escrita pelo usuário **sempre** é persistida como aprendizado, independente de o motor gerar nova versão ou não.
+- Modo `revision` no Estrategista **deve** manter `tool_choice = required` no round 1. Reverter isso reabre o bug de "ajuste sem resposta".
+
+
+
 
 
 ## Visão Geral
