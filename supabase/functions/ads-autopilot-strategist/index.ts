@@ -2112,36 +2112,71 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   const fmtNum = (v: any) => v != null ? String(v) : "-";
   const fmtPct = (v: any) => v != null ? Number(v).toFixed(2) + "%" : "-";
   
-  // CAMPAIGNS - ALL of them in compact format (v1.35.0: added Freq, CPM, PageView, ATC, IC)
+  // CAMPAIGNS — Onda I (perf): poda inteligente para evitar prompts gigantes.
+  // Contas grandes (200+ campanhas pausadas históricas) faziam Round 1 estourar
+  // o teto de tempo da resposta da IA. Mantém TODAS as ativas + top 40 pausadas
+  // por relevância (conversões 30d → spend 30d → ordem natural). As demais
+  // pausadas viram uma linha AGREGADO_PAUSADAS com totais para não esconder
+  // contexto e poupar tokens.
   const campaignHeaders = "ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | Freq30d | CPM30d | PV30d | ATC30d | IC30d | ROAS7d | CPA7d | Spend7d | Conv7d | CTR7d | Freq7d";
-  const campaignRows = campaignData.map((c: any) => {
+  const PAUSED_CAMPAIGN_DETAIL_LIMIT = 40;
+  const activeCampaignData = campaignData.filter((c: any) => (c.status || "").toUpperCase() === "ACTIVE");
+  const pausedCampaignData = campaignData.filter((c: any) => (c.status || "").toUpperCase() !== "ACTIVE");
+  const pausedSorted = [...pausedCampaignData].sort((a: any, b: any) => {
+    const ac = (a.perf_30d?.conversions ?? 0) - (b.perf_30d?.conversions ?? 0);
+    if (ac !== 0) return -ac;
+    const as = (a.perf_30d?.spend ?? 0) - (b.perf_30d?.spend ?? 0);
+    return -as;
+  });
+  const pausedDetailed = pausedSorted.slice(0, PAUSED_CAMPAIGN_DETAIL_LIMIT);
+  const pausedSummarized = pausedSorted.slice(PAUSED_CAMPAIGN_DETAIL_LIMIT);
+  const displayedCampaigns = [...activeCampaignData, ...pausedDetailed];
+  const rowFor = (c: any) => {
     const p30 = c.perf_30d || {};
     const p7 = c.perf_7d || {};
     return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p30.frequency)} | ${fmtCents(p30.cpm)} | ${fmtNum(p30.page_views)} | ${fmtNum(p30.atc)} | ${fmtNum(p30.ic)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)} | ${fmtPct(p7.ctr)} | ${fmtNum(p7.frequency)}`;
-  }).join("\n");
+  };
+  let campaignRows = displayedCampaigns.map(rowFor).join("\n");
+  if (pausedSummarized.length > 0) {
+    const agg = pausedSummarized.reduce((acc: any, c: any) => {
+      const p30 = c.perf_30d || {};
+      acc.spend += p30.spend || 0;
+      acc.conv += p30.conversions || 0;
+      return acc;
+    }, { spend: 0, conv: 0 });
+    campaignRows += `\nAGREGADO_PAUSADAS | (${pausedSummarized.length} pausadas não detalhadas — top performers acima) | PAUSED | - | - | - | - | - | ${agg.spend.toFixed(2)} | ${agg.conv} | - | - | - | - | - | - | - | - | - | - | - | -`;
+  }
 
-  // ADSETS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  // ADSETS — Onda I (perf): ativos + pausados apenas das campanhas detalhadas,
+  // limitado a 30 (antes 50) para reduzir tokens sem perder contexto relevante.
   const activeCampaignIds = new Set(activeCampaigns.map((c: any) => c.meta_campaign_id || c.id));
+  const detailedCampaignIds = new Set(displayedCampaigns.map((c: any) => c.id));
   const activeAdsets = accountAdsets.filter((as: any) => activeCampaignIds.has(as.meta_campaign_id));
-  const pausedAdsets = accountAdsets.filter((as: any) => !activeCampaignIds.has(as.meta_campaign_id));
-  // Keep top 50 paused adsets by name relevance (most recent usually)
-  const selectedPausedAdsets = pausedAdsets.slice(0, 50);
+  const pausedAdsets = accountAdsets.filter((as: any) =>
+    !activeCampaignIds.has(as.meta_campaign_id) && detailedCampaignIds.has(as.meta_campaign_id)
+  );
+  const selectedPausedAdsets = pausedAdsets.slice(0, 30);
   const filteredAdsets = [...activeAdsets, ...selectedPausedAdsets];
-  
+
   const adsetHeaders = "ID | Nome | Status | EffStatus | CampaignID | BudgetDia | BudgetLife | OptGoal | BillingEvt | BidCents";
-  const adsetRows = filteredAdsets.map((as: any) => 
+  const adsetRows = filteredAdsets.map((as: any) =>
     `${as.meta_adset_id} | ${as.name} | ${as.status} | ${as.effective_status} | ${as.meta_campaign_id} | ${fmtCents(as.daily_budget_cents)} | ${fmtCents(as.lifetime_budget_cents)} | ${as.optimization_goal || "-"} | ${as.billing_event || "-"} | ${fmtNum(as.bid_amount_cents)}`
   ).join("\n");
 
-  // ADS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  // ADS — Onda I (perf): só ads de adsets/campanhas ativos OU de campanhas pausadas detalhadas.
   const activeAdsetIds = new Set(activeAdsets.map((as: any) => as.meta_adset_id));
+  const detailedAdsetIds = new Set(filteredAdsets.map((as: any) => as.meta_adset_id));
   const activeAds = accountAds.filter((ad: any) => activeAdsetIds.has(ad.meta_adset_id) || activeCampaignIds.has(ad.meta_campaign_id));
-  const pausedAds = accountAds.filter((ad: any) => !activeAdsetIds.has(ad.meta_adset_id) && !activeCampaignIds.has(ad.meta_campaign_id));
-  const selectedPausedAds = pausedAds.slice(0, 50);
+  const pausedAds = accountAds.filter((ad: any) =>
+    !activeAdsetIds.has(ad.meta_adset_id) &&
+    !activeCampaignIds.has(ad.meta_campaign_id) &&
+    (detailedAdsetIds.has(ad.meta_adset_id) || detailedCampaignIds.has(ad.meta_campaign_id))
+  );
+  const selectedPausedAds = pausedAds.slice(0, 30);
   const filteredAds = [...activeAds, ...selectedPausedAds];
-  
+
   const adHeaders = "ID | Nome | Status | EffStatus | AdSetID | CampaignID";
-  const adRows = filteredAds.map((ad: any) => 
+  const adRows = filteredAds.map((ad: any) =>
     `${ad.meta_ad_id} | ${ad.name} | ${ad.status} | ${ad.effective_status} | ${ad.meta_adset_id} | ${ad.meta_campaign_id}`
   ).join("\n");
 
