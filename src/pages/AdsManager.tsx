@@ -297,17 +297,21 @@ export default function AdsManager() {
       {/* 3 Main Tabs */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
         <TabsList>
-          <TabsTrigger value="overview" className="gap-2">
-            <BarChart3 className="h-3.5 w-3.5" />
-            Visão Geral
-          </TabsTrigger>
           <TabsTrigger value="manager" className="gap-2">
             <Settings2 className="h-3.5 w-3.5" />
             Gerenciador
           </TabsTrigger>
+          <TabsTrigger value="global-chat" className="gap-2">
+            <MessageCircle className="h-3.5 w-3.5" />
+            Chat IA
+          </TabsTrigger>
           <TabsTrigger value="ai-learnings" className="gap-2">
             <GraduationCap className="h-3.5 w-3.5" />
             Aprendizado da IA
+          </TabsTrigger>
+          <TabsTrigger value="overview" className="gap-2">
+            <BarChart3 className="h-3.5 w-3.5" />
+            Desempenho
           </TabsTrigger>
           <TabsTrigger value="warnings" className="gap-2">
             <Bell className="h-3.5 w-3.5" />
@@ -317,19 +321,6 @@ export default function AdsManager() {
                 {warningsCount}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="gap-2">
-            <Lightbulb className="h-3.5 w-3.5" />
-            Insights
-            {openInsightsCount > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
-                {openInsightsCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="global-chat" className="gap-2">
-            <MessageCircle className="h-3.5 w-3.5" />
-            Chat IA Global
           </TabsTrigger>
         </TabsList>
 
