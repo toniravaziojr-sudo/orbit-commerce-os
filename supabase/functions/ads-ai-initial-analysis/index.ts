@@ -425,28 +425,69 @@ Deno.serve(async (req) => {
     if (platform !== "meta")
       return fail("platform_not_operational_for_initial_analysis");
 
+    // Vigia preguiçoso: destrava execuções "running" mortas por timeout
+    await expireStuckRuns(supabase, tenantId);
+
     // ===== Escopo ACCOUNT =====
     if (scope === "account") {
-      const out = await runForAccount({
-        supabase, tenantId, platform, adAccountId: adAccountId!,
-        trigger, createdBy, force,
-      });
-      if (out.status === "skipped") {
-        return ok({
-          skipped: true,
-          reason: out.skip_reason,
-          run_id: out.run_id,
-        });
+      // Pré-checagem síncrona de skips (rápido) — execução pesada vai pra background
+      const { data: runningRows } = await supabase
+        .from("ads_ai_analysis_runs")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("platform", platform)
+        .eq("scope", "account")
+        .eq("ad_account_id", adAccountId)
+        .in("status", ["queued", "running"])
+        .limit(1);
+      if (runningRows && runningRows.length > 0) {
+        return ok({ skipped: true, reason: "already_running", run_id: runningRows[0].id });
       }
+      if (!force) {
+        const sinceIso = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000).toISOString();
+        const { data: recent } = await supabase
+          .from("ads_ai_analysis_runs")
+          .select("id, finished_at")
+          .eq("tenant_id", tenantId)
+          .eq("platform", platform)
+          .eq("scope", "account")
+          .eq("ad_account_id", adAccountId)
+          .eq("status", "completed")
+          .gte("finished_at", sinceIso)
+          .order("finished_at", { ascending: false })
+          .limit(1);
+        if (recent && recent.length > 0) {
+          return ok({
+            skipped: true,
+            reason: "recent_completed_requires_force",
+            recent_run_id: recent[0].id,
+            recent_finished_at: recent[0].finished_at,
+          });
+        }
+      }
+
+      // Despacha em segundo plano: a função responde imediatamente e o
+      // estrategista termina sem o teto de tempo da resposta HTTP.
+      runInBackground(
+        runForAccount({
+          supabase, tenantId, platform, adAccountId: adAccountId!,
+          trigger, createdBy, force,
+        }).then((out) => {
+          console.log(`[${VERSION}] account bg done`, { adAccountId, status: out.status, run_id: out.run_id });
+        }).catch(async (e: any) => {
+          console.error(`[${VERSION}] account bg crash`, e?.message || e);
+          // Vigia preguiçoso vai fechar como falha em até 8 min se ficar pendurada.
+        })
+      );
+
       return ok({
-        run_id: out.run_id,
-        status: out.status,
-        created_action_ids: out.created_action_ids,
-        context_summary: out.context_summary,
-        limitations: [],
-        error: out.error || null,
+        accepted: true,
+        status: "queued",
+        scope: "account",
+        message: "Análise iniciada em segundo plano. Acompanhe na tela.",
       });
     }
+
 
     // ===== Escopo GLOBAL =====
     // 1) Bloqueia se já existe run global ativa
