@@ -3921,7 +3921,28 @@ Vai para `strategy_summary` (parent) e `account_snapshot_summary.per_account[].c
 - Análise global continua processando contas em sequência; cada conta filha herda o mesmo padrão.
 - O usuário tem evidência visível e contínua de que a análise está rodando, mesmo saindo e voltando para a tela.
 
+**Popup de progresso "Rodando análise estratégica" (v1.3.1, 2026-06-17):** ao confirmar o disparo (tanto no botão por conta quanto no botão global), abre um popup centralizado no mesmo padrão visual do popup do módulo fiscal (envio à Receita), com:
+- Ícone animado e título "Rodando análise estratégica" (ou "...global").
+- Barra de progresso visual que avança de forma simulada com base no tempo decorrido (cresce suavemente até 95% até a janela esperada de ~3 min e completa 100% quando o status muda para concluído).
+- Cronômetro mostrando há quanto tempo está em execução.
+- Texto explicativo de que leva de 1 a 5 minutos.
+- Botão "Continuar em segundo plano" para fechar o popup sem interromper a análise.
+- Fechamento automático assim que a execução termina (status sai de "em andamento").
+
+O feedback inline no card (selo "Analisando agora" + tempo decorrido) é mantido como reforço para quem fechou o popup.
+
 **Concorrência:** o índice único parcial de "uma execução em andamento por escopo" continua valendo. Uma nova tentativa só passa depois que a anterior fecha (por conclusão real ou pelo vigia de 8 min).
+
+### E.9 — Auto-cura de rotulagem de catálogo (v1.3.2, 2026-06-17)
+
+**Problema observado:** o estrategista, em alguns casos, marcava `campaign_type` como `catalog_prospecting` ou `catalog_retargeting` para campanhas que, na prática, eram de vídeo/imagem comum (prospecção fria, LAL, retargeting padrão) — sem nenhum campo de `catalog_setup` preenchido. Isso fazia o guard bloquear o plano inteiro como "Plano incompleto — campanha de catálogo precisa de `catalog_setup.creative_mode='dynamic'`", mesmo quando a intenção real do plano não era catálogo dinâmico.
+
+**Como passa a funcionar:**
+1. **Auto-rebaixamento:** se uma ação chega com `campaign_type` começando por `catalog_` mas **nenhum** campo de `catalog_setup` preenchido (sem `creative_mode`, `product_catalog_id`, `product_set`, `pending_dependency`, etc.), o sistema interpreta como erro de rotulagem do LLM e rebaixa automaticamente para o tipo equivalente comum: `catalog_prospecting` → `prospecting`, `catalog_retargeting` → `retargeting`. A ação fica marcada com `campaign_type_auto_demoted_from_catalog=true` para auditoria.
+2. **Bloqueio mantido quando a intenção é catálogo:** se o estrategista preencheu qualquer campo de `catalog_setup` (mesmo parcialmente), o guard segue exigindo `creative_mode='dynamic'`, `product_catalog_id` e `product_set` (ou `pending_dependency='catalog_not_connected'` quando o catálogo não está detectado).
+3. **Reforço no prompt:** o prompt do estrategista passa a exigir que `catalog_*` seja usado **apenas** para campanhas de catálogo dinâmico real (Advantage+ Catalog / DPA). Campanhas de vídeo, imagem estática, LAL e amplo devem usar `prospecting`/`retargeting` simples.
+
+**Garantia:** a auto-cura só age quando o vínculo com catálogo está completamente ausente, ou seja, quando o sinal de "isso não é catálogo" é inequívoco. A segurança do plano não é reduzida.
 
 ---
 
