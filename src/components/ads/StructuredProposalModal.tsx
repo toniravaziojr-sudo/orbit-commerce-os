@@ -33,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertTriangle,
   Bot,
+  Check,
+  ChevronLeft,
   ChevronRight,
   Eye,
   ImageIcon,
@@ -40,6 +42,7 @@ import {
   Loader2,
   Megaphone,
   MessageSquare,
+  Send,
   Sparkles,
   Target,
   Users,
@@ -68,11 +71,15 @@ import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
 
-type NodeId =
-  | "overview"
-  | "campaign"
-  | `adset:${number}`
-  | `ad:${number}`;
+type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
+
+const WIZARD_STEPS: { id: StepId; label: string; icon: typeof Eye }[] = [
+  { id: "overview", label: "Visão geral", icon: Eye },
+  { id: "campaign", label: "Campanha", icon: Megaphone },
+  { id: "adsets", label: "Conjuntos", icon: Layers },
+  { id: "ads", label: "Anúncios", icon: ImageIcon },
+  { id: "publish", label: "Publicar", icon: Send },
+];
 
 interface Props {
   action: PendingAction;
@@ -253,7 +260,9 @@ export function StructuredProposalModal({
   const { approveStrategy } = useAdsPendingActions();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
-  const [selected, setSelected] = useState<NodeId>("overview");
+  const [stepIdx, setStepIdx] = useState(0);
+  const [adsetIdx, setAdsetIdx] = useState(0);
+  const [adIdx, setAdIdx] = useState(0);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
 
 
@@ -448,43 +457,19 @@ export function StructuredProposalModal({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-            {!overviewOnly && (
-              <aside className="md:w-60 md:shrink-0 md:border-r border-border/40 bg-muted/20 md:overflow-y-auto">
-                <nav className="p-2 md:p-3 flex md:block gap-1 md:gap-0.5 overflow-x-auto md:overflow-visible">
-                  <TreeItem icon={<Eye className="h-3.5 w-3.5" />} label="Visão Geral"
-                    active={selected === "overview"} onClick={() => setSelected("overview")} />
-                  <TreeItem icon={<Megaphone className="h-3.5 w-3.5" />} label="Campanha"
-                    active={selected === "campaign"} onClick={() => setSelected("campaign")} />
-                  <TreeGroupLabel label={`Conjuntos (${adSets.length})`} />
-                  {adSets.length === 0 ? (
-                    <TreeEmpty label="Nenhum conjunto" />
-                  ) : (
-                    adSets.map((a, i) => (
-                      <TreeItem key={`adset-${i}`} indent icon={<Layers className="h-3.5 w-3.5" />}
-                        label={a.name || `Conjunto ${i + 1}`}
-                        active={selected === `adset:${i}`}
-                        onClick={() => setSelected(`adset:${i}`)} />
-                    ))
-                  )}
-                  <TreeGroupLabel label={`Anúncios (${ads.length})`} />
-                  {ads.length === 0 ? (
-                    <TreeEmpty label="Nenhum anúncio" />
-                  ) : (
-                    ads.map((ad, i) => (
-                      <TreeItem key={`ad-${i}`} indent icon={<ImageIcon className="h-3.5 w-3.5" />}
-                        label={ad.name || `Anúncio ${i + 1}`}
-                        active={selected === `ad:${i}`}
-                        onClick={() => setSelected(`ad:${i}`)} />
-                    ))
-                  )}
-                </nav>
-              </aside>
-            )}
+          {/* Estepador (Fase 1) — substitui o menu lateral antigo */}
+          {!overviewOnly && (
+            <WizardStepper
+              steps={WIZARD_STEPS}
+              currentIdx={stepIdx}
+              onSelect={setStepIdx}
+            />
+          )}
 
+          <div className="flex-1 min-h-0 flex overflow-hidden">
             <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]>div]:!block [&>[data-radix-scroll-area-viewport]>div]:!w-full">
               <div className="px-5 py-4 min-w-0 w-full max-w-full break-words">
-                {(overviewOnly || selected === "overview") && (
+                {(overviewOnly || WIZARD_STEPS[stepIdx].id === "overview") && (
                   <OverviewSection
                     action={action}
                     campaign={structure.campaign}
@@ -500,29 +485,64 @@ export function StructuredProposalModal({
                     warnings={overviewOnly ? [] : allWarnings}
                   />
                 )}
-                {!overviewOnly && selected === "campaign" && <CampaignSection campaign={structure.campaign} channel={action.channel} identity={(structure as any).identity} />}
-                {!overviewOnly && selected.startsWith("adset:") && (
-                  <AdSetSection
-                    adSet={adSets[Number(selected.split(":")[1])] || null}
-                    blockers={allBlockers.filter(
-                      (b) => b.node_type === "ad_set" && b.node_id === selected.split(":")[1],
-                    )}
+
+                {!overviewOnly && WIZARD_STEPS[stepIdx].id === "campaign" && (
+                  <CampaignSection
+                    campaign={structure.campaign}
+                    channel={action.channel}
+                    identity={(structure as any).identity}
                   />
                 )}
-                {!overviewOnly && selected.startsWith("ad:") && (
-                  <AdSection
-                    ad={ads[Number(selected.split(":")[1])] || null}
-                    isStrategyStage={isStrategyStage}
-                    isCampaignProposal={action.action_type === "campaign_proposal"}
-                    campaign={structure.campaign}
-                    blockers={allBlockers.filter(
-                      (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === selected.split(":")[1],
+
+                {!overviewOnly && WIZARD_STEPS[stepIdx].id === "adsets" && (
+                  <div className="space-y-4">
+                    {adSets.length > 1 && (
+                      <ItemChips
+                        label="Conjunto"
+                        items={adSets.map((a, i) => a.name || `Conjunto ${i + 1}`)}
+                        activeIdx={adsetIdx}
+                        onSelect={setAdsetIdx}
+                      />
                     )}
-                  />
+                    <AdSetSection
+                      adSet={adSets[adsetIdx] || null}
+                      blockers={allBlockers.filter(
+                        (b) => b.node_type === "ad_set" && b.node_id === String(adsetIdx),
+                      )}
+                    />
+                  </div>
+                )}
+
+                {!overviewOnly && WIZARD_STEPS[stepIdx].id === "ads" && (
+                  <div className="space-y-4">
+                    {ads.length > 1 && (
+                      <ItemChips
+                        label="Anúncio"
+                        items={ads.map((a, i) => a.name || `Anúncio ${i + 1}`)}
+                        activeIdx={adIdx}
+                        onSelect={setAdIdx}
+                      />
+                    )}
+                    <AdSection
+                      ad={ads[adIdx] || null}
+                      isStrategyStage={isStrategyStage}
+                      isCampaignProposal={action.action_type === "campaign_proposal"}
+                      campaign={structure.campaign}
+                      blockers={allBlockers.filter(
+                        (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
+                      )}
+                    />
+                  </div>
+                )}
+
+                {!overviewOnly && WIZARD_STEPS[stepIdx].id === "publish" && (
+                  <PublishStepPlaceholder />
                 )}
               </div>
             </ScrollArea>
           </div>
+
+
 
           <div className="border-t border-border/30 px-5 py-3 flex flex-col gap-2 shrink-0 bg-background">
             {approveBlockedByContract && (
@@ -567,6 +587,34 @@ export function StructuredProposalModal({
                 </span>
               </div>
             )}
+
+            {/* Voltar / Avançar — navegação do passo a passo (Fase 1) */}
+            {!overviewOnly && (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
+                  disabled={stepIdx === 0 || isApproving || !!rejectingId}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Voltar
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Etapa {stepIdx + 1} de {WIZARD_STEPS.length} — {WIZARD_STEPS[stepIdx].label}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
+                  disabled={stepIdx >= WIZARD_STEPS.length - 1 || isApproving || !!rejectingId}
+                >
+                  Avançar
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -1163,37 +1211,115 @@ function AdSection({
    Átomos visuais
    =========================================================================== */
 
-function TreeItem({
-  icon, label, active, onClick, indent,
-}: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; indent?: boolean }) {
+function WizardStepper({
+  steps,
+  currentIdx,
+  onSelect,
+}: {
+  steps: { id: StepId; label: string; icon: typeof Eye }[];
+  currentIdx: number;
+  onSelect: (idx: number) => void;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "shrink-0 md:w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors",
-        indent && "md:pl-6",
-        active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-      )}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-      {active && <ChevronRight className="h-3 w-3 ml-auto hidden md:inline" />}
-    </button>
+    <div className="border-b border-border/40 bg-muted/20 px-3 py-2 overflow-x-auto shrink-0">
+      <ol className="flex items-center gap-1 min-w-max">
+        {steps.map((s, i) => {
+          const Icon = s.icon;
+          const isActive = i === currentIdx;
+          const isDone = i < currentIdx;
+          return (
+            <li key={s.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onSelect(i)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground font-semibold"
+                    : isDone
+                      ? "bg-primary/10 text-primary hover:bg-primary/15"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                )}
+                aria-current={isActive ? "step" : undefined}
+              >
+                <span
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold",
+                    isActive
+                      ? "bg-primary-foreground/20"
+                      : isDone
+                        ? "bg-primary/20"
+                        : "bg-muted/60",
+                  )}
+                >
+                  {isDone ? <Check className="h-3 w-3" /> : i + 1}
+                </span>
+                <Icon className="h-3.5 w-3.5" />
+                <span className="whitespace-nowrap">{s.label}</span>
+              </button>
+              {i < steps.length - 1 && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
-function TreeGroupLabel({ label }: { label: string }) {
+function ItemChips({
+  label,
+  items,
+  activeIdx,
+  onSelect,
+}: {
+  label: string;
+  items: string[];
+  activeIdx: number;
+  onSelect: (idx: number) => void;
+}) {
   return (
-    <p className="hidden md:block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2.5 mt-3 mb-1">
-      {label}
-    </p>
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-2.5 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
+        {label}:
+      </span>
+      {items.map((name, i) => {
+        const isActive = i === activeIdx;
+        return (
+          <button
+            key={`${label}-${i}`}
+            type="button"
+            onClick={() => onSelect(i)}
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-xs transition-colors",
+              isActive
+                ? "bg-primary text-primary-foreground font-semibold"
+                : "bg-background text-muted-foreground border border-border/40 hover:text-foreground",
+            )}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function TreeEmpty({ label }: { label: string }) {
-  return <p className="hidden md:block text-[10px] text-muted-foreground/60 italic px-3 py-1">{label}</p>;
+function PublishStepPlaceholder() {
+  return (
+    <div className="rounded-md border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center">
+      <Send className="h-6 w-6 mx-auto text-muted-foreground/60 mb-2" />
+      <p className="text-sm font-medium mb-1">Etapa de publicação</p>
+      <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+        Esta etapa será habilitada em breve. Aqui você terá o resumo final da campanha
+        e o botão para publicar diretamente na plataforma escolhida. Por enquanto,
+        a aprovação continua sendo feita pelo botão no rodapé.
+      </p>
+    </div>
+  );
 }
+
 
 function Block({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
