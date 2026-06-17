@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProposalOverwrite } from "@/hooks/useProposalOverwrite";
@@ -557,6 +558,14 @@ export function StructuredProposalModal({
                       blockers={allBlockers.filter(
                         (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
                       )}
+                      editable={editableCampaign}
+                      onPatch={(patch) =>
+                        overwriteActionData((curr) => {
+                          const arr = Array.isArray(curr.ads) ? [...curr.ads] : [];
+                          arr[adIdx] = { ...(arr[adIdx] || {}), ...patch };
+                          return { ...curr, ads: arr };
+                        })
+                      }
                     />
                   </div>
                 )}
@@ -1369,32 +1378,43 @@ function AdSection({
   isCampaignProposal,
   campaign,
   blockers,
+  editable = false,
+  onPatch,
 }: {
   ad: AdNode | null;
   isStrategyStage: boolean;
   isCampaignProposal?: boolean;
   campaign?: CampaignNode;
   blockers: GateIssue[];
+  editable?: boolean;
+  onPatch?: (patch: Record<string, any>) => void | Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(ad?.name || "");
+  const [draftHeadline, setDraftHeadline] = useState(ad?.headline || "");
+  const [draftPrimary, setDraftPrimary] = useState(ad?.primary_text || "");
+  const [draftDesc, setDraftDesc] = useState(ad?.description || "");
+  const [draftCta, setDraftCta] = useState(ad?.cta || "");
+  const [draftDest, setDraftDest] = useState(ad?.destination_url || "");
+  const [saving, setSaving] = useState(false);
+
   if (!ad) return <p className="text-sm text-muted-foreground">Anúncio não encontrado.</p>;
   const pending = new Set(blockers.map((b) => b.field));
   const isP = (suffix: string) => Array.from(pending).some((f) => f.endsWith(suffix));
 
-  // H.2.3 — Em propostas H.2, copy final (título/texto/descrição) é SEMPRE H.4.
-  const copyAsFuturePhase = isStrategyStage || !!isCampaignProposal;
+  // Quando o lojista editar, copy deixa de ser "fase futura" — passa a ser conteúdo real.
+  const hasManualCopy = !!(ad.headline || ad.primary_text || ad.description);
+  const copyAsFuturePhase = (isStrategyStage || !!isCampaignProposal) && !hasManualCopy;
   const isTesting = String(campaign?.internal_strategy_tag || "").toLowerCase() === "testing";
   const formatIsTestVariable = (ad.format_phase === "h4_future") || (isTesting && !ad.creative_format);
 
-  // CTA: mostra o valor (humanizado por dicionário). Se derivado do objetivo,
-  // anexa origem. Se ausente sem default, vira pendência clara.
   const ctaValue = ad.cta ? tr("cta", ad.cta) : null;
   const ctaOriginNote = ad.cta && ad.cta_source === "objective_default"
     ? "Padrão do objetivo Vendas"
-    : null;
+    : ad.cta && (ad.cta_source as any) === "manual_override"
+      ? "Definido pelo lojista"
+      : null;
 
-  // H.2.4 — Link de destino: pode vir do anúncio, landing pública, produto
-  // ou ser derivado do domínio público verificado da loja. Se ausente,
-  // mostra mensagem clara por motivo de pendência (sem inventar URL).
   const destValue = ad.destination_url || null;
   const destPendingReasonLabel =
     ad.destination_pending_reason === "store_public_domain_not_verified"
@@ -1407,7 +1427,6 @@ function AdSection({
       ? "Pendente de URL do produto/oferta"
       : null;
   const destPlaceholder = !destValue ? destPendingReasonLabel : null;
-  // H.2.4 — origem humanizada do link, para o usuário entender de onde veio.
   const destOriginNote = destValue
     ? (ad.destination_source === "ad_override" ? "Definido no próprio anúncio"
       : ad.destination_source === "landing" ? "Landing vinculada à campanha"
@@ -1420,19 +1439,152 @@ function AdSection({
     : (ad.format_source === "missing_catalog_config"
       ? "Pendente de configuração de catálogo na conta Meta"
       : null);
-  // H.2.5 — valor humanizado do formato resolvido + origem.
   const formatDisplayValue = ad.format_label || (ad.creative_format ? tr("creative_format", ad.creative_format) : null);
   const formatOriginNote = ad.format_source_label_pt || null;
+
+  const startEdit = () => {
+    setDraftName(ad.name || "");
+    setDraftHeadline(ad.headline || "");
+    setDraftPrimary(ad.primary_text || "");
+    setDraftDesc(ad.description || "");
+    setDraftCta(ad.cta || "");
+    setDraftDest(ad.destination_url || "");
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!onPatch) return;
+    const patch: Record<string, any> = {};
+    const norm = (s: string) => s.trim();
+    if (norm(draftName) !== (ad.name || "")) patch.name = norm(draftName) || null;
+    if (norm(draftHeadline) !== (ad.headline || "")) patch.headline = norm(draftHeadline) || null;
+    if (norm(draftPrimary) !== (ad.primary_text || "")) patch.primary_text = norm(draftPrimary) || null;
+    if (norm(draftDesc) !== (ad.description || "")) patch.description = norm(draftDesc) || null;
+    if (draftCta !== (ad.cta || "")) {
+      patch.cta = draftCta || null;
+      patch.cta_source = draftCta ? "manual_override" : null;
+    }
+    if (norm(draftDest) !== (ad.destination_url || "")) {
+      patch.destination_url = norm(draftDest) || null;
+      patch.destination_source = norm(draftDest) ? "ad_override" : null;
+      if (norm(draftDest)) patch.destination_pending_reason = null;
+    }
+    if (Object.keys(patch).length === 0) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    await onPatch(patch);
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const CTA_OPTIONS: { value: string; label: string }[] = [
+    { value: "SHOP_NOW", label: "Comprar agora" },
+    { value: "LEARN_MORE", label: "Saiba mais" },
+    { value: "BUY_NOW", label: "Compre agora" },
+    { value: "ORDER_NOW", label: "Peça já" },
+    { value: "SIGN_UP", label: "Cadastre-se" },
+    { value: "SUBSCRIBE", label: "Inscreva-se" },
+    { value: "GET_OFFER", label: "Ver oferta" },
+    { value: "CONTACT_US", label: "Fale conosco" },
+    { value: "BOOK_NOW", label: "Reservar" },
+    { value: "DOWNLOAD", label: "Baixar" },
+    { value: "APPLY_NOW", label: "Inscreva-se já" },
+  ];
 
   return (
     <div className="space-y-4">
       {/* Bloco 1: ANÚNCIO (entrega) */}
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
-        <DetailGrid>
-          <Detail label="Nome do anúncio" value={ad.name} />
-          <Detail label="Conjunto vinculado" value={ad.ad_set_ref} />
-          <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, copyAsFuturePhase)} />
-        </DetailGrid>
+        {editable && !editing && (
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 text-xs">
+              <Pencil className="h-3 w-3 mr-1" /> Editar textos do anúncio
+            </Button>
+          </div>
+        )}
+        {editable && editing ? (
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Nome do anúncio</Label>
+              <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Título</Label>
+              <Input
+                value={draftHeadline}
+                onChange={(e) => setDraftHeadline(e.target.value)}
+                maxLength={40}
+                placeholder="Até 40 caracteres"
+                className="h-8 text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">{draftHeadline.length}/40</p>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Texto principal</Label>
+              <Textarea
+                value={draftPrimary}
+                onChange={(e) => setDraftPrimary(e.target.value)}
+                maxLength={500}
+                rows={4}
+                placeholder="Mensagem principal que aparece no anúncio"
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">{draftPrimary.length}/500</p>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Descrição (opcional)</Label>
+              <Input
+                value={draftDesc}
+                onChange={(e) => setDraftDesc(e.target.value)}
+                maxLength={30}
+                placeholder="Até 30 caracteres"
+                className="h-8 text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">{draftDesc.length}/30</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Botão de ação</Label>
+                <Select value={draftCta || "__none__"} onValueChange={(v) => setDraftCta(v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sem botão (padrão do objetivo)</SelectItem>
+                    {CTA_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground">Link de destino</Label>
+                <Input
+                  type="url"
+                  value={draftDest}
+                  onChange={(e) => setDraftDest(e.target.value)}
+                  placeholder="https://..."
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <DetailGrid>
+            <Detail label="Nome do anúncio" value={ad.name} />
+            <Detail label="Conjunto vinculado" value={ad.ad_set_ref} />
+            <Detail label="Status do criativo" value={translateCreativeStatus(ad.creative_status, copyAsFuturePhase)} />
+          </DetailGrid>
+        )}
       </Block>
 
       {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
