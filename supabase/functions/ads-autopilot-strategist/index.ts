@@ -2310,6 +2310,7 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
     lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
     lines.push("- **NUNCA** proponha `pause_campaign` para campanha cujo `status` na lista de CAMPANHAS já é `PAUSED` ou cujo `effective_status` indica pausa. Idem para `adjust_budget` em campanhas PAUSED: ignore-as ou proponha reativação explícita com justificativa. A coluna `status` da lista é a fonte de verdade do estado atual da campanha na Meta.");
+    lines.push("- **OBRIGATÓRIO** em TODA ação sobre campanha existente (pause_campaign, adjust_budget, scale, optimize, maintain, monitor, reduce_budget, reactivate, request_review): preencher `existing_campaign_id` com o ID LITERAL da coluna ID da tabela CAMPANHAS e `existing_campaign_name` com o nome EXATO da coluna Nome. Ação sem esses dois campos é REJEITADA pelo guard e cai como plano incompleto. NÃO use apenas o nome no rationale — preencha os campos estruturados.");
 
     ondaGBlock = lines.join("\n");
 
