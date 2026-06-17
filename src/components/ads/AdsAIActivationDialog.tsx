@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAdsAIAnalysisRun, type AnalysisScope } from "@/hooks/useAdsAIAnalysisRun";
+import { AdsAnalysisProgressModal } from "./AdsAnalysisProgressModal";
 
 interface Props {
   open: boolean;
