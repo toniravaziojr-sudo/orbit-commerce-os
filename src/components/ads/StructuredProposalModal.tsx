@@ -538,7 +538,16 @@ export function StructuredProposalModal({
                 )}
 
                 {!overviewOnly && WIZARD_STEPS[stepIdx].id === "publish" && (
-                  <PublishStepPlaceholder />
+                  <PublishStepSummary
+                    campaign={structure.campaign}
+                    adSets={adSets}
+                    ads={ads}
+                    channel={action.channel}
+                    onPublish={handleApprove}
+                    isPublishing={isApproving}
+                    publishBlocked={approveBlocked}
+                    publishBlockedReason={approveBlockedReason}
+                  />
                 )}
               </div>
             </ScrollArea>
@@ -1372,16 +1381,210 @@ function ItemChips({
   );
 }
 
-function PublishStepPlaceholder() {
+function PublishStepSummary({
+  campaign,
+  adSets,
+  ads,
+  channel,
+  onPublish,
+  isPublishing,
+  publishBlocked,
+  publishBlockedReason,
+}: {
+  campaign: CampaignNode;
+  adSets: AdSetNode[];
+  ads: AdNode[];
+  channel: string;
+  onPublish: () => void;
+  isPublishing: boolean;
+  publishBlocked: boolean;
+  publishBlockedReason: string | null;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Bloqueio: todo anúncio precisa ter criativo final.
+  const adsWithoutCreative = ads
+    .map((a, i) => ({ idx: i, name: a.name || `Anúncio ${i + 1}`, hasCreative: !!a.creative_final_url }))
+    .filter((a) => !a.hasCreative);
+  const creativesMissing = adsWithoutCreative.length > 0;
+
+  // Resumos numéricos amigáveis.
+  const campaignBudget = campaign.daily_budget_cents
+    ? formatBudgetBRL(campaign.daily_budget_cents)
+    : null;
+  const totalAdsetBudgetCents = adSets.reduce(
+    (sum, s) => sum + (s.daily_budget_cents || 0),
+    0,
+  );
+  const adsetBudgetLabel = totalAdsetBudgetCents > 0 ? formatBudgetBRL(totalAdsetBudgetCents) : null;
+  const channelLabel = channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google_ads" ? "Google Ads" : channel;
+
+  const publishDisabled = publishBlocked || creativesMissing || isPublishing;
+
   return (
-    <div className="rounded-md border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center">
-      <Send className="h-6 w-6 mx-auto text-muted-foreground/60 mb-2" />
-      <p className="text-sm font-medium mb-1">Etapa de publicação</p>
-      <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-        Esta etapa será habilitada em breve. Aqui você terá o resumo final da campanha
-        e o botão para publicar diretamente na plataforma escolhida. Por enquanto,
-        a aprovação continua sendo feita pelo botão no rodapé.
-      </p>
+    <div className="space-y-4">
+      <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3">
+        <div className="flex items-start gap-2">
+          <Send className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Última etapa — revisar e publicar</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+              Ao publicar, a campanha é enviada para o {channelLabel} e fica <strong>ativa</strong>.
+              A publicação é a aprovação final. Depois disso, ajustes só pelo painel da plataforma
+              ou pelo chat com a IA.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Block title="Resumo da campanha" icon={<Megaphone className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <DetailGrid>
+          <Detail label="Nome" value={campaign.name} fullWidth />
+          <Detail label="Plataforma" value={channelLabel} />
+          <Detail label="Objetivo" value={campaign.objective} />
+          {campaignBudget && <Detail label="Orçamento diário (campanha)" value={campaignBudget} />}
+          {!campaignBudget && adsetBudgetLabel && (
+            <Detail label="Orçamento diário (somatório dos conjuntos)" value={adsetBudgetLabel} />
+          )}
+          <Detail label="Conjuntos" value={`${adSets.length}`} />
+          <Detail label="Anúncios" value={`${ads.length}`} />
+        </DetailGrid>
+      </Block>
+
+      <Block title="Conjuntos" icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <ul className="space-y-1.5">
+          {adSets.map((s, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate">{s.name || `Conjunto ${i + 1}`}</span>
+              {s.daily_budget_cents ? (
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {formatBudgetBRL(s.daily_budget_cents)}/dia
+                </Badge>
+              ) : null}
+            </li>
+          ))}
+          {adSets.length === 0 && (
+            <li className="text-xs text-muted-foreground">Nenhum conjunto definido.</li>
+          )}
+        </ul>
+      </Block>
+
+      <Block title="Anúncios" icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}>
+        <ul className="space-y-2">
+          {ads.map((a, i) => {
+            const hasCreative = !!a.creative_final_url;
+            return (
+              <li
+                key={i}
+                className={cn(
+                  "flex items-center gap-3 rounded-md border px-2.5 py-2",
+                  hasCreative ? "border-border/40 bg-card/40" : "border-amber-500/40 bg-amber-500/5",
+                )}
+              >
+                {hasCreative ? (
+                  <img
+                    src={a.creative_final_url!}
+                    alt={a.name || `Anúncio ${i + 1}`}
+                    className="h-12 w-12 object-cover rounded border border-border/40 shrink-0"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded border border-dashed border-amber-500/40 bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <ImageIcon className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{a.name || `Anúncio ${i + 1}`}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {a.headline || a.primary_text || "Sem copy definida"}
+                  </p>
+                </div>
+                {hasCreative ? (
+                  <Badge variant="outline" className="text-[10px] shrink-0 border-emerald-500/40 text-emerald-700 dark:text-emerald-300">
+                    Criativo pronto
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] shrink-0 border-amber-500/40 text-amber-800 dark:text-amber-200">
+                    Falta criativo
+                  </Badge>
+                )}
+              </li>
+            );
+          })}
+          {ads.length === 0 && (
+            <li className="text-xs text-muted-foreground">Nenhum anúncio definido.</li>
+          )}
+        </ul>
+      </Block>
+
+      {creativesMissing && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-100">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium">
+              {adsWithoutCreative.length === 1
+                ? "Um anúncio ainda está sem criativo."
+                : `${adsWithoutCreative.length} anúncios ainda estão sem criativo.`}
+            </p>
+            <p className="mt-0.5 leading-relaxed">
+              Volte para a etapa <strong>Anúncios</strong> e adicione o criativo
+              ({adsWithoutCreative.map((a) => a.name).join(", ")}) antes de publicar.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col items-stretch gap-2 pt-1">
+        <Button
+          size="lg"
+          onClick={() => setConfirmOpen(true)}
+          disabled={publishDisabled}
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          {isPublishing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Publicando...
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4 mr-2" />
+              Publicar na Meta
+            </>
+          )}
+        </Button>
+        {publishBlockedReason && !creativesMissing && (
+          <p className="text-[11px] text-muted-foreground text-center">{publishBlockedReason}</p>
+        )}
+        {!publishBlocked && !creativesMissing && (
+          <p className="text-[11px] text-muted-foreground text-center">
+            Ao publicar, a campanha entra ativa imediatamente. Esta ação substitui a aprovação.
+          </p>
+        )}
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publicar campanha no {channelLabel}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A campanha será criada e entrará <strong>ativa</strong>. A publicação é a aprovação
+              final — depois disso, ajustes só pelo painel da plataforma ou pelo chat com a IA.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmOpen(false);
+                onPublish();
+              }}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Publicar agora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
