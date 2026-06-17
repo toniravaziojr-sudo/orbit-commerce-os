@@ -17,6 +17,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 7. **Memória limitada a governança + 2 últimos assuntos** — Rotação obrigatória; nunca guardar regra de sistema que não esteja nos docs.
 
 ## Memories
+- [Ads — Ajuste sempre gera nova versão](mem://constraints/ads-adjustment-must-produce-new-version) — Modo `revision` do Estrategista: `tool_choice=required` no round 1 + retentativa interna + aprendizado síncrono + banner anti-flicker. Fallback devolve original para `pending_approval`.
 - [Supremacia do Prompt Estratégico](mem://constraints/strategic-prompt-supremacy) — Gestor de Tráfego v6.20: prompt estratégico do lojista é fonte de verdade máxima sobre regras manuais, função de produto e diretrizes de plataforma. Conflitos viram avisos não-bloqueantes acima do campo de prompt em Configurações da IA. `creativeReadinessGate` só bloqueia falhas técnicas reais.
 - [Dashboard por Canal](mem://features/command-center/dashboard-by-channel-standard) — Sub-abas do Dashboard (Geral, Loja Virtual, ML, Shopee, TikTok). Visibilidade por `marketplace_connections.is_active`. Filtro único em `lib/dashboard/channelFilter.ts`. Marketplaces exibem "Em breve" para Ads. Selo de fonte em cada card.
 - [Marketplaces — Padrão Canônico](mem://features/marketplaces/canonical-flow-standard) — Mercado Livre é golden path. Todo marketplace novo (Shopee, TikTok, etc.) reusa mesmo contrato de conexão, sync, PVs, fiscal, logística, atendimento e dashboard.
