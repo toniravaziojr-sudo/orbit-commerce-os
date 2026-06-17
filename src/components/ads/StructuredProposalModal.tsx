@@ -717,6 +717,37 @@ export function StructuredProposalModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Cancelar esta campanha?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              A proposta será removida da fila de aprovação e nada será publicado na Meta.
+              Esta ação não pode ser desfeita — para retomar, será necessário gerar uma nova proposta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmCancelOpen(false);
+                onReject(action.id);
+                toast.success("Campanha cancelada", {
+                  description: "A proposta foi removida da fila.",
+                });
+              }}
+              className="gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancelar campanha
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
 
   );
