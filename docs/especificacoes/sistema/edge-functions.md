@@ -927,13 +927,7 @@ ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 inves
 | `min_roi_cold` | 2 | ROI mínimo para público frio — abaixo disso, pausar campanha |
 | `min_roi_warm` | 3 | ROI mínimo para público quente (remarketing) — abaixo disso, pausar campanha |
 
-**UI**: Componente `AdsChannelRoasConfig` em cada aba de canal (Meta, Google, TikTok) exibe:
-- Toggle de ativação da IA **por canal** (não global)
-- Botão "Executar Análise" por canal
-- Config de ROI mínimo para pausar (frio e quente)
-- Salvas em `safety_rules` da config do canal correspondente.
-
-**Config Global** (`AdsGlobalConfig`): Apenas orçamento total, margem bruta, CPA máximo e prompt de direcionamento. Sem seletor de objetivo (sempre vendas).
+**UI atual (v6.20 — 2026-06-17):** não existe mais "Configuração Global de IA" no Gestor de Anúncios. Toda configuração que afeta execução (orçamento, ROI/ROAS, prompt estratégico, modo, funil, autonomia, kill switch, UTM) vive **por conta de anúncios** em `AdsAccountConfig` (`ads_autopilot_account_configs`). Os componentes legados `AdsChannelRoasConfig`, `AdsGlobalConfig` e `BrandComplianceFieldsBlock` foram removidos. Refino editorial é feito 100% via prompt estratégico (global + por conta) + feedback nas propostas.
 
 ### Regras de Segurança (Safety Rules — Globais)
 | Regra | Default | Descrição |
