@@ -3573,9 +3573,9 @@ Antes, o card da fila tinha 3 ações (Aprovar e gerar criativos / Ajustar / Rej
 3. **Rodapé fixo do modal** — único lugar onde Aprovar / Ajustar / Recusar aparecem:
    - **Aprovar estratégia e gerar criativos** (Etapa 1) ou **Aprovar** (legacy). Bloqueado se Quality Gate ou Product/Funnel Fit Gate negarem.
    - **Ajustar proposta** — comportamento varia por tipo:
-       - **Plano Estratégico** (`strategic_plan`) e ações sem hierarquia → fecha o modal e abre o diálogo de **sugestão por texto livre**; a IA gera uma nova proposta com base na descrição do usuário.
-       - **Etapa 1 do two-step** (estratégia com estrutura) → abre o **Editor Estruturado** (Frente 4.3) reorganizado em Campanha / Conjunto / Anúncio / Feedback.
-   - **Recusar proposta** — reaproveita o fluxo "Não quero" / "Quero outra proposta" existente.
+       - **Plano Estratégico** (`strategic_plan`) e ações sem hierarquia → fecha o modal e abre o diálogo de **sugestão por texto livre**; ao confirmar, dispara a edge function canônica `ads-autopilot-request-adjustment` (ver §15). A IA gera uma nova proposta com base na descrição do usuário, **sem** rejeitar o plano original.
+       - **Etapa 1 do two-step** (estratégia com estrutura) → abre o **Editor Estruturado** (Frente 4.3) reorganizado em Campanha / Conjunto / Anúncio / Feedback. Esse caminho usa `ads-autopilot-revise-proposal` (inalterado).
+   - **Recusar proposta** — reaproveita o fluxo "Não quero" / "Quero outra proposta" existente. Recusa NUNCA é equivalente a ajuste (ver §15).
 
 ### Compatibilidade legacy
 
