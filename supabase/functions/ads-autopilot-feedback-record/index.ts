@@ -216,6 +216,7 @@ Deno.serve(async (req) => {
       success: true,
       feedback_id: inserted.id,
       decided_at: inserted.decided_at,
+      learning_action,
       side_effects: {
         suggestion_status_changed: false,
         meta_api_called: false,
