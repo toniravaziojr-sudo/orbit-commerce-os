@@ -3832,6 +3832,17 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
   const analysisRunId = body?.analysis_run_id || null;
+  let analysisRunSnapshot: Record<string, any> = {};
+  if (analysisRunId) {
+    try {
+      const { data: runRow } = await supabase
+        .from("ads_ai_analysis_runs")
+        .select("input_config_snapshot")
+        .eq("id", analysisRunId)
+        .maybeSingle();
+      analysisRunSnapshot = runRow?.input_config_snapshot || {};
+    } catch (_e) { /* heartbeat remains best-effort */ }
+  }
 
   async function heartbeat(stage: string, extra: Record<string, any> = {}) {
     if (!analysisRunId) return;
@@ -3840,7 +3851,7 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
         .from("ads_ai_analysis_runs")
         .update({
           input_config_snapshot: {
-            ...(body?.input_config_snapshot || {}),
+            ...analysisRunSnapshot,
             strategist_background: true,
             strategist_version: VERSION,
             last_heartbeat_at: new Date().toISOString(),
@@ -3849,6 +3860,14 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
           },
         })
         .eq("id", analysisRunId);
+      analysisRunSnapshot = {
+        ...analysisRunSnapshot,
+        strategist_background: true,
+        strategist_version: VERSION,
+        last_heartbeat_at: new Date().toISOString(),
+        last_stage: stage,
+        ...extra,
+      };
     } catch (e: any) {
       console.warn(`[ads-autopilot-strategist][${VERSION}] heartbeat failed`, e?.message || e);
     }
