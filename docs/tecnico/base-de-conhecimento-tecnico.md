@@ -1374,6 +1374,16 @@ Reagendado com **anon key hardcoded** no header — mesmo padrão dos jobs saud�
 ### Regra perene (anti-regressão)
 
 - **Proibido** usar `current_setting('app.settings.service_role_key')` em `cron.schedule` neste projeto. A GUC nunca foi provisionada.
+
+## 2026-06-17 — Ads: análise estratégica não pode depender de chamada HTTP longa
+
+**Sintoma:** o Gestor de Tráfego exibia "Última tentativa falhou" após a análise estratégica rodar por mais de 3 minutos. A tela já havia recebido confirmação de início, mas a etapa intermediária ainda aguardava o Motor Estratégico terminar dentro de uma única chamada interna.
+
+**Causa raiz:** uso de background apenas no disparador inicial. O trabalho pesado continuava preso a uma segunda chamada HTTP para o Strategist, sujeita ao limite de duração da plataforma. Quando a IA demorava, a chamada era encerrada e a rodada fechava como falha sem propostas.
+
+**Regra derivada:** fluxos longos de IA devem usar padrão assíncrono ponta a ponta: criar job/rodada, responder rápido, transferir a responsabilidade de fechamento para o próprio worker pesado, registrar heartbeat e aplicar timeout por tentativa de provedor. `waitUntil` no chamador não basta quando o chamador aguarda outra função longa.
+
+**Aplicação obrigatória:** análise estratégica do Ads usa `run_async` no Motor Estratégico; o Strategist fecha a rodada em `ads_ai_analysis_runs` com sucesso/falha e IDs de propostas. O roteador de IA deve ter timeout por tentativa para não consumir todo o runtime com uma única chamada externa.
 - Padrão obrigatório: anon key hardcoded no header (validação real do papel acontece dentro da edge function).
 - Referência canônica: `scheduler-tick-job`.
 
