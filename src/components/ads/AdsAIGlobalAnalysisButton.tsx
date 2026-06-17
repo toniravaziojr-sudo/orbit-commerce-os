@@ -1,6 +1,6 @@
 // =============================================================================
 // AdsAIGlobalAnalysisButton — Onda E (correção: escopo global mínimo)
-// Dispara a análise inicial em escopo global (todas as contas Meta com IA
+// Dispara a análise estratégica em escopo global (todas as contas Meta com IA
 // ativada). Google/TikTok são ignorados nesta etapa com aviso amigável.
 // =============================================================================
 import { useState } from "react";
