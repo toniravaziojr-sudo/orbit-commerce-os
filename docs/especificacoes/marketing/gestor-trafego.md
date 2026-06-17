@@ -3895,21 +3895,30 @@ Vai para `strategy_summary` (parent) e `account_snapshot_summary.per_account[].c
 - Não publica campanha, não muta Meta/Google/TikTok, não gera criativo final, não consome crédito sem aprovação.
 - Google/TikTok continuam não operacionais nesta etapa.
 
-### E.8 — Execução em background + vigia de execuções travadas (v1.3.0, 2026-06-17)
+### E.8 — Execução em background + vigia + feedback visual "Analisando agora" (v1.3.0, 2026-06-17)
 
-**Problema observado:** a análise inicial é uma operação longa (coleta de contexto + Strategist com várias contas/criativos). Em casos de carga ou rede mais lenta, a edge atingia o limite máximo de execução síncrona da plataforma e era encerrada no meio do raciocínio da IA. O registro da análise ficava preso em "em andamento" para sempre, travando a UI (não dava para rodar uma nova nem ver erro).
+**Problema observado:** a análise estratégica é uma operação longa (coleta de contexto + Strategist com várias contas/criativos). Em casos de carga ou rede mais lenta, a chamada síncrona atingia o limite máximo de execução da plataforma e era encerrada no meio do raciocínio da IA. O registro da rodada ficava preso em "em andamento" para sempre, travando a UI (não dava para rodar uma nova nem ver erro). Além disso, com a entrada em background, o usuário não tinha sinal claro de que a análise estava acontecendo.
 
 **Como passa a funcionar:**
-1. **Resposta imediata à tela.** Ao clicar em "Rodar análise inicial", o sistema cria o registro da rodada como "em andamento" e devolve imediatamente para a UI um aviso de "análise iniciada". A tela já libera o usuário e acompanha o status pela própria rodada.
+1. **Resposta imediata à tela.** Ao clicar em "Rodar análise estratégica", o sistema cria o registro da rodada como "em andamento" e devolve imediatamente para a UI um aviso de "análise iniciada". A tela já libera o usuário e acompanha o status pela própria rodada.
 2. **Trabalho pesado em background.** Toda a parte demorada (sync condicional, contexto, Strategist, gravação do plano/propostas e finalização do status) roda em background na própria infraestrutura, sem o teto de tempo da chamada síncrona. Em qualquer caminho (sucesso, erro de negócio, exceção inesperada) o status da rodada é fechado de forma garantida.
 3. **Vigia preguiçoso (sem cron novo).** Toda vez que a UI consulta o estado da análise ou tenta iniciar uma nova, o sistema verifica se existe alguma rodada marcada como "em andamento" há mais de 8 minutos sem sinal de vida. Se existir, ela é automaticamente marcada como falha ("análise não respondeu no tempo esperado") e libera o caminho. Sem cron permanente, sem processamento ocioso.
 4. **Sinal de vida.** Durante o trabalho em background, marcos da análise são carimbados no registro da rodada para diferenciar "está trabalhando" de "morreu".
+5. **Feedback visual "Analisando agora".** Enquanto a rodada estiver com status "em andamento":
+   - O card da conta (e o card da análise global) fica destacado em cor primária.
+   - Selo "Analisando agora" com ícone pulsando substitui o selo neutro de "Em andamento".
+   - Mensagem explicativa: "A IA está estudando a conta agora. Isso costuma levar de 1 a 5 minutos. Você pode sair desta tela — o resultado vai aparecer na fila Aguardando Ação quando terminar."
+   - Contador de tempo decorrido em segundos abaixo da mensagem.
+   - Botão de disparo fica desabilitado, evitando clique duplicado.
+   - A tela reconsulta o status automaticamente a cada 5 segundos enquanto houver execução em andamento.
+   - Ao concluir, o card volta ao estado normal, aparece o toast "Análise estratégica concluída" e a fila Aguardando Ação é invalidada para mostrar as novas propostas.
 
 **Garantias:**
 - A UI nunca mais fica presa em "analisando" sem saída.
 - A profundidade da análise não diminui — a IA termina o raciocínio em vez de ser interrompida no meio.
 - Sem mudança no contrato funcional (mesmas entradas, mesmas saídas, mesma fila Aguardando Ação, mesmas regras de escopo e de janela de 24h).
 - Análise global continua processando contas em sequência; cada conta filha herda o mesmo padrão.
+- O usuário tem evidência visível e contínua de que a análise está rodando, mesmo saindo e voltando para a tela.
 
 **Concorrência:** o índice único parcial de "uma execução em andamento por escopo" continua valendo. Uma nova tentativa só passa depois que a anterior fecha (por conclusão real ou pelo vigia de 8 min).
 
