@@ -33,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertTriangle,
   Bot,
+  Check,
+  ChevronLeft,
   ChevronRight,
   Eye,
   ImageIcon,
@@ -40,6 +42,7 @@ import {
   Loader2,
   Megaphone,
   MessageSquare,
+  Send,
   Sparkles,
   Target,
   Users,
