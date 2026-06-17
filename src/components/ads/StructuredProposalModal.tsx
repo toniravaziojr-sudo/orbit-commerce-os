@@ -502,6 +502,13 @@ export function StructuredProposalModal({
                     campaign={structure.campaign}
                     channel={action.channel}
                     identity={(structure as any).identity}
+                    editable={editableCampaign}
+                    onPatch={(patch) =>
+                      overwriteActionData((curr) => ({
+                        ...curr,
+                        campaign: { ...(curr.campaign || {}), ...patch },
+                      }))
+                    }
                   />
                 )}
 
@@ -520,6 +527,14 @@ export function StructuredProposalModal({
                       blockers={allBlockers.filter(
                         (b) => b.node_type === "ad_set" && b.node_id === String(adsetIdx),
                       )}
+                      editable={editableCampaign}
+                      onPatch={(patch) =>
+                        overwriteActionData((curr) => {
+                          const adsets = Array.isArray(curr.adsets) ? [...curr.adsets] : [];
+                          adsets[adsetIdx] = { ...(adsets[adsetIdx] || {}), ...patch };
+                          return { ...curr, adsets };
+                        })
+                      }
                     />
                   </div>
                 )}
