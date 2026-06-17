@@ -1910,6 +1910,10 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             setStructuredOpen(false);
             setRejectOpen(true);
           }}
+          onAdjustRequest={() => {
+            setStructuredOpen(false);
+            setAdjustOpen(true);
+          }}
           approvingId={approvingId}
           rejectingId={rejectingId}
           overviewOnly={isStrategicPlan}

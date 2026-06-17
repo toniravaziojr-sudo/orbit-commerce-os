@@ -93,6 +93,8 @@ interface Props {
   titleOverride?: string;
   /** Rótulo customizado do botão aprovar (ex.: "Aprovar plano"). */
   approveLabelOverride?: string;
+  /** Callback para acionar fluxo de ajuste externo (texto livre) quando não há editor estruturado. */
+  onAdjustRequest?: () => void;
 }
 
 /* ---------------------------------------------------------------------------
@@ -240,6 +242,7 @@ export function StructuredProposalModal({
   overviewOnly = false,
   titleOverride,
   approveLabelOverride,
+  onAdjustRequest,
 }: Props) {
   const data = action.action_data || {};
   const isTwoStep = isTwoStepAction(action);
@@ -580,8 +583,13 @@ export function StructuredProposalModal({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
-                  setEditorOpen(true);
+                  if (isStrategyStage) {
+                    setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
+                    setEditorOpen(true);
+                  } else if (onAdjustRequest) {
+                    onOpenChange(false);
+                    onAdjustRequest();
+                  }
                 }}
                 disabled={isApproving || !!rejectingId}
               >
