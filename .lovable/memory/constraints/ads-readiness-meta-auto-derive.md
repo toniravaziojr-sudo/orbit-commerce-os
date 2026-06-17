@@ -22,7 +22,7 @@ A partir de 2026-06-16, o motor de prontidão H.4.1 (`creativeReadinessGate.ts` 
 - PROIBIDO reintroduzir formulário manual de Página/Pixel/Instagram/Conta/Evento/Janela por conta de anúncios. `MetaProductionConfigCard.tsx` ficou órfão — qualquer reuso futuro precisa autorização explícita.
 - PROIBIDO bloquear geração de criativos por ausência de evento de conversão ou janela de atribuição. São sempre derivados.
 - PROIBIDO transformar tom de voz, diferenciais ou restrições genéricas em bloqueador sem categoria sensível.
-- Testes em `creativeReadinessGate_test.ts` cobrem: derivação automática (testes 05/06), aviso de diferenciais (15), bloqueador condicional de claims (19), aviso de restrições (20).
+- Testes em `creativeReadinessGate_test.ts` cobrem derivação automática Meta e demoção dos campos editoriais a não-bloqueadores/não-avisos.
 
 ## Fase 2 (2026-06-16) — Categoria livre + Diretrizes Globais
 
