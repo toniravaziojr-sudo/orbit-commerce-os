@@ -365,27 +365,30 @@ Deno.serve(async (req) => {
 
   if (newChild) {
     const childData: any = newChild.action_data || {};
+    const childPayload = {
+      ...childData,
+      version: currentVersion + 1,
+      revision_source: {
+        parent_action_id: original.id,
+        version_from: currentVersion,
+        user_feedback: feedback,
+        feedback_id: feedbackId,
+      },
+      lifecycle: {
+        ...(childData.lifecycle || {}),
+        status: childData.action_type === "strategic_plan" || original.action_type === "strategic_plan"
+          ? "plan_pending_review"
+          : "campaign_proposal_pending_review",
+        adjustment_of_action_id: original.id,
+      },
+    };
+    const normalizedChild = normalizeStrategicPlanApprovalMirror(childPayload, newChild.status);
     await service
       .from("ads_autopilot_actions")
       .update({
+        status: normalizedChild.status,
         parent_action_id: original.id,
-        action_data: {
-          ...childData,
-          version: currentVersion + 1,
-          revision_source: {
-            parent_action_id: original.id,
-            version_from: currentVersion,
-            user_feedback: feedback,
-            feedback_id: feedbackId,
-          },
-          lifecycle: {
-            ...(childData.lifecycle || {}),
-            status: childData.action_type === "strategic_plan" || original.action_type === "strategic_plan"
-              ? "plan_pending_review"
-              : "campaign_proposal_pending_review",
-            adjustment_of_action_id: original.id,
-          },
-        },
+        action_data: normalizedChild.actionData,
       })
       .eq("id", newChild.id);
 
