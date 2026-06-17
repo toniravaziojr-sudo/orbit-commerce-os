@@ -292,7 +292,7 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
                 <Check label={`Campanha: ${campaign.name || "—"}`} />
                 <Check label={`Orçamento: ${formatBRL(campaign.daily_budget_cents)} por dia`} />
                 <Check label={`Início: ${publishWindow.label}`} />
-                <Check label={`${readyJobs.length} anúncio(s) serão criados`} />
+                <Check label={`${readyCards.length} anúncio(s) serão criados`} />
                 {failedJobs.length > 0 && <li className="flex gap-2 text-xs text-amber-700"><AlertTriangle className="h-3.5 w-3.5" /> {failedJobs.length} criativo(s) falharam e não serão publicados.</li>}
               </ul>
             </div>
