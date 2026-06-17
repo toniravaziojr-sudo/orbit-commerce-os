@@ -504,6 +504,10 @@ export default function AdsManager() {
                       />
                     </TabsContent>
 
+                    <TabsContent value="strategies">
+                      <AdsStrategyHistoryTab channel={channel} />
+                    </TabsContent>
+
                   </Tabs>
                 </TabsContent>
               );
