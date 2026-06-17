@@ -4188,3 +4188,27 @@ Os estados de criativo e revisão final entram nas Ondas H.4 e H.5.
 - Cron mensal **não pode** bloquear geração. Sempre serve a versão anterior até admin aprovar.
 - Lojista **não vê** o painel de diretrizes — é restrito à plataforma.
 
+---
+
+## H.2.4 — Produto canônico por proposta filha (anti-regressão)
+
+Quando o Plano Estratégico é aprovado, ele é expandido em uma proposta filha por campanha. Para cada proposta, o link de destino do anúncio é resolvido de forma determinística a partir do **produto principal da campanha** (cascata oficial: override do anúncio → landing pública → URL pública do produto → derivação `https://{domínio_verificado}/produto/{slug}`).
+
+**Contrato**: cada proposta filha tem **1 produto principal canônico** vindo do catálogo do tenant.
+
+### Por que existe esta regra
+O Estrategista pode (indevidamente) devolver o nome do produto da campanha como uma string composta ("Kits …, Balm …, Loção …") ou com variações triviais (espaço sobrando, "Kit/Kits", acentuação). Sem defesa em profundidade, o casamento literal contra o catálogo falha, o link de destino fica nulo e a proposta trava no painel.
+
+### O que a expansão faz, sempre, antes do resolver de link
+1. Normaliza o nome recebido (remoção de acentos, lowercase, colapso de espaços, trim).
+2. Suporta nomes compostos: separa por vírgula, ponto-e-vírgula, `+`, `/`, `&` e " e ".
+3. Casa cada parte contra os produtos ativos do tenant em 3 níveis: igualdade normalizada → catálogo contido no termo (escolhe o nome mais longo) → termo contido no catálogo (escolhe o mais curto).
+4. Elege o **primeiro produto reconhecido como principal**, grava o nome canônico, o slug, preserva o nome original do Estrategista e registra os demais como produtos secundários da campanha (uso futuro do gerador de criativos).
+5. Se nada casar, mantém o link nulo com o motivo declarado pelo resolver. Nunca inventa URL.
+
+### Anti-regressão
+- Proibido voltar a comparar nome do produto por igualdade literal contra o catálogo: qualquer espaço sobrando, plural ou nome composto reabre o bug.
+- Melhorar o prompt do Estrategista é desejável, mas **não substitui** a camada determinística da expansão — modelos generativos eventualmente desobedecem.
+- Validação após qualquer mexida no Estrategista ou no expansor: gerar plano com pelo menos uma campanha multi-produto, aprovar, e conferir que todas as propostas filhas saem com link de destino preenchido (sem "Link de destino" na lista de pendências).
+
+
