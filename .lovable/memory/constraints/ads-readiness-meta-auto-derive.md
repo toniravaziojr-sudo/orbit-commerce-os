@@ -28,7 +28,7 @@ A partir de 2026-06-16, o motor de prontidão H.4.1 (`creativeReadinessGate.ts` 
 
 - Cadastro de produto não tem mais campo fechado de categoria regulatória na UI. Apenas dois campos livres: `ai_product_type` e `ai_main_function` (em `products`).
 - Bloqueadores do gate H.4.1 agora exigem `ai_product_type` + `ai_main_function`. `regulatory_category` e `commercial_restrictions` legados ficam só por compatibilidade.
-- `brand.allowed_claims` foi rebaixado para aviso — não bloqueia mais.
+- `brand.allowed_claims` e demais campos editoriais da marca **não geram avisos nem bloqueios** no Gestor de Anúncios (descontinuados em 2026-06-17). Continuam vivos só para o modo Vendas (WhatsApp).
 - Tabela global `platform_commercial_guidelines` (Meta/Google/TikTok × categoria inferida) é fonte única para geração de copy/criativo. RLS: leitura para authenticated, escrita só `platform_admin`.
 - Cron mensal `platform-guidelines-monthly-refresh` (dia 1, 03:00 UTC) usa Firecrawl + Lovable AI (`gemini-2.5-flash`) para detectar mudanças e marcar `status='review_needed'`. NUNCA bloqueia geração — serve versão anterior até admin aprovar.
 - Helper `_shared/ads-autopilot/guidelineResolver.ts`: `inferCategory(type, function)` por keyword matching determinístico (sem custo de LLM por request), `resolveGuidelinesForProduct` para consumo pelo motor de geração.
