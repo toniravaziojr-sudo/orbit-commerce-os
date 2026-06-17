@@ -1527,6 +1527,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     // Onda G — disponibilidade por conta (cliente exclusão fria + catálogo Meta).
     customerAudienceByAccount,
     catalogAvailabilityByAccount,
+    activeOfferRules,
   };
 }
 
