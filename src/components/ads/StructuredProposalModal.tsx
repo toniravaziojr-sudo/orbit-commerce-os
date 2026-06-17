@@ -538,7 +538,16 @@ export function StructuredProposalModal({
                 )}
 
                 {!overviewOnly && WIZARD_STEPS[stepIdx].id === "publish" && (
-                  <PublishStepPlaceholder />
+                  <PublishStepSummary
+                    campaign={structure.campaign}
+                    adSets={adSets}
+                    ads={ads}
+                    channel={action.channel}
+                    onPublish={handleApprove}
+                    isPublishing={isApproving}
+                    publishBlocked={approveBlocked}
+                    publishBlockedReason={approveBlockedReason}
+                  />
                 )}
               </div>
             </ScrollArea>
