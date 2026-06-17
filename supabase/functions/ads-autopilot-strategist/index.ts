@@ -290,7 +290,7 @@ const STRATEGIST_TOOLS = [
           end_time: { type: "string", description: "Data/hora de término (ISO 8601). Omitir = sem data de término" },
 
           // --- META ---
-          reasoning: { type: "string", description: "Justificativa com dados numéricos" },
+          reasoning: { type: "string", description: "OBRIGATÓRIO em Português do Brasil simples e executivo. Sem inglês, sem jargão técnico. Justificativa com dados numéricos quando possível." },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["campaign_name", "objective", "daily_budget_cents", "optimization_goal", "conversion_event", "targeting_description", "funnel_stage", "destination_url", "product_name", "primary_texts", "headlines", "reasoning", "confidence"],
