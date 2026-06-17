@@ -93,6 +93,8 @@ interface Props {
   titleOverride?: string;
   /** Rótulo customizado do botão aprovar (ex.: "Aprovar plano"). */
   approveLabelOverride?: string;
+  /** Callback para acionar fluxo de ajuste externo (texto livre) quando não há editor estruturado. */
+  onAdjustRequest?: () => void;
 }
 
 /* ---------------------------------------------------------------------------
