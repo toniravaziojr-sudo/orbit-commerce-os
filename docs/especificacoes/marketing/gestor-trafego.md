@@ -3964,6 +3964,16 @@ O feedback inline no card (selo "Analisando agora" + tempo decorrido) é mantido
 
 **Concorrência:** o índice único parcial de "uma execução em andamento por escopo" continua valendo. Uma nova tentativa só passa depois que a anterior fecha (por conclusão real ou pelo vigia de 8 min).
 
+**Correção estrutural v1.3.3 (2026-06-17) — motor pesado não fica mais preso à chamada intermediária:** a falha recorrente de análise demorada foi causada por uma chamada longa entre o disparador da análise e o Motor Estratégico. A tela recebia "iniciada", mas a etapa pesada ainda dependia de uma chamada interna que podia ficar ativa por mais de 3 minutos e ser encerrada pelo limite de runtime da plataforma. A partir desta revisão:
+- o disparador cria a rodada e chama o Motor Estratégico em modo assíncrono real;
+- o Motor Estratégico responde imediatamente "em processamento" e passa a ser responsável por finalizar a própria rodada;
+- a rodada recebe sinal de vida durante coleta de contexto e chamada da IA;
+- se a IA ou provedor externo exceder o tempo por tentativa, o erro é fechado na rodada com mensagem de negócio, sem deixar execução presa;
+- a análise estratégica inicial usa apenas a ferramenta de plano estratégico, sem ferramentas auxiliares de landing page, e sem cascata de fallback caro entre provedores; isso reduz tempo e custo sem reduzir a profundidade do diagnóstico;
+- a UI continua apenas acompanhando a fonte de verdade da rodada, sem iniciar processamento oculto ao carregar a tela.
+
+**Garantia v1.3.3:** nenhuma análise estratégica manual deve depender de uma única chamada HTTP longa para concluir. O padrão oficial é: iniciar rápido → processar pesado em background → fechar a rodada pela própria etapa pesada → UI acompanha por consulta.
+
 ### E.9 — Auto-cura de rotulagem de catálogo (v1.3.2, 2026-06-17)
 
 **Problema observado:** o estrategista, em alguns casos, marcava `campaign_type` como `catalog_prospecting` ou `catalog_retargeting` para campanhas que, na prática, eram de vídeo/imagem comum (prospecção fria, LAL, retargeting padrão) — sem nenhum campo de `catalog_setup` preenchido. Isso fazia o guard bloquear o plano inteiro como "Plano incompleto — campanha de catálogo precisa de `catalog_setup.creative_mode='dynamic'`", mesmo quando a intenção real do plano não era catálogo dinâmico.

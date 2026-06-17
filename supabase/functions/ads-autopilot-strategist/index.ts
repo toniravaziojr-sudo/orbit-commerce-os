@@ -80,6 +80,31 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
+
+function runInBackground(promise: Promise<unknown>) {
+  try {
+    // @ts-ignore — EdgeRuntime exists in Supabase Edge runtime.
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(promise);
+      return;
+    }
+  } catch (_e) { /* fallback below */ }
+  promise.catch((e: any) => console.error(`[ads-autopilot-strategist][${VERSION}] background error`, e?.message || e));
+}
+
+function classifyStrategistError(error: unknown): string {
+  const msg = String((error as any)?.message || error || "Erro interno");
+  if (/timeout|abort|deadline|non-2xx|502|503|504|gateway|network|fetch/i.test(msg)) {
+    return "A análise estratégica demorou mais que o esperado ou o provedor de IA não respondeu a tempo. Tente novamente.";
+  }
+  if (/402|credit|balance|pagamento|payment/i.test(msg)) {
+    return "A análise estratégica não concluiu por limite de créditos de IA. Revise os créditos disponíveis e tente novamente.";
+  }
+  return msg;
+}
+
 function buildStrategicPlanPreview(planData: any, contract: any) {
   const normalized = planData && typeof planData === "object" ? planData : {};
   const plannedActions = Array.isArray(normalized.planned_actions) ? normalized.planned_actions : [];
@@ -3806,6 +3831,84 @@ async function executeToolCall(
 async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null, revisionFeedback?: string | null, body?: any) {
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
+  const analysisRunId = body?.analysis_run_id || null;
+  let analysisRunSnapshot: Record<string, any> = {};
+  if (analysisRunId) {
+    try {
+      const { data: runRow } = await supabase
+        .from("ads_ai_analysis_runs")
+        .select("input_config_snapshot")
+        .eq("id", analysisRunId)
+        .maybeSingle();
+      analysisRunSnapshot = runRow?.input_config_snapshot || {};
+    } catch (_e) { /* heartbeat remains best-effort */ }
+  }
+
+  async function heartbeat(stage: string, extra: Record<string, any> = {}) {
+    if (!analysisRunId) return;
+    try {
+      await supabase
+        .from("ads_ai_analysis_runs")
+        .update({
+          input_config_snapshot: {
+            ...analysisRunSnapshot,
+            strategist_background: true,
+            strategist_version: VERSION,
+            last_heartbeat_at: new Date().toISOString(),
+            last_stage: stage,
+            ...extra,
+          },
+        })
+        .eq("id", analysisRunId);
+      analysisRunSnapshot = {
+        ...analysisRunSnapshot,
+        strategist_background: true,
+        strategist_version: VERSION,
+        last_heartbeat_at: new Date().toISOString(),
+        last_stage: stage,
+        ...extra,
+      };
+    } catch (e: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] heartbeat failed`, e?.message || e);
+    }
+  }
+
+  async function closeAnalysisRun(status: "completed" | "failed", data: Record<string, any>) {
+    if (!analysisRunId) return;
+    try {
+      let createdActionIds = data.created_action_ids || [];
+      if (!Array.isArray(createdActionIds) || createdActionIds.length === 0) {
+        const { data: actions } = await supabase
+          .from("ads_autopilot_actions")
+          .select("id, ad_account_id")
+          .eq("tenant_id", tenantId)
+          .eq("channel", targetAccountId ? "meta" : (body?.target_channel || "meta"))
+          .eq("analysis_run_id", analysisRunId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        createdActionIds = (actions || [])
+          .filter((a: any) => !targetAccountId || !a.ad_account_id || a.ad_account_id === targetAccountId)
+          .map((a: any) => a.id);
+      }
+      await supabase
+        .from("ads_ai_analysis_runs")
+        .update({
+          status,
+          finished_at: new Date().toISOString(),
+          diagnosis_summary: status === "completed"
+            ? (data.diagnosis_summary || "Análise estratégica concluída. Veja as propostas na fila Aguardando Ação.")
+            : "Não foi possível concluir a análise estratégica.",
+          strategy_summary: status === "completed"
+            ? (data.strategy_summary || "Estratégia registrada como propostas pendentes de aprovação.")
+            : "",
+          created_action_ids: createdActionIds,
+          error_message: status === "failed" ? (data.error_message || "Falha na análise estratégica") : null,
+        })
+        .eq("id", analysisRunId);
+    } catch (e: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] close analysis run failed`, e?.message || e);
+    }
+  }
 
   // ====== Onda H.1 — KILLSWITCH: implement_approved_plan ======
   // A aprovação do Plano Estratégico não pode mais executar nada.
@@ -3841,11 +3944,18 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
 
   const activeConfigs = (configs || []).filter((c: any) => !c.kill_switch) as AccountConfig[];
   if (activeConfigs.length === 0) {
+    if (analysisRunId) {
+      await closeAnalysisRun("failed", {
+        error_message: "Nenhuma conta ativa/elegível foi encontrada para a análise estratégica.",
+      });
+    }
     return { trigger, accounts: 0, message: "No active accounts" };
   }
 
   // Collect deep context
+  await heartbeat("collecting_context");
   const context = await collectStrategistContext(supabase, tenantId, activeConfigs, trigger);
+  await heartbeat("context_collected", { accounts: activeConfigs.length });
 
   // Create strategist session
   const { data: session } = await supabase
@@ -4106,8 +4216,11 @@ Feedback: "${revisionFeedback}"
     }
   }
 
+  let fatalError: string | null = null;
+
   // Analyze each account with full pipeline
   for (const config of activeConfigs) {
+    await heartbeat("ai_round_start", { ad_account_id: config.ad_account_id });
     const prompt = buildStrategistPrompt(trigger, config, context);
     
     // Inject approved plan content into the prompt if available
@@ -4214,14 +4327,14 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       if (isTikTokAccount) {
         // TikTok Ads: use TikTok-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
           ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => ["create_tiktok_campaign", "toggle_tiktok_status", "update_tiktok_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...TIKTOK_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
       } else if (isGoogleAccount) {
         // Google Ads: use Google-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
           ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => ["create_google_campaign", "create_google_ad_group", "create_google_keyword", "create_google_ad"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...GOOGLE_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
@@ -4232,7 +4345,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           : trigger === "implement_campaigns"
           ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : trigger === "start"
-          ? [...STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : isScopedRevision
           ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
@@ -4283,12 +4396,16 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           supabaseUrl,
           supabaseServiceKey,
           logPrefix: `[ads-autopilot-strategist][${VERSION}][R${round}]`,
+          maxRetries: trigger === "start" ? 0 : 3,
+          requestTimeoutMs: trigger === "start" ? 135_000 : 120_000,
+          noFallback: trigger === "start",
         });
 
         if (!aiResponse.ok) {
           const errText = await aiResponse.text();
           console.error(`[ads-autopilot-strategist][${VERSION}] AI error round ${round}: ${aiResponse.status} ${errText}`);
-          break;
+          fatalError = `AI error ${aiResponse.status}: ${errText.substring(0, 300)}`;
+          throw new Error(fatalError);
         }
 
         const aiResult = await aiResponse.json();
@@ -4765,9 +4882,11 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
         });
       }
 
+      await heartbeat("account_completed", { ad_account_id: config.ad_account_id, total_planned: totalPlanned });
       console.log(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id}: ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected (${round} rounds)`);
     } catch (err: any) {
       console.error(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id} error:`, err.message);
+      fatalError = fatalError || err?.message || "account_failed";
     }
   }
 
@@ -4787,6 +4906,19 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
   }
 
   console.log(`[ads-autopilot-strategist][${VERSION}] ${trigger} completed: ${activeConfigs.length} accounts, ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected in ${durationMs}ms`);
+
+  if (analysisRunId) {
+    if (fatalError || totalPlanned === 0) {
+      await closeAnalysisRun("failed", {
+        error_message: classifyStrategistError(fatalError || "Nenhuma proposta foi gerada pela análise estratégica."),
+      });
+    } else {
+      await closeAnalysisRun("completed", {
+        diagnosis_summary: "Análise estratégica concluída. Veja as propostas na fila Aguardando Ação.",
+        strategy_summary: `Plano estratégico gerado com ${totalPlanned} proposta(s) para revisão humana.`,
+      });
+    }
+  }
 
   return {
     trigger,
@@ -4938,7 +5070,44 @@ Deno.serve(async (req) => {
       return ok({ trigger, tenants_processed: results.length, results });
     }
 
-    // Manual invocation (with optional account filter)
+    // Manual invocation (with optional account filter). For long strategic analysis,
+    // return immediately and let the strategist close ads_ai_analysis_runs itself.
+    if (body.run_async === true && body.analysis_run_id && trigger === "start") {
+      runInBackground((async () => {
+        try {
+          const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
+          try {
+            await chargeAfter({
+              tenantId,
+              serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+              units: { tokens_in: 30000, tokens_out: 8000 },
+              jobId: crypto.randomUUID(),
+              feature: "ads-autopilot-strategist",
+              metadata: { trigger, target_account_id: targetAccountId, async: true, analysis_run_id: body.analysis_run_id },
+            });
+          } catch (e) { console.warn("[ads-autopilot-strategist] async charge skipped", String(e)); }
+          console.log(`[ads-autopilot-strategist][${VERSION}] async start done`, { tenantId, targetAccountId, result });
+        } catch (e: any) {
+          console.error(`[ads-autopilot-strategist][${VERSION}] async start failed`, e?.message || e);
+          try {
+            await supabase
+              .from("ads_ai_analysis_runs")
+              .update({
+                status: "failed",
+                finished_at: new Date().toISOString(),
+                diagnosis_summary: "Não foi possível concluir a análise estratégica.",
+                strategy_summary: "",
+                error_message: classifyStrategistError(e),
+              })
+              .eq("id", body.analysis_run_id);
+          } catch (closeErr: any) {
+            console.error(`[ads-autopilot-strategist][${VERSION}] async failure close failed`, closeErr?.message || closeErr);
+          }
+        }
+      })());
+      return ok({ accepted: true, status: "running", analysis_run_id: body.analysis_run_id });
+    }
+
     const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
     try {
       await chargeAfter({

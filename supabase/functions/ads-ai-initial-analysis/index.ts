@@ -134,7 +134,7 @@ interface RunAccountInput {
 interface RunAccountOutput {
   ad_account_id: string;
   run_id: string | null;
-  status: "completed" | "failed" | "skipped";
+  status: "completed" | "failed" | "skipped" | "queued";
   skip_reason?: string;
   created_action_ids: string[];
   diagnosis_summary?: string;
@@ -364,6 +364,7 @@ async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> 
           initiated_by: "ads-ai-initial-analysis",
           analysis_run_id: runId,
           parent_run_id: parentRunId || null,
+          run_async: true,
         },
       },
     );
@@ -371,6 +372,36 @@ async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> 
     else strategistResult = stratData;
   } catch (e: any) {
     strategistError = e?.message || String(e);
+  }
+
+  const strategistPayload = strategistResult?.data || strategistResult;
+  if (!strategistError && strategistPayload?.accepted === true && strategistPayload?.status === "running") {
+    await supabase
+      .from("ads_ai_analysis_runs")
+      .update({
+        input_config_snapshot: {
+          platform,
+          scope: "account",
+          ad_account_id: adAccountId,
+          trigger,
+          version: VERSION,
+          parent_run_id: parentRunId || null,
+          account_config: cfgs || null,
+          production_config: prodCfg || null,
+          strategist_background: true,
+          strategist_requested_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", runId);
+    return {
+      ad_account_id: adAccountId,
+      run_id: runId,
+      status: "queued",
+      created_action_ids: [],
+      diagnosis_summary: "Análise estratégica em processamento.",
+      strategy_summary: "A IA está concluindo a análise em segundo plano.",
+      context_summary: contextSummary,
+    };
   }
 
   // 6) Coleta ações criadas nesta janela para esta conta
