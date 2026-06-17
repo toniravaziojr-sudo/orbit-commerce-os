@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, History, ChevronRight, Calendar, Target, DollarSign } from "lucide-react";
-import { formatDayMonthTimeBR } from "@/lib/date-timezone";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 
 interface StrategicPlanRow {
