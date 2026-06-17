@@ -264,6 +264,7 @@ export function StructuredProposalModal({
   const isStrategicPlan = action.action_type === "strategic_plan";
 
   const { approveStrategy } = useAdsPendingActions();
+  const { overwrite: overwriteActionData } = useProposalOverwrite(action);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorFocus, setEditorFocus] = useState<GateIssue["node_type"] | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
@@ -271,6 +272,9 @@ export function StructuredProposalModal({
   const [adIdx, setAdIdx] = useState(0);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+
+  const isCampaignProposal0 = action.action_type === "campaign_proposal";
+  const editableCampaign = isCampaignProposal0;
 
 
   const structure = useMemo(
