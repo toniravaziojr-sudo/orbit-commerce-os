@@ -1,6 +1,6 @@
 ---
 name: Ads — Ajuste de proposta sempre gera nova versão
-description: Modo "revision" do Estrategista de Tráfego deve obrigatoriamente devolver nova versão da proposta. tool_choice=required no round 1 + retentativa interna + aprendizado síncrono. Banner de progresso anti-flicker rastreia sessões já exibidas.
+description: Modo "revision" do Estrategista de Tráfego deve obrigatoriamente devolver nova versão da proposta. tool_choice=required no round 1 + retentativa interna + aprendizado síncrono. Todo aprendizado novo nasce ATIVO por padrão (Onda 3.2). Banner de progresso anti-flicker rastreia sessões já exibidas.
 type: constraint
 ---
 
