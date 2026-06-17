@@ -3944,6 +3944,11 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
 
   const activeConfigs = (configs || []).filter((c: any) => !c.kill_switch) as AccountConfig[];
   if (activeConfigs.length === 0) {
+    if (analysisRunId) {
+      await closeAnalysisRun("failed", {
+        error_message: "Nenhuma conta ativa/elegível foi encontrada para a análise estratégica.",
+      });
+    }
     return { trigger, accounts: 0, message: "No active accounts" };
   }
 
