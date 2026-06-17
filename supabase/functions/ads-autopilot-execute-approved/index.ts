@@ -1039,10 +1039,11 @@ Deno.serve(async (req) => {
       const dailyBudgetCents = data.daily_budget_cents || preview.daily_budget_cents || 0;
       const objective = data.objective || "conversions";
 
-      // ====== FRENTE 1 — Revalidação de exclusão de Clientes em Públicos Frios ======
-      // Defesa em profundidade: o Quality Gate já valida no momento da proposta,
-      // mas re-resolvemos antes de publicar para impedir publicação se algo mudou
-      // entre aprovação e execução (público dessincronizado, account trocada, etc.).
+      // ====== Exclusão de Clientes em Públicos Frios (revisada 2026-06-17) ======
+      // Nunca bloqueia. Apenas auto-injeta a exclusão SE o público de Clientes
+      // existir na conta E a proposta aprovada ainda contiver a exclusão (sinal
+      // de que o usuário NÃO removeu). Se o usuário removeu durante a revisão,
+      // respeitamos a decisão e apenas logamos como override para aprendizado.
       const stageForCheck = data.funnel_stage || preview.funnel_stage || null;
       if (adAccountId && isColdFunnelStage(stageForCheck)) {
         try {
@@ -1051,47 +1052,41 @@ Deno.serve(async (req) => {
             tenant_id,
             adAccountId,
           );
-          if (!ca.found || !ca.meta_audience_id) {
-            console.warn(
-              `[ads-autopilot-execute-approved][${VERSION}] Cold campaign blocked at publish: customer audience missing`,
-            );
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error:
-                  "Não foi possível publicar esta campanha de Público Frio: o público de Clientes não está sincronizado nesta conta. Sincronize antes e tente aprovar novamente.",
-                reason_code: "cold_audience_requires_customer_exclusion",
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
-          }
-          const excluded = (data.excluded_audience_ids || preview.excluded_audience_ids || []) as Array<any>;
-          const excludedIds = excluded.map((e: any) => String(e?.id ?? e));
-          if (!excludedIds.includes(String(ca.meta_audience_id))) {
-            // Auto-injeta antes de publicar (mesma regra do strategist).
-            const merged = [
-              ...excluded,
-              { id: ca.meta_audience_id, name: ca.audience_name },
-            ];
-            data.excluded_audience_ids = merged;
-            if (preview) preview.excluded_audience_ids = merged;
+          if (ca.found && ca.meta_audience_id) {
+            const excluded = (data.excluded_audience_ids || preview.excluded_audience_ids || []) as Array<any>;
+            const excludedIds = excluded.map((e: any) => String(e?.id ?? e));
+            const exclusionStillProposed =
+              !!data?.audience_exclusions?.customers ||
+              !!preview?.audience_exclusions?.customers;
+            if (!excludedIds.includes(String(ca.meta_audience_id))) {
+              if (exclusionStillProposed) {
+                // Auto-injeta — usuário não removeu, apenas faltou ID resolvido.
+                const merged = [
+                  ...excluded,
+                  { id: ca.meta_audience_id, name: ca.audience_name },
+                ];
+                data.excluded_audience_ids = merged;
+                if (preview) preview.excluded_audience_ids = merged;
+                console.log(
+                  `[ads-autopilot-execute-approved][${VERSION}] Cold campaign auto-injected customer exclusion ${ca.meta_audience_id}`,
+                );
+              } else {
+                // Usuário removeu deliberadamente — respeitar e registrar override.
+                console.log(
+                  `[ads-autopilot-execute-approved][${VERSION}] Cold campaign user-override: customer exclusion REMOVED by user tenant=${tenant_id} action=${action_id}`,
+                );
+              }
+            }
+          } else {
             console.log(
-              `[ads-autopilot-execute-approved][${VERSION}] Cold campaign auto-injected customer exclusion ${ca.meta_audience_id}`,
+              `[ads-autopilot-execute-approved][${VERSION}] Cold campaign advisory: customer audience not synced in account ${adAccountId} — proceeding without exclusion`,
             );
           }
         } catch (caErr: any) {
-          console.error(
-            `[ads-autopilot-execute-approved][${VERSION}] Customer audience revalidation threw:`,
+          // Falha na revalidação não bloqueia mais. Apenas registra.
+          console.warn(
+            `[ads-autopilot-execute-approved][${VERSION}] Customer audience revalidation failed (non-blocking):`,
             caErr?.message,
-          );
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error:
-                "Não foi possível validar o público de Clientes para esta campanha fria. Tente novamente em instantes.",
-              reason_code: "cold_audience_revalidation_failed",
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
       }
