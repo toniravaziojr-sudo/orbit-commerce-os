@@ -3831,6 +3831,65 @@ async function executeToolCall(
 async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null, revisionFeedback?: string | null, body?: any) {
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
+  const analysisRunId = body?.analysis_run_id || null;
+
+  async function heartbeat(stage: string, extra: Record<string, any> = {}) {
+    if (!analysisRunId) return;
+    try {
+      await supabase
+        .from("ads_ai_analysis_runs")
+        .update({
+          input_config_snapshot: {
+            ...(body?.input_config_snapshot || {}),
+            strategist_background: true,
+            strategist_version: VERSION,
+            last_heartbeat_at: new Date().toISOString(),
+            last_stage: stage,
+            ...extra,
+          },
+        })
+        .eq("id", analysisRunId);
+    } catch (e: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] heartbeat failed`, e?.message || e);
+    }
+  }
+
+  async function closeAnalysisRun(status: "completed" | "failed", data: Record<string, any>) {
+    if (!analysisRunId) return;
+    try {
+      let createdActionIds = data.created_action_ids || [];
+      if (!Array.isArray(createdActionIds) || createdActionIds.length === 0) {
+        const { data: actions } = await supabase
+          .from("ads_autopilot_actions")
+          .select("id, ad_account_id")
+          .eq("tenant_id", tenantId)
+          .eq("channel", targetAccountId ? "meta" : (body?.target_channel || "meta"))
+          .eq("analysis_run_id", analysisRunId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        createdActionIds = (actions || [])
+          .filter((a: any) => !targetAccountId || !a.ad_account_id || a.ad_account_id === targetAccountId)
+          .map((a: any) => a.id);
+      }
+      await supabase
+        .from("ads_ai_analysis_runs")
+        .update({
+          status,
+          finished_at: new Date().toISOString(),
+          diagnosis_summary: status === "completed"
+            ? (data.diagnosis_summary || "Análise estratégica concluída. Veja as propostas na fila Aguardando Ação.")
+            : "Não foi possível concluir a análise estratégica.",
+          strategy_summary: status === "completed"
+            ? (data.strategy_summary || "Estratégia registrada como propostas pendentes de aprovação.")
+            : "",
+          created_action_ids: createdActionIds,
+          error_message: status === "failed" ? (data.error_message || "Falha na análise estratégica") : null,
+        })
+        .eq("id", analysisRunId);
+    } catch (e: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] close analysis run failed`, e?.message || e);
+    }
+  }
 
   // ====== Onda H.1 — KILLSWITCH: implement_approved_plan ======
   // A aprovação do Plano Estratégico não pode mais executar nada.
@@ -3870,7 +3929,9 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   }
 
   // Collect deep context
+  await heartbeat("collecting_context");
   const context = await collectStrategistContext(supabase, tenantId, activeConfigs, trigger);
+  await heartbeat("context_collected", { accounts: activeConfigs.length });
 
   // Create strategist session
   const { data: session } = await supabase
