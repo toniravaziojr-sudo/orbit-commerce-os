@@ -1,25 +1,27 @@
-## Onda 3 — Concluída (2026-06-17)
+# Plano — Onda H.4 / H.5 (Gestor de Anúncios)
 
-### O que foi entregue
+## Confirmações do usuário
+1. **Aumentar Ticket como ferramenta opcional.** A IA SEMPRE tenta casar a ideia com Order Bump / Upsell / Cross-sell / Compre Junto cadastrados. Se não houver oferta compatível, ela **ignora silenciosamente** e busca outra ideia válida — nunca bloqueia, nunca pede para o lojista cadastrar.
+2. **Feedback vira aprendizado.** Toda regeneração (criativo OU copy) exige campo de feedback explicando o porquê e como o lojista quer; cada feedback é gravado como aprendizado da IA, igual às etapas anteriores.
+3. **Ordem de execução** é decisão técnica, priorizando solidez, segurança e eficácia.
 
-1. **Aba Insights removida** da tela do Gestor de Tráfego.
-2. **Ordem final das abas principais**: Gerenciador · Chat IA · Aprendizado da IA · Desempenho · Avisos.
-3. **Rotina semanal de Insights desligada** (cron `ads-weekly-insights`, jobid 74 — `unschedule`).
-4. **Ciclo da IA por conta agora popula a aba Avisos**: o destino de "sinal diagnóstico" em `ads-autopilot-analyze` foi redirecionado da tabela antiga `ads_autopilot_insights` para `ads_ai_warnings`, com severidade (informativo / atenção / urgente) e tendência (up/down/flat) derivadas dos `risk_alerts` e `kpi_analysis.overall_trend`.
-5. **Widget de alertas do Dashboard** trocou a fonte de Insights para Avisos.
-6. **Documentação atualizada**: `docs/especificacoes/marketing/gestor-trafego.md` ganhou bloco "Onda 3" no topo; `docs/especificacoes/transversais/mapa-ui.md` ganhou linha dedicada para a Onda 3 em `/ads`.
-7. **Memória de governança** criada e indexada: `mem://constraints/ads-no-global-and-avisos-not-proposals`.
+## Ordem de execução (definida)
 
-### Preservado intencionalmente (não destrutivo)
+### Etapa 1 — Vínculo proposta ↔ criativo (correção estrutural)
+Hoje a geração da imagem sobrescreve o "marcador" que liga o criativo à proposta, e a proposta não avança sozinha. Será corrigido na origem: o vínculo passa a ser gravado no momento da criação do job e não pode mais ser perdido durante a geração.
 
-- Tabela `ads_autopilot_insights` mantida em banco como histórico congelado — não recebe mais writes do ciclo vivo, não aparece na UI.
-- Edge functions `ads-autopilot-weekly-insights`, componente `AdsInsightsTab` e hook `useAdsInsights` deixados no repositório para referência histórica (sem chamadas vivas).
+### Etapa 2 — Aumentar Ticket como insumo da Estrategista
+A Estrategista passa a ler as ofertas ativas do lojista antes de propor campanhas que dependam de oferta combinada (upgrade, combo, cross-sell). Se houver oferta compatível, a campanha é amarrada nela (mesmos produtos, mesmo link). Se não houver, a IA escolhe outro tipo de campanha. Sem bloqueio para o lojista. Também passa a aplicar automaticamente a regra "público frio para carro-chefe exclui clientes existentes".
 
-### Próximos passos sugeridos (fora desta onda)
+### Etapa 3 — Revisão final com edição real (imagem + copy + aprendizado)
+Na tela de revisão final, para cada criativo o lojista terá:
 
-- Quando Aviso virar Proposta automaticamente, marcar o aviso original como `status='converted'` + `converted_to_action_id`. A coluna já existe; só falta o gatilho no momento em que o ciclo cria a proposta a partir de um aviso preexistente. Aguardando observação do uso real antes de implementar.
-- Limpeza definitiva do código morto (`ads-autopilot-weekly-insights`, `AdsInsightsTab`, `useAdsInsights`) só após 30 dias de estabilidade, para garantir reversibilidade.
+- **Imagem:** aceitar a da IA / regenerar com feedback / substituir por upload do computador / escolher do Meu Drive.
+- **Copy (título, texto principal, descrição):** editar à mão / regenerar com feedback.
+- **Toda regeneração exige feedback obrigatório** (campo curto explicando o porquê). Esse feedback alimenta o aprendizado da IA.
+- Botão "Publicar no Meta" só fica ativo quando todos os criativos da proposta tiverem imagem + copy aprovados pelo lojista.
 
-### Status
-
-✅ Ondas 1, 2 e 3 entregues. Aguardando validação de uso real.
+## Status
+- Etapa 1: em implementação
+- Etapa 2: em implementação
+- Etapa 3: próxima leva (UI maior, será entregue na sequência)
