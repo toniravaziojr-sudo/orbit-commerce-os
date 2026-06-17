@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Hourglass, Wallet } from "lucide-react";
+import { Hourglass, Wallet, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
