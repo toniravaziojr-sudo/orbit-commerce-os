@@ -307,6 +307,15 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
         </span>
       </div>
 
+      {isAdjusting && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <Loader2 className="h-4 w-4 text-primary animate-spin" />
+          <span className="text-sm">
+            Ajustando proposta… a IA está gerando uma nova versão com seu feedback.
+          </span>
+        </div>
+      )}
+
 
       {/* Campaign cards with nested adsets */}
       {campaigns.map(action => (
