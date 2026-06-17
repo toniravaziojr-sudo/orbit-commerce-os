@@ -12,10 +12,10 @@ A partir de 2026-06-16, o motor de prontidão H.4.1 (`creativeReadinessGate.ts` 
 
 **A tabela `ads_meta_production_config` permanece apenas como override avançado opcional.** Loader não depende dela para nada. UI não expõe esses campos como formulário obrigatório.
 
-## Regras de marca e produto (H.4.1 v2)
+## Regras de marca e produto (v6.20 final — 2026-06-17)
 
-- **Bloqueadores reais que sobram:** promessa principal aprovada (sempre); claims permitidas (apenas se categoria do produto for sensível: `cosmetic_hair` ou `supplement`); categoria regulatória do produto; logo, paleta e imagem principal do produto.
-- **Viraram avisos (não bloqueiam):** tom de voz, diferenciais/benefícios do produto, claims proibidas/restrições da marca.
+- **Bloqueadores reais (apenas técnicos):** conexão Meta ativa (página, pixel, conta), imagem principal do produto, logo e paleta da marca, URL+UTM válidos, orçamento, tabela de preços de IA.
+- **Tudo o mais é aviso, nunca bloqueio:** tipo/função do produto (`ai_product_type`, `ai_main_function`), descrição, diferenciais, tom de voz, promessa, claims, restrições. Refino editorial é feito 100% via prompt estratégico + feedback nas propostas. Campos `brand.tone_of_voice`, `brand.approved_main_promise`, `brand.allowed_claims`, `brand.banned_claims`, `brand.do_not_do`, `brand.restrictions` **não geram avisos nem bloqueios**.
 
 ## Anti-regressão
 
