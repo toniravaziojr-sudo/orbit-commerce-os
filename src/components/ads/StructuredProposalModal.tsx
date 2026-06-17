@@ -265,6 +265,7 @@ export function StructuredProposalModal({
   const [adsetIdx, setAdsetIdx] = useState(0);
   const [adIdx, setAdIdx] = useState(0);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
 
   const structure = useMemo(
