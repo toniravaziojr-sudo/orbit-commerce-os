@@ -287,12 +287,11 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
 
 /** Mostra o tempo decorrido desde o início da análise, atualizando a cada segundo. */
 function ElapsedTime({ startedAt }: { startedAt: string }) {
-  const [, force] = useState(0);
-  // Re-render a cada 1s para atualizar o contador
-  useState(() => {
-    const t = setInterval(() => force((n) => n + 1), 1000);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  });
+  }, []);
   const startMs = new Date(startedAt).getTime();
   const elapsedSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
   const mm = Math.floor(elapsedSec / 60);
