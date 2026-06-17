@@ -90,11 +90,11 @@ export function useAdsAIAnalysisRun(opts: { platform?: string; adAccountId?: str
       } else if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
         toast.warning("Análise recente concluída. Confirme para rodar novamente.");
       } else if (payload?.status === "completed") {
-        toast.success("Análise inicial concluída.");
+        toast.success("Análise estratégica concluída.");
       } else if (payload?.status === "failed") {
-        toast.error("A análise inicial falhou. Veja o histórico.");
+        toast.error("A análise estratégica falhou. Veja o histórico.");
       } else {
-        toast.success("Análise iniciada.");
+        toast.success("Análise estratégica iniciada. Vamos avisar quando terminar.");
       }
       queryClient.invalidateQueries({ queryKey: ["ads-ai-analysis-runs", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
