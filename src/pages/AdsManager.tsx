@@ -527,17 +527,8 @@ export default function AdsManager() {
           </Card>
         </TabsContent>
 
-        {/* === INSIGHTS === */}
-        <TabsContent value="insights">
-          <AdsInsightsTab
-            insights={adsInsights.insights}
-            isLoading={adsInsights.isLoading}
-            onMarkDone={adsInsights.markDone}
-            onMarkIgnored={adsInsights.markIgnored}
-            onGenerateNow={() => adsInsights.generateNow.mutate()}
-            isGenerating={adsInsights.generateNow.isPending}
-          />
-        </TabsContent>
+
+
 
         {/* === AVISOS === */}
         <TabsContent value="warnings">
