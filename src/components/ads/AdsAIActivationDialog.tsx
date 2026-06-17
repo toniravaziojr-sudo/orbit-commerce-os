@@ -163,6 +163,7 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [observedRunning, setObservedRunning] = useState(false);
   const { run, hasRunning, latestRun } = useAdsAIAnalysisRun({
     platform,
     adAccountId,
@@ -172,30 +173,44 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
   const handleClick = () => setConfirmOpen(true);
 
   const execute = async (force: boolean) => {
-    const resp: any = await run.mutateAsync({
-      scope: "account",
-      ad_account_id: adAccountId,
-      trigger: "manual",
-      force,
-    });
-    const payload = resp?.data || resp;
-    if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
-      setRecentOpen(true);
-    } else if (!payload?.skipped) {
-      // Abre o popup de progresso assim que a execução foi aceita.
-      setProgressOpen(true);
+    // Abre o popup ANTES da chamada para feedback imediato.
+    setObservedRunning(false);
+    setProgressOpen(true);
+    try {
+      const resp: any = await run.mutateAsync({
+        scope: "account",
+        ad_account_id: adAccountId,
+        trigger: "manual",
+        force,
+      });
+      const payload = resp?.data || resp;
+      if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
+        setProgressOpen(false);
+        setRecentOpen(true);
+      } else if (payload?.skipped) {
+        setProgressOpen(false);
+      }
+    } catch {
+      setProgressOpen(false);
     }
   };
 
   const isRunning = hasRunning;
   const runningRun = isRunning ? latestRun : null;
 
-  // Fecha o popup automaticamente quando a execução termina.
+  // Marca que já vimos a análise rodando pelo menos uma vez (evita fechar antes de começar).
   useEffect(() => {
-    if (progressOpen && !isRunning && !run.isPending) {
+    if (progressOpen && isRunning && !observedRunning) {
+      setObservedRunning(true);
+    }
+  }, [progressOpen, isRunning, observedRunning]);
+
+  // Fecha o popup só quando a análise observada terminou.
+  useEffect(() => {
+    if (progressOpen && observedRunning && !isRunning && !run.isPending) {
       setProgressOpen(false);
     }
-  }, [progressOpen, isRunning, run.isPending]);
+  }, [progressOpen, observedRunning, isRunning, run.isPending]);
 
   return (
     <div className="space-y-2">
@@ -294,7 +309,7 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
         </AlertDialogContent>
       </AlertDialog>
       <AdsAnalysisProgressModal
-        open={progressOpen && (isRunning || run.isPending)}
+        open={progressOpen}
         startedAt={runningRun?.started_at || null}
         scope="account"
         onClose={() => setProgressOpen(false)}

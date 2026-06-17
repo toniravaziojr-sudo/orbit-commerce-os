@@ -30,6 +30,7 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [observedRunning, setObservedRunning] = useState(false);
   const { run, hasRunning, latestRun } = useAdsAIAnalysisRun({
     platform: "meta",
     scope: "global",
@@ -38,24 +39,35 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
   const disabled = metaAccountsCount === 0;
 
   const execute = async (force: boolean) => {
-    const resp: any = await run.mutateAsync({
-      scope: "global",
-      trigger: "manual",
-      force,
-    });
-    const payload = resp?.data || resp;
-    if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
-      setRecentOpen(true);
-    } else if (!payload?.skipped) {
-      setProgressOpen(true);
+    setObservedRunning(false);
+    setProgressOpen(true);
+    try {
+      const resp: any = await run.mutateAsync({
+        scope: "global",
+        trigger: "manual",
+        force,
+      });
+      const payload = resp?.data || resp;
+      if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
+        setProgressOpen(false);
+        setRecentOpen(true);
+      } else if (payload?.skipped) {
+        setProgressOpen(false);
+      }
+    } catch {
+      setProgressOpen(false);
     }
   };
 
   useEffect(() => {
-    if (progressOpen && !hasRunning && !run.isPending) {
+    if (progressOpen && hasRunning && !observedRunning) setObservedRunning(true);
+  }, [progressOpen, hasRunning, observedRunning]);
+
+  useEffect(() => {
+    if (progressOpen && observedRunning && !hasRunning && !run.isPending) {
       setProgressOpen(false);
     }
-  }, [progressOpen, hasRunning, run.isPending]);
+  }, [progressOpen, observedRunning, hasRunning, run.isPending]);
 
   const summary = latestRun?.diagnosis_summary;
 
@@ -153,7 +165,7 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
       </AlertDialog>
 
       <AdsAnalysisProgressModal
-        open={progressOpen && (hasRunning || run.isPending)}
+        open={progressOpen}
         startedAt={latestRun?.started_at || null}
         scope="global"
         accountsCount={metaAccountsCount}
