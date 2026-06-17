@@ -732,6 +732,58 @@ function inferBudgetSourcesForPlan(plan: any, preflight: StrategicPlanPreflight)
   return { ...plan, planned_actions: next };
 }
 
+/**
+ * Auto-cura: quando o LLM esquece de preencher `existing_campaign_id` em ações
+ * operacionais sobre campanha existente (pause/adjust/maintain/etc), tenta
+ * resolver pelo nome explícito da campanha (`existing_campaign_name`,
+ * `campaign_name`, `target_campaign_name`, `affected_campaign_name`) contra a
+ * lista determinística `preflight.active_campaigns_summary`. Só completa quando
+ * há match único e inequívoco — em caso ambíguo, deixa para o validador
+ * bloquear normalmente.
+ */
+function autoResolveExistingCampaignIds(plan: any, preflight: StrategicPlanPreflight): any {
+  if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
+  const summary = Array.isArray(preflight?.active_campaigns_summary) ? preflight.active_campaigns_summary : [];
+  if (summary.length === 0) return plan;
+  const byName = new Map<string, any[]>();
+  for (const c of summary) {
+    const n = String(c?.campaign_name || "").trim().toLowerCase();
+    if (!n) continue;
+    const arr = byName.get(n) || [];
+    arr.push(c);
+    byName.set(n, arr);
+  }
+  const OPERATIONAL_ON_EXISTING = new Set([
+    "pause", "pause_campaign", "reduce_budget", "adjust_budget",
+    "maintain", "monitor", "request_review", "reactivate",
+    "keep_paused", "use_as_reference", "monitor_historical",
+    "scale", "scale_budget", "optimize",
+  ]);
+  const next = plan.planned_actions.map((a: any) => {
+    if (!a || typeof a !== "object") return a;
+    const at = String(a.action_type || "").toLowerCase();
+    if (!OPERATIONAL_ON_EXISTING.has(at)) return a;
+    const hasId = String(
+      a.existing_campaign_id || a.target_campaign_id || a.campaign_id || a.affected_campaign_id || "",
+    ).trim();
+    if (hasId) return a;
+    const nameCandidate = String(
+      a.existing_campaign_name || a.campaign_name || a.target_campaign_name || a.affected_campaign_name || "",
+    ).trim().toLowerCase();
+    if (!nameCandidate) return a;
+    const matches = byName.get(nameCandidate);
+    if (!matches || matches.length !== 1) return a;
+    const resolved = matches[0];
+    return {
+      ...a,
+      existing_campaign_id: resolved.campaign_id,
+      existing_campaign_name: resolved.campaign_name,
+      existing_campaign_id_auto_resolved: true,
+    };
+  });
+  return { ...plan, planned_actions: next };
+}
+
 export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
@@ -779,7 +831,10 @@ export function normalizeAndValidateStrategicPlanForApproval(
     };
   }
 
-  const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
+  const normalizedPlanBase = autoResolveExistingCampaignIds(
+    normalizeStrategicPlanCustomerExclusions(plan, preflight),
+    preflight,
+  );
   const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
     if (isTestForNewOrLaunchProduct(action)) return false;
     return (

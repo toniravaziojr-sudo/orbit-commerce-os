@@ -406,6 +406,8 @@ const STRATEGIST_TOOLS = [
                   },
                 },
                 product_name: { type: "string", description: "Nome EXATO do produto do catálogo" },
+                existing_campaign_id: { type: "string", description: "OBRIGATÓRIO para ações sobre campanha existente (pause_campaign, adjust_budget, scale, optimize, maintain, monitor, reduce_budget, reactivate, request_review). Use o ID literal da coluna ID da tabela CAMPANHAS — NÃO use o nome da campanha aqui, NÃO invente. Apenas omita em create_campaign." },
+                existing_campaign_name: { type: "string", description: "OBRIGATÓRIO junto com existing_campaign_id para ações sobre campanha existente. Use o nome EXATO da coluna Nome da tabela CAMPANHAS (cópia literal). Serve para validação cruzada." },
                 daily_budget_brl: { type: "number", description: "Orçamento diário TOTAL da campanha em R$" },
                 target_audience: { type: "string", description: "Resumo do público-alvo principal (ex: Homens 30-65, Brasil)" },
                 funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
@@ -2308,6 +2310,7 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push("- Para ações sobre campanhas existentes com produto de baixa confiança, copie `product_identification_confidence` da lista acima e NUNCA sugira pausa direta — proponha manter, reduzir ou revisar.");
     lines.push("- Referencie `audience_budget_fit` sempre que mexer em orçamento.");
     lines.push("- **NUNCA** proponha `pause_campaign` para campanha cujo `status` na lista de CAMPANHAS já é `PAUSED` ou cujo `effective_status` indica pausa. Idem para `adjust_budget` em campanhas PAUSED: ignore-as ou proponha reativação explícita com justificativa. A coluna `status` da lista é a fonte de verdade do estado atual da campanha na Meta.");
+    lines.push("- **OBRIGATÓRIO** em TODA ação sobre campanha existente (pause_campaign, adjust_budget, scale, optimize, maintain, monitor, reduce_budget, reactivate, request_review): preencher `existing_campaign_id` com o ID LITERAL da coluna ID da tabela CAMPANHAS e `existing_campaign_name` com o nome EXATO da coluna Nome. Ação sem esses dois campos é REJEITADA pelo guard e cai como plano incompleto. NÃO use apenas o nome no rationale — preencha os campos estruturados.");
 
     ondaGBlock = lines.join("\n");
 
