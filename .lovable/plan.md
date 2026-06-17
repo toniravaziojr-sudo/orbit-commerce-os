@@ -26,9 +26,9 @@ Um único assistente do início ao fim. O lojista revisa tudo pronto, edita o qu
 ## Entrega em fases
 - **Fase 1** ✅ Esqueleto navegável (5 etapas).
 - **Fase 2** ✅ Rodapé novo (Cancelar + Ajustar).
-- **Fase 3 (agora) — Etapa Publicar com resumo + bloqueio se faltar criativo.**
-- **Fase 4 — Edição inline (Campanha + Conjuntos) com aviso de sobrescrita.**
-- **Fase 5 — Etapa Anúncios com criativo (gerar/upload/Drive) + copy editável + regenerar.**
+- **Fase 3** ✅ Etapa Publicar com resumo + bloqueio se faltar criativo.
+- **Fase 4** ✅ Edição inline (Campanha + Conjuntos) com aviso de sobrescrita, persistindo em `action_data`.
+- **Fase 5 (próxima) — Etapa Anúncios com criativo (gerar/upload/Drive) + copy editável + regenerar.**
 - **Fase 6 — Documentação + memória anti-regressão.**
 
 Cada fase é entregue e validada antes da próxima — evita um lote único enorme sem chance de teste.
