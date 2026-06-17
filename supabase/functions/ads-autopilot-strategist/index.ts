@@ -1016,10 +1016,29 @@ async function buildDeepHistoricalFromLocalData(
       "date_start"
     );
 
+    // Onda I (perf): limita o histórico profundo à janela útil (365 dias) e filtra
+    // por meta_campaign_id da conta (evita carregar insights de outras contas do
+    // mesmo tenant). Para contas com 1 ano+ de operação isso reduz drasticamente
+    // o payload sem perder contexto estratégico relevante.
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const accountCampIds = ((campaignsRes.data as any[]) || [])
+      .map((c: any) => c.meta_campaign_id)
+      .filter(Boolean);
+    const allInsights = await fetchAllPaginated(
+      "meta_ad_insights",
+      "meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start",
+      { tenant_id: tenantId },
+      "date_start",
+      {
+        gte: { col: "date_start", value: oneYearAgo },
+        ...(accountCampIds.length > 0 ? { inFilter: { col: "meta_campaign_id", values: accountCampIds } } : {}),
+      },
+    );
+
     const campaigns = campaignsRes.data || [];
     const adsets = adsetsRes.data || [];
     const ads = adsRes.data || [];
-    console.log(`[ads-autopilot-strategist][${VERSION}] Insights fetched: ${allInsights.length} rows (paginated)`);
+    console.log(`[ads-autopilot-strategist][${VERSION}] Insights fetched: ${allInsights.length} rows (paginated, last 365d, account-scoped)`);
 
     if (campaigns.length === 0) {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No campaigns in local DB for ${adAccountId}`);
