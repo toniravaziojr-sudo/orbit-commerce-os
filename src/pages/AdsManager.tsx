@@ -284,7 +284,7 @@ export default function AdsManager() {
 
   const channelData = getChannelData();
   const globalConfig = autopilot.globalConfig;
-  const openInsightsCount = adsInsights.insights.filter(i => i.status === "open").length;
+  
   const warningsCount = useAdsAIWarnings().unseenCount;
 
   return (
