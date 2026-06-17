@@ -448,6 +448,7 @@ export default function AdsManager() {
                       </TabsTrigger>
                       <TabsTrigger value="reports">Relatórios</TabsTrigger>
                       <TabsTrigger value="roi">ROI Real</TabsTrigger>
+                      <TabsTrigger value="strategies">Estratégias</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="campaigns">
