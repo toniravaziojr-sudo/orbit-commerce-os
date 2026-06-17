@@ -1473,31 +1473,31 @@ Deno.serve(async (req) => {
         || ["broad", "lookalike"].includes(String(data.audience_type || preview.audience_type || "").toLowerCase())
         || /broad|amplo|lal|tof|aquisi|prospect/i.test(`${data.adset_name || ""} ${data.audience_description || ""}`);
       if (isColdAdset) {
+        // 2026-06-17: nunca bloqueia. Auto-injeta exclusão SE público existir
+        // E a proposta ainda contiver `audience_exclusions.customers=true`.
+        // Se o usuário removeu durante a revisão, respeita e publica.
         const customerAudience = await resolveCustomerAudienceForMetaAccount(supabase, tenant_id, adAccountId);
-        if (!customerAudience.found || !customerAudience.meta_audience_id) {
-          await supabase.from("ads_autopilot_actions").update({
-            status: "failed",
-            error_message: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
-          }).eq("id", action_id);
-          return new Response(JSON.stringify({
-            success: false,
-            error: "cold_adset_requires_customer_audience",
-            error_pt: "Conjunto de prospecção exige público de clientes/compradores antes da aprovação.",
-          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (customerAudience.found && customerAudience.meta_audience_id) {
+          const exclusionStillProposed = !!(data?.audience_exclusions?.customers);
+          const existingExcluded = Array.isArray(data.excluded_audience_ids)
+            ? data.excluded_audience_ids.map((entry: any) => String(entry?.id || entry))
+            : [];
+          if (exclusionStillProposed && !existingExcluded.includes(String(customerAudience.meta_audience_id))) {
+            data.excluded_audience_ids = [...existingExcluded, customerAudience.meta_audience_id];
+            data.audience_exclusions = {
+              ...(data.audience_exclusions || {}),
+              customers: true,
+              customer_audience_detected: true,
+              customer_audience_id: customerAudience.meta_audience_id,
+              customer_audience_name: customerAudience.audience_name,
+              reason: (data.audience_exclusions?.reason || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais."),
+            };
+          } else if (!exclusionStillProposed) {
+            console.log(`[ads-autopilot-execute-approved][${VERSION}] Cold adset user-override: customer exclusion REMOVED tenant=${tenant_id} action=${action_id}`);
+          }
+        } else {
+          console.log(`[ads-autopilot-execute-approved][${VERSION}] Cold adset advisory: customer audience not synced — proceeding without exclusion`);
         }
-
-        const existingExcluded = Array.isArray(data.excluded_audience_ids) ? data.excluded_audience_ids.map((entry: any) => String(entry?.id || entry)) : [];
-        if (!existingExcluded.includes(String(customerAudience.meta_audience_id))) {
-          data.excluded_audience_ids = [...existingExcluded, customerAudience.meta_audience_id];
-        }
-        data.audience_exclusions = {
-          ...(data.audience_exclusions || {}),
-          customers: true,
-          customer_audience_detected: true,
-          customer_audience_id: customerAudience.meta_audience_id,
-          customer_audience_name: customerAudience.audience_name,
-          reason: (data.audience_exclusions?.reason || "Conjunto de aquisição/prospecção deve excluir clientes/compradores atuais."),
-        };
       }
 
       // v2.2.0: Primary lookup by campaign_id (Meta campaign ID) from action_data
