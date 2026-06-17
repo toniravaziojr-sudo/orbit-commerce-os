@@ -235,6 +235,8 @@ export async function aiChatCompletion(
     maxRetries?: number;
     /** Delay base em ms para backoff exponencial (default: 5000 = 5s) */
     baseDelayMs?: number;
+    /** Timeout por tentativa de provedor. Evita que uma chamada de IA consuma todo o runtime. */
+    requestTimeoutMs?: number;
   }
 ): Promise<Response> {
   const {
@@ -245,6 +247,7 @@ export async function aiChatCompletion(
     noFallback = false,
     maxRetries = 3,
     baseDelayMs = 5000,
+    requestTimeoutMs = 120_000,
   } = options || {};
 
   const keys = await resolveAPIKeys(supabaseUrl, supabaseServiceKey);
@@ -322,6 +325,10 @@ export async function aiChatCompletion(
           console.log(`${logPrefix} Trying ${provider} (${model})...`);
         }
 
+        const controller = requestTimeoutMs > 0 ? new AbortController() : null;
+        const timeoutId = controller
+          ? setTimeout(() => controller.abort(), requestTimeoutMs)
+          : null;
         const response = await fetch(url, {
           method: "POST",
           headers: {
@@ -329,6 +336,9 @@ export async function aiChatCompletion(
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),
+          ...(controller ? { signal: controller.signal } : {}),
+        }).finally(() => {
+          if (timeoutId) clearTimeout(timeoutId);
         });
 
         if (response.ok) {
@@ -367,9 +377,12 @@ export async function aiChatCompletion(
         console.warn(`${logPrefix} ⚠️ ${provider} error: ${response.status}`, errorText.substring(0, 200));
         break; // move to next provider
 
-      } catch (err) {
-        lastError = `${provider}: ${String(err)}`;
-        console.warn(`${logPrefix} ⚠️ ${provider} exception:`, err);
+      } catch (err: any) {
+        const isTimeout = err?.name === "AbortError";
+        lastError = isTimeout
+          ? `${provider} (${model}): timeout after ${Math.round(requestTimeoutMs / 1000)}s`
+          : `${provider}: ${String(err)}`;
+        console.warn(`${logPrefix} ⚠️ ${provider} ${isTimeout ? "timeout" : "exception"}:`, err?.message || err);
         break; // move to next provider
       }
     }
