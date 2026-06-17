@@ -2552,7 +2552,7 @@ Sua missão é maximizar conversões e ROAS para o anunciante ${config.ad_accoun
 
 ${triggerInstruction}
 
-Responda SEMPRE em Português do Brasil.`;
+Responda SEMPRE em **Português do Brasil**, em linguagem simples e executiva. PROIBIDO usar inglês, jargão técnico ou anglicismos em qualquer texto livre (diagnosis, rationale, audience_description, copy, headline, justificativas). Resposta com qualquer trecho em inglês será considerada inválida.`;
 
   const user = `## CAMPANHAS EXISTENTES (${accountCampaigns.length})
 ${campaignHeaders}
