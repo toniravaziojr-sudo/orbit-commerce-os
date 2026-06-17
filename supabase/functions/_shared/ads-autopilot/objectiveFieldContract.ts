@@ -88,7 +88,10 @@ export const OBJECTIVE_CONTRACTS: Record<CanonicalObjective, ObjectiveContract> 
       ...BASE_ADSET,
       f("optimization_goal", "h2_structural"),
       f("conversion_event", "h2_structural"),
-      f("audience_exclusions.customers", "h2_structural"),
+      // 2026-06-17: exclusão de clientes deixa de ser campo estrutural obrigatório.
+      // Continua sendo proposta SEMPRE pela IA em público frio (regra do strategist)
+      // e auto-injetada no publicador quando a proposta ainda a contém. Se o usuário
+      // ajustar/remover durante a revisão, o sistema respeita e publica.
     ],
     ad_required: [...BASE_AD],
     identity_required: [
