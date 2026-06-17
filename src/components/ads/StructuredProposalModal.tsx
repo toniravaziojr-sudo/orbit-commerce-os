@@ -1516,6 +1516,7 @@ function AttachCreativeBlock({
 }
 
 
+function AdSection({
   ad,
   isStrategyStage,
   isCampaignProposal,
