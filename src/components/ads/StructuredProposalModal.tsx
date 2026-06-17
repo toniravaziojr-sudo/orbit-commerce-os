@@ -1415,7 +1415,7 @@ function AttachCreativeBlock({
       return;
     }
     const res = await upload(file);
-    if (res?.url) await applyCreative(res.url, "manual_upload");
+    if (res?.publicUrl) await applyCreative(res.publicUrl, "manual_upload");
   };
 
   const handleRemove = async () => {
