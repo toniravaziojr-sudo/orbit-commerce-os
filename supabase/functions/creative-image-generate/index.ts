@@ -548,6 +548,7 @@ Deno.serve(async (req) => {
     const { 
       tenant_id, product_id, product_name, product_description, product_image_url,
       prompt, output_folder_id, settings = {},
+      proposal_link, // { proposal_action_id, planned_creative_index } — vínculo estrutural com Gestor de Anúncios
     } = body;
 
     if (!tenant_id || !product_id || !product_image_url) {
