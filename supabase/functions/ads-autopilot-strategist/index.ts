@@ -1451,6 +1451,40 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     }
   } catch (_) { /* fail-open */ }
 
+  // ============ Onda H — Ofertas ativas do Aumentar Ticket ============
+  // A Estrategista usa essas ofertas como ÂNCORA para ideias que dependem de
+  // combinação (upgrade/combo/cross-sell). Se nenhuma estiver cadastrada,
+  // ela simplesmente escolhe outro tipo de campanha — nunca bloqueia o lojista.
+  let activeOfferRules: Array<{
+    id: string;
+    name: string;
+    type: string;
+    title: string | null;
+    discount_type: string | null;
+    discount_value: number | null;
+    trigger_product_ids: string[];
+    suggested_product_ids: string[];
+  }> = [];
+  try {
+    const { data: offers } = await supabase
+      .from("offer_rules")
+      .select("id, name, type, title, discount_type, discount_value, trigger_product_ids, suggested_product_ids, priority")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("priority", { ascending: false })
+      .limit(50);
+    activeOfferRules = (offers || []).map((o: any) => ({
+      id: o.id,
+      name: o.name,
+      type: o.type,
+      title: o.title,
+      discount_type: o.discount_type,
+      discount_value: o.discount_value,
+      trigger_product_ids: Array.isArray(o.trigger_product_ids) ? o.trigger_product_ids : [],
+      suggested_product_ids: Array.isArray(o.suggested_product_ids) ? o.suggested_product_ids : [],
+    }));
+  } catch (_) { /* fail-open: sem ofertas, IA segue propondo outras ideias */ }
+
   return {
     products,
     categories,
