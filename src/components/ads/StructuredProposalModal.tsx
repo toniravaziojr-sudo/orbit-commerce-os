@@ -557,6 +557,14 @@ export function StructuredProposalModal({
                       blockers={allBlockers.filter(
                         (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
                       )}
+                      editable={editableCampaign}
+                      onPatch={(patch) =>
+                        overwriteActionData((curr) => {
+                          const arr = Array.isArray(curr.ads) ? [...curr.ads] : [];
+                          arr[adIdx] = { ...(arr[adIdx] || {}), ...patch };
+                          return { ...curr, ads: arr };
+                        })
+                      }
                     />
                   </div>
                 )}
