@@ -2202,7 +2202,7 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
     return `\n## APRENDIZADOS ATIVOS DA IA (${ll.length}) — REGRAS APROVADAS PELO USUÁRIO, RESPEITE:\n${lines}\n`;
   })();
 
-  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
+  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaignData.length} ativas, ${pausedCampaignData.length} pausadas — exibidas: ${displayedCampaigns.length} detalhadas${pausedSummarized.length ? ` + ${pausedSummarized.length} pausadas agregadas em AGREGADO_PAUSADAS` : ""})
 ${campaignHeaders}
 ${campaignRows}
 ${learningsBlock}
