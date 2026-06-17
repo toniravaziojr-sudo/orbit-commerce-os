@@ -19,7 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VERSION = "ads-ai-initial-analysis@1.2.0";
+const VERSION = "ads-ai-initial-analysis@1.3.0";
 const RECENT_HOURS = 24;
 // Onda H — Frescor da espelhagem Meta. Se o último sync de campanhas dessa conta
 // for mais antigo que esse intervalo, dispara um sync leve antes da análise para
@@ -80,6 +80,43 @@ function fail(error: string, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
     status,
   });
+}
+
+// Vigia preguiçoso: marca como falha qualquer execução "running" deste tenant
+// parada há mais de STUCK_RUN_MS. Evita travamento eterno quando a função morre
+// por tempo limite sem conseguir atualizar o status.
+const STUCK_RUN_MS = 8 * 60 * 1000;
+async function expireStuckRuns(supabase: any, tenantId: string) {
+  try {
+    const cutoff = new Date(Date.now() - STUCK_RUN_MS).toISOString();
+    await supabase
+      .from("ads_ai_analysis_runs")
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message: "Execução interrompida por tempo limite — vigia automático",
+      })
+      .eq("tenant_id", tenantId)
+      .eq("status", "running")
+      .lt("started_at", cutoff);
+  } catch (e) {
+    console.warn(`[${VERSION}] expireStuckRuns failed`, (e as any)?.message || e);
+  }
+}
+
+// EdgeRuntime.waitUntil tipagem
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
+function runInBackground(p: Promise<unknown>) {
+  try {
+    // @ts-ignore — EdgeRuntime existe no runtime Supabase
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(p);
+      return;
+    }
+  } catch (_e) { /* fallback abaixo */ }
+  // Fallback (sem EdgeRuntime): apenas detacha; engole erro pra não derrubar.
+  p.catch((e) => console.error(`[${VERSION}] background error`, e?.message || e));
 }
 
 interface RunAccountInput {
@@ -388,28 +425,69 @@ Deno.serve(async (req) => {
     if (platform !== "meta")
       return fail("platform_not_operational_for_initial_analysis");
 
+    // Vigia preguiçoso: destrava execuções "running" mortas por timeout
+    await expireStuckRuns(supabase, tenantId);
+
     // ===== Escopo ACCOUNT =====
     if (scope === "account") {
-      const out = await runForAccount({
-        supabase, tenantId, platform, adAccountId: adAccountId!,
-        trigger, createdBy, force,
-      });
-      if (out.status === "skipped") {
-        return ok({
-          skipped: true,
-          reason: out.skip_reason,
-          run_id: out.run_id,
-        });
+      // Pré-checagem síncrona de skips (rápido) — execução pesada vai pra background
+      const { data: runningRows } = await supabase
+        .from("ads_ai_analysis_runs")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("platform", platform)
+        .eq("scope", "account")
+        .eq("ad_account_id", adAccountId)
+        .in("status", ["queued", "running"])
+        .limit(1);
+      if (runningRows && runningRows.length > 0) {
+        return ok({ skipped: true, reason: "already_running", run_id: runningRows[0].id });
       }
+      if (!force) {
+        const sinceIso = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000).toISOString();
+        const { data: recent } = await supabase
+          .from("ads_ai_analysis_runs")
+          .select("id, finished_at")
+          .eq("tenant_id", tenantId)
+          .eq("platform", platform)
+          .eq("scope", "account")
+          .eq("ad_account_id", adAccountId)
+          .eq("status", "completed")
+          .gte("finished_at", sinceIso)
+          .order("finished_at", { ascending: false })
+          .limit(1);
+        if (recent && recent.length > 0) {
+          return ok({
+            skipped: true,
+            reason: "recent_completed_requires_force",
+            recent_run_id: recent[0].id,
+            recent_finished_at: recent[0].finished_at,
+          });
+        }
+      }
+
+      // Despacha em segundo plano: a função responde imediatamente e o
+      // estrategista termina sem o teto de tempo da resposta HTTP.
+      runInBackground(
+        runForAccount({
+          supabase, tenantId, platform, adAccountId: adAccountId!,
+          trigger, createdBy, force,
+        }).then((out) => {
+          console.log(`[${VERSION}] account bg done`, { adAccountId, status: out.status, run_id: out.run_id });
+        }).catch(async (e: any) => {
+          console.error(`[${VERSION}] account bg crash`, e?.message || e);
+          // Vigia preguiçoso vai fechar como falha em até 8 min se ficar pendurada.
+        })
+      );
+
       return ok({
-        run_id: out.run_id,
-        status: out.status,
-        created_action_ids: out.created_action_ids,
-        context_summary: out.context_summary,
-        limitations: [],
-        error: out.error || null,
+        accepted: true,
+        status: "queued",
+        scope: "account",
+        message: "Análise iniciada em segundo plano. Acompanhe na tela.",
       });
     }
+
 
     // ===== Escopo GLOBAL =====
     // 1) Bloqueia se já existe run global ativa
@@ -522,89 +600,95 @@ Deno.serve(async (req) => {
     }
     const parentRunId = parentInserted!.id;
 
-    // 6) Executa por conta (sequencial — evita explodir custo IA)
-    const childResults: RunAccountOutput[] = [];
-    for (const accId of accountIds) {
-      try {
-        const out = await runForAccount({
-          supabase, tenantId, platform, adAccountId: accId,
-          trigger, createdBy, force, parentRunId,
-        });
-        childResults.push(out);
-      } catch (e: any) {
-        childResults.push({
-          ad_account_id: accId,
-          run_id: null,
-          status: "failed",
-          error: e?.message || String(e),
-          created_action_ids: [],
-        });
+    // 6+7) Executa por conta e consolida — em SEGUNDO PLANO.
+    // A resposta HTTP volta agora; o trabalho pesado continua sem o teto de tempo.
+    runInBackground((async () => {
+      const childResults: RunAccountOutput[] = [];
+      for (const accId of accountIds) {
+        try {
+          const out = await runForAccount({
+            supabase, tenantId, platform, adAccountId: accId,
+            trigger, createdBy, force, parentRunId,
+          });
+          childResults.push(out);
+        } catch (e: any) {
+          childResults.push({
+            ad_account_id: accId,
+            run_id: null,
+            status: "failed",
+            error: e?.message || String(e),
+            created_action_ids: [],
+          });
+        }
       }
-    }
 
-    // 7) Consolida e fecha a run global
-    const completed = childResults.filter((c) => c.status === "completed");
-    const failed = childResults.filter((c) => c.status === "failed");
-    const skipped = childResults.filter((c) => c.status === "skipped");
-    const allActionIds = childResults.flatMap((c) => c.created_action_ids || []);
-    const finalStatus = failed.length > 0 && completed.length === 0 ? "failed" : "completed";
+      const completed = childResults.filter((c) => c.status === "completed");
+      const failed = childResults.filter((c) => c.status === "failed");
+      const skipped = childResults.filter((c) => c.status === "skipped");
+      const allActionIds = childResults.flatMap((c) => c.created_action_ids || []);
+      const finalStatus = failed.length > 0 && completed.length === 0 ? "failed" : "completed";
 
-    const contextSummaries = childResults
-      .filter((c) => c.context_summary)
-      .map((c) => `- ${c.context_summary}`)
-      .join("\n");
+      const contextSummaries = childResults
+        .filter((c) => c.context_summary)
+        .map((c) => `- ${c.context_summary}`)
+        .join("\n");
 
-    const globalDiagnosis = [
-      `Análise global concluída para ${completed.length} conta(s) Meta.`,
-      skipped.length ? `${skipped.length} pulada(s) (em andamento ou recente).` : "",
-      failed.length ? `${failed.length} falhou(aram).` : "",
-      hasOther ? "Google Ads e TikTok Ads ignorados (ainda não operacionais)." : "",
-    ].filter(Boolean).join(" ");
+      const globalDiagnosis = [
+        `Análise global concluída para ${completed.length} conta(s) Meta.`,
+        skipped.length ? `${skipped.length} pulada(s) (em andamento ou recente).` : "",
+        failed.length ? `${failed.length} falhou(aram).` : "",
+        hasOther ? "Google Ads e TikTok Ads ignorados (ainda não operacionais)." : "",
+      ].filter(Boolean).join(" ");
 
-    const globalStrategy = contextSummaries
-      ? `Contas analisadas:\n${contextSummaries}`
-      : "Sem contas Meta operacionais para esta análise.";
+      const globalStrategy = contextSummaries
+        ? `Contas analisadas:\n${contextSummaries}`
+        : "Sem contas Meta operacionais para esta análise.";
 
-    await supabase
-      .from("ads_ai_analysis_runs")
-      .update({
-        status: finalStatus,
-        finished_at: new Date().toISOString(),
-        diagnosis_summary: globalDiagnosis,
-        strategy_summary: globalStrategy,
-        created_action_ids: allActionIds,
-        account_snapshot_summary: {
-          scope: "global",
-          accounts_total: accountIds.length,
-          accounts_completed: completed.length,
-          accounts_failed: failed.length,
-          accounts_skipped: skipped.length,
-          ignored_channels: hasOther ? ["google", "tiktok"] : [],
-          per_account: childResults.map((c) => ({
-            ad_account_id: c.ad_account_id,
-            status: c.status,
-            skip_reason: c.skip_reason || null,
-            run_id: c.run_id,
-            context_summary: c.context_summary || null,
-          })),
-        },
-        error_message: failed.length
-          ? failed.map((f) => `${f.ad_account_id}: ${f.error}`).join("; ")
-          : null,
-      })
-      .eq("id", parentRunId);
+      try {
+        await supabase
+          .from("ads_ai_analysis_runs")
+          .update({
+            status: finalStatus,
+            finished_at: new Date().toISOString(),
+            diagnosis_summary: globalDiagnosis,
+            strategy_summary: globalStrategy,
+            created_action_ids: allActionIds,
+            account_snapshot_summary: {
+              scope: "global",
+              accounts_total: accountIds.length,
+              accounts_completed: completed.length,
+              accounts_failed: failed.length,
+              accounts_skipped: skipped.length,
+              ignored_channels: hasOther ? ["google", "tiktok"] : [],
+              per_account: childResults.map((c) => ({
+                ad_account_id: c.ad_account_id,
+                status: c.status,
+                skip_reason: c.skip_reason || null,
+                run_id: c.run_id,
+                context_summary: c.context_summary || null,
+              })),
+            },
+            error_message: failed.length
+              ? failed.map((f) => `${f.ad_account_id}: ${f.error}`).join("; ")
+              : null,
+          })
+          .eq("id", parentRunId);
+        console.log(`[${VERSION}] global bg done`, { parentRunId, finalStatus });
+      } catch (e: any) {
+        console.error(`[${VERSION}] global bg close failed`, e?.message || e);
+      }
+    })());
 
     return ok({
-      run_id: parentRunId,
+      accepted: true,
+      status: "queued",
       scope: "global",
-      status: finalStatus,
+      run_id: parentRunId,
       accounts_total: accountIds.length,
-      accounts_completed: completed.length,
-      accounts_failed: failed.length,
-      accounts_skipped: skipped.length,
       limitations,
-      per_account: childResults,
+      message: "Análise global iniciada em segundo plano. Acompanhe na tela.",
     });
+
   } catch (err: any) {
     console.error(`[${VERSION}] fatal`, err?.message || err);
     return fail(err?.message || "internal_error");
