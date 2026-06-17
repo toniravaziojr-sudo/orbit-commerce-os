@@ -3,7 +3,7 @@
 // Diálogo de ativação da IA com escolha entre Modo Piloto e Modo Piloto Inicial,
 // e botão de execução manual "Rodar análise estratégica agora".
 // =============================================================================
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Sparkles, Play, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
