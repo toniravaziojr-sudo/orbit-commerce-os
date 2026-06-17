@@ -242,6 +242,7 @@ export function StructuredProposalModal({
   overviewOnly = false,
   titleOverride,
   approveLabelOverride,
+  onAdjustRequest,
 }: Props) {
   const data = action.action_data || {};
   const isTwoStep = isTwoStepAction(action);
