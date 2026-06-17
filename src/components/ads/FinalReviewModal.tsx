@@ -16,13 +16,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
+import { toast } from "sonner";
 import {
   CheckCircle2, Clock, ImageIcon, Loader2, Rocket, Target, Wallet, Calendar,
-  AlertTriangle, ChevronRight, ChevronLeft,
+  AlertTriangle, ChevronRight, ChevronLeft, Sparkles, Pencil, Save, X as XIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApprovedProposalRow } from "@/hooks/useApprovedProposalsAwaitingPublish";
+
+const CTA_OPTIONS = ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "ORDER_NOW", "GET_OFFER", "BUY_NOW"];
 
 interface Props {
   proposal: ApprovedProposalRow;
