@@ -58,7 +58,7 @@ export async function resolveAccountDefaults(
   let sources: string[] = [];
 
   try {
-    // 1) ads_meta_production_config (config oficial da operação Meta)
+    // 1) ads_meta_production_config (override técnico avançado da operação Meta)
     const cfgQ = supabase
       .from("ads_meta_production_config")
       .select("*")

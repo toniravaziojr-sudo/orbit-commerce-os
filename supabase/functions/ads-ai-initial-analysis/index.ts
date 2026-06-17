@@ -11,6 +11,7 @@
 //             limitação amigável e ignorados na execução.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -235,12 +236,35 @@ async function runForAccount(input: RunAccountInput): Promise<RunAccountOutput> 
     .eq("ad_account_id", adAccountId)
     .maybeSingle();
 
-  const { data: prodCfg } = await supabase
+  const { data: prodCfgRaw } = await supabase
     .from("ads_meta_production_config")
     .select("ad_account_id, facebook_page_id, instagram_actor_id, pixel_id, default_conversion_event, default_objective, default_buying_type, default_budget_type, default_daily_budget_cents, default_country, default_language, default_age_min, default_age_max, default_placements, default_cta, default_creative_format")
     .eq("tenant_id", tenantId)
     .eq("ad_account_id", adAccountId)
     .maybeSingle();
+
+  const accountDefaults = await resolveAccountDefaults(supabase, {
+    tenant_id: tenantId,
+    ad_account_id: adAccountId,
+  });
+  const prodCfg = {
+    ...(prodCfgRaw || {}),
+    facebook_page_id: prodCfgRaw?.facebook_page_id || accountDefaults.facebook_page_id,
+    instagram_actor_id: prodCfgRaw?.instagram_actor_id || accountDefaults.instagram_actor_id,
+    pixel_id: prodCfgRaw?.pixel_id || accountDefaults.pixel_id,
+    default_conversion_event: prodCfgRaw?.default_conversion_event || accountDefaults.conversion_event_default,
+    default_objective: prodCfgRaw?.default_objective || accountDefaults.default_objective,
+    default_buying_type: prodCfgRaw?.default_buying_type || accountDefaults.default_buying_type,
+    default_budget_type: prodCfgRaw?.default_budget_type || accountDefaults.default_budget_type,
+    default_daily_budget_cents: prodCfgRaw?.default_daily_budget_cents ?? accountDefaults.default_daily_budget_cents,
+    default_country: prodCfgRaw?.default_country || accountDefaults.default_country,
+    default_age_min: prodCfgRaw?.default_age_min ?? accountDefaults.default_age_min,
+    default_age_max: prodCfgRaw?.default_age_max ?? accountDefaults.default_age_max,
+    default_placements: prodCfgRaw?.default_placements || accountDefaults.default_placements,
+    default_cta: prodCfgRaw?.default_cta || accountDefaults.default_cta,
+    default_creative_format: prodCfgRaw?.default_creative_format || accountDefaults.default_creative_format,
+    source: accountDefaults.source,
+  };
 
   const contextSummary = buildHumanContextSummary(adAccountId, cfgs, prodCfg);
 

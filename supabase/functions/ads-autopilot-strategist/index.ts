@@ -42,6 +42,7 @@ import {
   buildCreativeBrief,
   type CreativeBrief,
 } from "../_shared/ads-autopilot/twoStep.ts";
+import { resolveAccountDefaults } from "../_shared/ads-autopilot/accountDefaults.ts";
 
 // ===== Frente 4 — Fluxo de duas etapas =====
 // Sempre ativo para novas propostas. O Estrategista deixa de gerar criativo
@@ -1147,7 +1148,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, synced_at").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
-    // Onda D — Configuração de Criação Meta (fonte de verdade dos defaults por conta)
+    // Onda D/H — Overrides técnicos Meta; ativos reais vêm da integração Meta.
     supabase.from("ads_meta_production_config").select("*").eq("tenant_id", tenantId).limit(50),
   ]);
 
@@ -1181,6 +1182,39 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   ((metaProductionConfigsRes as any)?.data || []).forEach((row: any) => {
     if (row?.ad_account_id) metaProductionConfigsByAccount[row.ad_account_id] = row;
   });
+  const configuredAccountIds = Array.from(new Set((configs || []).map((c: any) => c.ad_account_id).filter(Boolean)));
+  await Promise.all(configuredAccountIds.map(async (acctId: string) => {
+    try {
+      const defaults = await resolveAccountDefaults(supabase, { tenant_id: tenantId, ad_account_id: acctId });
+      const existing = metaProductionConfigsByAccount[acctId] || {};
+      metaProductionConfigsByAccount[acctId] = {
+        ...existing,
+        ad_account_id: acctId,
+        facebook_page_id: existing.facebook_page_id || defaults.facebook_page_id,
+        facebook_page_name: existing.facebook_page_name || defaults.facebook_page_name,
+        instagram_actor_id: existing.instagram_actor_id || defaults.instagram_actor_id,
+        instagram_actor_name: existing.instagram_actor_name || defaults.instagram_actor_name,
+        pixel_id: existing.pixel_id || defaults.pixel_id,
+        pixel_name: existing.pixel_name || defaults.pixel_name,
+        default_conversion_event: existing.default_conversion_event || defaults.conversion_event_default,
+        attribution_window: existing.attribution_window || defaults.attribution_window,
+        default_objective: existing.default_objective || defaults.default_objective,
+        default_buying_type: existing.default_buying_type || defaults.default_buying_type,
+        default_budget_type: existing.default_budget_type || defaults.default_budget_type,
+        default_daily_budget_cents: existing.default_daily_budget_cents ?? defaults.default_daily_budget_cents,
+        default_country: existing.default_country || defaults.default_country,
+        default_age_min: existing.default_age_min ?? defaults.default_age_min,
+        default_age_max: existing.default_age_max ?? defaults.default_age_max,
+        default_placements: existing.default_placements || defaults.default_placements,
+        default_cta: existing.default_cta || defaults.default_cta,
+        default_creative_format: existing.default_creative_format || defaults.default_creative_format,
+        conversions_api_active: defaults.conversions_api_active,
+        source: defaults.source,
+      };
+    } catch (e: any) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] account defaults merge failed for ${acctId}:`, e?.message || e);
+    }
+  }));
 
 
 
@@ -1435,11 +1469,11 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   try {
     const { data: metaInts } = await supabase
       .from("tenant_meta_integrations")
-      .select("integration_key, status, selected_assets")
+      .select("integration_id, status, selected_assets")
       .eq("tenant_id", tenantId)
-      .in("integration_key", ["catalogos", "catalogo_meta"])
+      .in("integration_id", ["catalogos", "catalogo_meta"])
       .eq("status", "active");
-    const catalogsRow = (metaInts || []).find((r: any) => r.integration_key === "catalogos") || (metaInts || [])[0];
+    const catalogsRow = (metaInts || []).find((r: any) => r.integration_id === "catalogos") || (metaInts || [])[0];
     const selected = catalogsRow?.selected_assets || {};
     const cats: any[] = selected?.catalogs || (selected?.catalog ? [selected.catalog] : []);
     for (const acctId of adAccountIds) {
@@ -1568,6 +1602,8 @@ function buildMetaProductionConfigBlock(cfg: any | null | undefined): string {
     `- Pixel ID: ${v(cfg.pixel_id)}`,
     `- Evento de conversão padrão: ${v(cfg.default_conversion_event)}`,
     `- Janela de atribuição: ${v(cfg.attribution_window, "padrão da plataforma")}`,
+    `- API de Conversões ativa: ${cfg.conversions_api_active ? "sim" : "não"}`,
+    `- Fonte dos ativos: ${cfg.source || "configuração interna"}`,
     "",
     "### Campanha (defaults)",
     `- Objetivo canônico: ${cfg.default_objective || "sales"}`,
