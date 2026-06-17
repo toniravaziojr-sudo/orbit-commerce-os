@@ -104,12 +104,13 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rodar análise inicial global?</AlertDialogTitle>
+            <AlertDialogTitle>Rodar análise estratégica global?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação roda a análise inicial para todas as contas Meta com IA ativada
+              Esta ação roda a análise estratégica para todas as contas Meta com IA ativada
               ({metaAccountsCount} conta(s)). Cada conta consome uma chamada de IA estratégica
               e gera propostas na fila Aguardando Ação. Nenhuma campanha será publicada e nenhum
-              criativo final será gerado automaticamente.
+              criativo final será gerado automaticamente. A análise roda em segundo plano e
+              cada conta costuma levar de 1 a 5 minutos.
               {hasOtherChannels && (
                 <> Google Ads e TikTok Ads ainda não estão operacionais e serão ignorados.</>
               )}
