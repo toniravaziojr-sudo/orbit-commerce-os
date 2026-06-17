@@ -779,7 +779,10 @@ export function normalizeAndValidateStrategicPlanForApproval(
     };
   }
 
-  const normalizedPlanBase = normalizeStrategicPlanCustomerExclusions(plan, preflight);
+  const normalizedPlanBase = autoResolveExistingCampaignIds(
+    normalizeStrategicPlanCustomerExclusions(plan, preflight),
+    preflight,
+  );
   const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
     if (isTestForNewOrLaunchProduct(action)) return false;
     return (
