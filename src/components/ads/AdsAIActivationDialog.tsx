@@ -309,7 +309,7 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
         </AlertDialogContent>
       </AlertDialog>
       <AdsAnalysisProgressModal
-        open={progressOpen && (isRunning || run.isPending)}
+        open={progressOpen}
         startedAt={runningRun?.started_at || null}
         scope="account"
         onClose={() => setProgressOpen(false)}
