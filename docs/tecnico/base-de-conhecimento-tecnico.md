@@ -1568,3 +1568,23 @@ pré-postagem dos Correios — depende do contrato comercial do lojista, e
 o default seguro é mandar as duas.
 
 **Constraint memória:** `mem://constraints/correios-default-nfe-plus-dc-and-pratika-key-sanitize`.
+
+---
+
+## 2026-06-17 — IA gerando texto em inglês na UI do lojista
+
+**Problema.** Propostas de campanha mostraram justificativa em inglês ("Testing creative variations…", "Redeploying budget…"). Em paralelo, o card de Aprendizado da IA misturava o comentário curto do usuário com o diagnóstico longo do plano, ficando ilegível.
+
+**Causa.**
+
+1. Os prompts do Estrategista pediam "responda em Português do Brasil" de forma fraca, sem proibir explicitamente inglês em campos livres. O modelo (Gemini) caía em inglês ao gerar `rationale` dentro de `planned_actions`.
+2. A função `ads-autopilot-feedback-record` concatenava `reason_text` (texto do usuário) com `observation` (raciocínio da IA originalmente exibido no card de proposta) para formar título do aprendizado — poluindo o card de Aprendizado da IA.
+
+**Solução (Onda 3.3).**
+
+- Reforço explícito do idioma em todos os system prompts do Estrategista (Meta/Google/TikTok), com exemplos do que NÃO escrever em inglês.
+- Reforço da regra de PT-BR diretamente nas descrições do JSON schema dos campos livres (`rationale`).
+- Título e descrição do aprendizado passam a usar SOMENTE `reason_text` (usuário). `observation` (raciocínio IA) só entra em metadata para auditoria.
+- Saneamento retroativo via migração SQL: tradução determinística das 3 propostas vigentes do tenant de homologação e limpeza do aprendizado poluído. Sem custo adicional de IA.
+
+**Anti-regressão.** Constraint memory `mem://constraints/ai-output-must-be-ptbr`. Toda nova superfície de IA que exiba texto livre ao lojista precisa: (a) reforçar PT-BR no prompt, (b) jamais concatenar raciocínio interno da IA com texto do usuário para alimentar o card de Aprendizado.

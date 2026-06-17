@@ -4423,3 +4423,23 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 **O que NÃO mudou.** Bloco `## DADOS HISTÓRICOS COMPLETOS DA CONTA` (top campanhas/adsets/ads por conversões) segue idêntico. Toda decisão estratégica continua baseada em dados reais. A análise continua rodando em segundo plano (`EdgeRuntime.waitUntil`) sem teto de tempo da resposta HTTP.
 
 **Resultado esperado.** Round 1 da análise inicial volta a caber no tempo de resposta da IA mesmo em contas grandes; tempo de execução cai proporcionalmente ao tamanho da conta.
+
+---
+
+## Onda 3.3 (2026-06-17) — Saídas da IA são sempre PT-BR e Aprendizado mostra só o feedback do usuário
+
+**Problema observado.** Propostas de campanha geradas a partir do plano estratégico aprovado vinham com a justificativa ("Por que a IA recomendou…") em inglês (ex.: "Testing creative variations to identify…"). Em paralelo, o card de Aprendizado da IA exibia o comentário do usuário concatenado com o diagnóstico longo do plano — poluindo o título e o resumo.
+
+**Regra oficial.**
+
+1. Todo texto livre gerado por IA e exibido ao lojista — justificativa de proposta, diagnóstico, descrição de público, copy, headline, motivo de exclusão, sugestão, aviso, título e descrição de aprendizado — DEVE estar em **Português do Brasil**, linguagem simples e executiva. **Proibido** inglês, anglicismos, jargão técnico e nomes internos de sistema.
+2. O card de **Aprendizado da IA** mostra **apenas o texto escrito pelo usuário** no feedback (aprovação, ajuste, recusa). O raciocínio/diagnóstico da IA vai apenas para metadata de auditoria — nunca para o título ou descrição visível.
+
+**Mecanismos de garantia.**
+
+- Prompts do Estrategista (Meta, Google, TikTok) reforçam idioma obrigatório com exemplos do que NÃO escrever.
+- Descrição do schema JSON dos campos livres (rationale etc.) reforça "OBRIGATÓRIO em PT-BR".
+- A função de gravação de feedback usa apenas `reason_text` (usuário) para título e descrição do aprendizado. `observation` (raciocínio IA) só entra como metadata.
+- Quando texto em inglês escapar para produção em volume pequeno, é reescrito por migração determinística (sem custo extra de IA). Em volume grande, usar uma única passagem de tradução pela IA.
+
+**Anti-regressão.** Qualquer novo campo livre da IA exibido na UI precisa reforçar idioma no prompt. Proibido concatenar `observation` com `reason_text` para formar título de aprendizado.

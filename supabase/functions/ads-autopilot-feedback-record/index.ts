@@ -216,9 +216,12 @@ Deno.serve(async (req) => {
   // Não bloqueia o fluxo se falhar. NÃO ativa sozinho.
   let learning_action: string | null = null;
   try {
-    const observation = (input.observation || "").trim();
+    // Onda 3.3 (2026-06-17) — Título/descrição do aprendizado vêm APENAS do
+    // texto escrito pelo usuário. NUNCA concatenar com "observation" (que
+    // carrega o raciocínio/diagnóstico da IA) — isso poluía o card.
+    const observation = (input.observation || "").trim(); // mantido só p/ metadata
     const reasonText = (input.reason_text || "").trim();
-    const candidate = [reasonText, observation].filter(Boolean).join(" — ").slice(0, 200);
+    const candidate = reasonText.slice(0, 200);
     const meaningful = input.decision === "needs_revision"
       ? candidate.length >= 8
       : candidate.length >= 12 || input.should_become_preference === true;
@@ -253,7 +256,7 @@ Deno.serve(async (req) => {
             body: {
               tenant_id: input.tenant_id,
               title: titleFromContext,
-              description: observation || reasonText || null,
+              description: reasonText || null,
               category: categoryGuess,
               source_type: sourceType,
               source_action_id: input.action_id || null,
@@ -271,7 +274,7 @@ Deno.serve(async (req) => {
           const direct = await writeLearningDirect(service, {
             tenant_id: input.tenant_id,
             title: titleFromContext,
-            description: observation || reasonText || null,
+            description: reasonText || null,
             category: categoryGuess,
             source_type: sourceType,
             source_action_id: input.action_id || null,
@@ -290,7 +293,7 @@ Deno.serve(async (req) => {
             const direct = await writeLearningDirect(service, {
               tenant_id: input.tenant_id,
               title: titleFromContext,
-              description: observation || reasonText || null,
+              description: reasonText || null,
               category: categoryGuess,
               source_type: sourceType,
               source_action_id: input.action_id || null,
@@ -311,7 +314,7 @@ Deno.serve(async (req) => {
         const direct = await writeLearningDirect(service, {
           tenant_id: input.tenant_id,
           title: titleFromContext,
-          description: observation || reasonText || null,
+          description: reasonText || null,
           category: categoryGuess,
           source_type: sourceType,
           source_action_id: input.action_id || null,

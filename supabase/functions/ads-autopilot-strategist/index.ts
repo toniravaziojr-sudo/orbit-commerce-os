@@ -443,7 +443,7 @@ const STRATEGIST_TOOLS = [
                 attribution_model: { type: "string", enum: ["Padrão", "Incremental"], description: "Modelo de atribuição. Padrão: Padrão" },
                 creatives_count: { type: "number", description: "Quantidade TOTAL de variações de criativos (mín 2, conta todas as variações de todos os conjuntos)" },
                 copy_variations: { type: "number", description: "Quantidade de variações de copy (mín 2)" },
-                rationale: { type: "string", description: "Justificativa detalhada para esta ação específica, com dados de suporte" },
+                rationale: { type: "string", description: "Justificativa detalhada para esta ação, com dados de suporte. OBRIGATÓRIO em Português do Brasil simples e executivo. PROIBIDO inglês ou jargão técnico." },
                 expected_roas: { type: "number", description: "ROAS esperado baseado em dados históricos" },
                 placements: { type: "string", description: "Posicionamentos (ex: Feed, Stories, Reels, Advantage+)" },
                 adsets: {
@@ -1987,7 +1987,7 @@ Você pode buscar e GERAR landing pages otimizadas para campanhas:
 - Criativos: mínimo 3 variações/semana por top product
 - Experimentos: exigem 3x CPA Target spend, 5 dias, 20 cliques ou 5 conversões
 - Promoção: variante com CPA < 80% do controle ou ROAS > 120% por 3+ dias → promover
-- Responda SEMPRE em Português do Brasil
+- IDIOMA OBRIGATÓRIO: TODOS os textos livres da sua resposta (diagnosis, rationale, target_audience, audience_description, nomes de campanha/conjunto, copy, headline, description, motivo de exclusão, justificativas) DEVEM ser escritos em **Português do Brasil**, em linguagem simples e executiva. É TERMINANTEMENTE PROIBIDO usar inglês, jargão técnico, anglicismos ou nomes internos de sistema em campos exibidos ao lojista. Exemplos proibidos: "Testing creative variations…", "Redeploying budget…", "Focus on converting…". Use sempre frases curtas em PT-BR como "Testar variações de criativo para…", "Realocar orçamento para…", "Focar em converter…".
 - Cada tool call deve ter justificativa numérica
 - Use os links reais da loja (landing pages, páginas) como destino dos anúncios — PREFIRA landing pages dedicadas quando disponíveis
 - Considere as categorias de produtos e o posicionamento da marca ao criar copys
@@ -2552,7 +2552,7 @@ Sua missão é maximizar conversões e ROAS para o anunciante ${config.ad_accoun
 
 ${triggerInstruction}
 
-Responda SEMPRE em Português do Brasil.`;
+Responda SEMPRE em **Português do Brasil**, em linguagem simples e executiva. PROIBIDO usar inglês, jargão técnico ou anglicismos em qualquer texto livre (diagnosis, rationale, audience_description, copy, headline, justificativas). Resposta com qualquer trecho em inglês será considerada inválida.`;
 
   const user = `## CAMPANHAS EXISTENTES (${accountCampaigns.length})
 ${campaignHeaders}
@@ -2678,7 +2678,7 @@ ${config.user_instructions || "Nenhuma."}
 - Keywords: Use EXACT e PHRASE para maior controle. BROAD apenas com dados suficientes.
 - Quality Score: Monitorar e otimizar (>7 bom, <5 ação necessária)
 - NUNCA delete campanhas — apenas pause
-- Responda SEMPRE em Português do Brasil
+- IDIOMA OBRIGATÓRIO: TODOS os textos livres em **Português do Brasil**, linguagem simples e executiva. PROIBIDO inglês, anglicismos ou jargão técnico em qualquer campo exibido ao lojista.
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
 ${context.products.slice(0, 20).map((p: any) => {
