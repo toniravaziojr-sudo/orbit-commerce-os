@@ -22,6 +22,7 @@ Na tela de revisão final, para cada criativo o lojista terá:
 - Botão "Publicar no Meta" só fica ativo quando todos os criativos da proposta tiverem imagem + copy aprovados pelo lojista.
 
 ## Status
+- Correção emergencial aplicada antes da continuidade das etapas: fonte dos ativos Meta alinhada — análise estratégica e Estrategista passam a usar os ativos reais conectados pela integração como fonte primária; configuração interna fica apenas como override avançado.
 - Etapa 1: em implementação
 - Etapa 2: em implementação
 - Etapa 3: próxima leva (UI maior, será entregue na sequência)
