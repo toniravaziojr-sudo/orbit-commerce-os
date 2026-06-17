@@ -71,11 +71,15 @@ import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 import { formatDateTimeBR } from "@/lib/date-format";
 
-type NodeId =
-  | "overview"
-  | "campaign"
-  | `adset:${number}`
-  | `ad:${number}`;
+type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
+
+const WIZARD_STEPS: { id: StepId; label: string; icon: typeof Eye }[] = [
+  { id: "overview", label: "Visão geral", icon: Eye },
+  { id: "campaign", label: "Campanha", icon: Megaphone },
+  { id: "adsets", label: "Conjuntos", icon: Layers },
+  { id: "ads", label: "Anúncios", icon: ImageIcon },
+  { id: "publish", label: "Publicar", icon: Send },
+];
 
 interface Props {
   action: PendingAction;
