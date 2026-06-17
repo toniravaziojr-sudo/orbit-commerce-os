@@ -3974,6 +3974,8 @@ O feedback inline no card (selo "Analisando agora" + tempo decorrido) é mantido
 
 **Garantia v1.3.3:** nenhuma análise estratégica manual deve depender de uma única chamada HTTP longa para concluir. O padrão oficial é: iniciar rápido → processar pesado em background → fechar a rodada pela própria etapa pesada → UI acompanha por consulta.
 
+**Validação técnica executada (2026-06-17):** análise estratégica disparada para tenant `Respeite o Homem` (conta Meta `act_251893833881780`) concluiu com sucesso em **69 segundos**, sem erro, com sinal de vida (`strategist_background=true`) registrado na rodada durante o processamento em segundo plano, e uma proposta `strategic_plan` criada na fila Aguardando Ação. O ciclo anterior (pré-correção) falhava em ~204s com timeout 504. ✅ Motor confirmado estável no padrão assíncrono.
+
 ### E.9 — Auto-cura de rotulagem de catálogo (v1.3.2, 2026-06-17)
 
 **Problema observado:** o estrategista, em alguns casos, marcava `campaign_type` como `catalog_prospecting` ou `catalog_retargeting` para campanhas que, na prática, eram de vídeo/imagem comum (prospecção fria, LAL, retargeting padrão) — sem nenhum campo de `catalog_setup` preenchido. Isso fazia o guard bloquear o plano inteiro como "Plano incompleto — campanha de catálogo precisa de `catalog_setup.creative_mode='dynamic'`", mesmo quando a intenção real do plano não era catálogo dinâmico.
