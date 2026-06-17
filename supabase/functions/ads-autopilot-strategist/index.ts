@@ -2298,6 +2298,7 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     }
     lines.push("");
 
+    lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
     lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions` no nível da ação e também em CADA item de `adsets[]`.");
     lines.push("- Em cada adset frio/prospecção, preencha `audience_exclusions.customers=true`, `excluded_audience_ids` e `targeting.excluded_custom_audiences` com o público de Clientes detectado.");
     lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_not_detected'` em cada adset frio/prospecção.");
