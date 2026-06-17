@@ -3804,7 +3804,7 @@ Foco em deixar o fluxo real de criação de campanhas Meta Ads em condição de 
 Removido em definitivo o bloco "Resumo herdado dos anúncios" da aba Campanha. A aba mostra **apenas**: nome, objetivo, canal, modo de compra, tipo de orçamento, orçamento diário, status inicial e racional. Link, CTA e tracking só aparecem em Anúncio/Criativo.
 
 ### D.2 — Configuração de Criação Meta (persistida)
-Tabela `ads_meta_production_config` (1 registro por tenant × conta de anúncios) — fonte de verdade real dos defaults usados pelo Strategist. Campos: identidade (Página, Instagram), mensuração (Pixel, evento, janela), defaults de Campanha, defaults de Conjunto (país, idioma, idade, gênero, posicionamento, exclusão de clientes, públicos, lookalikes) e defaults de Anúncio/Criativo (CTA, formato, UTM, estratégia de imagem).
+Tabela `ads_meta_production_config` (1 registro por tenant × conta de anúncios) — override técnico avançado dos defaults usados pelo Strategist. A fonte primária dos ativos conectados é a integração Meta (`tenant_meta_integrations`): conta/página/Instagram vêm da integração `anuncios`; Pixel vem de `pixel_facebook` ou `conversions_api`; CAPI vem de `conversions_api`. Quando existir override interno, ele complementa ou sobrescreve defaults de Campanha, Conjunto e Anúncio/Criativo (CTA, formato, UTM, posicionamento, públicos etc.).
 
 Defaults seguros: BR · pt_BR · 18-65 · todos · Advantage+ · Leilão · objetivo `sales` · status `PAUSED` · CTA `SHOP_NOW` · formato `1x1`. **Pixel, Página, Instagram Actor e Evento de conversão nunca são inventados.**
 
@@ -3824,8 +3824,8 @@ No card de cada conta Meta o usuário vê apenas um **status inline somente leit
 
 O modal de proposta usa `strategy` — assim, "evento de conversão pendente" deixou de bloquear a aprovação.
 
-### D.5 — Strategist usa a Configuração de Criação Meta
-`gatherContext` carrega as configs Meta do tenant e indexa por `ad_account_id`. Um bloco `## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)` é injetado no prompt do Strategist Meta com todos os defaults reais — ou instruções de fallback conservador. Pixel/Página/Instagram/Evento não configurados aparecem como `requires_user_input`.
+### D.5 — Strategist usa os ativos reais da integração Meta
+`gatherContext` resolve os defaults da conta combinando, nesta ordem: ativos reais conectados via integração Meta, Pixel oficial de marketing, configuração estratégica da conta e eventual override técnico avançado. Um bloco `## CONFIGURAÇÃO DE CRIAÇÃO META (PRODUÇÃO)` é injetado no prompt do Strategist Meta com Página, Instagram, Pixel, evento de conversão derivado e CAPI quando disponíveis. Pixel/Página/Instagram/Evento só aparecem como `requires_user_input` quando não existem nem na integração real nem no override técnico.
 
 ### D.6 — Restrições mantidas
 - Zero IA chamada ao abrir, navegar, editar ou salvar.
