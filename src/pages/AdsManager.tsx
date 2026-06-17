@@ -24,6 +24,7 @@ import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
 import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
+import { AdsStrategyHistoryTab } from "@/components/ads/AdsStrategyHistoryTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 
 import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
