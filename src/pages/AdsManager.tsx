@@ -25,7 +25,7 @@ import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
 import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
-import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
+
 import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
 import { AdsWarningsTab } from "@/components/ads/AdsWarningsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
