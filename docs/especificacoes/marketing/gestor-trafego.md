@@ -4034,17 +4034,17 @@ O feedback inline no card (selo "Analisando agora" + tempo decorrido) é mantido
 - Tabela `ads_ai_learnings` por tenant, com status `suggested | active | paused | archived`.
 - Categorias: produto, público, orçamento, funil, criativo, copy, oferta, performance, restrição, tracking, outro.
 - Origem: `approval | rejection | adjustment | manual | system`.
-- Regras de ativação:
-  - Aprendizado criado a partir de feedback nasce como `suggested` — usuário ativa.
-  - Aprendizado criado manualmente nasce como `active`.
-  - Apenas aprendizados com status `active` entram no contexto do Strategist e na expansão Plano → propostas.
+- Regras de ativação (**atualizado 2026-06-17 — Onda 3.2**):
+  - Todo aprendizado novo nasce como `active` por padrão, independente da origem (feedback de ajuste/recusa/aprovação ou criação manual). O usuário pode pausar, editar ou remover depois.
+  - Apenas aprendizados com status `active` entram no contexto do Estrategista e na expansão Plano → propostas.
+  - Status `suggested` permanece no schema apenas para registros legados e para uso futuro de curadoria opcional; não é mais o padrão de entrada.
 - Dedup: índice único parcial por `(tenant_id, category, normalized_title)` ignorando `archived`. Aprendizado duplicado **reforça** evidência e confiança em vez de criar novo.
-- Feedback → aprendizado sugerido: `ads-autopilot-feedback-record` invoca `ads-ai-learnings-write` quando o feedback tem conteúdo útil (motivo/observação ≥ 12 caracteres ou `should_become_preference=true`). Feedback vazio não cria aprendizado.
+- Feedback → aprendizado ativo: o registrador de feedback dispara a escrita do aprendizado quando o feedback tem conteúdo útil (motivo/observação ≥ 12 caracteres ou marcado como preferência). Feedback vazio não cria aprendizado.
 
 ### F.4 — Restrições
 - Sem campo de UTM na UI de Configurações Gerais nesta entrega.
-- Aprendizado sugerido nunca ativa sozinho.
-- Aprendizado `suggested`, `paused` ou `archived` não entra no prompt da IA.
+- Aprendizado `paused` ou `archived` não entra no prompt da IA.
+
 - Nenhuma publicação, mutação Meta/Google/TikTok ou criativo final é gerado em qualquer ponto desta Onda.
 - Sem cron mensal, sem admin avançado, sem Google/TikTok operacional.
 
