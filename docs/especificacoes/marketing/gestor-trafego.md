@@ -74,6 +74,15 @@ Quando o usuário clica em **Ajustar proposta** e escreve sua sugestão, a IA é
 - A sugestão escrita pelo usuário **sempre** é persistida como aprendizado, independente de o motor gerar nova versão ou não.
 - Modo `revision` no Estrategista **deve** manter `tool_choice = required` no round 1. Reverter isso reabre o bug de "ajuste sem resposta".
 
+## Onda 3.2 (2026-06-17) — Dialog primário permanece atrás do secundário
+
+Ao abrir uma ação secundária a partir do modal completo de proposta — **Ajustar proposta**, **Recusar proposta** ou confirmação de **Aprovar plano/campanha** — o modal primário da proposta deve permanecer aberto no fundo. Fechar ou cancelar o secundário deve devolver o usuário ao mesmo modal primário, sem exigir reabertura manual da proposta.
+
+**Anti-regressão**
+
+- Botões secundários dentro do modal completo não podem fechar o modal primário antes de abrir o dialog seguinte.
+- O fechamento do modal primário só deve ocorrer por ação explícita de fechar a própria proposta ou após conclusão real do fluxo principal, quando a lista for atualizada.
+
 
 
 

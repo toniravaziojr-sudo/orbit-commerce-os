@@ -587,7 +587,6 @@ export function StructuredProposalModal({
                     setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
                     setEditorOpen(true);
                   } else if (onAdjustRequest) {
-                    onOpenChange(false);
                     onAdjustRequest();
                   }
                 }}
