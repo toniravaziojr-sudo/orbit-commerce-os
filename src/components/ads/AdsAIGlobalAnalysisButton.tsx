@@ -165,7 +165,7 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
       </AlertDialog>
 
       <AdsAnalysisProgressModal
-        open={progressOpen && (hasRunning || run.isPending)}
+        open={progressOpen}
         startedAt={latestRun?.started_at || null}
         scope="global"
         accountsCount={metaAccountsCount}
