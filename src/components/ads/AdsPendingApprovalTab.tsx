@@ -264,15 +264,29 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   const displayCount = campaigns.length + orphanAdsetGroups.size;
 
+  const isAdjusting = !!adjustingId || adjustAction.isPending;
+
   if (displayCount === 0) {
     return (
       <div className="space-y-4">
         <ApprovedProposalsSection channelFilter={channelFilter} />
-        <EmptyState
-          icon={Hourglass}
-          title="Nenhuma ação aguardando aprovação"
-          description="Quando a IA propor ações de alto impacto, elas aparecerão aqui para sua revisão"
-        />
+        {isAdjusting ? (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">Ajustando proposta…</span>
+              <span className="text-xs text-muted-foreground">
+                A IA está gerando uma nova versão com seu feedback. Isso pode levar alguns minutos.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            icon={Hourglass}
+            title="Nenhuma ação aguardando aprovação"
+            description="Quando a IA propor ações de alto impacto, elas aparecerão aqui para sua revisão"
+          />
+        )}
       </div>
     );
   }
