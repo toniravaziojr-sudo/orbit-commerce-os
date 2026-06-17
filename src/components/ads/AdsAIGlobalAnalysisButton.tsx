@@ -3,7 +3,7 @@
 // Dispara a análise estratégica em escopo global (todas as contas Meta com IA
 // ativada). Google/TikTok são ignorados nesta etapa com aviso amigável.
 // =============================================================================
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Sparkles, Clock, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAdsAIAnalysisRun } from "@/hooks/useAdsAIAnalysisRun";
+import { AdsAnalysisProgressModal } from "./AdsAnalysisProgressModal";
 
 interface Props {
   /** Quantidade de contas Meta com IA ativada no tenant. Apenas informativo. */
