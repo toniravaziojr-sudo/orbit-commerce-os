@@ -2384,27 +2384,43 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
               action_hash: `${sessionId}_insight_${acctConfig.ad_account_id}_${totalActionsPlanned}`,
             });
 
-            // Also insert into ads_autopilot_insights table for the Insights tab
-            const insightTitle = args.kpi_analysis?.overall_trend === "improving"
-              ? "📈 Conta em melhora"
+            // Onda 3: sinal diagnóstico vai para a aba "Avisos" (ads_ai_warnings).
+            // A aba antiga de Insights foi descontinuada. Quando o ciclo encontra
+            // ação concreta, vira proposta em "Aguardando Ação" (fluxo separado).
+            const trend = args.kpi_analysis?.overall_trend === "improving"
+              ? "up"
               : args.kpi_analysis?.overall_trend === "declining"
-              ? "📉 Conta em declínio"
-              : "📊 Análise da conta";
+              ? "down"
+              : "flat";
+            const severity = (args.risk_alerts?.length || 0) > 2
+              ? "urgente"
+              : (args.risk_alerts?.length || 0) > 0
+              ? "atencao"
+              : "informativo";
+            const warningTitle = trend === "up"
+              ? "Conta em melhora"
+              : trend === "down"
+              ? "Conta em declínio"
+              : "Sinal de análise da conta";
 
-            await supabase.from("ads_autopilot_insights").insert({
+            await supabase.from("ads_ai_warnings").insert({
               tenant_id,
               channel,
               ad_account_id: acctConfig.ad_account_id,
-              title: insightTitle + ` (${acctConfig.ad_account_id})`,
-              body: sanitizedSummary,
-              evidence: { kpi_analysis: args.kpi_analysis, risk_alerts: args.risk_alerts },
-              recommended_action: { recommendations: args.recommendations },
-              priority: args.risk_alerts?.length > 2 ? "high" : "medium",
-              category: "analysis",
-              sentiment: args.kpi_analysis?.overall_trend === "improving" ? "positive" : args.kpi_analysis?.overall_trend === "declining" ? "negative" : "neutral",
+              title: warningTitle,
+              description: sanitizedSummary,
+              severity,
+              trend,
               status: "open",
+              context: {
+                kpi_analysis: args.kpi_analysis,
+                risk_alerts: args.risk_alerts,
+                recommendations: args.recommendations,
+                session_id: sessionId,
+              },
             });
-            console.log(`[ads-autopilot-analyze][${VERSION}] Insight saved to ads_autopilot_insights table`);
+            console.log(`[ads-autopilot-analyze][${VERSION}] Warning saved to ads_ai_warnings (severity=${severity}, trend=${trend})`);
+
 
             totalActionsExecuted++;
             continue;
