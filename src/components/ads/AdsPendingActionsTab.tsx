@@ -277,6 +277,14 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
               {displayCount} {displayCount === 1 ? "proposta aguardando" : "propostas aguardando"} aprovação
             </p>
           </div>
+          {adjustingId && (
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <span className="text-sm">
+                Ajustando proposta… a IA está gerando uma nova versão com seu feedback.
+              </span>
+            </div>
+          )}
           <div className="space-y-3">
             {/* Campaigns with nested adsets */}
             {campaigns.map((action) => (
