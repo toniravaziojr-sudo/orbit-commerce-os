@@ -618,42 +618,75 @@ export function StructuredProposalModal({
             )}
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onReject(action.id)}
-                disabled={!!rejectingId || isApproving}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <X className="h-3.5 w-3.5" />
-                Recusar proposta
-              </Button>
-              <div className="flex-1" />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (isStrategyStage) {
-                    setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
-                    setEditorOpen(true);
-                  } else if (onAdjustRequest) {
-                    onAdjustRequest();
-                  }
-                }}
-                disabled={isApproving || !!rejectingId}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Ajustar proposta
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleApprove}
-                disabled={isApproving || !!rejectingId || approveBlocked}
-                title={approveBlockedReason || undefined}
-              >
-                {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {approveLabel}
-              </Button>
+              {isCampaignProposal ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmCancelOpen(true)}
+                    disabled={!!rejectingId || isApproving}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancelar campanha
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (onAdjustRequest) onAdjustRequest();
+                    }}
+                    disabled={isApproving || !!rejectingId || !onAdjustRequest}
+                    title={!onAdjustRequest ? "Ajuste via texto livre indisponível neste contexto" : undefined}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Ajustar proposta
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground ml-2">
+                    A aprovação acontece ao publicar na última etapa.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onReject(action.id)}
+                    disabled={!!rejectingId || isApproving}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Recusar proposta
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isStrategyStage) {
+                        setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
+                        setEditorOpen(true);
+                      } else if (onAdjustRequest) {
+                        onAdjustRequest();
+                      }
+                    }}
+                    disabled={isApproving || !!rejectingId}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Ajustar proposta
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApprove}
+                    disabled={isApproving || !!rejectingId || approveBlocked}
+                    title={approveBlockedReason || undefined}
+                  >
+                    {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {approveLabel}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>
