@@ -19,7 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VERSION = "ads-ai-initial-analysis@1.2.0";
+const VERSION = "ads-ai-initial-analysis@1.3.0";
 const RECENT_HOURS = 24;
 // Onda H — Frescor da espelhagem Meta. Se o último sync de campanhas dessa conta
 // for mais antigo que esse intervalo, dispara um sync leve antes da análise para
