@@ -256,7 +256,7 @@ Deno.serve(async (req) => {
             body: {
               tenant_id: input.tenant_id,
               title: titleFromContext,
-              description: observation || reasonText || null,
+              description: reasonText || null,
               category: categoryGuess,
               source_type: sourceType,
               source_action_id: input.action_id || null,
@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
           const direct = await writeLearningDirect(service, {
             tenant_id: input.tenant_id,
             title: titleFromContext,
-            description: observation || reasonText || null,
+            description: reasonText || null,
             category: categoryGuess,
             source_type: sourceType,
             source_action_id: input.action_id || null,
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
             const direct = await writeLearningDirect(service, {
               tenant_id: input.tenant_id,
               title: titleFromContext,
-              description: observation || reasonText || null,
+              description: reasonText || null,
               category: categoryGuess,
               source_type: sourceType,
               source_action_id: input.action_id || null,
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
         const direct = await writeLearningDirect(service, {
           tenant_id: input.tenant_id,
           title: titleFromContext,
-          description: observation || reasonText || null,
+          description: reasonText || null,
           category: categoryGuess,
           source_type: sourceType,
           source_action_id: input.action_id || null,
