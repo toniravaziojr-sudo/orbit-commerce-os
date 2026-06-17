@@ -3,7 +3,7 @@
 // Dispara a análise estratégica em escopo global (todas as contas Meta com IA
 // ativada). Google/TikTok são ignorados nesta etapa com aviso amigável.
 // =============================================================================
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Sparkles, Clock, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAdsAIAnalysisRun } from "@/hooks/useAdsAIAnalysisRun";
+import { AdsAnalysisProgressModal } from "./AdsAnalysisProgressModal";
 
 interface Props {
   /** Quantidade de contas Meta com IA ativada no tenant. Apenas informativo. */
@@ -28,6 +29,7 @@ interface Props {
 export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const { run, hasRunning, latestRun } = useAdsAIAnalysisRun({
     platform: "meta",
     scope: "global",
@@ -44,8 +46,16 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
     const payload = resp?.data || resp;
     if (payload?.skipped && payload?.reason === "recent_completed_requires_force") {
       setRecentOpen(true);
+    } else if (!payload?.skipped) {
+      setProgressOpen(true);
     }
   };
+
+  useEffect(() => {
+    if (progressOpen && !hasRunning && !run.isPending) {
+      setProgressOpen(false);
+    }
+  }, [progressOpen, hasRunning, run.isPending]);
 
   const summary = latestRun?.diagnosis_summary;
 
@@ -141,6 +151,14 @@ export function AdsAIGlobalAnalysisButton({ metaAccountsCount, hasOtherChannels 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AdsAnalysisProgressModal
+        open={progressOpen && (hasRunning || run.isPending)}
+        startedAt={latestRun?.started_at || null}
+        scope="global"
+        accountsCount={metaAccountsCount}
+        onClose={() => setProgressOpen(false)}
+      />
     </div>
   );
 }
