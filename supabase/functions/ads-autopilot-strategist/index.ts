@@ -968,7 +968,13 @@ async function buildDeepHistoricalFromLocalData(
 
     // Fetch all entities from local cache (already synced)
     // Paginated fetch helper — PostgREST caps at 1000 rows per request (v1.42.0)
-    async function fetchAllPaginated(table: string, selectCols: string, filters: Record<string, string>, orderCol?: string) {
+    async function fetchAllPaginated(
+      table: string,
+      selectCols: string,
+      filters: Record<string, string>,
+      orderCol?: string,
+      opts?: { gte?: { col: string; value: string }; inFilter?: { col: string; values: string[] } },
+    ) {
       const PAGE_SIZE = 1000;
       const allRows: any[] = [];
       let offset = 0;
@@ -976,6 +982,8 @@ async function buildDeepHistoricalFromLocalData(
       while (hasMore) {
         let q = supabase.from(table).select(selectCols);
         for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+        if (opts?.gte) q = q.gte(opts.gte.col, opts.gte.value);
+        if (opts?.inFilter && opts.inFilter.values.length > 0) q = q.in(opts.inFilter.col, opts.inFilter.values);
         if (orderCol) q = q.order(orderCol, { ascending: false });
         q = q.range(offset, offset + PAGE_SIZE - 1);
         const { data, error } = await q;
