@@ -1411,7 +1411,7 @@ function AdSection({
   const ctaValue = ad.cta ? tr("cta", ad.cta) : null;
   const ctaOriginNote = ad.cta && ad.cta_source === "objective_default"
     ? "Padrão do objetivo Vendas"
-    : ad.cta && ad.cta_source === "manual_override"
+    : ad.cta && (ad.cta_source as any) === "manual_override"
       ? "Definido pelo lojista"
       : null;
 
