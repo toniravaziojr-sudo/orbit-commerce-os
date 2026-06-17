@@ -1375,7 +1375,147 @@ function AdSetSection({
   );
 }
 
-function AdSection({
+function AttachCreativeBlock({
+  ad,
+  onPatch,
+}: {
+  ad: AdNode;
+  onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+}) {
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const todayIso = useMemo(() => new Date().toISOString(), []);
+  const folderId = useMediaMonthFolder(todayIso);
+  const { upload, isUploading } = useSystemUpload({
+    source: "ads_creative",
+    subPath: "ads",
+    folderId: folderId || undefined,
+  });
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+  let inputEl: HTMLInputElement | null = null;
+
+  const applyCreative = async (url: string, sourceLabel: "manual_upload" | "manual_drive") => {
+    if (!onPatch) return;
+    await onPatch({
+      creative_final_url: url,
+      creative_status: "ready",
+      creative_source: sourceLabel,
+    });
+    toast.success("Criativo anexado ao anúncio.");
+  };
+
+  const handleFile = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione uma imagem (PNG, JPG ou WEBP).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Imagem muito grande. Limite de 10 MB.");
+      return;
+    }
+    const res = await upload(file);
+    if (res?.url) await applyCreative(res.url, "manual_upload");
+  };
+
+  const handleRemove = async () => {
+    if (!onPatch) return;
+    setRemoving(true);
+    await onPatch({
+      creative_final_url: null,
+      creative_status: "pending_strategy_approval",
+      creative_source: null,
+    });
+    setRemoving(false);
+  };
+
+  const hasCreative = !!ad.creative_final_url;
+
+  return (
+    <Block
+      title={hasCreative ? "Criativo anexado" : "Anexar criativo"}
+      icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}
+    >
+      <div className="space-y-3">
+        {hasCreative ? (
+          <div className="flex items-start gap-3">
+            <img
+              src={ad.creative_final_url!}
+              alt="Criativo do anúncio"
+              className="h-32 w-32 object-cover rounded-md border border-border/40"
+            />
+            <div className="flex-1 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Esta é a imagem que será publicada neste anúncio.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
+                  <Upload className="h-3.5 w-3.5 mr-1.5" /> Substituir do PC
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading}>
+                  <FolderOpen className="h-3.5 w-3.5 mr-1.5" /> Trocar pelo Drive
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {ad.reference_image_url && (
+              <div className="flex items-start gap-3 rounded-md border border-dashed border-border/50 p-3">
+                <img
+                  src={ad.reference_image_url}
+                  alt="Referência do produto"
+                  className="h-20 w-20 object-cover rounded-md border border-border/40"
+                />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Esta é apenas a foto do produto para referência. <strong>Não</strong> é o criativo final.
+                  Anexe abaixo a imagem que será publicada.
+                </p>
+              </div>
+            )}
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="default" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
+                {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+                Enviar do PC
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading}>
+                <FolderOpen className="h-3.5 w-3.5 mr-1.5" /> Escolher no Drive
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Formatos: PNG, JPG ou WEBP — até 10 MB. Arquivos enviados do PC vão para a pasta mensal do Drive.
+            </p>
+          </div>
+        )}
+
+        <input
+          ref={(el) => { inputEl = el; }}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = "";
+          }}
+        />
+
+        <DriveFilePicker
+          open={drivePickerOpen}
+          onOpenChange={setDrivePickerOpen}
+          onSelect={(url) => { setDrivePickerOpen(false); applyCreative(url, "manual_drive"); }}
+          accept="image"
+          title="Escolher imagem do Meu Drive"
+        />
+      </div>
+    </Block>
+  );
+}
+
+
   ad,
   isStrategyStage,
   isCampaignProposal,
