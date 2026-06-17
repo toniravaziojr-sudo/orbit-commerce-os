@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { Megaphone, Lightbulb, Wallet, ArrowRight, AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
+import { Megaphone, Bell, Wallet, ArrowRight, AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAdsInsights } from "@/hooks/useAdsInsights";
+import { useAdsAIWarnings } from "@/hooks/useAdsAIWarnings";
 import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
@@ -14,11 +14,10 @@ function formatCurrency(cents: number) {
 
 export function AdsAlertsWidget() {
   const navigate = useNavigate();
-  const { insights } = useAdsInsights();
+  const { unseenCount: openWarnings } = useAdsAIWarnings();
   const balance = useAdsBalanceMonitor();
   const { pendingCount } = useAdsPendingActions();
 
-  const openInsights = insights.filter(i => i.status === "open");
   const hasLowBalance = balance.lowBalanceCount > 0;
   const hasZeroBalance = balance.zeroBalanceCount > 0;
 
@@ -53,11 +52,11 @@ export function AdsAlertsWidget() {
     });
   }
 
-  if (openInsights.length > 0) {
+  if (openWarnings > 0) {
     items.push({
-      icon: Lightbulb,
-      title: `${openInsights.length} insight${openInsights.length !== 1 ? "s" : ""} não lido${openInsights.length !== 1 ? "s" : ""}`,
-      description: "Recomendações da IA aguardando revisão",
+      icon: Bell,
+      title: `${openWarnings} aviso${openWarnings !== 1 ? "s" : ""} da IA não visto${openWarnings !== 1 ? "s" : ""}`,
+      description: "Sinais detectados pela IA aguardando sua leitura",
       variant: "info",
     });
   }

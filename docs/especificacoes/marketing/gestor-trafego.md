@@ -1,13 +1,53 @@
 # Gestor de Tráfego IA — Especificação Completa
 
 > **Status:** ✅ Ativo  
-> **Versão:** 6.11.0  
+> **Versão:** 7.0.0 (Onda 3 — Insights aposentado, Avisos ativo)
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Rota:** `/ads`  
 > **Extraído de:** `docs/especificacoes/marketing/marketing-integracoes.md` (Seção 5)  
-> **Última atualização:** 2026-04-06
+> **Última atualização:** 2026-06-17
 
 ---
+
+## Onda 3 (2026-06-17) — Resumo executivo da mudança
+
+**Saiu do produto**
+
+- Aba "Insights" do Gestor de Tráfego.
+- Aba "Configurações Gerais" (orçamento, ROI, instruções, prompt estratégico, modo, funil, autonomia, UTM padrão — tudo agora vive por conta de anúncios).
+- Sub-aba "Chat IA" dentro de cada conta (consolidado no Chat IA principal).
+- Rotina semanal de geração de insights diagnósticos (`ads-weekly-insights`, jobid 74) — desativada em produção.
+- Botão manual "Gerar Insights Agora".
+
+**Entrou no produto**
+
+- Aba "Avisos" (última posição) — lista de sinais diagnósticos detectados pelo ciclo da IA por conta, com severidade (informativo / atenção / urgente), tendência (alta / baixa / estável) e estados (aberto / visto / dispensado / virou proposta). Tabela: `ads_ai_warnings`.
+- Aba "Chat IA" (antiga "Chat IA Global") — fonte única de chat, enxerga todas as contas.
+- Aba "Desempenho" (antiga "Visão Geral").
+
+**Nova regra de saída do ciclo da IA por conta**
+
+1. Sinal com **ação concreta dentro das regras da conta** → proposta em "Aguardando Ação".
+2. Sinal **diagnóstico relevante sem ação concreta** → aviso na aba "Avisos".
+3. Sinal **irrelevante ou contexto puro** → fica só na memória interna da IA.
+
+**Ordem final das abas principais**
+
+1. Gerenciador
+2. Chat IA
+3. Aprendizado da IA
+4. Desempenho
+5. Avisos
+
+**Anti-regressão**
+
+- Aviso ≠ Proposta. Aviso nunca executa nada; proposta sempre exige aprovação humana antes de publicar.
+- Nada de "IA global" — toda configuração que afeta execução vive por conta de anúncios.
+- A tabela antiga `ads_autopilot_insights` foi preservada em banco como histórico, mas não é mais alimentada pelo ciclo da IA e não aparece na UI.
+
+Memória de governança: `mem://constraints/ads-no-global-and-avisos-not-proposals`.
+
+
 
 ## Visão Geral
 
