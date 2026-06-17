@@ -155,7 +155,7 @@ interface ManualProps {
 }
 
 /**
- * Botão "Rodar análise inicial agora" com confirmação e tratamento de
+ * Botão "Rodar análise estratégica agora" com confirmação e tratamento de
  * análises recentes/em andamento.
  */
 export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: ManualProps) {
@@ -182,26 +182,52 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
     }
   };
 
+  const isRunning = hasRunning;
+  const runningRun = isRunning ? latestRun : null;
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
+      <div
+        className={`flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors ${
+          isRunning ? "border-primary/40 bg-primary/5" : "bg-card"
+        }`}
+      >
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold">Análise inicial estratégica</span>
-            {hasRunning && (
-              <Badge variant="secondary" className="text-[10px]">
-                <Clock className="h-3 w-3 mr-1" /> Em andamento
+            <span className="text-sm font-semibold">Análise estratégica</span>
+            {isRunning && (
+              <Badge variant="default" className="text-[10px] gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Analisando agora
               </Badge>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Roda uma análise completa da conta e cria propostas na fila Aguardando Ação.
-            Não publica campanha e não gera criativo final automaticamente.
-          </p>
-          {latestRun?.finished_at && latestRun.status === "completed" && (
+          {isRunning ? (
+            <div className="mt-1 space-y-0.5">
+              <p className="text-[11px] text-primary font-medium">
+                A IA está estudando a conta agora. Isso costuma levar de 1 a 5 minutos.
+                Você pode sair desta tela — o resultado vai aparecer na fila Aguardando Ação
+                quando terminar.
+              </p>
+              {runningRun?.started_at && (
+                <ElapsedTime startedAt={runningRun.started_at} />
+              )}
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Roda uma análise completa da conta e cria propostas na fila Aguardando Ação.
+              Não publica campanha e não gera criativo final automaticamente.
+            </p>
+          )}
+          {!isRunning && latestRun?.finished_at && latestRun.status === "completed" && (
             <p className="text-[10px] text-muted-foreground mt-1">
               Última análise concluída em {new Date(latestRun.finished_at).toLocaleString("pt-BR")}.
+            </p>
+          )}
+          {!isRunning && latestRun?.status === "failed" && (
+            <p className="text-[10px] text-destructive mt-1">
+              Última tentativa falhou. Você pode rodar novamente.
             </p>
           )}
         </div>
@@ -209,20 +235,25 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
           size="sm"
           variant="outline"
           onClick={handleClick}
-          disabled={disabled || hasRunning || run.isPending}
+          disabled={disabled || isRunning || run.isPending}
         >
-          {run.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rodar análise inicial agora"}
+          {run.isPending || isRunning ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            "Rodar análise estratégica agora"
+          )}
         </Button>
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rodar análise inicial agora?</AlertDialogTitle>
+            <AlertDialogTitle>Rodar análise estratégica agora?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação consome uma chamada de IA estratégica e cria propostas na fila
               Aguardando Ação. Nenhuma campanha será publicada e nenhum criativo final
-              será gerado automaticamente.
+              será gerado automaticamente. A análise roda em segundo plano e costuma
+              levar de 1 a 5 minutos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -251,5 +282,24 @@ export function AdsAIManualAnalysisButton({ platform, adAccountId, disabled }: M
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Mostra o tempo decorrido desde o início da análise, atualizando a cada segundo. */
+function ElapsedTime({ startedAt }: { startedAt: string }) {
+  const [, force] = useState(0);
+  // Re-render a cada 1s para atualizar o contador
+  useState(() => {
+    const t = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  });
+  const startMs = new Date(startedAt).getTime();
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  const mm = Math.floor(elapsedSec / 60);
+  const ss = elapsedSec % 60;
+  return (
+    <p className="text-[10px] text-muted-foreground">
+      Em execução há {mm > 0 ? `${mm} min ` : ""}{ss.toString().padStart(2, "0")}s.
+    </p>
   );
 }
