@@ -12,23 +12,23 @@ A partir de 2026-06-16, o motor de prontidão H.4.1 (`creativeReadinessGate.ts` 
 
 **A tabela `ads_meta_production_config` permanece apenas como override avançado opcional.** Loader não depende dela para nada. UI não expõe esses campos como formulário obrigatório.
 
-## Regras de marca e produto (H.4.1 v2)
+## Regras de marca e produto (v6.20 final — 2026-06-17)
 
-- **Bloqueadores reais que sobram:** promessa principal aprovada (sempre); claims permitidas (apenas se categoria do produto for sensível: `cosmetic_hair` ou `supplement`); categoria regulatória do produto; logo, paleta e imagem principal do produto.
-- **Viraram avisos (não bloqueiam):** tom de voz, diferenciais/benefícios do produto, claims proibidas/restrições da marca.
+- **Bloqueadores reais (apenas técnicos):** conexão Meta ativa (página, pixel, conta), imagem principal do produto, logo e paleta da marca, URL+UTM válidos, orçamento, tabela de preços de IA.
+- **Tudo o mais é aviso, nunca bloqueio:** tipo/função do produto (`ai_product_type`, `ai_main_function`), descrição, diferenciais, tom de voz, promessa, claims, restrições. Refino editorial é feito 100% via prompt estratégico + feedback nas propostas. Campos `brand.tone_of_voice`, `brand.approved_main_promise`, `brand.allowed_claims`, `brand.banned_claims`, `brand.do_not_do`, `brand.restrictions` **não geram avisos nem bloqueios**.
 
 ## Anti-regressão
 
 - PROIBIDO reintroduzir formulário manual de Página/Pixel/Instagram/Conta/Evento/Janela por conta de anúncios. `MetaProductionConfigCard.tsx` ficou órfão — qualquer reuso futuro precisa autorização explícita.
 - PROIBIDO bloquear geração de criativos por ausência de evento de conversão ou janela de atribuição. São sempre derivados.
 - PROIBIDO transformar tom de voz, diferenciais ou restrições genéricas em bloqueador sem categoria sensível.
-- Testes em `creativeReadinessGate_test.ts` cobrem: derivação automática (testes 05/06), aviso de diferenciais (15), bloqueador condicional de claims (19), aviso de restrições (20).
+- Testes em `creativeReadinessGate_test.ts` cobrem derivação automática Meta e demoção dos campos editoriais a não-bloqueadores/não-avisos.
 
 ## Fase 2 (2026-06-16) — Categoria livre + Diretrizes Globais
 
 - Cadastro de produto não tem mais campo fechado de categoria regulatória na UI. Apenas dois campos livres: `ai_product_type` e `ai_main_function` (em `products`).
 - Bloqueadores do gate H.4.1 agora exigem `ai_product_type` + `ai_main_function`. `regulatory_category` e `commercial_restrictions` legados ficam só por compatibilidade.
-- `brand.allowed_claims` foi rebaixado para aviso — não bloqueia mais.
+- `brand.allowed_claims` e demais campos editoriais da marca **não geram avisos nem bloqueios** no Gestor de Anúncios (descontinuados em 2026-06-17). Continuam vivos só para o modo Vendas (WhatsApp).
 - Tabela global `platform_commercial_guidelines` (Meta/Google/TikTok × categoria inferida) é fonte única para geração de copy/criativo. RLS: leitura para authenticated, escrita só `platform_admin`.
 - Cron mensal `platform-guidelines-monthly-refresh` (dia 1, 03:00 UTC) usa Firecrawl + Lovable AI (`gemini-2.5-flash`) para detectar mudanças e marcar `status='review_needed'`. NUNCA bloqueia geração — serve versão anterior até admin aprovar.
 - Helper `_shared/ads-autopilot/guidelineResolver.ts`: `inferCategory(type, function)` por keyword matching determinístico (sem custo de LLM por request), `resolveGuidelinesForProduct` para consumo pelo motor de geração.
