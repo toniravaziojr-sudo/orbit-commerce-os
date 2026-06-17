@@ -1,7 +1,7 @@
 // =============================================================================
 // AdsAIActivationDialog — Onda E
 // Diálogo de ativação da IA com escolha entre Modo Piloto e Modo Piloto Inicial,
-// e botão de execução manual "Rodar análise inicial agora".
+// e botão de execução manual "Rodar análise estratégica agora".
 // =============================================================================
 import { useState } from "react";
 import { Loader2, Sparkles, Play, Clock, AlertTriangle } from "lucide-react";
