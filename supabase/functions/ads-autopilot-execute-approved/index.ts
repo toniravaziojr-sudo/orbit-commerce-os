@@ -865,40 +865,112 @@ Deno.serve(async (req) => {
         console.warn(`[ads-autopilot-execute-approved][${VERSION}] primary verified domain lookup failed (non-blocking):`, e);
       }
 
-      // H.2.4: para cada ação planejada, enriquece com product_slug (lookup
-      // por nome dentro do tenant, apenas produtos ativos não-excluídos) e,
-      // se houver landing_page_id, com landing_page_url pública. Sem inventar.
+      // H.2.4 — Resolução canônica de produto por ação planejada.
+      // Contrato: cada proposta filha = 1 produto principal canônico do catálogo.
+      // O Estrategista pode (indevidamente) devolver nomes compostos, com espaços
+      // sobrando, variação singular/plural ("Kit/Kits") ou acentos. Aqui
+      // normalizamos, suportamos separadores comuns e elegemos o primeiro
+      // produto reconhecido como principal; demais ficam como secundários.
       const plannedActionsRaw = Array.isArray(revalidatedPlan?.planned_actions) ? revalidatedPlan.planned_actions : [];
-      const productNames = Array.from(new Set(
-        plannedActionsRaw.map((a: any) => (a?.product_name || "").trim()).filter((s: string) => s.length > 0),
-      ));
-      const slugByName = new Map<string, string>();
-      if (productNames.length > 0) {
-        try {
-          const { data: prodRows } = await supabase
-            .from("products")
-            .select("name, slug, status, deleted_at")
-            .eq("tenant_id", tenant_id)
-            .is("deleted_at", null)
-            .eq("status", "active")
-            .in("name", productNames);
-          for (const r of prodRows || []) {
-            const k = String(r?.name || "").toLowerCase();
-            if (k && r?.slug && !slugByName.has(k)) slugByName.set(k, String(r.slug));
-          }
-        } catch (e) {
-          console.warn(`[ads-autopilot-execute-approved][${VERSION}] product slug lookup failed (non-blocking):`, e);
+
+      const normalizeName = (s: string): string =>
+        String(s || "")
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[\s\u00a0]+/g, " ")
+          .trim();
+
+      const splitComposite = (s: string): string[] => {
+        const raw = String(s || "");
+        if (!raw.trim()) return [];
+        const parts = raw
+          .split(/\s*[,;+/&]\s*|\s+e\s+/i)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        return parts.length > 0 ? parts : [raw.trim()];
+      };
+
+      type CatalogEntry = { name: string; slug: string; norm: string };
+      const catalog: CatalogEntry[] = [];
+      try {
+        const { data: prodRows } = await supabase
+          .from("products")
+          .select("name, slug, status, deleted_at")
+          .eq("tenant_id", tenant_id)
+          .is("deleted_at", null)
+          .eq("status", "active");
+        for (const r of prodRows || []) {
+          const name = String(r?.name || "").trim();
+          const slug = String(r?.slug || "").trim();
+          if (!name || !slug) continue;
+          catalog.push({ name, slug, norm: normalizeName(name) });
         }
+      } catch (e) {
+        console.warn(`[ads-autopilot-execute-approved][${VERSION}] catalog lookup failed (non-blocking):`, e);
       }
+
+      const findCatalogMatch = (raw: string): CatalogEntry | null => {
+        const n = normalizeName(raw);
+        if (!n) return null;
+        const exact = catalog.find((c) => c.norm === n);
+        if (exact) return exact;
+        const containsCatalog = catalog
+          .filter((c) => c.norm.length >= 4 && n.includes(c.norm))
+          .sort((a, b) => b.norm.length - a.norm.length)[0];
+        if (containsCatalog) return containsCatalog;
+        const termInCatalog = catalog
+          .filter((c) => n.length >= 4 && c.norm.includes(n))
+          .sort((a, b) => a.norm.length - b.norm.length)[0];
+        if (termInCatalog) return termInCatalog;
+        return null;
+      };
+
+      const resolveAction = (a: any): { canonical_name: string | null; slug: string | null; secondaries: Array<{ name: string; slug: string }> } => {
+        const original = String(a?.product_name || "");
+        if (a?.product_slug && typeof a.product_slug === "string" && a.product_slug.trim()) {
+          const direct = catalog.find((c) => c.slug === a.product_slug.trim());
+          return { canonical_name: direct?.name || original.trim() || null, slug: a.product_slug.trim(), secondaries: [] };
+        }
+        const parts = splitComposite(original);
+        const matched: CatalogEntry[] = [];
+        const seen = new Set<string>();
+        for (const part of parts) {
+          const m = findCatalogMatch(part);
+          if (m && !seen.has(m.slug)) {
+            matched.push(m);
+            seen.add(m.slug);
+          }
+        }
+        if (matched.length === 0) {
+          const whole = findCatalogMatch(original);
+          if (whole) matched.push(whole);
+        }
+        if (matched.length === 0) {
+          return { canonical_name: original.trim() || null, slug: null, secondaries: [] };
+        }
+        const [primary, ...rest] = matched;
+        return {
+          canonical_name: primary.name,
+          slug: primary.slug,
+          secondaries: rest.map((r) => ({ name: r.name, slug: r.slug })),
+        };
+      };
+
       const enrichedPlan = {
         ...revalidatedPlan,
         planned_actions: plannedActionsRaw.map((a: any) => {
           if (!a || typeof a !== "object") return a;
-          const nm = String(a?.product_name || "").toLowerCase();
-          const slug = a?.product_slug || (nm ? slugByName.get(nm) : null) || null;
-          return { ...a, product_slug: slug };
+          const r = resolveAction(a);
+          return {
+            ...a,
+            product_name: r.canonical_name ?? a.product_name ?? null,
+            product_name_original: a?.product_name ?? null,
+            product_slug: r.slug,
+            secondary_products: r.secondaries,
+          };
         }),
       };
+
 
       const { records: proposalRecords, skipped_reasons } = buildCampaignProposalsFromApprovedPlan(enrichedPlan, {
         id: action_id,
