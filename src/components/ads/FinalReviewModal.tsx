@@ -343,3 +343,249 @@ function Check({ label }: { label: string }) {
     </li>
   );
 }
+
+// =============================================================================
+// CreativeReviewCard — edição manual, upload/Drive e regeneração com feedback
+// =============================================================================
+interface CardProps {
+  index: number;
+  tenantId: string;
+  actionId: string;
+  creativeIndex: number;
+  effective: { image_url: string; headline: string; copy: string; cta: string };
+  onChanged: () => void;
+}
+
+function CreativeReviewCard({ index, tenantId, actionId, creativeIndex, effective, onChanged }: CardProps) {
+  const [editing, setEditing] = useState(false);
+  const [headline, setHeadline] = useState(effective.headline);
+  const [copy, setCopy] = useState(effective.copy);
+  const [cta, setCta] = useState(effective.cta);
+  const [savingCopy, setSavingCopy] = useState(false);
+
+  const [imgPanel, setImgPanel] = useState(false);
+  const [copyPanel, setCopyPanel] = useState(false);
+  const [imgFeedback, setImgFeedback] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const [regenImg, setRegenImg] = useState(false);
+  const [regenCopy, setRegenCopy] = useState(false);
+  const [uploadUrl, setUploadUrl] = useState("");
+  const [savingImg, setSavingImg] = useState(false);
+
+  async function callRevise(payload: Record<string, unknown>) {
+    const { data, error } = await supabase.functions.invoke("ads-creative-revise", {
+      body: { tenant_id: tenantId, action_id: actionId, creative_index: creativeIndex, ...payload },
+    });
+    if (error) throw new Error(error.message || "Falha ao salvar.");
+    if (!(data as any)?.success) throw new Error((data as any)?.error_pt || "Falha ao salvar.");
+    return data;
+  }
+
+  async function handleSaveCopy() {
+    setSavingCopy(true);
+    try {
+      await callRevise({ action: "apply_override", override: { headline, copy, cta } });
+      toast.success("Texto do anúncio atualizado.");
+      setEditing(false);
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível salvar.");
+    } finally {
+      setSavingCopy(false);
+    }
+  }
+
+  async function handleRegenImage() {
+    if (imgFeedback.trim().length < 5) {
+      toast.error("Conte rapidamente o que você quer diferente na imagem.");
+      return;
+    }
+    setRegenImg(true);
+    try {
+      await callRevise({ action: "regenerate_image", feedback: imgFeedback.trim() });
+      toast.success("Nova imagem gerada com seu feedback.");
+      setImgPanel(false);
+      setImgFeedback("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível regenerar a imagem.");
+    } finally {
+      setRegenImg(false);
+    }
+  }
+
+  async function handleRegenCopy() {
+    if (copyFeedback.trim().length < 5) {
+      toast.error("Conte como você quer a copy diferente antes de regenerar.");
+      return;
+    }
+    setRegenCopy(true);
+    try {
+      const res: any = await callRevise({ action: "regenerate_copy", feedback: copyFeedback.trim() });
+      const ov = res?.override || {};
+      if (ov.headline) setHeadline(ov.headline);
+      if (ov.copy) setCopy(ov.copy);
+      if (ov.cta) setCta(ov.cta);
+      toast.success("Nova copy gerada com seu feedback.");
+      setCopyPanel(false);
+      setCopyFeedback("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível regenerar a copy.");
+    } finally {
+      setRegenCopy(false);
+    }
+  }
+
+  async function handleApplyUpload() {
+    if (!uploadUrl) {
+      toast.error("Selecione uma imagem antes de aplicar.");
+      return;
+    }
+    setSavingImg(true);
+    try {
+      await callRevise({ action: "apply_override", override: { image_url: uploadUrl, image_source: "manual" } });
+      toast.success("Imagem do anúncio atualizada.");
+      setImgPanel(false);
+      setUploadUrl("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível aplicar a imagem.");
+    } finally {
+      setSavingImg(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-0">
+        <div className="relative bg-muted/30">
+          <img src={effective.image_url} alt={`Anúncio ${index + 1}`} className="w-full sm:h-full aspect-square object-cover" />
+          <Button size="sm" variant="secondary" className="absolute bottom-2 left-2 h-7 text-xs"
+            onClick={() => { setImgPanel(v => !v); setCopyPanel(false); }}>
+            <Pencil className="h-3 w-3 mr-1" /> Trocar imagem
+          </Button>
+        </div>
+
+        <div className="p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="text-[10px]">Anúncio {index + 1}</Badge>
+            {!editing ? (
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(true)}>
+                  <Pencil className="h-3 w-3 mr-1" /> Editar
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setCopyPanel(v => !v); setImgPanel(false); }}>
+                  <Sparkles className="h-3 w-3 mr-1" /> Regenerar texto
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => {
+                  setEditing(false); setHeadline(effective.headline); setCopy(effective.copy); setCta(effective.cta);
+                }}>
+                  <XIcon className="h-3 w-3 mr-1" /> Cancelar
+                </Button>
+                <Button size="sm" className="h-7 text-xs" onClick={handleSaveCopy} disabled={savingCopy}>
+                  {savingCopy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                  Salvar
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {!editing ? (
+            <div className="space-y-1 text-sm">
+              <div><span className="text-[10px] uppercase text-muted-foreground">Título</span><div className="font-medium">{headline || "—"}</div></div>
+              <div><span className="text-[10px] uppercase text-muted-foreground">Texto</span><div className="text-xs whitespace-pre-wrap">{copy || "—"}</div></div>
+              <div><span className="text-[10px] uppercase text-muted-foreground">Botão</span> <Badge variant="secondary" className="text-[10px]">{cta}</Badge></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-[10px] uppercase">Título</Label>
+                <Input value={headline} onChange={e => setHeadline(e.target.value)} maxLength={60} className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase">Texto principal</Label>
+                <Textarea value={copy} onChange={e => setCopy(e.target.value)} maxLength={300} rows={3} className="text-sm" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase">Botão (CTA)</Label>
+                <Select value={cta} onValueChange={setCta}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CTA_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {imgPanel && (
+        <div className="border-t bg-muted/20 p-3 space-y-3">
+          <div>
+            <Label className="text-xs font-medium">Carregar do computador ou Meu Drive</Label>
+            <UniversalImageUploader
+              value={uploadUrl}
+              onChange={setUploadUrl}
+              source="ads_creative_override"
+              subPath={`ads/${actionId}`}
+              aspectRatio="square"
+              accept="image"
+              showUrlTab={false}
+            />
+            <div className="flex justify-end mt-2">
+              <Button size="sm" onClick={handleApplyUpload} disabled={!uploadUrl || savingImg}>
+                {savingImg ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                Aplicar imagem
+              </Button>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <Label className="text-xs font-medium">Ou regerar com IA — o que você quer diferente?</Label>
+            <Textarea
+              value={imgFeedback}
+              onChange={e => setImgFeedback(e.target.value)}
+              placeholder="Ex.: cenário mais limpo, foco no produto, sem pessoas, paleta mais quente…"
+              rows={3}
+              maxLength={400}
+              className="text-sm mt-1"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">Seu feedback é registrado e usado para a IA aprender o que você prefere.</p>
+            <div className="flex justify-end mt-2">
+              <Button size="sm" variant="secondary" onClick={handleRegenImage} disabled={regenImg || imgFeedback.trim().length < 5}>
+                {regenImg ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                Regenerar imagem
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {copyPanel && (
+        <div className="border-t bg-muted/20 p-3 space-y-2">
+          <Label className="text-xs font-medium">Como você quer a copy diferente?</Label>
+          <Textarea
+            value={copyFeedback}
+            onChange={e => setCopyFeedback(e.target.value)}
+            placeholder="Ex.: mais direta, foco no benefício, sem promessa de desconto, tom mais coloquial…"
+            rows={3}
+            maxLength={400}
+            className="text-sm"
+          />
+          <p className="text-[10px] text-muted-foreground">Seu feedback é registrado e usado para a IA aprender o que você prefere.</p>
+          <div className="flex justify-end">
+            <Button size="sm" variant="secondary" onClick={handleRegenCopy} disabled={regenCopy || copyFeedback.trim().length < 5}>
+              {regenCopy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+              Regenerar texto
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
