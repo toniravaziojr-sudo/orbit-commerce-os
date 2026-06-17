@@ -4292,3 +4292,64 @@ O Estrategista pode (indevidamente) devolver o nome do produto da campanha como 
 - Proibido regenerar imagem ou copy sem feedback do lojista (campo obrigatório).
 - Proibido bloquear o lojista por ausência de ofertas do módulo Aumentar Ticket — quando ausentes, a IA simplesmente busca outra ideia.
 
+---
+
+## §15 — "Ajustar proposta" — contrato canônico (rev 2026-06-17)
+
+Esta seção formaliza o caminho oficial de **Ajuste de Proposta** no Gestor de Tráfego IA. Substitui qualquer fluxo anterior em que o ajuste era implementado reaproveitando a trilha de recusa.
+
+### 15.1 Distinção formal entre Recusar e Ajustar
+
+| Ação | O que faz | Status final do original |
+|---|---|---|
+| **Recusar proposta** | Lojista descarta a proposta. Pode disparar geração de nova proposta, conforme o modo (`dismiss` ou `regenerate`). | `status='rejected'`, com motivo opcional. |
+| **Ajustar proposta** | Lojista quer **a mesma proposta revisada** com base em um feedback. | `status='superseded'`, `action_data.lifecycle.status='<tipo>_needs_adjustment'`. **Nunca** `rejected`. **Nunca** preenche `rejection_reason` com "Ajuste solicitado". |
+
+### 15.2 Caminho único: edge function `ads-autopilot-request-adjustment`
+
+Toda solicitação de ajuste passa OBRIGATORIAMENTE por essa função. O frontend não pode mais marcar `rejected` em nome de ajuste, nem invocar `ads-autopilot-strategist` direto no fluxo de ajuste.
+
+Sequência da função (atômica do ponto de vista do lojista):
+
+1. Valida input (`tenant_id`, `action_id`, `feedback` com mínimo 8 caracteres).
+2. Carrega a proposta original e valida ownership/estado (não pode estar `rejected`, `approved`, `executed` ou já `superseded`).
+3. **Anti dupla chamada:** se o último registro em `adjustment_history` é `in_progress` há menos de 10 min, retorna idempotente (`already_in_progress=true`).
+4. Marca a proposta original:
+   - `status = 'superseded'`
+   - `action_data.lifecycle.status = lifecycleForAction(action_type)` (ex.: `plan_needs_adjustment`, `campaign_proposal_needs_adjustment`)
+   - acrescenta entrada em `action_data.adjustment_history` com `{at, by, feedback, from_version, status:'in_progress'}`
+   - limpa `action_data.draft_patch`
+   - **não** preenche `rejection_reason`
+5. Grava feedback estruturado via `ads-autopilot-feedback-record` com `decision='needs_revision'`, `reason_codes=['user_explained_rejection']`, `tags=['adjustment_request']` e o texto do lojista em `reason_text`. Essa edge dispara automaticamente `ads-ai-learnings-write`, criando **aprendizado sugerido** em `ads_ai_learnings`.
+6. Aciona `ads-autopilot-strategist` com `trigger='revision'`, passando o feedback, o tipo de ação original, o snapshot mínimo e as campanhas pendentes para proteção.
+7. Em caso de falha do Strategist (ex.: `insufficient_balance` por saldo de IA), o lifecycle do original vira `<tipo>_needs_adjustment_failed`, a última entrada do histórico vira `status='failed'` com a mensagem técnica, e a UI mostra erro claro em PT-BR. **Falhas nunca são silenciadas.**
+8. Em caso de sucesso, localiza a nova proposta filha criada após o watermark e:
+   - vincula `parent_action_id` e `superseded_by_action_id`
+   - força `action_data.version = N+1` e `revision_source` (com `parent_action_id`, `version_from`, `user_feedback`, `feedback_id`)
+   - força `action_data.lifecycle.status` da filha para `plan_pending_review` ou `campaign_proposal_pending_review`
+   - marca a última entrada do histórico do original como `status='completed'` com `new_action_id` e `completed_at`
+   - atualiza o lifecycle do original para `<tipo>_needs_adjustment_revised`
+
+### 15.3 Resultado garantido para o lojista
+
+- A proposta original deixa de aparecer como "Rejeitada" na aba **Ações da IA**.
+- O texto enviado no ajuste fica registrado como **feedback formal** do tenant (não como motivo de recusa).
+- Um **aprendizado sugerido** é criado em **Aprendizado da IA**, podendo ser ativado pelo lojista para influenciar propostas futuras.
+- A **nova versão** aparece em **Aguardando Ação**, com vínculo de versão para auditoria.
+- Se houve falha (ex.: saldo de IA insuficiente), o lojista recebe mensagem clara e pode tentar de novo.
+
+### 15.4 Anti-regressão (memória obrigatória)
+
+`mem://constraints/ads-ajustar-proposta-nao-rejeita`. Reincidência tratada: `handleAdjust` em `AdsPendingActionsTab.tsx` e `adjustAction` em `AdsPendingApprovalTab.tsx` chamavam `rejectAction` antes de pedir revisão, marcando `status='rejected'` com motivo `"Ajuste solicitado: ..."`. Auditoria mostrava plano "rejeitado" mesmo quando a intenção era ajuste, sem feedback formal e sem aprendizado.
+
+Pontos sensíveis (não regredir):
+- `src/components/ads/AdsPendingActionsTab.tsx` → `handleAdjust`
+- `src/components/ads/AdsPendingApprovalTab.tsx` → `adjustAction`
+- `supabase/functions/ads-autopilot-request-adjustment/index.ts`
+
+### 15.5 Relação com o Editor Estruturado (Frente 4.3)
+
+O Editor Estruturado (`two_step_v1 strategy`) **continua** usando `ads-autopilot-revise-proposal` (§14). A diferença: ele opera sobre payload estruturado (Campanha/Conjunto/Anúncio) com `previous_values`/`new_values`, enquanto `ads-autopilot-request-adjustment` é o caminho para Plano Estratégico e ações sem hierarquia, onde o usuário descreve o ajuste em texto livre.
+
+Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; original vira `superseded`; nova versão vinculada como filha; feedback estruturado e aprendizado registrados.
+
