@@ -48,6 +48,10 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
   const pollRef = useRef<ReturnType<typeof setInterval>>();
   const stageTimerRef = useRef<ReturnType<typeof setInterval>>();
   const startTimeRef = useRef<number>(0);
+  // Anti-flicker: rastreia sessões já exibidas nesta montagem.
+  // Sem isso, o poll de 5s reabriria o banner indefinidamente após o término.
+  const shownSessionsRef = useRef<Set<string>>(new Set());
+  const activeSessionIdRef = useRef<string | null>(null);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -64,7 +68,6 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
     if (!tenantId) return;
 
     const checkSession = async () => {
-      // Look for a recent strategist_start session
       const { data: sessions } = await supabase
         .from("ads_autopilot_sessions" as any)
         .select("id, trigger_type, duration_ms, actions_planned, actions_executed, created_at")
@@ -76,24 +79,27 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
       const session = (sessions as any)?.[0];
       if (!session) return;
 
+      const sessionId = String(session.id);
+      if (shownSessionsRef.current.has(sessionId)) return;
+
       const createdAt = new Date(session.created_at).getTime();
       const ageMs = Date.now() - createdAt;
+      const isRunning =
+        ageMs < 600_000 && session.duration_ms == null && (session.actions_planned ?? 0) === 0;
 
-      // Session is "active" if created < 10 min ago and no duration yet
-      if (ageMs < 600_000 && session.duration_ms == null) {
+      if (isRunning) {
         if (!isActive) {
+          activeSessionIdRef.current = sessionId;
           setIsActive(true);
           startTimeRef.current = createdAt;
           addLog("Motor Estrategista iniciado — análise completa da conta", "loading");
-        } else {
-          // Fallback: if actions were already planned, the session is done even if duration_ms is null
-          if (session.actions_planned > 0) {
-            finishProgress(session.actions_planned, session.actions_executed);
-          }
         }
-      } else if (isActive) {
-        // Session completed (duration_ms set OR session is old enough with actions)
+      } else if (isActive && activeSessionIdRef.current === sessionId) {
+        shownSessionsRef.current.add(sessionId);
         finishProgress(session.actions_planned || 0, session.actions_executed || 0);
+      } else if (!isActive) {
+        // Sessão já concluída antes da montagem: marca como vista para não reabrir.
+        shownSessionsRef.current.add(sessionId);
       }
     };
 
