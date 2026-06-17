@@ -127,7 +127,7 @@ export function AdsAIActivationDialog({
                   <Badge variant="outline" className="text-[10px]">Recomendado</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Ativa a IA e executa uma análise inicial da conta, como se um gestor
+                  Ativa a IA e executa uma análise estratégica da conta, como se um gestor
                   de tráfego estivesse começando agora. Avalia configurações, orçamento,
                   ROI, diretrizes e campanhas atuais para propor uma estratégia inicial
                   na fila Aguardando Ação.
