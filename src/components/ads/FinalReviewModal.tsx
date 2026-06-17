@@ -72,6 +72,24 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
   const plannedCreatives: Array<any> = Array.isArray(data.planned_creatives) ? data.planned_creatives : [];
 
   const jobIds = useMemo(() => creativeJobsMeta.map(j => j.job_id).filter(Boolean), [creativeJobsMeta]);
+  const queryClient = useQueryClient();
+
+  // Re-busca action_data fresh para enxergar overrides recém-salvos
+  const { data: freshAction } = useQuery({
+    queryKey: ["final-review-action-data", proposal.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ads_autopilot_actions")
+        .select("action_data")
+        .eq("id", proposal.id)
+        .maybeSingle();
+      return data?.action_data || {};
+    },
+    enabled: open,
+    refetchOnWindowFocus: false,
+  });
+
+  const overrides: Record<string, any> = (freshAction as any)?.creative_overrides || (data as any).creative_overrides || {};
 
   const { data: jobs = [] } = useQuery({
     queryKey: ["final-review-creative-jobs", proposal.id, jobIds],
@@ -90,10 +108,34 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
   const failedJobs = jobs.filter((j: any) => j.status === "failed" || j.status === "cancelled");
   const stillRunning = jobs.filter((j: any) => j.status === "running" || j.status === "queued");
 
-  const window = nextPublishWindowBRT();
-  const canPublish = readyJobs.length > 0 && stillRunning.length === 0;
+  // Mapeia cada job ready para um creative_index via lifecycle.creative_jobs
+  const readyCards = useMemo(() => {
+    return readyJobs.map((j: any) => {
+      const meta = creativeJobsMeta.find((m: any) => (m.job_id || m.id) === j.id) || {};
+      const idx = typeof meta.creative_index === "number"
+        ? meta.creative_index
+        : (typeof meta.planned_creative_index === "number" ? meta.planned_creative_index : 0);
+      const planned = plannedCreatives[idx] || {};
+      const ov = overrides[String(idx)] || {};
+      return {
+        job: j,
+        creative_index: idx,
+        planned,
+        override: ov,
+        effective: {
+          image_url: ov.image_url || j.output_urls[0],
+          headline: ov.headline || planned.headline || (campaign.name || "Confira"),
+          copy: ov.copy || planned.copy || planned.primary_text || "",
+          cta: ov.cta || planned.cta || identity.default_cta || "SHOP_NOW",
+        },
+      };
+    });
+  }, [readyJobs, creativeJobsMeta, plannedCreatives, overrides, campaign.name, identity.default_cta]);
 
-  const stepLabel = ["", "Estratégia", "Criativos", "Agendamento", "Confirmação"][step];
+  const refreshAfterChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["final-review-action-data", proposal.id] });
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
