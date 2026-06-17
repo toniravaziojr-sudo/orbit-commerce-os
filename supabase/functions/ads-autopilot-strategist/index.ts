@@ -80,6 +80,31 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
+
+function runInBackground(promise: Promise<unknown>) {
+  try {
+    // @ts-ignore — EdgeRuntime exists in Supabase Edge runtime.
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(promise);
+      return;
+    }
+  } catch (_e) { /* fallback below */ }
+  promise.catch((e: any) => console.error(`[ads-autopilot-strategist][${VERSION}] background error`, e?.message || e));
+}
+
+function classifyStrategistError(error: unknown): string {
+  const msg = String((error as any)?.message || error || "Erro interno");
+  if (/timeout|abort|deadline|non-2xx|502|503|504|gateway|network|fetch/i.test(msg)) {
+    return "A análise estratégica demorou mais que o esperado ou o provedor de IA não respondeu a tempo. Tente novamente.";
+  }
+  if (/402|credit|balance|pagamento|payment/i.test(msg)) {
+    return "A análise estratégica não concluiu por limite de créditos de IA. Revise os créditos disponíveis e tente novamente.";
+  }
+  return msg;
+}
+
 function buildStrategicPlanPreview(planData: any, contract: any) {
   const normalized = planData && typeof planData === "object" ? planData : {};
   const plannedActions = Array.isArray(normalized.planned_actions) ? normalized.planned_actions : [];
