@@ -35,7 +35,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProposalOverwrite } from "@/hooks/useProposalOverwrite";
-import { Pencil, Save } from "lucide-react";
+import { useSystemUpload } from "@/hooks/useSystemUpload";
+import { useMediaMonthFolder } from "@/hooks/useMediaMonthFolder";
+import { DriveFilePicker } from "@/components/ui/DriveFilePicker";
+import { Pencil, Save, Upload, FolderOpen, Trash2 } from "lucide-react";
 
 import {
   AlertTriangle,
