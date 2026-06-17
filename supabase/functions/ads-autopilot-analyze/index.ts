@@ -116,11 +116,6 @@ async function generateDeterministicBudgetProposals(
   evaluated: number;
   skipped: Array<{ meta_campaign_id: string; reason: string }>;
 }> {
-
-  generated: number;
-  evaluated: number;
-  skipped: Array<{ meta_campaign_id: string; reason: string }>;
-}> {
   const out = {
     generated: 0,
     evaluated: 0,
