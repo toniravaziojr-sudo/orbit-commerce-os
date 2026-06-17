@@ -110,6 +110,11 @@ Deno.serve(async (req) => {
               enable_qa: true,
               enable_fallback: true,
             },
+            // Vínculo estrutural — gravado direto no INSERT do job, sem corrida
+            proposal_link: {
+              proposal_action_id: actionId,
+              planned_creative_index: pc.index,
+            },
           },
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -118,18 +123,6 @@ Deno.serve(async (req) => {
           failures.push({ index: pc.index, error: "Geração não retornou job_id." });
           continue;
         }
-        // Vincula o job à proposta (idempotência + trigger flip)
-        const { data: existing } = await supabase
-          .from("creative_jobs")
-          .select("settings")
-          .eq("id", jobId)
-          .maybeSingle();
-        const mergedSettings = {
-          ...(existing?.settings || {}),
-          proposal_action_id: actionId,
-          planned_creative_index: pc.index,
-        };
-        await supabase.from("creative_jobs").update({ settings: mergedSettings }).eq("id", jobId);
         createdJobs.push({ id: jobId, planned_creative_index: pc.index });
       } catch (err) {
         failures.push({ index: pc.index, error: String(err) });

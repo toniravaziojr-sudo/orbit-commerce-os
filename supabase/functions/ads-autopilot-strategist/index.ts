@@ -1451,6 +1451,40 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     }
   } catch (_) { /* fail-open */ }
 
+  // ============ Onda H — Ofertas ativas do Aumentar Ticket ============
+  // A Estrategista usa essas ofertas como ÂNCORA para ideias que dependem de
+  // combinação (upgrade/combo/cross-sell). Se nenhuma estiver cadastrada,
+  // ela simplesmente escolhe outro tipo de campanha — nunca bloqueia o lojista.
+  let activeOfferRules: Array<{
+    id: string;
+    name: string;
+    type: string;
+    title: string | null;
+    discount_type: string | null;
+    discount_value: number | null;
+    trigger_product_ids: string[];
+    suggested_product_ids: string[];
+  }> = [];
+  try {
+    const { data: offers } = await supabase
+      .from("offer_rules")
+      .select("id, name, type, title, discount_type, discount_value, trigger_product_ids, suggested_product_ids, priority")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("priority", { ascending: false })
+      .limit(50);
+    activeOfferRules = (offers || []).map((o: any) => ({
+      id: o.id,
+      name: o.name,
+      type: o.type,
+      title: o.title,
+      discount_type: o.discount_type,
+      discount_value: o.discount_value,
+      trigger_product_ids: Array.isArray(o.trigger_product_ids) ? o.trigger_product_ids : [],
+      suggested_product_ids: Array.isArray(o.suggested_product_ids) ? o.suggested_product_ids : [],
+    }));
+  } catch (_) { /* fail-open: sem ofertas, IA segue propondo outras ideias */ }
+
   return {
     products,
     categories,
@@ -1493,6 +1527,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     // Onda G — disponibilidade por conta (cliente exclusão fria + catálogo Meta).
     customerAudienceByAccount,
     catalogAvailabilityByAccount,
+    activeOfferRules,
   };
 }
 
@@ -2239,6 +2274,30 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push(`### CATÁLOGO META: ${catalogAvailability}`);
     lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
     lines.push("");
+
+    // ===== Onda H — Ofertas ativas do Aumentar Ticket =====
+    const offers: any[] = Array.isArray(context.activeOfferRules) ? context.activeOfferRules : [];
+    const productNameById: Record<string, string> = {};
+    for (const p of (context.products || [])) productNameById[p.id] = p.name;
+    lines.push("### OFERTAS ATIVAS DO LOJISTA (Aumentar Ticket — Order Bump / Upsell / Cross-sell / Compre Junto)");
+    if (offers.length === 0) {
+      lines.push("- Nenhuma oferta combinada ativa cadastrada.");
+      lines.push("- REGRA: NÃO proponha campanhas que dependam de combinação (upgrade, combo, kit, cross-sell) sem oferta ativa.");
+      lines.push("- Em vez disso, escolha SILENCIOSAMENTE outro tipo de campanha válido (público frio para carro-chefe, remarketing de visitantes de produto, reativação de clientes, etc.). NÃO bloqueie e NÃO peça para o lojista cadastrar.");
+    } else {
+      lines.push("- A IA DEVE tentar amarrar ideias de upgrade/combo/cross-sell/kit a UMA das ofertas abaixo (mesmos produtos, mesmo desconto, link da oferta como destino).");
+      lines.push("- Se nenhuma oferta servir para a ideia, NÃO force: troque silenciosamente por outro tipo de campanha. NUNCA bloqueie por ausência de oferta.");
+      for (const o of offers.slice(0, 20)) {
+        const triggers = (o.trigger_product_ids || []).slice(0, 4).map((id: string) => productNameById[id] || id.slice(0, 8)).join(" | ") || "—";
+        const suggested = (o.suggested_product_ids || []).slice(0, 4).map((id: string) => productNameById[id] || id.slice(0, 8)).join(" | ") || "—";
+        const desc = o.discount_value != null
+          ? `${o.discount_value}${o.discount_type === "percentage" ? "%" : " (valor fixo)"}`
+          : "sem desconto";
+        lines.push(`- [${o.type}] "${o.title || o.name}" — desconto ${desc} | gatilho: ${triggers} | oferta: ${suggested}`);
+      }
+    }
+    lines.push("");
+
     lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
     lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions` no nível da ação e também em CADA item de `adsets[]`.");
     lines.push("- Em cada adset frio/prospecção, preencha `audience_exclusions.customers=true`, `excluded_audience_ids` e `targeting.excluded_custom_audiences` com o público de Clientes detectado.");

@@ -548,6 +548,7 @@ Deno.serve(async (req) => {
     const { 
       tenant_id, product_id, product_name, product_description, product_image_url,
       prompt, output_folder_id, settings = {},
+      proposal_link, // { proposal_action_id, planned_creative_index } — vínculo estrutural com Gestor de Anúncios
     } = body;
 
     if (!tenant_id || !product_id || !product_image_url) {
@@ -645,6 +646,9 @@ Deno.serve(async (req) => {
           output_size: outputSize, quality,
           variations: numVariations, style_config, enable_qa, enable_fallback,
           label_lock, pipeline_version: VERSION,
+          // Vínculo estrutural — gravado na criação para não ser perdido em updates futuros
+          ...(proposal_link?.proposal_action_id ? { proposal_action_id: proposal_link.proposal_action_id } : {}),
+          ...(proposal_link?.planned_creative_index !== undefined ? { planned_creative_index: proposal_link.planned_creative_index } : {}),
         },
         output_folder_id: folderId, cost_cents: 0, created_by: userId,
       })
@@ -1070,6 +1074,14 @@ Deno.serve(async (req) => {
         const finalStatus = uploadedImages.length > 0 ? 'succeeded' : 'failed';
         const winner = uploadedImages.find(img => img.isWinner);
 
+        // Re-lê settings do banco para preservar qualquer campo gravado por terceiros
+        // (ex.: vínculo proposal_action_id adicionado após a criação do job).
+        const { data: freshJob } = await supabase
+          .from('creative_jobs').select('settings').eq('id', jobId).maybeSingle();
+        const baseSettings = (freshJob?.settings && typeof freshJob.settings === 'object')
+          ? freshJob.settings
+          : (job.settings || {});
+
         await supabase.from('creative_jobs').update({
           status: finalStatus,
           external_model_id: winner?.model || null,
@@ -1079,7 +1091,7 @@ Deno.serve(async (req) => {
           completed_at: new Date().toISOString(),
           error_message: uploadedImages.length === 0 ? 'Nenhuma imagem gerada com sucesso' : null,
           settings: {
-            ...job.settings,
+            ...baseSettings,
             results: uploadedImages.map(img => ({
               url: img.url,
               actual_provider: img.actualProvider,
