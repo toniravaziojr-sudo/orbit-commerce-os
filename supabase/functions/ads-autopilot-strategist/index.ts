@@ -1148,7 +1148,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, synced_at").eq("tenant_id", tenantId).limit(200),
     supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
-    // Onda D — Configuração de Criação Meta (fonte de verdade dos defaults por conta)
+    // Onda D/H — Overrides técnicos Meta; ativos reais vêm da integração Meta.
     supabase.from("ads_meta_production_config").select("*").eq("tenant_id", tenantId).limit(50),
   ]);
 
@@ -1469,11 +1469,11 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   try {
     const { data: metaInts } = await supabase
       .from("tenant_meta_integrations")
-      .select("integration_key, status, selected_assets")
+      .select("integration_id, status, selected_assets")
       .eq("tenant_id", tenantId)
-      .in("integration_key", ["catalogos", "catalogo_meta"])
+      .in("integration_id", ["catalogos", "catalogo_meta"])
       .eq("status", "active");
-    const catalogsRow = (metaInts || []).find((r: any) => r.integration_key === "catalogos") || (metaInts || [])[0];
+    const catalogsRow = (metaInts || []).find((r: any) => r.integration_id === "catalogos") || (metaInts || [])[0];
     const selected = catalogsRow?.selected_assets || {};
     const cats: any[] = selected?.catalogs || (selected?.catalog ? [selected.catalog] : []);
     for (const acctId of adAccountIds) {
