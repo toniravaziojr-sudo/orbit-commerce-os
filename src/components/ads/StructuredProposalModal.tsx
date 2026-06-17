@@ -1629,7 +1629,6 @@ function AdSection({
       {editable ? (
         <AttachCreativeBlock
           ad={ad}
-          campaignStart={campaign?.schedule?.start || null}
           onPatch={onPatch}
         />
       ) : (
