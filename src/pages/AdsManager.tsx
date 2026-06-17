@@ -15,7 +15,7 @@ import { useAdsAutopilot } from "@/hooks/useAdsAutopilot";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
-import { useAdsInsights } from "@/hooks/useAdsInsights";
+
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 import { useAdsAIWarnings } from "@/hooks/useAdsAIWarnings";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
