@@ -40,7 +40,7 @@ interface Props {
  * Diálogo mostrado quando o usuário liga o switch da IA pela primeira vez (ou após desligar).
  * Duas opções:
  *  - Modo Piloto: ativa e segue o fluxo normal, sem chamar IA agora.
- *  - Modo Piloto Inicial: ativa e roda a análise inicial estratégica.
+ *  - Modo Piloto Inicial: ativa e roda a análise estratégica.
  */
 export function AdsAIActivationDialog({
   open,
