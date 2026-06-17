@@ -98,7 +98,9 @@ Deno.serve(async (req) => {
       title: titleRaw.slice(0, 200),
       description,
       category,
-      status: source_type === "manual" ? "active" : "suggested",
+      // Onda 3.3 — Aprendizados nascem ATIVOS por padrão (qualquer origem).
+      // Usuário pode pausar/arquivar manualmente; não exigimos ativação manual.
+      status: "active",
       source_type,
       source_action_id,
       source_plan_id,

@@ -80,7 +80,7 @@ export function AdsAILearningsTab() {
           </CardTitle>
           <CardDescription>
             Decisões e preferências aprendidas do Gestor de Tráfego. Só aprendizados <strong>ativos</strong> entram nas próximas análises.
-            Aprendizados gerados a partir de feedbacks nascem como <strong>sugeridos</strong> — você decide se ativa.
+            Aprendizados gerados a partir de feedbacks já entram <strong>ativos</strong> automaticamente — você pode pausar, editar ou remover quando quiser.
           </CardDescription>
         </div>
         <Button onClick={openCreate} size="sm">
