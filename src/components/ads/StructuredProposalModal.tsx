@@ -30,6 +30,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useProposalOverwrite } from "@/hooks/useProposalOverwrite";
+import { Pencil, Save } from "lucide-react";
 
 import {
   AlertTriangle,
