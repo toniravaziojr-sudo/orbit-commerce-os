@@ -37,6 +37,7 @@ Apenas falhas **técnicas reais** que impedem fisicamente a operação:
 - `guidelineResolver` e `platform_commercial_guidelines`: contexto consultivo. Quando o prompt do lojista contraria a diretriz, a proposta segue e registra o conflito como aviso.
 - UI: `AdsGlobalSettingsTab` e `AdsAccountConfig` mostram (1) um aviso explicando que o prompt é fonte de verdade e que o refino se faz por feedback de proposta, logo acima do campo de prompt; (2) o bloco "Avisos do prompt estratégico" (Fase 2 — `ai-prompt-conflict-analyze` + `ai_prompt_conflict_cache`) logo abaixo.
 - `tenant_brand_context` continua vivo apenas para o **modo Vendas (ai-support-chat WhatsApp)** como guardrail de promessas e termos proibidos da marca. Não é mais editado pelo Gestor de Anúncios.
+- **Componentes removidos em 2026-06-17 (Onda v6.20 finalização):** `src/components/ads/BrandComplianceFieldsBlock.tsx` e `src/components/ads/AdsGlobalConfig.tsx`. Proibido reintroduzir esses componentes ou qualquer UI equivalente de "Regras da Marca" / "Configuração Global de IA" no Gestor de Tráfego.
 
 ## Doc formal
 
