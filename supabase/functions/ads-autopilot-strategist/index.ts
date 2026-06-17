@@ -1008,13 +1008,6 @@ async function buildDeepHistoricalFromLocalData(
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
     ]);
 
-    // Fetch ALL insights with pagination — fixes PostgREST 1000-row cap (v1.42.0)
-    const allInsights = await fetchAllPaginated(
-      "meta_ad_insights",
-      "meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start",
-      { tenant_id: tenantId },
-      "date_start"
-    );
 
     // Onda I (perf): limita o histórico profundo à janela útil (365 dias) e filtra
     // por meta_campaign_id da conta (evita carregar insights de outras contas do
