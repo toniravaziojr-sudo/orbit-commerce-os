@@ -1602,6 +1602,8 @@ function buildMetaProductionConfigBlock(cfg: any | null | undefined): string {
     `- Pixel ID: ${v(cfg.pixel_id)}`,
     `- Evento de conversão padrão: ${v(cfg.default_conversion_event)}`,
     `- Janela de atribuição: ${v(cfg.attribution_window, "padrão da plataforma")}`,
+    `- API de Conversões ativa: ${cfg.conversions_api_active ? "sim" : "não"}`,
+    `- Fonte dos ativos: ${cfg.source || "configuração interna"}`,
     "",
     "### Campanha (defaults)",
     `- Objetivo canônico: ${cfg.default_objective || "sales"}`,
