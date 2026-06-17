@@ -1907,11 +1907,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           onOpenChange={setStructuredOpen}
           onApprove={(id) => onApprove(id)}
           onReject={() => {
-            setStructuredOpen(false);
+            // Mantém o modal primário aberto atrás — ao fechar o secundário, o usuário volta para a proposta
             setRejectOpen(true);
           }}
           onAdjustRequest={() => {
-            setStructuredOpen(false);
+            // Mantém o modal primário aberto atrás — ao fechar o secundário, o usuário volta para a proposta
             setAdjustOpen(true);
           }}
           approvingId={approvingId}
