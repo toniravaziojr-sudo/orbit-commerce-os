@@ -9,6 +9,7 @@
 // =============================================================================
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -264,6 +265,7 @@ export function StructuredProposalModal({
   const [adsetIdx, setAdsetIdx] = useState(0);
   const [adIdx, setAdIdx] = useState(0);
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
 
   const structure = useMemo(
@@ -616,42 +618,75 @@ export function StructuredProposalModal({
             )}
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onReject(action.id)}
-                disabled={!!rejectingId || isApproving}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <X className="h-3.5 w-3.5" />
-                Recusar proposta
-              </Button>
-              <div className="flex-1" />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (isStrategyStage) {
-                    setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
-                    setEditorOpen(true);
-                  } else if (onAdjustRequest) {
-                    onAdjustRequest();
-                  }
-                }}
-                disabled={isApproving || !!rejectingId}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Ajustar proposta
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleApprove}
-                disabled={isApproving || !!rejectingId || approveBlocked}
-                title={approveBlockedReason || undefined}
-              >
-                {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {approveLabel}
-              </Button>
+              {isCampaignProposal ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmCancelOpen(true)}
+                    disabled={!!rejectingId || isApproving}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancelar campanha
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (onAdjustRequest) onAdjustRequest();
+                    }}
+                    disabled={isApproving || !!rejectingId || !onAdjustRequest}
+                    title={!onAdjustRequest ? "Ajuste via texto livre indisponível neste contexto" : undefined}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Ajustar proposta
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground ml-2">
+                    A aprovação acontece ao publicar na última etapa.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onReject(action.id)}
+                    disabled={!!rejectingId || isApproving}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Recusar proposta
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isStrategyStage) {
+                        setEditorFocus(approveBlockedByGates && allBlockers[0]?.node_type ? allBlockers[0].node_type : null);
+                        setEditorOpen(true);
+                      } else if (onAdjustRequest) {
+                        onAdjustRequest();
+                      }
+                    }}
+                    disabled={isApproving || !!rejectingId}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Ajustar proposta
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApprove}
+                    disabled={isApproving || !!rejectingId || approveBlocked}
+                    title={approveBlockedReason || undefined}
+                  >
+                    {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {approveLabel}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>
@@ -678,6 +713,37 @@ export function StructuredProposalModal({
             <AlertDialogAction onClick={confirmApprove} className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               Aprovar estrutura
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Cancelar esta campanha?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              A proposta será removida da fila de aprovação e nada será publicado na Meta.
+              Esta ação não pode ser desfeita — para retomar, será necessário gerar uma nova proposta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmCancelOpen(false);
+                onReject(action.id);
+                toast.success("Campanha cancelada", {
+                  description: "A proposta foi removida da fila.",
+                });
+              }}
+              className="gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancelar campanha
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
