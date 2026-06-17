@@ -62,7 +62,7 @@ export default function AdsManager() {
     enabled: !!currentTenant?.id,
     staleTime: 30000,
   });
-  const [activeMainTab, setActiveMainTab] = useState("overview");
+  const [activeMainTab, setActiveMainTab] = useState("manager");
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
   const [openAIConfigAccountId, setOpenAIConfigAccountId] = useState<string | null>(null);
