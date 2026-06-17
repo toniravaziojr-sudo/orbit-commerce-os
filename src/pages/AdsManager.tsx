@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass, GraduationCap, Bell } from "lucide-react";
+import { Bot, BarChart3, Settings2, MessageCircle, Hourglass, GraduationCap, Bell } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +15,7 @@ import { useAdsAutopilot } from "@/hooks/useAdsAutopilot";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
-import { useAdsInsights } from "@/hooks/useAdsInsights";
+
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 import { useAdsAIWarnings } from "@/hooks/useAdsAIWarnings";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
@@ -25,7 +25,7 @@ import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
 import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
-import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
+
 import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
 import { AdsWarningsTab } from "@/components/ads/AdsWarningsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
@@ -40,7 +40,7 @@ export default function AdsManager() {
   const metaConn = useMetaConnection();
   const googleConn = useGoogleConnection();
   const tiktokConn = useTikTokAdsConnection();
-  const adsInsights = useAdsInsights();
+  
   const accountConfigs = useAdsAccountConfigs();
 
   // Fetch only the ad accounts explicitly selected in the anuncios integration
@@ -62,7 +62,7 @@ export default function AdsManager() {
     enabled: !!currentTenant?.id,
     staleTime: 30000,
   });
-  const [activeMainTab, setActiveMainTab] = useState("overview");
+  const [activeMainTab, setActiveMainTab] = useState("manager");
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
   const [openAIConfigAccountId, setOpenAIConfigAccountId] = useState<string | null>(null);
@@ -284,7 +284,7 @@ export default function AdsManager() {
 
   const channelData = getChannelData();
   const globalConfig = autopilot.globalConfig;
-  const openInsightsCount = adsInsights.insights.filter(i => i.status === "open").length;
+  
   const warningsCount = useAdsAIWarnings().unseenCount;
 
   return (
@@ -297,17 +297,21 @@ export default function AdsManager() {
       {/* 3 Main Tabs */}
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
         <TabsList>
-          <TabsTrigger value="overview" className="gap-2">
-            <BarChart3 className="h-3.5 w-3.5" />
-            Visão Geral
-          </TabsTrigger>
           <TabsTrigger value="manager" className="gap-2">
             <Settings2 className="h-3.5 w-3.5" />
             Gerenciador
           </TabsTrigger>
+          <TabsTrigger value="global-chat" className="gap-2">
+            <MessageCircle className="h-3.5 w-3.5" />
+            Chat IA
+          </TabsTrigger>
           <TabsTrigger value="ai-learnings" className="gap-2">
             <GraduationCap className="h-3.5 w-3.5" />
             Aprendizado da IA
+          </TabsTrigger>
+          <TabsTrigger value="overview" className="gap-2">
+            <BarChart3 className="h-3.5 w-3.5" />
+            Desempenho
           </TabsTrigger>
           <TabsTrigger value="warnings" className="gap-2">
             <Bell className="h-3.5 w-3.5" />
@@ -317,19 +321,6 @@ export default function AdsManager() {
                 {warningsCount}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="gap-2">
-            <Lightbulb className="h-3.5 w-3.5" />
-            Insights
-            {openInsightsCount > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
-                {openInsightsCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="global-chat" className="gap-2">
-            <MessageCircle className="h-3.5 w-3.5" />
-            Chat IA Global
           </TabsTrigger>
         </TabsList>
 
@@ -536,17 +527,8 @@ export default function AdsManager() {
           </Card>
         </TabsContent>
 
-        {/* === INSIGHTS === */}
-        <TabsContent value="insights">
-          <AdsInsightsTab
-            insights={adsInsights.insights}
-            isLoading={adsInsights.isLoading}
-            onMarkDone={adsInsights.markDone}
-            onMarkIgnored={adsInsights.markIgnored}
-            onGenerateNow={() => adsInsights.generateNow.mutate()}
-            isGenerating={adsInsights.generateNow.isPending}
-          />
-        </TabsContent>
+
+
 
         {/* === AVISOS === */}
         <TabsContent value="warnings">
