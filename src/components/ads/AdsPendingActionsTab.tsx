@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ClipboardCheck, Sparkles, Wallet } from "lucide-react";
+import { ClipboardCheck, Sparkles, Wallet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
@@ -240,6 +240,17 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   const displayCount = campaigns.length + orphanAdsetGroups.size;
 
   if (displayCount === 0) {
+    if (adjustingId) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-3" />
+          <p className="text-sm font-medium">Ajustando proposta…</p>
+          <p className="text-xs text-muted-foreground/70 mt-1 max-w-[320px]">
+            A IA está gerando uma nova versão com seu feedback. Isso pode levar alguns minutos.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/40 mb-3">
@@ -266,6 +277,14 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
               {displayCount} {displayCount === 1 ? "proposta aguardando" : "propostas aguardando"} aprovação
             </p>
           </div>
+          {adjustingId && (
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <span className="text-sm">
+                Ajustando proposta… a IA está gerando uma nova versão com seu feedback.
+              </span>
+            </div>
+          )}
           <div className="space-y-3">
             {/* Campaigns with nested adsets */}
             {campaigns.map((action) => (
