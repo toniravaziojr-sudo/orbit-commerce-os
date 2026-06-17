@@ -172,7 +172,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       } else if (data?.new_action_id) {
         toast.success("Nova versão gerada e disponível em Aguardando Ação.");
       } else {
-        toast.success("Pedido de ajuste registrado.");
+        toast.info(data?.message || "Sua sugestão foi salva no Aprendizado. A proposta original voltou para aguardar decisão.");
       }
     },
     onError: (err) => {
