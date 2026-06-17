@@ -1074,6 +1074,14 @@ Deno.serve(async (req) => {
         const finalStatus = uploadedImages.length > 0 ? 'succeeded' : 'failed';
         const winner = uploadedImages.find(img => img.isWinner);
 
+        // Re-lê settings do banco para preservar qualquer campo gravado por terceiros
+        // (ex.: vínculo proposal_action_id adicionado após a criação do job).
+        const { data: freshJob } = await supabase
+          .from('creative_jobs').select('settings').eq('id', jobId).maybeSingle();
+        const baseSettings = (freshJob?.settings && typeof freshJob.settings === 'object')
+          ? freshJob.settings
+          : (job.settings || {});
+
         await supabase.from('creative_jobs').update({
           status: finalStatus,
           external_model_id: winner?.model || null,
@@ -1083,7 +1091,7 @@ Deno.serve(async (req) => {
           completed_at: new Date().toISOString(),
           error_message: uploadedImages.length === 0 ? 'Nenhuma imagem gerada com sucesso' : null,
           settings: {
-            ...job.settings,
+            ...baseSettings,
             results: uploadedImages.map(img => ({
               url: img.url,
               actual_provider: img.actualProvider,
