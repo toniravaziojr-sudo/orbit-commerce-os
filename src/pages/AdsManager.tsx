@@ -24,6 +24,7 @@ import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
 import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
+import { AdsStrategyHistoryTab } from "@/components/ads/AdsStrategyHistoryTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 
 import { AdsAILearningsTab } from "@/components/ads/AdsAILearningsTab";
@@ -447,6 +448,7 @@ export default function AdsManager() {
                       </TabsTrigger>
                       <TabsTrigger value="reports">Relatórios</TabsTrigger>
                       <TabsTrigger value="roi">ROI Real</TabsTrigger>
+                      <TabsTrigger value="strategies">Estratégias</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="campaigns">
@@ -500,6 +502,10 @@ export default function AdsManager() {
                         selectedAccountIds={channelSelectedAccounts}
                         adAccounts={integration.adAccounts}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="strategies">
+                      <AdsStrategyHistoryTab channel={channel} />
                     </TabsContent>
 
                   </Tabs>

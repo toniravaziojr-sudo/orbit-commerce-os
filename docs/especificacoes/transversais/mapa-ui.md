@@ -704,3 +704,12 @@ Mesma tela, mesmo modal — **sem rotas novas**:
 - **Editor de produto** segue com campos livres `ai_product_type` e `ai_main_function`, que viram apenas avisos no card de prontidão (nunca bloqueio).
 - **Card de prontidão** abaixo das propostas aprovadas: bloqueia somente por falhas técnicas reais (conexão Meta, página, pixel, orçamento, URL de destino, UTM, imagem principal do produto, logo/paleta, tabela de preços de IA). Botão **"Gerar criativos"** aparece só com tudo verde; abre diálogo de confirmação obrigatório.
 - Backend: motor puro `creativeReadinessGate.ts` (contract `h4_readiness_v1`). Campos de marca (`brand.tone_of_voice`, `brand.approved_main_promise`, `brand.allowed_claims`, `brand.banned_claims`, `brand.do_not_do`, `brand.restrictions`) **não geram avisos nem bloqueios**. Detalhe em `mem://constraints/strategic-prompt-supremacy`.
+
+### Gestor de Tráfego IA — Aba "Estratégias" (rev 2026-06-17, Onda 3.4)
+
+Dentro de cada canal (Meta, Google, TikTok) do Gestor de Tráfego IA (`/ads`), ao lado de **ROI Real**, existe a aba **Estratégias**. Conteúdo:
+
+- **Estratégia Ativa** (topo, destacada em verde com tarja "Ativa"): plano estratégico mais recente que está aprovado para o canal. Mostra diagnóstico, lista de campanhas planejadas (nome, produto, verba, público) e data de aprovação. Botão "Ver detalhes completos" abre modal com todo o conteúdo.
+- **Histórico de Estratégias** (abaixo): planos anteriores (substituídos, recusados ou aguardando), em ordem cronológica decrescente, com data, status, contagem de campanhas e link para abrir detalhes.
+
+Lê do mesmo registro de plano estratégico já existente no banco — não cria tabela nova. Não exibe nenhum texto em inglês: protegido pelo guard PT-BR da Onda 3.4.

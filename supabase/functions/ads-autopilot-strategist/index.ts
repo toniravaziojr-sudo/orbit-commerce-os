@@ -80,6 +80,46 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ============================================================================
+// PT-BR Language Guard (Onda 3.4 — 2026-06-17)
+// Texto livre exibido ao lojista (reasoning) NUNCA pode sair em inglês.
+// Se o detector pegar inglês, substituímos por um fallback PT-BR já existente
+// no próprio payload (rationale/diagnosis). Custo zero — sem chamada de IA.
+// ============================================================================
+const EN_STOPWORDS = new Set([
+  "the","and","for","with","this","that","from","your","you","are","was","were",
+  "have","has","but","not","new","testing","testing,","focus","converting","previous",
+  "visitors","added","products","cart","did","complete","purchases","leveraging",
+  "retargeting","enhance","customer","conversion","rates","redeploying","budget",
+  "priority","due","its","importance","business","strategy","acquiring","customers",
+  "maximizing","sales","effectiveness","creative","variations","identify","most",
+  "impactful","messaging","visuals","product","determine","scaling","potential",
+]);
+
+function looksEnglish(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const t = text.toLowerCase();
+  // Se tem qualquer caractere acentuado típico do PT-BR, assume PT.
+  if (/[áàâãéêíóôõúüç]/i.test(t)) return false;
+  const words = t.replace(/[^a-z\s]/g, " ").split(/\s+/).filter(w => w.length >= 3);
+  if (words.length < 6) return false;
+  let enHits = 0;
+  for (const w of words) if (EN_STOPWORDS.has(w)) enHits++;
+  // 2+ stopwords inglesas e nenhum acento → trata como inglês.
+  return enHits >= 2;
+}
+
+function ensurePortuguese(primary: string, fallbacks: Array<string | undefined | null>): string {
+  const p = (primary || "").trim();
+  if (p && !looksEnglish(p)) return p;
+  for (const f of fallbacks) {
+    const s = (f || "").trim();
+    if (s && !looksEnglish(s)) return s;
+  }
+  // Último recurso: devolve string vazia ao invés de inglês visível.
+  return "";
+}
+
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
 
 function runInBackground(promise: Promise<unknown>) {
@@ -250,7 +290,7 @@ const STRATEGIST_TOOLS = [
           end_time: { type: "string", description: "Data/hora de término (ISO 8601). Omitir = sem data de término" },
 
           // --- META ---
-          reasoning: { type: "string", description: "Justificativa com dados numéricos" },
+          reasoning: { type: "string", description: "OBRIGATÓRIO em Português do Brasil simples e executivo. Sem inglês, sem jargão técnico. Justificativa com dados numéricos quando possível." },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["campaign_name", "objective", "daily_budget_cents", "optimization_goal", "conversion_event", "targeting_description", "funnel_stage", "destination_url", "product_name", "primary_texts", "headlines", "reasoning", "confidence"],
@@ -4525,7 +4565,15 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),
               ...twoStepFields,
             },
-            reasoning: args.reasoning || args.reason || args.diagnosis || "",
+            reasoning: ensurePortuguese(
+              args.reasoning || args.reason || args.diagnosis || "",
+              [
+                result?.data?.campaign?.rationale,
+                result?.data?.rationale,
+                result?.data?.diagnosis,
+                result?.data?.preview?.copy_text,
+              ],
+            ),
             confidence: String(args.confidence || "0.8"),
             status: result.status,
             action_hash: `${sessionId}_${tc.function.name}_${config.ad_account_id}_${totalPlanned}`,
