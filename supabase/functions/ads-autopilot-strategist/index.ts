@@ -4322,14 +4322,14 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       if (isTikTokAccount) {
         // TikTok Ads: use TikTok-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
           ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => ["create_tiktok_campaign", "toggle_tiktok_status", "update_tiktok_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...TIKTOK_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
       } else if (isGoogleAccount) {
         // Google Ads: use Google-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
           ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => ["create_google_campaign", "create_google_ad_group", "create_google_keyword", "create_google_ad"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...GOOGLE_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
@@ -4340,7 +4340,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           : trigger === "implement_campaigns"
           ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : trigger === "start"
-          ? [...STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
+          ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
           : isScopedRevision
           ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
@@ -4393,6 +4393,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           logPrefix: `[ads-autopilot-strategist][${VERSION}][R${round}]`,
           maxRetries: trigger === "start" ? 0 : 3,
           requestTimeoutMs: trigger === "start" ? 135_000 : 120_000,
+          noFallback: trigger === "start",
         });
 
         if (!aiResponse.ok) {
