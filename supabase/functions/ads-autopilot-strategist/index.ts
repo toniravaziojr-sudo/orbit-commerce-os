@@ -406,6 +406,8 @@ const STRATEGIST_TOOLS = [
                   },
                 },
                 product_name: { type: "string", description: "Nome EXATO do produto do catálogo" },
+                existing_campaign_id: { type: "string", description: "OBRIGATÓRIO para ações sobre campanha existente (pause_campaign, adjust_budget, scale, optimize, maintain, monitor, reduce_budget, reactivate, request_review). Use o ID literal da coluna ID da tabela CAMPANHAS — NÃO use o nome da campanha aqui, NÃO invente. Apenas omita em create_campaign." },
+                existing_campaign_name: { type: "string", description: "OBRIGATÓRIO junto com existing_campaign_id para ações sobre campanha existente. Use o nome EXATO da coluna Nome da tabela CAMPANHAS (cópia literal). Serve para validação cruzada." },
                 daily_budget_brl: { type: "number", description: "Orçamento diário TOTAL da campanha em R$" },
                 target_audience: { type: "string", description: "Resumo do público-alvo principal (ex: Homens 30-65, Brasil)" },
                 funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
