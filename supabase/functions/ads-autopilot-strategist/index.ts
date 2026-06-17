@@ -2274,7 +2274,30 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
     lines.push(`### CATÁLOGO META: ${catalogAvailability}`);
     lines.push(`### PÚBLICO DE CLIENTES (exclusão fria): ${customerAudienceAvailability.found ? "detectado" : "NÃO detectado"}`);
     lines.push("");
-    lines.push("### REGRAS DE CONTEÚDO DO PLANO (OBRIGATÓRIAS)");
+
+    // ===== Onda H — Ofertas ativas do Aumentar Ticket =====
+    const offers: any[] = Array.isArray(context.activeOfferRules) ? context.activeOfferRules : [];
+    const productNameById: Record<string, string> = {};
+    for (const p of (context.products || [])) productNameById[p.id] = p.name;
+    lines.push("### OFERTAS ATIVAS DO LOJISTA (Aumentar Ticket — Order Bump / Upsell / Cross-sell / Compre Junto)");
+    if (offers.length === 0) {
+      lines.push("- Nenhuma oferta combinada ativa cadastrada.");
+      lines.push("- REGRA: NÃO proponha campanhas que dependam de combinação (upgrade, combo, kit, cross-sell) sem oferta ativa.");
+      lines.push("- Em vez disso, escolha SILENCIOSAMENTE outro tipo de campanha válido (público frio para carro-chefe, remarketing de visitantes de produto, reativação de clientes, etc.). NÃO bloqueie e NÃO peça para o lojista cadastrar.");
+    } else {
+      lines.push("- A IA DEVE tentar amarrar ideias de upgrade/combo/cross-sell/kit a UMA das ofertas abaixo (mesmos produtos, mesmo desconto, link da oferta como destino).");
+      lines.push("- Se nenhuma oferta servir para a ideia, NÃO force: troque silenciosamente por outro tipo de campanha. NUNCA bloqueie por ausência de oferta.");
+      for (const o of offers.slice(0, 20)) {
+        const triggers = (o.trigger_product_ids || []).slice(0, 4).map((id: string) => productNameById[id] || id.slice(0, 8)).join(" | ") || "—";
+        const suggested = (o.suggested_product_ids || []).slice(0, 4).map((id: string) => productNameById[id] || id.slice(0, 8)).join(" | ") || "—";
+        const desc = o.discount_value != null
+          ? `${o.discount_value}${o.discount_type === "percentage" ? "%" : " (valor fixo)"}`
+          : "sem desconto";
+        lines.push(`- [${o.type}] "${o.title || o.name}" — desconto ${desc} | gatilho: ${triggers} | oferta: ${suggested}`);
+      }
+    }
+    lines.push("");
+
     lines.push("- Para cada ação que crie/escale campanha de público frio, preencha `audience_exclusions` no nível da ação e também em CADA item de `adsets[]`.");
     lines.push("- Em cada adset frio/prospecção, preencha `audience_exclusions.customers=true`, `excluded_audience_ids` e `targeting.excluded_custom_audiences` com o público de Clientes detectado.");
     lines.push("- Se o público de Clientes NÃO foi detectado, marque `audience_exclusions.pending_dependency='customer_audience_not_detected'` em cada adset frio/prospecção.");
