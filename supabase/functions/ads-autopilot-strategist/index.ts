@@ -443,7 +443,7 @@ const STRATEGIST_TOOLS = [
                 attribution_model: { type: "string", enum: ["Padrão", "Incremental"], description: "Modelo de atribuição. Padrão: Padrão" },
                 creatives_count: { type: "number", description: "Quantidade TOTAL de variações de criativos (mín 2, conta todas as variações de todos os conjuntos)" },
                 copy_variations: { type: "number", description: "Quantidade de variações de copy (mín 2)" },
-                rationale: { type: "string", description: "Justificativa detalhada para esta ação específica, com dados de suporte" },
+                rationale: { type: "string", description: "Justificativa detalhada para esta ação, com dados de suporte. OBRIGATÓRIO em Português do Brasil simples e executivo. PROIBIDO inglês ou jargão técnico." },
                 expected_roas: { type: "number", description: "ROAS esperado baseado em dados históricos" },
                 placements: { type: "string", description: "Posicionamentos (ex: Feed, Stories, Reels, Advantage+)" },
                 adsets: {
