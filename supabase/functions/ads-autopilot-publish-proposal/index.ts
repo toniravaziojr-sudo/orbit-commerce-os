@@ -233,7 +233,10 @@ Deno.serve(async (req) => {
     const storeHost = primaryDomain?.domain || `${tenantInfo?.slug}.shops.comandocentral.com.br`;
     const uploadEvents: Array<{ ts: string; creative_index: number; mode: "binary" | "url"; fallback_reason?: string; image_hash?: string | null }> = [];
 
+    const overridesMap: Record<string, any> = (propData.creative_overrides && typeof propData.creative_overrides === "object") ? propData.creative_overrides : {};
     for (const creative of readyCreatives) {
+      const ov = overridesMap[String(creative.creative_index)] || {};
+      if (ov.image_url) creative.image_url = ov.image_url;
       try {
         // Upload imagem — estratégia binária (multipart) para não depender da
         // capability "image scraper" do app Meta. Fallback para URL apenas se
