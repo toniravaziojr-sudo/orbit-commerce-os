@@ -251,7 +251,7 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2">
                   <Calendar className="h-4 w-4" /> Início da campanha
                 </h3>
-                <p className="text-2xl font-semibold mb-1">{window.label}</p>
+                <p className="text-2xl font-semibold mb-1">{publishWindow.label}</p>
                 <p className="text-xs text-muted-foreground">
                   Campanhas só sobem para a Meta na janela <strong>00:01–04:00</strong> (horário de Brasília).
                   Fora dessa faixa, agendamos para o próximo 00:01 BRT — nunca pausada.
@@ -286,7 +286,7 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
               <ul className="text-sm space-y-1.5">
                 <Check label={`Campanha: ${campaign.name || "—"}`} />
                 <Check label={`Orçamento: ${formatBRL(campaign.daily_budget_cents)} por dia`} />
-                <Check label={`Início: ${window.label}`} />
+                <Check label={`Início: ${publishWindow.label}`} />
                 <Check label={`${readyJobs.length} anúncio(s) serão criados`} />
                 {failedJobs.length > 0 && <li className="flex gap-2 text-xs text-amber-700"><AlertTriangle className="h-3.5 w-3.5" /> {failedJobs.length} criativo(s) falharam e não serão publicados.</li>}
               </ul>
