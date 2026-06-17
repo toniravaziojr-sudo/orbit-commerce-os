@@ -4525,7 +4525,15 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               ...(creativeUrl ? { creative_url: creativeUrl } : {}),
               ...twoStepFields,
             },
-            reasoning: args.reasoning || args.reason || args.diagnosis || "",
+            reasoning: ensurePortuguese(
+              args.reasoning || args.reason || args.diagnosis || "",
+              [
+                result?.data?.campaign?.rationale,
+                result?.data?.rationale,
+                result?.data?.diagnosis,
+                result?.data?.preview?.copy_text,
+              ],
+            ),
             confidence: String(args.confidence || "0.8"),
             status: result.status,
             action_hash: `${sessionId}_${tc.function.name}_${config.ad_account_id}_${totalPlanned}`,
