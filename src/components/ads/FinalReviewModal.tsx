@@ -16,13 +16,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
+import { toast } from "sonner";
 import {
   CheckCircle2, Clock, ImageIcon, Loader2, Rocket, Target, Wallet, Calendar,
-  AlertTriangle, ChevronRight, ChevronLeft,
+  AlertTriangle, ChevronRight, ChevronLeft, Sparkles, Pencil, Save, X as XIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApprovedProposalRow } from "@/hooks/useApprovedProposalsAwaitingPublish";
+
+const CTA_OPTIONS = ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "ORDER_NOW", "GET_OFFER", "BUY_NOW"];
 
 interface Props {
   proposal: ApprovedProposalRow;
@@ -64,6 +72,24 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
   const plannedCreatives: Array<any> = Array.isArray(data.planned_creatives) ? data.planned_creatives : [];
 
   const jobIds = useMemo(() => creativeJobsMeta.map(j => j.job_id).filter(Boolean), [creativeJobsMeta]);
+  const queryClient = useQueryClient();
+
+  // Re-busca action_data fresh para enxergar overrides recém-salvos
+  const { data: freshAction } = useQuery({
+    queryKey: ["final-review-action-data", proposal.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ads_autopilot_actions")
+        .select("action_data")
+        .eq("id", proposal.id)
+        .maybeSingle();
+      return data?.action_data || {};
+    },
+    enabled: open,
+    refetchOnWindowFocus: false,
+  });
+
+  const overrides: Record<string, any> = (freshAction as any)?.creative_overrides || (data as any).creative_overrides || {};
 
   const { data: jobs = [] } = useQuery({
     queryKey: ["final-review-creative-jobs", proposal.id, jobIds],
@@ -82,10 +108,40 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
   const failedJobs = jobs.filter((j: any) => j.status === "failed" || j.status === "cancelled");
   const stillRunning = jobs.filter((j: any) => j.status === "running" || j.status === "queued");
 
-  const window = nextPublishWindowBRT();
-  const canPublish = readyJobs.length > 0 && stillRunning.length === 0;
+  // Mapeia cada job ready para um creative_index via lifecycle.creative_jobs
+  const readyCards = useMemo(() => {
+    return readyJobs.map((j: any) => {
+      const meta = creativeJobsMeta.find((m: any) => (m.job_id || m.id) === j.id) || {};
+      const idx = typeof meta.creative_index === "number"
+        ? meta.creative_index
+        : (typeof meta.planned_creative_index === "number" ? meta.planned_creative_index : 0);
+      const planned = plannedCreatives[idx] || {};
+      const ov = overrides[String(idx)] || {};
+      return {
+        job: j,
+        creative_index: idx,
+        planned,
+        override: ov,
+        effective: {
+          image_url: ov.image_url || j.output_urls[0],
+          headline: ov.headline || planned.headline || (campaign.name || "Confira"),
+          copy: ov.copy || planned.copy || planned.primary_text || "",
+          cta: ov.cta || planned.cta || identity.default_cta || "SHOP_NOW",
+        },
+      };
+    });
+  }, [readyJobs, creativeJobsMeta, plannedCreatives, overrides, campaign.name, identity.default_cta]);
 
+  const refreshAfterChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["final-review-action-data", proposal.id] });
+  };
+
+  const publishWindow = nextPublishWindowBRT();
+  const canPublish = readyCards.length > 0 && stillRunning.length === 0;
   const stepLabel = ["", "Estratégia", "Criativos", "Agendamento", "Confirmação"][step];
+
+
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,15 +224,20 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
                   Aguardando {stillRunning.length} criativo(s) terminarem antes de poder publicar.
                 </div>
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {readyJobs.map((j: any, i: number) => (
-                  <div key={j.id} className="rounded-md border overflow-hidden bg-muted/20">
-                    <img src={j.output_urls[0]} alt={`Criativo ${i + 1}`} className="w-full aspect-square object-cover" />
-                    <div className="p-2 text-[11px] truncate">{j.product_name || `Criativo ${i + 1}`}</div>
-                  </div>
+              <div className="space-y-4">
+                {readyCards.map((card, i) => (
+                  <CreativeReviewCard
+                    key={card.job.id}
+                    index={i}
+                    tenantId={proposal.tenant_id}
+                    actionId={proposal.id}
+                    creativeIndex={card.creative_index}
+                    effective={card.effective}
+                    onChanged={refreshAfterChange}
+                  />
                 ))}
-                {readyJobs.length === 0 && stillRunning.length === 0 && (
-                  <div className="col-span-full text-sm text-muted-foreground p-4 text-center border rounded-md">
+                {readyCards.length === 0 && stillRunning.length === 0 && (
+                  <div className="text-sm text-muted-foreground p-4 text-center border rounded-md">
                     Nenhum criativo pronto para publicar.
                   </div>
                 )}
@@ -195,7 +256,7 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2">
                   <Calendar className="h-4 w-4" /> Início da campanha
                 </h3>
-                <p className="text-2xl font-semibold mb-1">{window.label}</p>
+                <p className="text-2xl font-semibold mb-1">{publishWindow.label}</p>
                 <p className="text-xs text-muted-foreground">
                   Campanhas só sobem para a Meta na janela <strong>00:01–04:00</strong> (horário de Brasília).
                   Fora dessa faixa, agendamos para o próximo 00:01 BRT — nunca pausada.
@@ -230,8 +291,8 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
               <ul className="text-sm space-y-1.5">
                 <Check label={`Campanha: ${campaign.name || "—"}`} />
                 <Check label={`Orçamento: ${formatBRL(campaign.daily_budget_cents)} por dia`} />
-                <Check label={`Início: ${window.label}`} />
-                <Check label={`${readyJobs.length} anúncio(s) serão criados`} />
+                <Check label={`Início: ${publishWindow.label}`} />
+                <Check label={`${readyCards.length} anúncio(s) serão criados`} />
                 {failedJobs.length > 0 && <li className="flex gap-2 text-xs text-amber-700"><AlertTriangle className="h-3.5 w-3.5" /> {failedJobs.length} criativo(s) falharam e não serão publicados.</li>}
               </ul>
             </div>
@@ -280,5 +341,251 @@ function Check({ label }: { label: string }) {
       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
       {label}
     </li>
+  );
+}
+
+// =============================================================================
+// CreativeReviewCard — edição manual, upload/Drive e regeneração com feedback
+// =============================================================================
+interface CardProps {
+  index: number;
+  tenantId: string;
+  actionId: string;
+  creativeIndex: number;
+  effective: { image_url: string; headline: string; copy: string; cta: string };
+  onChanged: () => void;
+}
+
+function CreativeReviewCard({ index, tenantId, actionId, creativeIndex, effective, onChanged }: CardProps) {
+  const [editing, setEditing] = useState(false);
+  const [headline, setHeadline] = useState(effective.headline);
+  const [copy, setCopy] = useState(effective.copy);
+  const [cta, setCta] = useState(effective.cta);
+  const [savingCopy, setSavingCopy] = useState(false);
+
+  const [imgPanel, setImgPanel] = useState(false);
+  const [copyPanel, setCopyPanel] = useState(false);
+  const [imgFeedback, setImgFeedback] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const [regenImg, setRegenImg] = useState(false);
+  const [regenCopy, setRegenCopy] = useState(false);
+  const [uploadUrl, setUploadUrl] = useState("");
+  const [savingImg, setSavingImg] = useState(false);
+
+  async function callRevise(payload: Record<string, unknown>) {
+    const { data, error } = await supabase.functions.invoke("ads-creative-revise", {
+      body: { tenant_id: tenantId, action_id: actionId, creative_index: creativeIndex, ...payload },
+    });
+    if (error) throw new Error(error.message || "Falha ao salvar.");
+    if (!(data as any)?.success) throw new Error((data as any)?.error_pt || "Falha ao salvar.");
+    return data;
+  }
+
+  async function handleSaveCopy() {
+    setSavingCopy(true);
+    try {
+      await callRevise({ action: "apply_override", override: { headline, copy, cta } });
+      toast.success("Texto do anúncio atualizado.");
+      setEditing(false);
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível salvar.");
+    } finally {
+      setSavingCopy(false);
+    }
+  }
+
+  async function handleRegenImage() {
+    if (imgFeedback.trim().length < 5) {
+      toast.error("Conte rapidamente o que você quer diferente na imagem.");
+      return;
+    }
+    setRegenImg(true);
+    try {
+      await callRevise({ action: "regenerate_image", feedback: imgFeedback.trim() });
+      toast.success("Nova imagem gerada com seu feedback.");
+      setImgPanel(false);
+      setImgFeedback("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível regenerar a imagem.");
+    } finally {
+      setRegenImg(false);
+    }
+  }
+
+  async function handleRegenCopy() {
+    if (copyFeedback.trim().length < 5) {
+      toast.error("Conte como você quer a copy diferente antes de regenerar.");
+      return;
+    }
+    setRegenCopy(true);
+    try {
+      const res: any = await callRevise({ action: "regenerate_copy", feedback: copyFeedback.trim() });
+      const ov = res?.override || {};
+      if (ov.headline) setHeadline(ov.headline);
+      if (ov.copy) setCopy(ov.copy);
+      if (ov.cta) setCta(ov.cta);
+      toast.success("Nova copy gerada com seu feedback.");
+      setCopyPanel(false);
+      setCopyFeedback("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível regenerar a copy.");
+    } finally {
+      setRegenCopy(false);
+    }
+  }
+
+  async function handleApplyUpload() {
+    if (!uploadUrl) {
+      toast.error("Selecione uma imagem antes de aplicar.");
+      return;
+    }
+    setSavingImg(true);
+    try {
+      await callRevise({ action: "apply_override", override: { image_url: uploadUrl, image_source: "manual" } });
+      toast.success("Imagem do anúncio atualizada.");
+      setImgPanel(false);
+      setUploadUrl("");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível aplicar a imagem.");
+    } finally {
+      setSavingImg(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-0">
+        <div className="relative bg-muted/30">
+          <img src={effective.image_url} alt={`Anúncio ${index + 1}`} className="w-full sm:h-full aspect-square object-cover" />
+          <Button size="sm" variant="secondary" className="absolute bottom-2 left-2 h-7 text-xs"
+            onClick={() => { setImgPanel(v => !v); setCopyPanel(false); }}>
+            <Pencil className="h-3 w-3 mr-1" /> Trocar imagem
+          </Button>
+        </div>
+
+        <div className="p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="text-[10px]">Anúncio {index + 1}</Badge>
+            {!editing ? (
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(true)}>
+                  <Pencil className="h-3 w-3 mr-1" /> Editar
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setCopyPanel(v => !v); setImgPanel(false); }}>
+                  <Sparkles className="h-3 w-3 mr-1" /> Regenerar texto
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => {
+                  setEditing(false); setHeadline(effective.headline); setCopy(effective.copy); setCta(effective.cta);
+                }}>
+                  <XIcon className="h-3 w-3 mr-1" /> Cancelar
+                </Button>
+                <Button size="sm" className="h-7 text-xs" onClick={handleSaveCopy} disabled={savingCopy}>
+                  {savingCopy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                  Salvar
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {!editing ? (
+            <div className="space-y-1 text-sm">
+              <div><span className="text-[10px] uppercase text-muted-foreground">Título</span><div className="font-medium">{headline || "—"}</div></div>
+              <div><span className="text-[10px] uppercase text-muted-foreground">Texto</span><div className="text-xs whitespace-pre-wrap">{copy || "—"}</div></div>
+              <div><span className="text-[10px] uppercase text-muted-foreground">Botão</span> <Badge variant="secondary" className="text-[10px]">{cta}</Badge></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-[10px] uppercase">Título</Label>
+                <Input value={headline} onChange={e => setHeadline(e.target.value)} maxLength={60} className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase">Texto principal</Label>
+                <Textarea value={copy} onChange={e => setCopy(e.target.value)} maxLength={300} rows={3} className="text-sm" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase">Botão (CTA)</Label>
+                <Select value={cta} onValueChange={setCta}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CTA_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {imgPanel && (
+        <div className="border-t bg-muted/20 p-3 space-y-3">
+          <div>
+            <Label className="text-xs font-medium">Carregar do computador ou Meu Drive</Label>
+            <UniversalImageUploader
+              value={uploadUrl}
+              onChange={setUploadUrl}
+              source="ads_creative_override"
+              subPath={`ads/${actionId}`}
+              aspectRatio="square"
+              accept="image"
+              showUrlTab={false}
+            />
+            <div className="flex justify-end mt-2">
+              <Button size="sm" onClick={handleApplyUpload} disabled={!uploadUrl || savingImg}>
+                {savingImg ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                Aplicar imagem
+              </Button>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <Label className="text-xs font-medium">Ou regerar com IA — o que você quer diferente?</Label>
+            <Textarea
+              value={imgFeedback}
+              onChange={e => setImgFeedback(e.target.value)}
+              placeholder="Ex.: cenário mais limpo, foco no produto, sem pessoas, paleta mais quente…"
+              rows={3}
+              maxLength={400}
+              className="text-sm mt-1"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">Seu feedback é registrado e usado para a IA aprender o que você prefere.</p>
+            <div className="flex justify-end mt-2">
+              <Button size="sm" variant="secondary" onClick={handleRegenImage} disabled={regenImg || imgFeedback.trim().length < 5}>
+                {regenImg ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                Regenerar imagem
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {copyPanel && (
+        <div className="border-t bg-muted/20 p-3 space-y-2">
+          <Label className="text-xs font-medium">Como você quer a copy diferente?</Label>
+          <Textarea
+            value={copyFeedback}
+            onChange={e => setCopyFeedback(e.target.value)}
+            placeholder="Ex.: mais direta, foco no benefício, sem promessa de desconto, tom mais coloquial…"
+            rows={3}
+            maxLength={400}
+            className="text-sm"
+          />
+          <p className="text-[10px] text-muted-foreground">Seu feedback é registrado e usado para a IA aprender o que você prefere.</p>
+          <div className="flex justify-end">
+            <Button size="sm" variant="secondary" onClick={handleRegenCopy} disabled={regenCopy || copyFeedback.trim().length < 5}>
+              {regenCopy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+              Regenerar texto
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
