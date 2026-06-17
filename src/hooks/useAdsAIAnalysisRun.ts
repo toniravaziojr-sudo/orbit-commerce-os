@@ -98,6 +98,14 @@ export function useAdsAIAnalysisRun(opts: { platform?: string; adAccountId?: str
       }
       queryClient.invalidateQueries({ queryKey: ["ads-ai-analysis-runs", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      if (payload?.accepted || payload?.status === "queued") {
+        [1000, 3000, 7000, 12000].forEach((delay) => {
+          window.setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ["ads-ai-analysis-runs", tenantId] });
+            queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+          }, delay);
+        });
+      }
     },
     onError: (e: any) => toast.error(e?.message || "Não foi possível iniciar a análise."),
   });
