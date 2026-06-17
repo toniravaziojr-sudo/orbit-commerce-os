@@ -646,6 +646,9 @@ Deno.serve(async (req) => {
           output_size: outputSize, quality,
           variations: numVariations, style_config, enable_qa, enable_fallback,
           label_lock, pipeline_version: VERSION,
+          // Vínculo estrutural — gravado na criação para não ser perdido em updates futuros
+          ...(proposal_link?.proposal_action_id ? { proposal_action_id: proposal_link.proposal_action_id } : {}),
+          ...(proposal_link?.planned_creative_index !== undefined ? { planned_creative_index: proposal_link.planned_creative_index } : {}),
         },
         output_folder_id: folderId, cost_cents: 0, created_by: userId,
       })
