@@ -353,6 +353,39 @@ Deno.serve(async (req) => {
       .eq("id", original.id);
   }
 
+  // Caso a IA tenha rodado com sucesso mas NÃO tenha produzido nova versão
+  // (sem tool_call em modo revisão), revertemos a original para
+  // pending_approval. Assim o usuário não fica sem proposta na tela e pode
+  // tentar reformular o ajuste. O aprendizado já foi gravado.
+  if (!newChild) {
+    const noVersionHistory = (updatedData.adjustment_history || []).map(
+      (h: any, i: number, arr: any[]) =>
+        i === arr.length - 1
+          ? {
+              ...h,
+              status: "completed_no_new_version",
+              completed_at: new Date().toISOString(),
+            }
+          : h,
+    );
+    await service
+      .from("ads_autopilot_actions")
+      .update({
+        status: "pending_approval",
+        action_data: {
+          ...updatedData,
+          adjustment_history: noVersionHistory,
+          lifecycle: {
+            ...updatedData.lifecycle,
+            status: "pending_approval",
+            adjustment_last_attempt_at: new Date().toISOString(),
+            adjustment_last_outcome: "no_new_version",
+          },
+        },
+      })
+      .eq("id", original.id);
+  }
+
   return ok({
     success: true,
     original_action_id: original.id,
@@ -362,6 +395,6 @@ Deno.serve(async (req) => {
     feedback_error: feedbackError,
     message: newChild
       ? "Nova versão gerada em Aguardando Ação."
-      : "Pedido de ajuste registrado, mas a IA não devolveu nova versão. Verifique saldo de IA e tente novamente.",
+      : "A IA não conseguiu gerar uma nova versão. Sua sugestão foi salva no Aprendizado e a proposta original voltou para aguardar decisão.",
   });
 });

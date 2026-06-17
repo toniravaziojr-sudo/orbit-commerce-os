@@ -144,7 +144,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
       } else if ((data as any)?.new_action_id) {
         toast.success("Nova versão gerada e disponível em Aguardando Ação.");
       } else {
-        toast.success("Pedido de ajuste registrado.");
+        toast.info((data as any)?.message || "Sua sugestão foi salva no Aprendizado. A proposta original voltou para aguardar decisão.");
       }
     } catch (err: any) {
       showErrorToast(err, { module: 'anúncios', action: 'ajustar proposta' });

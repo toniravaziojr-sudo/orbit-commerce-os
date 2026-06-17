@@ -175,25 +175,37 @@ Deno.serve(async (req) => {
         return "outro";
       })();
       const titleFromContext = candidate || `Preferência registrada pelo usuário (${input.decision})`;
-      service.functions
-        .invoke("ads-ai-learnings-write", {
-          body: {
-            tenant_id: input.tenant_id,
-            title: titleFromContext,
-            description: observation || reasonText || null,
-            category: categoryGuess,
-            source_type: sourceType,
-            source_action_id: input.action_id || null,
-            source_feedback_id: inserted.id,
-            metadata: {
-              decision: input.decision,
-              reason_codes: input.reason_codes,
-              ads_platform: input.ads_platform,
+      // IMPORTANTE: await obrigatório. Fire-and-forget era morto pelo runtime
+      // antes do learnings-write gravar — resultado: feedback existia mas
+      // aprendizado não era criado.
+      try {
+        const { data: lr, error: le } = await service.functions.invoke(
+          "ads-ai-learnings-write",
+          {
+            body: {
+              tenant_id: input.tenant_id,
+              title: titleFromContext,
+              description: observation || reasonText || null,
+              category: categoryGuess,
+              source_type: sourceType,
+              source_action_id: input.action_id || null,
+              source_feedback_id: inserted.id,
+              metadata: {
+                decision: input.decision,
+                reason_codes: input.reason_codes,
+                ads_platform: input.ads_platform,
+              },
             },
           },
-        })
-        .then((r: any) => { learning_action = r?.data?.action || null; })
-        .catch((e: any) => console.warn("[ads-autopilot-feedback-record] learnings write failed:", e?.message));
+        );
+        if (le) {
+          console.warn("[ads-autopilot-feedback-record] learnings write failed:", le?.message);
+        } else {
+          learning_action = (lr as any)?.action || null;
+        }
+      } catch (e: any) {
+        console.warn("[ads-autopilot-feedback-record] learnings write threw:", e?.message);
+      }
     }
   } catch (lerr: any) {
     console.warn("[ads-autopilot-feedback-record] learnings hook threw:", lerr?.message);
@@ -204,6 +216,7 @@ Deno.serve(async (req) => {
       success: true,
       feedback_id: inserted.id,
       decided_at: inserted.decided_at,
+      learning_action,
       side_effects: {
         suggestion_status_changed: false,
         meta_api_called: false,
