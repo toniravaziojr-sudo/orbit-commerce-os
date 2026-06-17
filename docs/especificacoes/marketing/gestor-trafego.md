@@ -4443,3 +4443,22 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 - Quando texto em inglês escapar para produção em volume pequeno, é reescrito por migração determinística (sem custo extra de IA). Em volume grande, usar uma única passagem de tradução pela IA.
 
 **Anti-regressão.** Qualquer novo campo livre da IA exibido na UI precisa reforçar idioma no prompt. Proibido concatenar `observation` com `reason_text` para formar título de aprendizado.
+
+---
+
+## Onda 3.4 (2026-06-17) — Guard PT-BR no resumo executivo + nova aba "Estratégias"
+
+**Problema observado.** A Onda 3.3 traduziu apenas a justificativa interna (`action_data.campaign.rationale`). O resumo executivo visível nos cards de proposta vem de outro campo (`reasoning` da action) e continuou em inglês na tela do lojista. Em paralelo, o plano estratégico aprovado sumia da UI assim que virava propostas, sem histórico consultável.
+
+**O que mudou.**
+
+1. **Guard determinístico PT-BR no backend.** Antes de persistir qualquer proposta gerada pelo Estrategista, o campo `reasoning` passa por detector de inglês simples (stopwords + ausência de acentos). Se detectado, é substituído por um fallback PT-BR já presente no payload (`campaign.rationale`, `diagnosis`, `preview.copy_text`). Custo zero — sem chamada extra de IA.
+2. **Descrição do schema reforçada.** O JSON schema do campo `reasoning` agora declara explicitamente "OBRIGATÓRIO em Português do Brasil simples e executivo. Sem inglês, sem jargão técnico".
+3. **Saneamento retroativo.** Propostas pendentes com `reasoning` em inglês foram reescritas usando o rationale interno já em PT-BR (sem custo de IA).
+4. **Nova aba "Estratégias"** no Gestor de Tráfego IA, dentro de cada canal (Meta, Google, TikTok), ao lado de "ROI Real". Mostra:
+   - **Estratégia Ativa** no topo, com tarja "Ativa" em verde: diagnóstico, lista de campanhas planejadas (nome, produto, verba, público), data de aprovação.
+   - **Histórico de Estratégias** abaixo: planos anteriores (substituídos, recusados ou aguardando), com data, status, contagem de campanhas e link para abrir detalhes em modal.
+   - Lê do mesmo registro de plano estratégico já existente — sem nova tabela.
+
+**Anti-regressão.** A guarda PT-BR DEVE cobrir tanto o texto interno quanto o resumo executivo visível. Cobrir só um dos dois reabre o bug, como aconteceu entre as Ondas 3.3 e 3.4.
+
