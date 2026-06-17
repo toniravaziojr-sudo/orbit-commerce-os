@@ -52,11 +52,11 @@ export function AdsAlertsWidget() {
     });
   }
 
-  if (openInsights.length > 0) {
+  if (openWarnings > 0) {
     items.push({
-      icon: Lightbulb,
-      title: `${openInsights.length} insight${openInsights.length !== 1 ? "s" : ""} não lido${openInsights.length !== 1 ? "s" : ""}`,
-      description: "Recomendações da IA aguardando revisão",
+      icon: Bell,
+      title: `${openWarnings} aviso${openWarnings !== 1 ? "s" : ""} da IA não visto${openWarnings !== 1 ? "s" : ""}`,
+      description: "Sinais detectados pela IA aguardando sua leitura",
       variant: "info",
     });
   }
