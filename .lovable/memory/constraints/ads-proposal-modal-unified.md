@@ -15,7 +15,8 @@ Usado por: `strategic_plan`, `create_campaign`, `create_adset`, `generate_creati
 - Footer fixo do modal: `Recusar proposta` · `Ajustar proposta` · `Aprovar` (rótulo varia: "Aprovar plano" para `strategic_plan`; "Aprovar estratégia e gerar criativos" para Etapa 1 two-step; "Aprovar" default).
 - **Ajustar proposta** dentro do modal estruturado:
     - Etapa 1 do two-step → abre o Editor Estruturado (drawer Campanha/Conjunto/Anúncio/Feedback).
-    - `strategic_plan` e demais ações sem hierarquia (overviewOnly) → fecha o modal e abre o diálogo de **sugestão por texto livre** (`onAdjustRequest` no `ActionApprovalCard` → `setAdjustOpen(true)`). Nunca deixar o botão inerte.
+    - `strategic_plan` e demais ações sem hierarquia (overviewOnly) → abre o diálogo de **sugestão por texto livre** (`onAdjustRequest` no `ActionApprovalCard` → `setAdjustOpen(true)`) por cima do modal primário. **Nunca fechar o modal primário antes de abrir o secundário**; ao cancelar/fechar o secundário, o usuário deve voltar para a proposta já aberta.
+- **Recusar proposta** e confirmações secundárias seguem a mesma regra: dialog secundário por cima, modal primário preservado no fundo.
 - **Plano Estratégico** usa `overviewOnly={true}` — só Visão Geral (Diagnóstico, Estratégia, Próximas ações, Limitações, Impacto). Sem sidebar, sem abas Campanha/Conjuntos/Anúncios, sem gates de completude/compatibilidade/fit (não tem hierarquia).
 - Demais (campanha/conjunto/anúncio/criativo) usam o modal completo com sidebar e gates.
 
