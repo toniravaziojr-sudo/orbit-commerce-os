@@ -40,7 +40,7 @@ export default function AdsManager() {
   const metaConn = useMetaConnection();
   const googleConn = useGoogleConnection();
   const tiktokConn = useTikTokAdsConnection();
-  const adsInsights = useAdsInsights();
+  
   const accountConfigs = useAdsAccountConfigs();
 
   // Fetch only the ad accounts explicitly selected in the anuncios integration
