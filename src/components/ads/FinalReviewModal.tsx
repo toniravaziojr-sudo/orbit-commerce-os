@@ -136,6 +136,12 @@ export function FinalReviewModal({ proposal, open, onOpenChange, onPublish, isPu
     queryClient.invalidateQueries({ queryKey: ["final-review-action-data", proposal.id] });
   };
 
+  const publishWindow = nextPublishWindowBRT();
+  const canPublish = readyCards.length > 0 && stillRunning.length === 0;
+  const stepLabel = ["", "Estratégia", "Criativos", "Agendamento", "Confirmação"][step];
+
+
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
