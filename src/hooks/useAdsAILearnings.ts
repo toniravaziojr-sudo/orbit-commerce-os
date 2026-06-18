@@ -15,7 +15,7 @@ export interface AdsAILearning {
   description: string | null;
   category: LearningCategory;
   status: LearningStatus;
-  source_type: "approval" | "rejection" | "adjustment" | "manual" | "system";
+  source_type: "approval" | "rejection" | "adjustment" | "manual" | "system" | "user_feedback";
   source_action_id: string | null;
   source_plan_id: string | null;
   source_analysis_run_id: string | null;
