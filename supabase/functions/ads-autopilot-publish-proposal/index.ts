@@ -19,8 +19,18 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import {
+  mapGender,
+  mapGeoLocations,
+  applyPlacements,
+  mapAttributionSpec,
+  fetchAccountAudiences,
+  findAudienceByName,
+  extractIncludedAudienceRefs,
+  type MetaAudience,
+} from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.1.0-h5-multi-adset";
+const VERSION = "v1.2.0-h5-full-parity";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
