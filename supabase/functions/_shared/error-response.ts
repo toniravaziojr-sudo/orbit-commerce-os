@@ -270,6 +270,15 @@ export function metaApiErrorResponse(
     code: techCode,
     category: 'technical' as ErrorCategory,
     retryable: metaError?.code === 4 || metaError?.code === 368,
+    // Eco do erro original da Meta para auditoria interna (publicador grava no
+    // ciclo da proposta). Não é exposto ao lojista — a UI usa apenas `error`.
+    meta_error: {
+      message: rawMsg,
+      code: metaError?.code ?? null,
+      error_subcode: metaError?.error_subcode ?? null,
+      fbtrace_id: metaError?.fbtrace_id ?? null,
+      type: metaError?.type ?? null,
+    },
     ...(options?.requestId && { request_id: options.requestId }),
   };
 

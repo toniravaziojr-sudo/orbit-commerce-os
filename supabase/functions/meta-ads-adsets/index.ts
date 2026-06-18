@@ -3,7 +3,7 @@ import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.t
 import { getMetaConnectionForTenant, type MetaConnection } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v2.4.0"; // Remove default targeting_automation injection (mapper é a fonte única)
 // ===========================================================
 
 const corsHeaders = {
@@ -255,12 +255,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Build targeting with mandatory advantage_audience flag (Meta API requirement since 2025)
+      // Targeting vem pronto do publicador (meta-publish-mappers).
+      // PROIBIDO injetar targeting_automation por padrão aqui — a Meta interpreta
+      // a presença do bloco como opt-in de Advantage+ Audience e rejeita conjuntos
+      // com age_min > 25 (erro 1870188). O mapper é a única fonte de verdade
+      // sobre targeting_automation. Veja mem://constraints/ads-publish-full-parity-meta.
       const finalTargeting = targeting || { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
-      // Ensure targeting_automation is set - Meta requires advantage_audience flag
-      if (!finalTargeting.targeting_automation) {
-        finalTargeting.targeting_automation = { advantage_audience: 0 };
-      }
 
       const createBody: any = {
         name: adsetName,
