@@ -314,6 +314,70 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
 }
 
 /**
+ * Aprendizado ativo do tenant pede para não excluir clientes em teste criativo.
+ * Aplica-se quando NÃO é teste de produto novo/lançamento (esse já tem seu próprio
+ * caminho determinístico) e quando NÃO há override explícito do LLM.
+ */
+function creativeTestLearningSkipsExclusion(action: any, signals?: TenantStrategicSignals | null): boolean {
+  if (!signals?.creative_test_skip_customer_exclusion?.active) return false;
+  const intent = normValue(action?.campaign_intent);
+  if (intent !== "creative test") return false;
+  return true;
+}
+
+function getLearningSkipReasonText(signals?: TenantStrategicSignals | null): string {
+  const fromSignal = String(signals?.creative_test_skip_customer_exclusion?.reason || "").trim();
+  if (fromSignal.length >= 12) return fromSignal;
+  return "Aprendizado ativo do tenant: testes criativos não excluem clientes.";
+}
+
+/** Remove cláusulas que afirmam o OPOSTO da decisão final de exclusão. */
+function stripContradictoryExclusionPhrases(text: string, finalExcludes: boolean): string {
+  if (!text || typeof text !== "string") return text || "";
+  let out = text;
+  const positiveExclusionPhrases = [
+    /,?\s*excluindo\s+(?:os\s+)?clientes(?:\s+existentes|\s+atuais)?[^\.,;]*/gi,
+    /(?:^|[\.\s])\s*(?:os\s+)?clientes\s+(?:ser[aã]o|s[aã]o|foram)\s+exclu[ií]dos[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*exclui(?:r)?\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+  ];
+  const negativeExclusionPhrases = [
+    /(?:^|[\.\s])\s*(?:os\s+)?clientes\s+n[aã]o\s+(?:ser[aã]o|s[aã]o|foram)\s+exclu[ií]dos[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*n[aã]o\s+exclui(?:r)?\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*mantendo\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+  ];
+  const toStrip = finalExcludes ? negativeExclusionPhrases : positiveExclusionPhrases;
+  for (const re of toStrip) out = out.replace(re, " ");
+  out = out.replace(/\s{2,}/g, " ").replace(/\s+([\.,;])/g, "$1").trim();
+  return out;
+}
+
+/** Reescreve textos livres do action e adsets para casar com a estrutura final. */
+function rewriteTextsToMatchExclusion(
+  obj: any,
+  finalExcludes: boolean,
+  skipReason?: string | null,
+): void {
+  if (!obj || typeof obj !== "object") return;
+  const suffixExcluding = "Exclui clientes existentes.";
+  const suffixKeeping = skipReason === CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON
+    ? "Clientes mantidos no público — aprendizado ativo da IA para testes criativos."
+    : skipReason === TEST_NEW_LAUNCH_SKIP_REASON
+      ? "Clientes mantidos no público — teste de produto novo/lançamento."
+      : "Clientes mantidos no público.";
+  const suffix = finalExcludes ? suffixExcluding : suffixKeeping;
+
+  const excl = (obj.audience_exclusions && typeof obj.audience_exclusions === "object") ? obj.audience_exclusions : null;
+  if (excl) {
+    const cleaned = stripContradictoryExclusionPhrases(String(excl.reason || ""), finalExcludes);
+    excl.reason = cleaned ? `${cleaned} ${suffix}`.trim() : suffix;
+  }
+  if (typeof obj.audience_description === "string" && obj.audience_description.length > 0) {
+    const cleaned = stripContradictoryExclusionPhrases(obj.audience_description, finalExcludes);
+    obj.audience_description = cleaned ? `${cleaned} ${suffix}`.trim() : suffix;
+  }
+}
+
+/**
  * Detecta se a ação é um TESTE (creative_test/offer_test) para produto novo ou em lançamento.
  * Nesse cenário, manter a base de clientes no público é desejável para validar atratividade
  * do produto novo — então a exclusão automática NÃO se aplica.
