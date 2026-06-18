@@ -809,7 +809,7 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
           .eq("id", jobId)
           .maybeSingle();
         job = data;
-        if (job?.status === "completed" || job?.status === "failed") break;
+        if (["completed", "succeeded", "failed"].includes(String(job?.status || ""))) break;
         if (Array.isArray(job?.output_urls) && job.output_urls.length > 0) break;
         await new Promise((r) => setTimeout(r, 2000));
       }
@@ -817,7 +817,7 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       if (!newUrl) {
         return ok({
           success: false,
-          error_pt: job?.error_message || (job?.status === "running"
+          error_pt: job?.error_message || (job?.status === "running" || job?.status === "queued"
             ? "A geração está demorando mais que o normal. Tente novamente em instantes."
             : "A geração não retornou uma imagem válida."),
         });
