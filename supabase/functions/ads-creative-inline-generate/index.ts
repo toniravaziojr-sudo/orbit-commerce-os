@@ -49,6 +49,19 @@ function ok(body: any) {
   });
 }
 
+async function getPrimaryProductImageUrl(supabase: any, tenantId: string, productId: string | null | undefined): Promise<string> {
+  if (!productId) return "";
+  const { data } = await supabase
+    .from("product_images")
+    .select("url")
+    .eq("tenant_id", tenantId)
+    .eq("product_id", productId)
+    .order("is_primary", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .limit(1);
+  return data?.[0]?.url || "";
+}
+
 async function recordLearning(
   supabase: any,
   tenantId: string,
@@ -653,13 +666,14 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       if (resolvedProductId && (!productImageUrl || !pName || !pDesc)) {
         const { data: prod } = await supabase
           .from("products")
-          .select("name, description, featured_image_url")
+          .select("name, description, short_description")
+          .eq("tenant_id", tenantId)
           .eq("id", resolvedProductId)
           .maybeSingle();
         if (prod) {
           pName = pName || prod.name;
-          pDesc = pDesc || (prod.description || "");
-          productImageUrl = productImageUrl || (prod.featured_image_url || "");
+          pDesc = pDesc || (prod.description || prod.short_description || "");
+          productImageUrl = productImageUrl || await getPrimaryProductImageUrl(supabase, tenantId, resolvedProductId);
         }
       }
 
@@ -683,6 +697,9 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         const nameCandidates = [
           productNameHint,
           pName,
+          propData?.campaign?.product,
+          propData?.campaign?.product_name,
+          propData?.product_name,
           adItem.product_name,
           plannedItem.product_name,
           deriveFromAdsetName(linkedAdsetForImg?.name || plannedItem.linked_adset_name),
@@ -692,7 +709,7 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         for (const cand of nameCandidates) {
           const { data: byName } = await supabase
             .from("products")
-            .select("id, name, description, featured_image_url")
+            .select("id, name, description, short_description")
             .eq("tenant_id", tenantId)
             .ilike("name", cand)
             .limit(1);
@@ -700,17 +717,32 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
           if (!match) {
             const { data: byLike } = await supabase
               .from("products")
-              .select("id, name, description, featured_image_url")
+              .select("id, name, description, short_description")
               .eq("tenant_id", tenantId)
               .ilike("name", `%${cand}%`)
               .limit(1);
             match = (byLike && byLike[0]) || null;
           }
+          if (!match) {
+            const slugCandidate = cand
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "");
+            const { data: bySlug } = await supabase
+              .from("products")
+              .select("id, name, description, short_description")
+              .eq("tenant_id", tenantId)
+              .eq("slug", slugCandidate)
+              .limit(1);
+            match = (bySlug && bySlug[0]) || null;
+          }
           if (match) {
             resolvedProductId = resolvedProductId || match.id;
             pName = pName || match.name;
-            pDesc = pDesc || (match.description || "");
-            productImageUrl = productImageUrl || (match.featured_image_url || "");
+            pDesc = pDesc || (match.description || match.short_description || "");
+            productImageUrl = productImageUrl || await getPrimaryProductImageUrl(supabase, tenantId, match.id);
             if (resolvedProductId && productImageUrl) break;
           }
         }
@@ -777,7 +809,7 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
           .eq("id", jobId)
           .maybeSingle();
         job = data;
-        if (job?.status === "completed" || job?.status === "failed") break;
+        if (["completed", "succeeded", "failed"].includes(String(job?.status || ""))) break;
         if (Array.isArray(job?.output_urls) && job.output_urls.length > 0) break;
         await new Promise((r) => setTimeout(r, 2000));
       }
@@ -785,7 +817,7 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       if (!newUrl) {
         return ok({
           success: false,
-          error_pt: job?.error_message || (job?.status === "running"
+          error_pt: job?.error_message || (job?.status === "running" || job?.status === "queued"
             ? "A geração está demorando mais que o normal. Tente novamente em instantes."
             : "A geração não retornou uma imagem válida."),
         });
