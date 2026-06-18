@@ -2276,24 +2276,25 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText,
+  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText, headerExtra,
 }: {
   label: string;
   value: string | number | null | undefined;
   fullWidth?: boolean;
   pendingField?: boolean;
   futurePhase?: boolean;
-  /** H.2.3 — texto exibido quando o valor está vazio, com origem/fase clara
-   *  (ex.: "Pendente de URL do produto/oferta", "Pendente de CTA padrão",
-   *  "Será definido na etapa de criativos como variável do teste"). */
   customPlaceholder?: string;
-  /** H.2.3 — nota de origem ao lado do valor (ex.: "Padrão do objetivo Vendas"). */
   helperText?: string | null;
+  /** Conteúdo extra ao lado direito do label (ex.: mini botão "Regenerar"). */
+  headerExtra?: React.ReactNode;
 }) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
+        {headerExtra}
+      </div>
       {empty && customPlaceholder ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30 px-1.5 py-0.5 text-[11px] font-medium">
@@ -2303,7 +2304,7 @@ function Detail({
       ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
-            A gerar nesta etapa (botão de IA abaixo)
+            A gerar nesta etapa (botão de IA acima)
           </span>
         </p>
       ) : empty && pendingField ? (
