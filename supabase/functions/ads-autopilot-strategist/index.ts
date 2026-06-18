@@ -71,7 +71,7 @@ async function attachObservationIfEligible(
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.50.0"; // Onda I (perf): poda inteligente de campanhas/adsets/ads no prompt + insights 365d account-scoped
+const VERSION = "v1.51.0"; // Fallback Gemini→OpenAI→Lovable também no gatilho manual (start)
 // ===================
 
 const corsHeaders = {
@@ -4436,9 +4436,13 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           supabaseUrl,
           supabaseServiceKey,
           logPrefix: `[ads-autopilot-strategist][${VERSION}][R${round}]`,
+          // v1.51.0: timeout no Gemini não pode ser terminal — habilita fallback
+          // Gemini → OpenAI → Lovable também no gatilho manual ("start").
+          // maxRetries=0 evita reexecução no mesmo provedor (custo duplo),
+          // mas o roteador ainda pula para o próximo provedor em timeout/5xx.
           maxRetries: trigger === "start" ? 0 : 3,
           requestTimeoutMs: trigger === "start" ? 135_000 : 120_000,
-          noFallback: trigger === "start",
+          noFallback: false,
         });
 
         if (!aiResponse.ok) {
