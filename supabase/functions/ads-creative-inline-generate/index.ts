@@ -290,7 +290,10 @@ const HARD_RULES = [
   "4. Proibido prometer cura, resultado garantido ou claim regulado (saúde, financeiro) sem evidência explícita no contexto.",
   "5. A copy DEVE mencionar ou encostar no produto/benefício real, não em categoria vaga.",
   "6. Respeite o estágio do funil indicado acima.",
+  "7. TÍTULO não pode terminar em '?' por padrão. Use pergunta APENAS quando o ângulo for explicitamente provocativo/diagnóstico e a pergunta agregar — caso contrário, prefira afirmação, benefício direto, frase de impacto ou comando curto. Varie a forma; nunca use '?' como muleta.",
+  "8. Não termine o título com reticências '...'. Pontuação final do título é opcional: ponto final, exclamação moderada ou sem pontuação são preferíveis.",
 ].join("\n");
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
