@@ -406,25 +406,41 @@ Deno.serve(async (req) => {
       let usr = "";
 
       if (action === "generate_copy") {
-        sys = `Você escreve copy de anúncio Meta Ads em português do Brasil para o produto específico descrito no briefing.
-Responda APENAS um JSON válido { "headline": string (até 40 caracteres), "primary_text": string (até 180 caracteres), "description": string (até 30 caracteres) }. Sem markdown, sem texto extra.
+        sys = `${COPYWRITER_PERSONA}
+
+Você vai gerar 3 versões INTERNAMENTE (diferentes entre si em ângulo/abertura), criticar cada uma contra os critérios abaixo, e devolver APENAS a melhor.
+
+Critérios de seleção (peso alto):
+- Gancho forte nos primeiros 5 caracteres do título.
+- Especificidade ao produto descrito (não vale frase que serviria para qualquer marca).
+- Zero clichê e zero cara de IA.
+- Coerente com o estágio do funil.
+- Ritmo natural em PT-BR coloquial.
+
+Responda APENAS um JSON válido (sem markdown, sem texto extra) no formato:
+{ "headline": string (até 40 chars), "primary_text": string (até 180 chars), "description": string (até 30 chars) }
 
 ${HARD_RULES}`;
         usr = `${briefingText}
 
-Tarefa: gerar título + texto principal + descrição para um anúncio coerente com o estágio do funil acima e centrado no produto descrito.`;
+Tarefa: escreva título + texto principal + descrição para um anúncio Meta Ads centrado no produto acima, no estágio indicado. Gere 3 internamente, escolha a melhor, devolva só ela.`;
       } else {
         const labelPt = field === "headline" ? "título" : field === "primary_text" ? "texto principal" : "descrição";
         const limit = field === "headline" ? 40 : field === "primary_text" ? 180 : 30;
-        sys = `Você reescreve copy de anúncio Meta Ads em português do Brasil para o produto descrito no briefing.
+        sys = `${COPYWRITER_PERSONA}
+
+Você vai reescrever APENAS o ${labelPt} de um anúncio Meta Ads. Gere 3 versões diferentes internamente, escolha a melhor pelos critérios abaixo e devolva só ela.
+
+Critérios: gancho forte, específica ao produto, zero clichê, coerente com estágio, ritmo PT-BR natural.
+
 Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres) }. Sem markdown, sem texto extra.
 
 ${HARD_RULES}
 
 INSTRUÇÕES DE FEEDBACK (CRÍTICO):
 - O feedback do lojista é DIREÇÃO CRIATIVA, não texto pronto. NUNCA copie o feedback literalmente.
-- Trechos entre aspas, "como", "tipo", "parecido com", "no estilo de" no feedback são EXEMPLOS/INSPIRAÇÃO de tom, ângulo ou formato — use como referência, mas escreva uma versão NOVA.
-- Capture a INTENÇÃO do feedback (ângulo, tom, foco, benefício destacado) e gere um ${labelPt} original que carregue esse espírito, coerente com o briefing e o estágio.
+- Trechos entre aspas, "como", "tipo", "parecido com", "no estilo de" no feedback são EXEMPLOS/INSPIRAÇÃO de tom, ângulo ou formato — use como referência, escreva uma versão NOVA.
+- Capture a INTENÇÃO (ângulo, tom, foco, benefício destacado) e gere um ${labelPt} original com esse espírito.
 - Proibido devolver o feedback (ou o trecho entre aspas) como resposta.`;
         usr = `${briefingText}
 
@@ -440,25 +456,40 @@ Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respei
       }
 
       const callAI = async (sysMsg: string, usrMsg: string) => {
-        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }],
-          }),
-        });
-        if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          console.error("[ads-creative-inline-generate] AI gateway error:", r.status, t);
-          return null;
-        }
-        const j = await r.json();
-        const txt = j?.choices?.[0]?.message?.content || "";
         try {
-          const m = txt.match(/\{[\s\S]*\}/);
-          return JSON.parse(m ? m[0] : txt);
-        } catch {
+          const r = await aiChatCompletion(
+            COPY_MODEL,
+            {
+              messages: [
+                { role: "system", content: sysMsg },
+                { role: "user", content: usrMsg },
+              ],
+              temperature: 0.9,
+            },
+            {
+              supabaseUrl: Deno.env.get("SUPABASE_URL"),
+              supabaseServiceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+              preferProvider: "auto",
+              logPrefix: "[ads-creative-inline-generate]",
+              maxRetries: 2,
+              requestTimeoutMs: 90_000,
+            },
+          );
+          if (!r.ok) {
+            const t = await r.text().catch(() => "");
+            console.error("[ads-creative-inline-generate] AI router error:", r.status, t);
+            return null;
+          }
+          const j = await r.json();
+          const txt = j?.choices?.[0]?.message?.content || "";
+          try {
+            const m = txt.match(/\{[\s\S]*\}/);
+            return JSON.parse(m ? m[0] : txt);
+          } catch {
+            return null;
+          }
+        } catch (e) {
+          console.error("[ads-creative-inline-generate] AI router exception:", e);
           return null;
         }
       };
