@@ -486,7 +486,29 @@ function normalizeProspectingAdsetCustomerExclusion(adset: any, preflight: Strat
   };
 }
 
-export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+/** Limpa o público de clientes dos campos estruturais de targeting do adset. */
+function stripCustomerAudienceFromAdsetTargeting(adset: any, preflight: StrategicPlanPreflight): any {
+  const customerId = preflight?.customer_audience?.customer_audience_id
+    ? String(preflight.customer_audience.customer_audience_id)
+    : null;
+  if (!customerId) return adset;
+  const currentTargeting = adset?.targeting && typeof adset.targeting === "object" ? adset.targeting : {};
+  const currentExcludedCA = ensureArray<any>(currentTargeting?.excluded_custom_audiences)
+    .filter((entry: any) => String(entry?.id ?? entry) !== customerId);
+  const currentExcludedIds = ensureArray<any>(adset?.excluded_audience_ids)
+    .filter((entry: any) => String(entry?.id ?? entry) !== customerId);
+  return {
+    ...adset,
+    targeting: { ...currentTargeting, excluded_custom_audiences: currentExcludedCA },
+    excluded_audience_ids: currentExcludedIds,
+  };
+}
+
+export function enforceProspectingAdsetCustomerExclusions(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
   return {
@@ -494,14 +516,40 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
     planned_actions: plan.planned_actions.map((action: any) => {
       if (!action || typeof action !== "object" || !Array.isArray(action.adsets)) return action;
       if (hasCreativeTestCustomerOverride(action)) return action;
-      if (isTestForNewOrLaunchProduct(action)) {
-        // Teste de produto novo/lançamento: marca exceção determinística nos adsets,
-        // mas não força exclusão. Validador respeita o motivo.
+
+      // Aprendizado do tenant ativo para teste criativo: pula exclusão.
+      if (creativeTestLearningSkipsExclusion(action, signals)) {
+        const reasonText = getLearningSkipReasonText(signals);
         const normalizedAdsets = action.adsets.map((adset: any) => {
           if (!isProspectingLikeAdset(action, adset)) return adset;
-          const currentExclusion = adset?.audience_exclusions && typeof adset.audience_exclusions === "object" ? adset.audience_exclusions : {};
-          return {
-            ...adset,
+          const stripped = stripCustomerAudienceFromAdsetTargeting(adset, preflight);
+          const currentExclusion = stripped?.audience_exclusions && typeof stripped.audience_exclusions === "object" ? stripped.audience_exclusions : {};
+          const { customer_audience_id: _cid, customer_audience_name: _cname, pending_dependency: _pd, ...restExcl } = currentExclusion;
+          const next = {
+            ...stripped,
+            audience_exclusions: {
+              ...restExcl,
+              customers: false,
+              customer_audience_detected: false,
+              exclusion_skipped_reason: CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+              reason: reasonText,
+            },
+          };
+          rewriteTextsToMatchExclusion(next, false, CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON);
+          return next;
+        });
+        const nextAction = { ...action, adsets: normalizedAdsets };
+        rewriteTextsToMatchExclusion(nextAction, false, CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON);
+        return nextAction;
+      }
+
+      if (isTestForNewOrLaunchProduct(action)) {
+        const normalizedAdsets = action.adsets.map((adset: any) => {
+          if (!isProspectingLikeAdset(action, adset)) return adset;
+          const stripped = stripCustomerAudienceFromAdsetTargeting(adset, preflight);
+          const currentExclusion = stripped?.audience_exclusions && typeof stripped.audience_exclusions === "object" ? stripped.audience_exclusions : {};
+          const next = {
+            ...stripped,
             audience_exclusions: {
               ...currentExclusion,
               customers: false,
@@ -511,19 +559,26 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
                 "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
             },
           };
+          rewriteTextsToMatchExclusion(next, false, TEST_NEW_LAUNCH_SKIP_REASON);
+          return next;
         });
-        return { ...action, adsets: normalizedAdsets };
+        const nextAction = { ...action, adsets: normalizedAdsets };
+        rewriteTextsToMatchExclusion(nextAction, false, TEST_NEW_LAUNCH_SKIP_REASON);
+        return nextAction;
       }
 
       const normalizedAdsets = action.adsets.map((adset: any) => {
         if (!isProspectingLikeAdset(action, adset)) return adset;
-        return normalizeProspectingAdsetCustomerExclusion(adset, preflight);
+        const normalized = normalizeProspectingAdsetCustomerExclusion(adset, preflight);
+        const finalExcludes = normalized?.audience_exclusions?.customers === true;
+        rewriteTextsToMatchExclusion(normalized, finalExcludes, null);
+        return normalized;
       });
 
-      return {
-        ...action,
-        adsets: normalizedAdsets,
-      };
+      const nextAction = { ...action, adsets: normalizedAdsets };
+      const actionExcludes = nextAction?.audience_exclusions?.customers === true;
+      rewriteTextsToMatchExclusion(nextAction, actionExcludes, null);
+      return nextAction;
     }),
   };
 }
