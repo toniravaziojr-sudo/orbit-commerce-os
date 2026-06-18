@@ -306,6 +306,7 @@ Deno.serve(async (req) => {
     const actionId = String(body.action_id || "");
     const adIndex = Number(body.ad_index);
     const action = String(body.action || "");
+    const productNameHint = String(body.product_name_hint || "").trim();
 
     if (!tenantId || !actionId || !Number.isFinite(adIndex) || !action) {
       return ok({ success: false, error_pt: "Parâmetros obrigatórios ausentes." });
