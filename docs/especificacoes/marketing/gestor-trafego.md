@@ -4508,6 +4508,43 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 4. O validador aceita esse caso como válido, desde que o motivo venha de aprendizado ativo ou de outra exceção estrutural reconhecida.
 5. Textos livres são reescritos para refletir a estrutura final: se mantém clientes, não pode sobrar “Exclui clientes existentes”; se exclui, não pode sobrar “não exclui clientes”.
 
+
+---
+
+## 19 — Onda H.4.4 — Geração inline de criativo e copy na etapa Anúncios (2026-06-18)
+
+### Regra de negócio
+- O assistente passo a passo da proposta de campanha continua com **5 etapas**: Visão geral · Campanha · Conjuntos · **Anúncios** · Publicar.
+- A etapa **Anúncios** absorveu a produção do criativo: para cada anúncio planejado, o lojista resolve ali mesmo a imagem e os três textos (título, texto principal, descrição), com IA, upload do PC ou Drive.
+- A etapa **Publicar** mostra apenas o resumo final e o botão "Publicar na Meta" — não abre mais um modal separado de Revisão Final.
+
+### O que a etapa Anúncios oferece por anúncio
+- **Imagem**: botão "Gerar imagem com IA" · "Enviar do PC" · "Escolher no Drive". Quando já existe imagem, surgem "Regerar com IA" (com campo de feedback obrigatório), "Substituir" e "Remover".
+- **Textos**: botão único "Gerar título + texto + descrição" preenche os 3 campos. Depois disso cada campo ganha um botão próprio "Regerar com IA" (feedback obrigatório, mínimo 5 caracteres). A edição manual continua disponível.
+- **Confirmação de custo**: na primeira geração com IA da sessão, o lojista vê um diálogo dizendo que vai consumir créditos de IA e que nada será enviado à Meta agora. A sessão lembra a confirmação (não pergunta de novo até recarregar a aba).
+- **Aprendizado**: toda regeneração com feedback é gravada em `ads_ai_learnings` para a IA aprender o que o lojista prefere.
+
+### Critério para liberar a etapa Publicar
+- Cada anúncio precisa ter imagem definida e os três textos preenchidos. Caso algum esteja vazio, o botão Publicar permanece desabilitado e a etapa Publicar lista os anúncios pendentes.
+
+### O que foi removido / descontinuado
+- O modal de **Revisão Final** separado deixa de ser aberto para propostas novas. Continua existindo no repositório apenas para propostas legadas já em fila (`ApprovedProposalsSection`) — não pode voltar à tela para o fluxo novo sem aprovação explícita.
+- A geração automática em background de `creative_jobs` após aprovar a estrutura foi removida do fluxo padrão. Cada geração é um gesto explícito do lojista dentro da etapa Anúncios.
+
+### Implementação
+- Edge function: `supabase/functions/ads-creative-inline-generate/index.ts` — ações `generate_copy`, `regen_copy_field`, `generate_image`, `regen_image`. Reaproveita `creative-image-generate` para a imagem e Lovable AI Gateway (`google/gemini-2.5-flash`) para a copy.
+- UI: `src/components/ads/AdCreativeAIPanel.tsx` (painel de textos + controles de IA da imagem). Integrado em `StructuredProposalModal.tsx` (`AdSection` + `AttachCreativeBlock`).
+- Persistência: cada geração escreve em `action_data.ads[idx]` E em `action_data.planned_creatives[idx]` (espelho para o publisher).
+
+### Anti-regressão
+- Memória obrigatória: `mem://constraints/ads-h44-inline-creative-generation`.
+- Proibido reintroduzir auto-enqueue de `creative_jobs` após aprovar estrutura.
+- Proibido reabrir o `FinalReviewModal` separado para propostas novas.
+- Proibido gerar com IA sem diálogo de custo na primeira vez da sessão e sem feedback (>= 5 chars) em regenerações.
+- Proibido voltar a exibir "Será gerado na próxima etapa" no wizard — substituído por "A gerar nesta etapa".
+
+
+
 ### Anti-regressão
 - Proibido depender de correspondência textual estreita para reconhecer aprendizados de exclusão de clientes em testes criativos.
 - Proibido revalidar o plano ignorando o aprendizado ativo do tenant.

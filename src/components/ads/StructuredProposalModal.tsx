@@ -81,6 +81,7 @@ import type { GateIssue } from "@/lib/ads/gates/types";
 
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { AdCreativeAIPanel, AdImageAIControls } from "./AdCreativeAIPanel";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
@@ -232,16 +233,16 @@ function tr(group: string, value: string | null | undefined): string | null {
 }
 
 function translateCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
-  if (isStrategyStage) return "Será gerado na próxima etapa";
+  if (isStrategyStage) return "A gerar nesta etapa";
   switch (status) {
     case "pending_strategy_approval":
-      return "Será gerado na próxima etapa";
+      return "A gerar com IA ou enviar do PC/Drive";
     case "generating":
       return "Gerando…";
     case "ready":
       return "Pronto";
     default:
-      return "Será gerado na próxima etapa";
+      return "A gerar com IA ou enviar do PC/Drive";
   }
 }
 
@@ -604,6 +605,10 @@ export function StructuredProposalModal({
                       isStrategyStage={isStrategyStage}
                       isCampaignProposal={action.action_type === "campaign_proposal"}
                       campaign={structure.campaign}
+                      tenantId={action.tenant_id}
+                      actionId={action.id}
+                      adIndex={adIdx}
+                      onAfterAIChange={() => queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] })}
                       blockers={allBlockers.filter(
                         (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
                       )}
@@ -1060,12 +1065,12 @@ function OverviewSection({
 
             {h4Future.length > 0 && (
               <Block
-                title="Será gerado na próxima etapa"
+                title="A gerar na etapa Anúncios"
                 icon={<Sparkles className="h-3.5 w-3.5 text-muted-foreground" />}
               >
                 <p className="text-[11px] text-muted-foreground">
                   {h4Future.length} item(ns) do anúncio final (textos, criativo, link de destino e identificadores)
-                  serão gerados na etapa seguinte. Não bloqueiam a revisão da estratégia.
+                  serão gerados ou enviados na etapa <strong>Anúncios</strong>, com IA ou upload do seu PC/Drive.
                 </p>
               </Block>
             )}
@@ -1424,9 +1429,17 @@ function AdSetSection({
 function AttachCreativeBlock({
   ad,
   onPatch,
+  tenantId,
+  actionId,
+  adIndex,
+  onAfterAIChange,
 }: {
   ad: AdNode;
   onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+  tenantId?: string;
+  actionId?: string;
+  adIndex?: number;
+  onAfterAIChange?: () => void;
 }) {
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -1494,7 +1507,16 @@ function AttachCreativeBlock({
               <p className="text-xs text-muted-foreground">
                 Esta é a imagem que será publicada neste anúncio.
               </p>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-start">
+                {tenantId && actionId && typeof adIndex === "number" && (
+                  <AdImageAIControls
+                    tenantId={tenantId}
+                    actionId={actionId}
+                    adIndex={adIndex}
+                    hasImage={true}
+                    onChanged={() => onAfterAIChange?.()}
+                  />
+                )}
                 <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
                   <Upload className="h-3.5 w-3.5 mr-1.5" /> Substituir do PC
                 </Button>
@@ -1522,8 +1544,17 @@ function AttachCreativeBlock({
                 </p>
               </div>
             )}
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="default" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
+            <div className="flex gap-2 flex-wrap items-start">
+              {tenantId && actionId && typeof adIndex === "number" && (
+                <AdImageAIControls
+                  tenantId={tenantId}
+                  actionId={actionId}
+                  adIndex={adIndex}
+                  hasImage={false}
+                  onChanged={() => onAfterAIChange?.()}
+                />
+              )}
+              <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
                 {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
                 Enviar do PC
               </Button>
@@ -1532,7 +1563,7 @@ function AttachCreativeBlock({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Formatos: PNG, JPG ou WEBP — até 10 MB. Arquivos enviados do PC vão para a pasta mensal do Drive.
+              Gere com IA, envie do PC ou escolha no Drive. PNG, JPG ou WEBP — até 10 MB. Arquivos do PC vão para a pasta mensal do Drive.
             </p>
           </div>
         )}
@@ -1570,6 +1601,10 @@ function AdSection({
   blockers,
   editable = false,
   onPatch,
+  tenantId,
+  actionId,
+  adIndex,
+  onAfterAIChange,
 }: {
   ad: AdNode | null;
   isStrategyStage: boolean;
@@ -1578,6 +1613,10 @@ function AdSection({
   blockers: GateIssue[];
   editable?: boolean;
   onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+  tenantId?: string;
+  actionId?: string;
+  adIndex?: number;
+  onAfterAIChange?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(ad?.name || "");
@@ -1813,10 +1852,26 @@ function AdSection({
       </Block>
 
 
+      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
+        <AdCreativeAIPanel
+          tenantId={tenantId}
+          actionId={actionId}
+          adIndex={adIndex}
+          currentHeadline={ad.headline || ""}
+          currentPrimary={ad.primary_text || ""}
+          currentDescription={ad.description || ""}
+          onChanged={() => { onAfterAIChange?.(); }}
+        />
+      )}
+
       {editable ? (
         <AttachCreativeBlock
           ad={ad}
           onPatch={onPatch}
+          tenantId={tenantId}
+          actionId={actionId}
+          adIndex={adIndex}
+          onAfterAIChange={onAfterAIChange}
         />
       ) : (
         (ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
@@ -2215,7 +2270,7 @@ function Detail({
       ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
-            Será gerado na próxima etapa
+            A gerar nesta etapa (botão de IA abaixo)
           </span>
         </p>
       ) : empty && pendingField ? (
