@@ -4550,3 +4550,41 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 - Proibido revalidar o plano ignorando o aprendizado ativo do tenant.
 - Proibido reinjetar exclusão nos conjuntos quando a campanha de teste criativo já possui exceção estrutural por aprendizado ativo.
 - Validação mínima: gerar plano com aprendizado ativo “Campanhas de teste de criativos não precisa excluir clientes do público” e confirmar que campanha e conjuntos aparecem sem exclusão de clientes.
+
+## 20 — Ondas H.4.5 a H.4.8 — Qualidade de Copy IA (2026-06-18)
+
+Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inline da etapa Anúncios. Substituem comportamentos anteriores que produziam textos genéricos, com "?" automático no título e cortados no meio.
+
+### H.4.5 — Briefing enriquecido + feedback visível na regeneração
+- O briefing enviado ao modelo passa a incluir produto, descrição, preço, voz da marca, claims permitidas/proibidas, promessa principal e até 3 aprendizados ativos de copy do tenant.
+- Toda regeneração com feedback grava um aprendizado em `ads_ai_learnings` (categoria `copy`) para alimentar gerações futuras.
+
+### H.4.6 — Sem "?" automático no título
+- Regra dura: o headline nunca termina em "?" salvo se a pergunta for explicitamente pedida pelo lojista no feedback. Pós-processamento remove `?` finais residuais.
+
+### H.4.7 — Persona + 3 versões internas + modelo Pro
+- Persona explícita de copywriter sênior brasileiro com frameworks (AIDA, PAS, 4Us, BAB) e lista anti-clichê.
+- A cada chamada o motor gera 3 versões internamente, critica cada uma contra critérios de qualidade (gancho, especificidade, ritmo PT-BR, estágio do funil) e devolve apenas a melhor.
+- Modelo principal: `google/gemini-2.5-pro` via Lovable AI Gateway, com fallback automático.
+
+### H.4.8 — Limites generosos + smartTrim + anti-repetição + layout
+- Limites alinhados à Meta: título 60, texto principal 500, descrição 90.
+- Truncamento nunca corta no meio da palavra: usa `smartTrim` (último ponto/exclamação, depois último espaço, e só como último recurso reticências). Regra dura no prompt obriga frases completas — se não couber, a IA reescreve mais curto.
+- Anti-repetição: a cada regeneração o prompt recebe as versões anteriores e força abertura/framework/ângulo diferentes.
+- Layout: o painel de IA fica acima do bloco de criativo; ações de criativo (gerar/enviar/escolher/remover) agrupadas no topo do bloco; rodapé do modal com altura uniforme.
+
+### H.4.9 — Persistência de produto e regeneração resiliente (2026-06-18)
+- O gerador de proposta passa a persistir `product_id` e `product_name` em cada item de `planned_creatives`, eliminando a dependência do front-end em adivinhar o produto na hora de regerar.
+- O motor de copy ganha cascata de fallback: se o nome do produto não vier no payload, deriva da URL de destino (último segmento do path) e do nome do conjunto vinculado (último segmento após `|`). Isso desbloqueia regeneração também em propostas antigas, sem migração de dados.
+
+### Proibições
+- Voltar a usar `slice` cego que corta no meio de palavra.
+- Reintroduzir limites curtos (40/180/30) que mutilavam o texto principal.
+- Renderizar o painel de IA abaixo do bloco de criativo.
+- Regenerar sem passar a versão atual e as anteriores no prompt.
+- Falhar regeneração apenas porque o front-end não passou o nome do produto: o motor é obrigado a tentar derivar do conjunto e da URL de destino antes de recusar.
+
+### Memórias relacionadas
+- `mem://constraints/ads-h48-copy-limits-layout-and-anti-repeat`
+- `mem://constraints/ads-h44-inline-creative-generation`
+
