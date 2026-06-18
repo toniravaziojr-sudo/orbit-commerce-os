@@ -2220,13 +2220,16 @@ function PublishStepSummary({
 }
 
 
-function Block({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Block({ title, icon, children, actions }: { title: string; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <section>
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2">
-        {icon}
-        {title}
-      </h3>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          {icon}
+          {title}
+        </h3>
+        {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
+      </div>
       <div className="rounded-md border border-border/40 bg-card/40 p-3">{children}</div>
     </section>
   );
