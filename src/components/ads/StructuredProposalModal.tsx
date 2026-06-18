@@ -1733,13 +1733,7 @@ function AdSection({
     <div className="space-y-4">
       {/* Bloco 1: ANÚNCIO (entrega) */}
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
-        {editable && !editing && (
-          <div className="flex justify-end mb-2">
-            <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 text-xs">
-              <Pencil className="h-3 w-3 mr-1" /> Editar textos do anúncio
-            </Button>
-          </div>
-        )}
+
         {editable && editing ? (
           <div className="grid grid-cols-1 gap-3">
             <div>
