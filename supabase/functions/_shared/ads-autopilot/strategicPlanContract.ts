@@ -731,7 +731,11 @@ function inferAudienceBudgetFitsForPlan(plan: any, preflight: StrategicPlanPrefl
   return { ...plan, planned_actions: next };
 }
 
-function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPreflight): any {
+function normalizeStrategicPlanAction(
+  action: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!action || typeof action !== "object") return action;
 
   const campaignType = String(canonicalizeCampaignType(action));
@@ -747,13 +751,25 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
   let audienceExclusions = current;
   const isTestNewLaunch = isTestForNewOrLaunchProduct({ ...action, campaign_type: campaignType, campaign_intent: campaignIntent, funnel_stage: funnelStage, affected_funnel: affectedFunnel });
   const hasOverride = hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent });
+  const learningSkipsExclusion = creativeTestLearningSkipsExclusion(
+    { ...action, campaign_intent: campaignIntent },
+    signals,
+  ) && !isTestNewLaunch && !hasOverride;
   // Default seguro: testes criativos sem sinal de lançamento e sem justificativa
-  // formal devem excluir clientes (mesmo critério do tráfego frio). Evita bloqueio
-  // por omissão do LLM e respeita a regra de negócio: só mantém clientes quando há
-  // sinal explícito de produto novo/lançamento.
+  // formal devem excluir clientes (mesmo critério do tráfego frio). Aprendizado
+  // ATIVO do tenant sobrepõe esse default para teste criativo.
   const isCreativeTestWithoutLaunch =
-    campaignIntent === "creative_test" && !isTestNewLaunch && !hasOverride;
-  if ((isCold || isCreativeTestWithoutLaunch) && !hasOverride && !isTestNewLaunch) {
+    campaignIntent === "creative_test" && !isTestNewLaunch && !hasOverride && !learningSkipsExclusion;
+  if (learningSkipsExclusion) {
+    const { customer_audience_id: _cid, customer_audience_name: _cname, pending_dependency: _pd, ...rest } = current;
+    audienceExclusions = {
+      ...rest,
+      customers: false,
+      customer_audience_detected: false,
+      exclusion_skipped_reason: CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+      reason: getLearningSkipReasonText(signals),
+    };
+  } else if ((isCold || isCreativeTestWithoutLaunch) && !hasOverride && !isTestNewLaunch) {
     if (detected) {
       const { pending_dependency: _pending, ...rest } = current;
       audienceExclusions = {
@@ -788,9 +804,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
   }
 
   // Auto-cura A: rebaixar `catalog_*` quando o estrategista NÃO preencheu nenhum
-  // campo de catálogo. Isso indica que a intenção real era prospecção/retargeting
-  // comum (vídeo/imagem estática) e o prefixo `catalog_` foi um erro de rotulagem
-  // do LLM. Sem essa auto-cura, o plano inteiro caía em "incompleto".
+  // campo de catálogo.
   const csIncoming = (action.catalog_setup && typeof action.catalog_setup === "object")
     ? action.catalog_setup
     : null;
@@ -805,9 +819,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     demotedFromCatalog = true;
   }
 
-  // Auto-cura B: catálogo dinâmico sem catálogo Meta detectado → injetar
-  // pending_dependency determinística para evitar bloqueio do plano inteiro
-  // por falha do LLM em declarar a pendência.
+  // Auto-cura B: catálogo dinâmico sem catálogo Meta detectado.
   let catalogSetup = action.catalog_setup;
   if (isCatalogType(campaignTypeFinal) && !preflight.catalog_availability?.catalog_detected) {
     const cs = (catalogSetup && typeof catalogSetup === "object") ? catalogSetup : {};
