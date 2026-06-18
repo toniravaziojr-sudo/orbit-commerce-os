@@ -797,6 +797,9 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         creative_source: isRegen ? "ai_regen" : "ai_inline",
         creative_job_id: jobId,
         creative_generated_at: new Date().toISOString(),
+        product_id: productId,
+        reference_image_url: productImageUrl,
+        product_name: pName,
       };
       const plannedPatch = {
         ...patch,
