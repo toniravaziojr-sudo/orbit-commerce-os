@@ -2216,7 +2216,7 @@ function Detail({
       ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
-            Será gerado na próxima etapa
+            A gerar nesta etapa (botão de IA abaixo)
           </span>
         </p>
       ) : empty && pendingField ? (
