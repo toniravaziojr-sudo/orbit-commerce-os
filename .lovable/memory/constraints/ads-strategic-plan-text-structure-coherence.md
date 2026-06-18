@@ -35,3 +35,9 @@ No plano estratégico do Gestor de Tráfego IA, **a estrutura final de exclusão
 2026-06-18: plano gerado para o tenant Respeite o Homem mostrava conjuntos com badge "Exclui: Clientes" e simultaneamente o texto "Clientes não serão excluídos, conforme regra de IA para testes criativos". Causa: o LLM honrava o aprendizado da IA no texto, mas o normalizador (corretamente, por default de segurança) mantinha a exclusão estrutural; nenhum passo reescrevia o texto. Lojista via duas decisões opostas no mesmo card.
 
 Correção entrega: (a) sinal do tenant derivado dos aprendizados ativos passa a sobrepor o default quando aplicável; (b) qualquer normalização passa a reescrever também os textos.
+
+## Reforço anti-regressão — 2026-06-18
+
+O detector do aprendizado ativo deve reconhecer redações naturais do lojista, inclusive: “Campanhas de teste de criativos não precisa excluir clientes do público”. Não depender apenas de frases na ordem “teste criativo” → “não excluir” → “clientes”.
+
+O validador também deve respeitar `exclusion_skipped_reason = creative_test_tenant_learning` em campanha e conjunto. Se o normalizador removeu a exclusão por aprendizado ativo, a validação não pode reinjetar bloqueio nem exigir exclusão nos conjuntos de público amplo/lookalike.
