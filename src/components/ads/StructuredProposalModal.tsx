@@ -1816,6 +1816,22 @@ function AdSection({
         )}
       </Block>
 
+      {/* Painel de IA de textos — fica ACIMA do bloco de criativo para que
+          o botão "Gerar tudo novamente" e os feedbacks por campo apareçam
+          antes das copies. */}
+      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
+        <AdCreativeAIPanel
+          tenantId={tenantId}
+          actionId={actionId}
+          adIndex={adIndex}
+          productNameHint={ad.product_name || ""}
+          currentHeadline={ad.headline || ""}
+          currentPrimary={ad.primary_text || ""}
+          currentDescription={ad.description || ""}
+          onChanged={() => { onAfterAIChange?.(); }}
+        />
+      )}
+
       {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
       <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
         <DetailGrid>
@@ -1851,19 +1867,6 @@ function AdSection({
         </DetailGrid>
       </Block>
 
-
-      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
-        <AdCreativeAIPanel
-          tenantId={tenantId}
-          actionId={actionId}
-          adIndex={adIndex}
-          productNameHint={ad.product_name || ""}
-          currentHeadline={ad.headline || ""}
-          currentPrimary={ad.primary_text || ""}
-          currentDescription={ad.description || ""}
-          onChanged={() => { onAfterAIChange?.(); }}
-        />
-      )}
 
       {editable ? (
         <AttachCreativeBlock
