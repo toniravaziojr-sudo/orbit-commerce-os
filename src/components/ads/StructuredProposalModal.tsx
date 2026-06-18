@@ -1823,7 +1823,21 @@ function AdSection({
       )}
 
       {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
-      <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
+      <Block
+        title="Criativo do anúncio"
+        icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
+        actions={
+          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (ad.headline || ad.primary_text || ad.description) ? (
+            <RegenCopyButton
+              tenantId={tenantId}
+              actionId={actionId}
+              adIndex={adIndex}
+              productNameHint={ad.product_name || ""}
+              onChanged={() => { onAfterAIChange?.(); }}
+            />
+          ) : null
+        }
+      >
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
           <Detail
