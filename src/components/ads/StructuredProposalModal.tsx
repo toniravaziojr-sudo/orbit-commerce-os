@@ -1879,27 +1879,21 @@ function AdSection({
 
           <div className="flex-1 min-w-0 space-y-3">
             {/* Quando ainda não há nenhum texto e o lojista pode editar,
-                expor um único botão "Gerar copy" inline. Regeração com feedback
-                fica no botão "Regenerar" do header do card. */}
+                expor a barra "Gerar copy". Regeração com feedback fica no
+                botão "Regenerar" do header do card. */}
             {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !(ad.headline || ad.primary_text || ad.description) && (
-              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="text-xs text-foreground">Gere título, texto e descrição com IA.</span>
-                </div>
-                <AdCreativeAIPanel
-                  tenantId={tenantId}
-                  actionId={actionId}
-                  adIndex={adIndex}
-                  productNameHint={ad.product_name || ""}
-                  currentHeadline={ad.headline || ""}
-                  currentPrimary={ad.primary_text || ""}
-                  currentDescription={ad.description || ""}
-                  onChanged={() => { onAfterAIChange?.(); }}
-                  compact
-                />
-              </div>
+              <AdCreativeAIPanel
+                tenantId={tenantId}
+                actionId={actionId}
+                adIndex={adIndex}
+                productNameHint={ad.product_name || ""}
+                currentHeadline={ad.headline || ""}
+                currentPrimary={ad.primary_text || ""}
+                currentDescription={ad.description || ""}
+                onChanged={() => { onAfterAIChange?.(); }}
+              />
             )}
+
 
             <DetailGrid>
               <Detail label="Produto/oferta" value={ad.product_name} />
