@@ -4490,6 +4490,8 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 - Proibido reintroduzir botão isolado "Aprovar estrutura" no assistente ou no card de proposta.
 - Proibido reintroduzir seção/lista paralela visível para o lojista do tipo "aprovadas aguardando publicação", "aguardando criativos" ou "pronto para publicar". O componente técnico antigo permanece no repositório apenas para uso interno/diagnóstico — não pode voltar à tela sem aprovação explícita.
 - Proibido marcar a proposta como aprovada sem disparar o publish em sequência (deixa a proposta em limbo invisível).
+- **Paridade total na publicação (v1.1, 2026-06-18):** a publicação na Meta só marca a proposta como `executed` quando TODOS os anúncios planejados são criados com sucesso. Falha parcial (ex.: 1 de 2 anúncios criados) ou falha total devolve a proposta para `status=pending_approval` em "Aguardando ação", preservando os criativos e copys já anexados, e registra `lifecycle.failure_code` / `failure_message_pt`. Erros inesperados também caem nessa rota — proibido deixar a proposta presa em `status=approved` sem execução real.
+- **Múltiplos conjuntos obrigatório (v1.1, 2026-06-18):** o publicador deve criar **todos** os conjuntos planejados (`action_data.adsets[]`) e vincular cada anúncio ao conjunto correto via `planned_creatives[i].adset_index`. Proibido voltar a usar somente `adsets[0]` para todos os anúncios — quebra a estratégia aprovada pelo lojista.
 
 ---
 

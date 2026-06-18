@@ -20,7 +20,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
-const VERSION = "v1.0.0-h42";
+const VERSION = "v1.1.0-h5-multi-adset";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -239,53 +239,78 @@ Deno.serve(async (req) => {
     }
     const metaCampaignId = campaignRes.data?.data?.meta_campaign_id;
 
-    // ===== Step 2: Adset (primeiro adset da proposta) =====
-    const adset0 = adsetsList[0] || {};
-    const targeting: any = {
-      geo_locations: adset0.geo_locations || { countries: ["BR"] },
-      age_min: adset0.age_min || 18,
-      age_max: adset0.age_max || 65,
-    };
-    if (Array.isArray(adset0.genders) && adset0.genders.length > 0) targeting.genders = adset0.genders;
-    if (Array.isArray(adset0.publisher_platforms) && adset0.publisher_platforms.length > 0) {
-      targeting.publisher_platforms = adset0.publisher_platforms;
-    }
-    if (Array.isArray(adset0.excluded_audience_ids) && adset0.excluded_audience_ids.length > 0) {
-      targeting.excluded_custom_audiences = adset0.excluded_audience_ids.map((a: any) => ({ id: a.id || a }));
-    }
+    // ===== Step 2: Criar TODOS os conjuntos da proposta =====
+    // Mapeia adset_index -> meta_adset_id criado, para vincular cada anúncio
+    // ao conjunto correto na etapa 3.
+    const accountIdClean = String(adAccountId).replace("act_", "");
+    const adsetIdByIndex = new Map<number, string>();
+    const createdAdsetIds: string[] = [];
 
-    const optimizationGoal = adset0.optimization_goal || "OFFSITE_CONVERSIONS";
-    const billingEvent = adset0.billing_event || "IMPRESSIONS";
-    const conversionEvent = adset0.conversion_event || identity.conversion_event || "PURCHASE";
+    for (let aIdx = 0; aIdx < adsetsList.length; aIdx++) {
+      const adset = adsetsList[aIdx] || {};
+      const targeting: any = {
+        geo_locations: adset.geo_locations
+          || (adset.location ? { countries: [String(adset.location).slice(0, 2).toUpperCase() === "BR" ? "BR" : "BR"] } : { countries: ["BR"] }),
+        age_min: adset.age_min || 18,
+        age_max: adset.age_max || 65,
+      };
+      if (Array.isArray(adset.genders) && adset.genders.length > 0) targeting.genders = adset.genders;
+      if (Array.isArray(adset.publisher_platforms) && adset.publisher_platforms.length > 0) {
+        targeting.publisher_platforms = adset.publisher_platforms;
+      }
+      // Exclusões: aceita formato moderno (targeting.excluded_custom_audiences) ou legado (excluded_audience_ids).
+      const exclArrRaw = adset?.targeting?.excluded_custom_audiences
+        || (Array.isArray(adset.excluded_audience_ids)
+          ? adset.excluded_audience_ids.map((a: any) => (typeof a === "object" ? a : { id: a }))
+          : []);
+      if (Array.isArray(exclArrRaw) && exclArrRaw.length > 0) {
+        targeting.excluded_custom_audiences = exclArrRaw.map((a: any) => ({ id: a.id || a }));
+      }
 
-    const adsetBody: any = {
-      tenant_id,
-      action: "create",
-      ad_account_id: adAccountId,
-      meta_campaign_id: metaCampaignId,
-      name: adset0.name || `${campaignName} - CJ 1`,
-      optimization_goal: optimizationGoal,
-      billing_event: billingEvent,
-      targeting,
-      status: scheduling.status,
-    };
-    if (scheduling.start_time) adsetBody.start_time = scheduling.start_time;
-    if (identity.pixel_id) {
-      adsetBody.promoted_object = { pixel_id: identity.pixel_id, custom_event_type: conversionEvent };
-    }
+      const optimizationGoal = adset.optimization_goal || "OFFSITE_CONVERSIONS";
+      const billingEvent = adset.billing_event || "IMPRESSIONS";
+      const conversionEvent = adset.conversion_event || identity.conversion_event || "PURCHASE";
 
-    const adsetRes = await supabase.functions.invoke("meta-ads-adsets", { body: adsetBody });
-    if (adsetRes.error || !adsetRes.data?.success) {
-      const errMsg = adsetRes.error?.message || adsetRes.data?.error || "Falha ao criar conjunto na Meta.";
-      await markFailed(supabase, action_id, propData, lifecycle, "adset_create_failed", errMsg, { meta_campaign_id: metaCampaignId });
-      return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "adset", meta_campaign_id: metaCampaignId }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const adsetBody: any = {
+        tenant_id,
+        action: "create",
+        ad_account_id: adAccountId,
+        meta_campaign_id: metaCampaignId,
+        name: adset.name || `${campaignName} - CJ ${aIdx + 1}`,
+        optimization_goal: optimizationGoal,
+        billing_event: billingEvent,
+        targeting,
+        status: scheduling.status,
+      };
+      if (scheduling.start_time) adsetBody.start_time = scheduling.start_time;
+      if (identity.pixel_id) {
+        adsetBody.promoted_object = { pixel_id: identity.pixel_id, custom_event_type: conversionEvent };
+      }
+      // ABO: orçamento no conjunto. CBO: orçamento na campanha.
+      if (adset.daily_budget_cents && String(campaign.budget_mode || "").toUpperCase() !== "CBO") {
+        adsetBody.daily_budget_cents = Number(adset.daily_budget_cents);
+      }
+
+      const adsetRes = await supabase.functions.invoke("meta-ads-adsets", { body: adsetBody });
+      if (adsetRes.error || !adsetRes.data?.success) {
+        const errMsg = adsetRes.error?.message || adsetRes.data?.error || `Falha ao criar conjunto ${aIdx + 1} na Meta.`;
+        await markFailed(supabase, action_id, propData, lifecycle, "adset_create_failed", errMsg, {
+          meta_campaign_id: metaCampaignId,
+          meta_adset_ids_created: createdAdsetIds,
+          failed_adset_index: aIdx,
+        });
+        return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "adset", adset_index: aIdx, meta_campaign_id: metaCampaignId }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const metaAdsetId = adsetRes.data?.data?.meta_adset_id;
+      if (metaAdsetId) {
+        adsetIdByIndex.set(aIdx, metaAdsetId);
+        createdAdsetIds.push(metaAdsetId);
+      }
     }
-    const metaAdsetId = adsetRes.data?.data?.meta_adset_id;
 
     // ===== Step 3: Para cada criativo pronto → upload imagem + adcreative + ad =====
-    const accountIdClean = String(adAccountId).replace("act_", "");
-    const createdAdIds: Array<{ creative_index: number; meta_ad_id: string | null; error?: string }> = [];
+    const createdAdIds: Array<{ creative_index: number; meta_ad_id: string | null; meta_adset_id: string | null; error?: string }> = [];
 
     // Resolve storeHost para destination_url quando não vier no planned
     const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).maybeSingle();
@@ -297,6 +322,17 @@ Deno.serve(async (req) => {
     for (const creative of readyCreatives) {
       const ov = overridesMap[String(creative.creative_index)] || {};
       if (ov.image_url) creative.image_url = ov.image_url;
+
+      // Conjunto-alvo do anúncio: usa adset_index do planned/ad; cai para 0 se não existir.
+      const targetAdsetIdx = (typeof creative.planned?.adset_index === "number")
+        ? creative.planned.adset_index
+        : 0;
+      const metaAdsetIdForAd = adsetIdByIndex.get(targetAdsetIdx) ?? adsetIdByIndex.get(0) ?? null;
+      if (!metaAdsetIdForAd) {
+        createdAdIds.push({ creative_index: creative.creative_index, meta_ad_id: null, meta_adset_id: null, error: "Conjunto-alvo não encontrado." });
+        continue;
+      }
+
       try {
         // Upload imagem — estratégia binária (multipart) para não depender da
         // capability "image scraper" do app Meta. Fallback para URL apenas se
@@ -394,13 +430,13 @@ Deno.serve(async (req) => {
         const adCreativeData = await adCreativeRes.json();
         if (!adCreativeData.id) throw new Error(`AdCreative: ${adCreativeData.error?.message || "id não retornado"}`);
 
-        // Ad
+        // Ad — vinculado ao conjunto correto
         const adRes = await supabase.functions.invoke("meta-ads-ads", {
           body: {
             tenant_id,
             action: "create",
             ad_account_id: adAccountId,
-            meta_adset_id: metaAdsetId,
+            meta_adset_id: metaAdsetIdForAd,
             meta_campaign_id: metaCampaignId,
             name: `[AI] Ad ${creative.creative_index + 1} - ${campaignName.replace(/^\[AI\]\s*/, "")}`,
             creative_id: adCreativeData.id,
@@ -410,29 +446,52 @@ Deno.serve(async (req) => {
         if (adRes.error || !adRes.data?.success) {
           throw new Error(adRes.error?.message || adRes.data?.error || "Falha ao criar anúncio.");
         }
-        createdAdIds.push({ creative_index: creative.creative_index, meta_ad_id: adRes.data?.data?.meta_ad_id || null });
+        createdAdIds.push({
+          creative_index: creative.creative_index,
+          meta_ad_id: adRes.data?.data?.meta_ad_id || null,
+          meta_adset_id: metaAdsetIdForAd,
+        });
       } catch (e: any) {
         console.error(`[publish-proposal][${VERSION}] creative ${creative.creative_index} failed:`, e?.message);
-        createdAdIds.push({ creative_index: creative.creative_index, meta_ad_id: null, error: String(e?.message || e) });
+        createdAdIds.push({
+          creative_index: creative.creative_index,
+          meta_ad_id: null,
+          meta_adset_id: metaAdsetIdForAd,
+          error: String(e?.message || e),
+        });
       }
     }
 
+    // Paridade total: só consideramos "publicada" se TODOS os criativos prontos
+    // viraram anúncio na Meta. Qualquer falha (parcial ou total) reabre a proposta
+    // na fila "Aguardando Ação" — sem limbo invisível.
     const successAds = createdAdIds.filter(a => a.meta_ad_id).length;
-    const finalStatus = successAds > 0 ? "campaign_implemented" : "campaign_implementation_failed";
+    const expectedAds = readyCreatives.length;
+    const allOk = successAds > 0 && successAds === expectedAds;
+    const finalStatus = allOk ? "campaign_implemented" : "campaign_implementation_failed";
     const nowIso = new Date().toISOString();
+    const failureDetail = !allOk
+      ? createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | ")
+      : null;
 
     await supabase.from("ads_autopilot_actions").update({
-      status: successAds > 0 ? "executed" : "approved",
-      executed_at: successAds > 0 ? nowIso : null,
+      // Sucesso total → executed e sai da fila.
+      // Qualquer falha → volta para pending_approval para o lojista tentar de novo.
+      status: allOk ? "executed" : "pending_approval",
+      executed_at: allOk ? nowIso : null,
+      approved_at: allOk ? action.approved_at : null,
       action_data: {
         ...propData,
         lifecycle: {
           ...lifecycle,
           status: finalStatus,
-          version: "h42_v1",
-          published_at: successAds > 0 ? nowIso : null,
+          version: "h5_v1",
+          published_at: allOk ? nowIso : null,
+          failed_at: allOk ? null : nowIso,
+          failure_code: allOk ? null : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed"),
+          failure_message_pt: allOk ? null : (failureDetail || "Falha ao publicar todos os anúncios na Meta."),
           meta_campaign_id: metaCampaignId,
-          meta_adset_id: metaAdsetId,
+          meta_adset_ids: createdAdsetIds,
           ads_created: createdAdIds,
           scheduled_start_time: scheduling.start_time || null,
           scheduling_mode: scheduling.start_time ? "scheduled_next_window" : "immediate",
@@ -450,7 +509,7 @@ Deno.serve(async (req) => {
       },
       rollback_data: {
         meta_campaign_id: metaCampaignId,
-        meta_adset_id: metaAdsetId,
+        meta_adset_ids: createdAdsetIds,
         meta_ad_ids: createdAdIds.filter(a => a.meta_ad_id).map(a => a.meta_ad_id),
       },
     }).eq("id", action_id);
@@ -460,31 +519,43 @@ Deno.serve(async (req) => {
       tenant_id,
       channel: action.channel || "meta",
       ad_account_id: adAccountId,
-      title: successAds > 0 ? "🚀 Campanha publicada na Meta" : "⚠️ Falha ao publicar campanha",
-      body: successAds > 0
-        ? `"${campaignName}" foi publicada com ${successAds} anúncio(s)${scheduling.start_time ? ` e iniciará às 00:01 (horário de Brasília) do próximo dia` : " (ativa imediatamente)"}.`
-        : `Não foi possível publicar "${campaignName}". Tente novamente ou ajuste os criativos.`,
+      title: allOk ? "🚀 Campanha publicada na Meta" : "⚠️ Falha ao publicar campanha",
+      body: allOk
+        ? `"${campaignName}" foi publicada com ${successAds} anúncio(s) em ${createdAdsetIds.length} conjunto(s)${scheduling.start_time ? ` e iniciará às 00:01 (horário de Brasília) do próximo dia` : " (ativa imediatamente)"}.`
+        : `Não foi possível publicar "${campaignName}" (${successAds}/${expectedAds} anúncios). ${failureDetail || ""} A proposta voltou para a fila para nova tentativa.`,
       category: "strategy",
-      priority: successAds > 0 ? "medium" : "high",
-      sentiment: successAds > 0 ? "positive" : "negative",
+      priority: allOk ? "medium" : "high",
+      sentiment: allOk ? "positive" : "negative",
       status: "open",
     });
 
     return new Response(JSON.stringify({
-      success: successAds > 0,
+      success: allOk,
+      error_pt: allOk ? undefined : (failureDetail || "Falha ao publicar todos os anúncios."),
       data: {
         lifecycle_status: finalStatus,
         meta_campaign_id: metaCampaignId,
-        meta_adset_id: metaAdsetId,
+        meta_adset_ids: createdAdsetIds,
         ads: createdAdIds,
         scheduled_start_time: scheduling.start_time || null,
         success_count: successAds,
-        total_creatives: readyCreatives.length,
+        total_creatives: expectedAds,
       },
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err: any) {
     console.error(`[publish-proposal][${VERSION}] fatal:`, err?.message);
+    // Anti-limbo: garante que erro inesperado também devolve a proposta para a fila.
+    try {
+      const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { action_id } = await req.clone().json().catch(() => ({}));
+      if (action_id) {
+        await sb.from("ads_autopilot_actions").update({
+          status: "pending_approval",
+          approved_at: null,
+        }).eq("id", action_id).eq("status", "approved");
+      }
+    } catch { /* ignore */ }
     return new Response(JSON.stringify({ success: false, error_pt: `Erro inesperado: ${err?.message || err}` }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
@@ -499,13 +570,16 @@ async function markFailed(
   message: string,
   extra: any = {},
 ) {
+  // Anti-limbo: reabre a proposta na fila com lifecycle de falha.
   await supabase.from("ads_autopilot_actions").update({
+    status: "pending_approval",
+    approved_at: null,
     action_data: {
       ...propData,
       lifecycle: {
         ...lifecycle,
         status: "campaign_implementation_failed",
-        version: "h42_v1",
+        version: "h5_v1",
         failed_at: new Date().toISOString(),
         failure_code: code,
         failure_message_pt: message,
@@ -514,3 +588,4 @@ async function markFailed(
     },
   }).eq("id", action_id);
 }
+
