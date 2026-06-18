@@ -190,7 +190,7 @@ async function buildBriefing(
   const stage = inferStageFromAdset(linkedAdset, campaign);
 
   const productName =
-    product?.name || ad.product_name || planned.product_name || campaign.product_name || "";
+    product?.name || productNameHint || ad.product_name || planned.product_name || campaign.product_name || "";
   const productDescription =
     product?.description || product?.short_description || ad.product_description ||
     planned.product_description || "";
