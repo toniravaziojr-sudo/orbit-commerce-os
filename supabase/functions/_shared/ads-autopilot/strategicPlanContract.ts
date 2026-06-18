@@ -35,6 +35,43 @@ export interface TenantStrategicSignals {
   } | null;
 }
 
+type LearningLike = {
+  id?: string | null;
+  title?: string | null;
+  description?: string | null;
+};
+
+export function deriveCreativeTestSkipCustomerExclusionSignalFromLearnings(
+  learnings: LearningLike[] | null | undefined,
+): TenantStrategicSignals {
+  const out: TenantStrategicSignals = { creative_test_skip_customer_exclusion: null };
+  if (!Array.isArray(learnings) || learnings.length === 0) return out;
+
+  const creativeTestIntent = /(?:campanhas?\s+de\s+)?(?:teste(?:s)?\s+(?:de\s+)?criativ(?:o|os|as)|creative\s+test)/i;
+  const customerAudience = /clientes?|compradores?|p[úu]blico/i;
+  const skipExclusion = /(?:n[aã]o\s+(?:precisa(?:m)?|dev(?:e|em)?|necessita(?:m)?|exig(?:e|em)?|ser[aã]o|s[aã]o)?\s*(?:de\s+)?(?:ser(?:em)?\s+)?exclu[ií]d(?:o|os|a|as)|sem\s+exclus[aã]o|manter\s+(?:os\s+)?clientes)/i;
+
+  for (const learning of learnings) {
+    const text = `${learning?.title || ""} ${learning?.description || ""}`.trim();
+    if (!text) continue;
+    if (creativeTestIntent.test(text) && customerAudience.test(text) && skipExclusion.test(text)) {
+      out.creative_test_skip_customer_exclusion = {
+        active: true,
+        reason: String(learning?.description || learning?.title || "Aprendizado ativo: teste criativo não exclui clientes.").trim().slice(0, 280),
+        learning_id: learning?.id || null,
+        learning_title: learning?.title || null,
+      };
+      break;
+    }
+  }
+  return out;
+}
+
+function hasStructureAwareCustomerSkip(value: any): boolean {
+  const reason = String(value?.audience_exclusions?.exclusion_skipped_reason || "").trim();
+  return STRUCTURE_AWARE_SKIP_REASONS.has(reason);
+}
+
 // Sinais de produto em lançamento/novo (não-carro-chefe). Aplicados a product_name,
 // product_lifecycle e tags do action quando disponíveis. Sinais carro-chefe vencem.
 const NEW_LAUNCH_PRODUCT_TOKENS = /(lan[cç]amento|novidade|nova f[oó]rmula|rec[eé]m[\s-]?lan[cç]ad[oa]|pr[eé][\s-]?venda|prelan[cç]amento|launch|new product|beta|piloto)/i;
@@ -1217,6 +1254,8 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       const adsetExcludedCustomAudiences = ensureArray<any>(adset?.targeting?.excluded_custom_audiences).map((entry: any) => String(entry?.id ?? entry));
       const detected = preflight.customer_audience.customer_audience_detected;
       const customerId = preflight.customer_audience.customer_audience_id;
+
+      if (hasStructureAwareCustomerSkip(a) || hasStructureAwareCustomerSkip(adset)) return;
 
       if (detected && customerId) {
         const hasConditionA =
