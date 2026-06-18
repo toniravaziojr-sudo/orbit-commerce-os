@@ -10,7 +10,7 @@ A partir de 2026-06-18 (v1.2.0-h5-full-parity), `ads-autopilot-publish-proposal`
 - `mapGender`: "Masculino"/"masc"/"homem"/"male" → `[1]`; "Feminino"/"female"/"mulher" → `[2]`; "Todos"/"ambos"/vazio → omitir. Aceita array `[1,2]` direto.
 - `mapGeoLocations`: aceita `geo_locations` estruturado; cai para `{countries:["BR"]}`.
 - `applyPlacements`:
-  - `["advantage_plus"]` → `targeting_automation.advantage_audience=1` e **NÃO** envia `publisher_platforms` (Advantage+ Placements).
+  - `["advantage_plus"]` (Advantage+ **Placements**) → simplesmente **omitir** `publisher_platforms`/positions. PROIBIDO setar `targeting_automation.advantage_audience=1` aqui — isso é Advantage+ **Audience** (automação de PÚBLICO), coisa diferente, e força a Meta a rejeitar `age_min > 25` (erro 1870188 em 2026-06-18). Só ligar `advantage_audience=1` se a proposta tiver `use_advantage_audience: true` explícito.
   - Lista manual (`facebook_feed`, `instagram_reels`, etc.) → `publisher_platforms` + `facebook_positions`/`instagram_positions`/`messenger_positions`/`audience_network_positions`.
 - `mapAttributionSpec`: `"7d_click_1d_view"` → `[{event_type:"CLICK_THROUGH",window_days:7},{event_type:"VIEW_THROUGH",window_days:1}]`. Enviado em `adset.attribution_spec`.
 - `fetchAccountAudiences` + `findAudienceByName` + `extractIncludedAudienceRefs`: resolvem nomes de público/lookalike em IDs reais da conta no momento do publish (1 fetch por publicação, cache em memória).

@@ -29,11 +29,17 @@ Deno.test("mapGeoLocations — fallback BR", () => {
   );
 });
 
-Deno.test("applyPlacements — Advantage+ omite publisher_platforms", () => {
+Deno.test("applyPlacements — Advantage+ Placements NÃO ativa advantage_audience (regressão 1870188 em 2026-06-18)", () => {
   const t: any = {};
   applyPlacements(t, { placements: ["advantage_plus"] });
-  assertEquals(t.targeting_automation, { advantage_audience: 1 });
+  assertEquals(t.targeting_automation, undefined);
   assertEquals(t.publisher_platforms, undefined);
+});
+
+Deno.test("applyPlacements — Advantage+ Audience só liga com flag explícita", () => {
+  const t: any = {};
+  applyPlacements(t, { placements: ["advantage_plus"], use_advantage_audience: true });
+  assertEquals(t.targeting_automation, { advantage_audience: 1 });
 });
 
 Deno.test("applyPlacements — lista manual mapeia para posicionamentos", () => {

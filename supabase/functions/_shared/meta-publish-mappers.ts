@@ -63,9 +63,15 @@ export function applyPlacements(targeting: any, adset: any): void {
     || adset?.advantage_plus_placements === true;
 
   if (advantageRequested) {
-    // Advantage+ Placements: a Meta exige NÃO enviar publisher_platforms;
-    // basta marcar targeting_automation.advantage_audience=1 e omitir restrições.
-    targeting.targeting_automation = { ...(targeting.targeting_automation || {}), advantage_audience: 1 };
+    // Advantage+ Placements: basta NÃO enviar publisher_platforms/positions.
+    // ATENÇÃO: NÃO setar targeting_automation.advantage_audience=1 — isso é
+    // Advantage+ AUDIENCE (automação de público), coisa diferente, e força
+    // a Meta a rejeitar age_min > 25 (erro 1870188 em 2026-06-18).
+    // Advantage+ Audience só deve ser ativado se a proposta pedir explicitamente
+    // via adset.use_advantage_audience === true.
+    if (adset?.use_advantage_audience === true) {
+      targeting.targeting_automation = { ...(targeting.targeting_automation || {}), advantage_audience: 1 };
+    }
     return;
   }
 
