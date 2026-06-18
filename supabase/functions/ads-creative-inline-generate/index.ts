@@ -130,8 +130,11 @@ async function buildBriefing(
   const linkedAdset = pickLinkedAdset(propData, ad);
 
   const productId = ad.product_id || planned.product_id || propData.product_id || null;
+  const productNameHint = String(
+    ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name || "",
+  ).trim();
 
-  // Produto real do cadastro (quando houver).
+  // Produto real do cadastro (quando houver) — por ID, com fallback por nome.
   let product: any = null;
   if (productId) {
     const { data } = await supabase
@@ -140,6 +143,24 @@ async function buildBriefing(
       .eq("id", productId)
       .maybeSingle();
     product = data || null;
+  }
+  if (!product && productNameHint) {
+    const { data: exact } = await supabase
+      .from("products")
+      .select("id, name, description, price, short_description")
+      .eq("tenant_id", tenantId)
+      .ilike("name", productNameHint)
+      .limit(1);
+    product = (exact && exact[0]) || null;
+    if (!product) {
+      const { data: like } = await supabase
+        .from("products")
+        .select("id, name, description, price, short_description")
+        .eq("tenant_id", tenantId)
+        .ilike("name", `%${productNameHint}%`)
+        .limit(1);
+      product = (like && like[0]) || null;
+    }
   }
 
   // Voz da marca.
