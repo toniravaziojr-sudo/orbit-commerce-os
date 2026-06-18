@@ -123,6 +123,7 @@ async function buildBriefing(
   tenantId: string,
   propData: any,
   adIndex: number,
+  hintName?: string,
 ) {
   const planned = (propData?.planned_creatives || [])[adIndex] || {};
   const ad = (propData?.ads || [])[adIndex] || {};
@@ -131,7 +132,7 @@ async function buildBriefing(
 
   const productId = ad.product_id || planned.product_id || propData.product_id || null;
   const productNameHint = String(
-    ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name || "",
+    hintName || ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name || "",
   ).trim();
 
   // Produto real do cadastro (quando houver) — por ID, com fallback por nome.
