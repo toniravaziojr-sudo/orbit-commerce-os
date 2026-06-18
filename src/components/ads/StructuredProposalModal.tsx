@@ -233,16 +233,16 @@ function tr(group: string, value: string | null | undefined): string | null {
 }
 
 function translateCreativeStatus(status: AdNode["creative_status"], isStrategyStage: boolean): string {
-  if (isStrategyStage) return "Será gerado na próxima etapa";
+  if (isStrategyStage) return "A gerar nesta etapa";
   switch (status) {
     case "pending_strategy_approval":
-      return "Será gerado na próxima etapa";
+      return "A gerar com IA ou enviar do PC/Drive";
     case "generating":
       return "Gerando…";
     case "ready":
       return "Pronto";
     default:
-      return "Será gerado na próxima etapa";
+      return "A gerar com IA ou enviar do PC/Drive";
   }
 }
 
