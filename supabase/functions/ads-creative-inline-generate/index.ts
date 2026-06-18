@@ -41,11 +41,14 @@ async function recordLearning(
   tenantId: string,
   actionId: string,
   userId: string,
-  category: "creative_image_feedback" | "creative_copy_feedback",
+  subtype: "creative_image_feedback" | "creative_copy_feedback",
   title: string,
   description: string,
   metadata: Record<string, unknown>,
 ) {
+  // Mapeia para as categorias oficiais usadas na UI de Aprendizados.
+  // copy de anúncio -> "copy"; imagem de anúncio -> "criativo".
+  const category = subtype === "creative_copy_feedback" ? "copy" : "criativo";
   try {
     await supabase.from("ads_ai_learnings").insert({
       tenant_id: tenantId,
@@ -58,7 +61,7 @@ async function recordLearning(
       evidence_count: 1,
       confidence: 0.8,
       created_by: userId,
-      metadata,
+      metadata: { ...metadata, subtype },
     });
   } catch (e) {
     console.warn("[ads-creative-inline-generate] learning insert failed:", e);
