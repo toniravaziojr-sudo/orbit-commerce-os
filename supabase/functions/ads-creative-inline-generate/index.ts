@@ -401,7 +401,11 @@ Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres) 
 
 ${HARD_RULES}
 
-INSTRUÇÃO ADICIONAL: o feedback do lojista tem prioridade máxima sobre escolhas anteriores. Acate o que ele pediu, mantendo coerência com o briefing e o estágio.`;
+INSTRUÇÕES DE FEEDBACK (CRÍTICO):
+- O feedback do lojista é DIREÇÃO CRIATIVA, não texto pronto. NUNCA copie o feedback literalmente.
+- Trechos entre aspas, "como", "tipo", "parecido com", "no estilo de" no feedback são EXEMPLOS/INSPIRAÇÃO de tom, ângulo ou formato — use como referência, mas escreva uma versão NOVA.
+- Capture a INTENÇÃO do feedback (ângulo, tom, foco, benefício destacado) e gere um ${labelPt} original que carregue esse espírito, coerente com o briefing e o estágio.
+- Proibido devolver o feedback (ou o trecho entre aspas) como resposta.`;
         usr = `${briefingText}
 
 Versão atual do anúncio:
@@ -409,10 +413,10 @@ Versão atual do anúncio:
 - Texto principal: ${currPrimary}
 - Descrição: ${currDesc}
 
-Feedback do lojista (obrigatório acatar, aplicar SÓ no ${labelPt}):
+Feedback/direção do lojista (interpretar, NÃO copiar):
 "${feedback}"
 
-Reescreva APENAS o ${labelPt}, respeitando o feedback e o briefing.`;
+Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respeitando briefing, estágio e limites.`;
       }
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
