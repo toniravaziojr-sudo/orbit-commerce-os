@@ -1,72 +1,70 @@
-## Revisão depois de reler as regras
+# Onda H.4.5 — Copy contextualizada + feedback visível no passo Anúncios
 
-A queixa do usuário continua válida e o caminho continua sendo **unificar criativo + copy dentro da etapa 4 do wizard**. Mas dois pontos das regras antigas precisam ser respeitados, e foram ajustados no plano:
+## Por que a IA escreveu copy de "guarda-roupa" para um shampoo
 
-1. **Geração de criativos não pode acontecer "em background" automaticamente após aprovar a estrutura.** A regra atual exige segundo gesto explícito do lojista + diálogo de custo + checagem de prontidão antes de qualquer chamada de IA. Isso continua valendo — apenas muda *onde* o segundo gesto acontece: passa a ser cada botão "Gerar com IA" dentro da etapa 4, em vez de um botão pós-aprovação numa tela separada.
-2. **Aprovar e publicar continuam sendo gestos finais distintos** do gesto de gerar criativo. Cada um tem sua confirmação.
+O gerador de textos do passo Anúncios manda para a IA praticamente só o nome do produto. Fica de fora:
 
-Tudo o mais do plano anterior se mantém.
+1. **A descrição real do produto** (hoje só é buscada para a imagem).
+2. **A camada de funil e o público do anúncio** — o caso do print é "LAL 1% Compra | TOF | Shampoo Calvície Zero", ou seja **público frio**. Para frio, "não perca nossas promoções / compre o seu agora" queima a campanha. A etapa do funil e o tipo de público nunca chegam no prompt.
+3. **A estratégia e a promessa da campanha** (objetivo, ângulo, hipótese) — existem no rascunho da proposta mas não entram no briefing.
+4. **A voz da marca** (nome da loja, tom, categoria do negócio, persona).
+5. **Travas anti-alucinação** — sem regra explícita para não inventar oferta/desconto/garantia e não usar vocabulário de outro nicho (moda, guarda-roupa, etc.).
 
-## Como vai funcionar a etapa "Anúncios" (etapa 4)
+Resultado: a IA cai em molde genérico e escreve copy de outro segmento.
 
-Para cada anúncio planejado, um cartão único com:
+## O que vou ajustar
 
-**Criativo (imagem)**
-- Botão principal: **Gerar imagem com IA** — no primeiro clique da sessão, mostra o custo numérico e a frase "Isso vai consumir créditos de IA. Nada será enviado à Meta agora." Sem essa confirmação, não dispara.
-- Alternativas: **Enviar do PC** · **Escolher no Drive**.
-- Depois de pronta: pré-visualização + **Regenerar com IA** (campo de feedback obrigatório, limite de 3 regenerações por anúncio, com custo) · **Substituir** · **Remover**.
+### 1. Briefing enriquecido na geração e regeneração de textos
 
-**Textos do anúncio**
-- Botão principal: **Gerar textos com IA** — preenche título, texto principal e descrição de uma vez (mesma confirmação de custo na primeira vez).
-- Depois de prontos: cada um dos três campos editável, com botão próprio **Regenerar com IA** ao lado (também com feedback e custo).
-- Botão de ação (CTA) e link de destino continuam como estão hoje.
+Antes de chamar o modelo, monto um briefing único com:
 
-**Estado de processamento**
-- Enquanto a IA gera, o cartão mostra "Gerando…" e o botão **Avançar** fica desabilitado.
-- Falha: mensagem em PT-BR + botão **Tentar de novo**.
-- Se a checagem de prontidão (imagem principal do produto, logo, paleta, conexão Meta básica, orçamento, tabela de preços de IA) não passar, o botão "Gerar com IA" fica desabilitado com explicação clara dos itens faltantes (no máximo 3 visíveis + "Ver todos").
+- **Produto:** nome, descrição real, preço e categoria (busca no cadastro).
+- **Funil e público:** lê o conjunto vinculado ao anúncio e extrai etapa (frio/morno/quente), tipo de público (Lookalike, Interesse, Retargeting, Advantage+) e objetivo da campanha.
+- **Promessa, ângulo e formato** do criativo planejado.
+- **Voz da marca:** nome da loja, tom e categoria do negócio.
+- **Aprendizados recentes** de copy daquela loja (últimos correções) para não repetir erros já apontados.
 
-**Critério para liberar a etapa Publicar**
-- Cada anúncio precisa ter imagem definida e os três textos preenchidos (gerados, enviados ou editados). Etapa 5 mostra os anúncios pendentes se faltar algum.
+E reescrevo as instruções do modelo com regras por etapa:
 
-## Etapa "Publicar" (etapa 5)
+- **Frio (topo):** dor/desejo/curiosidade, sem "promoção/desconto/compre agora", CTA de descoberta.
+- **Morno (meio):** prova, comparação, benefício específico, urgência leve.
+- **Quente/Retargeting (fundo):** oferta direta, urgência, fechamento.
 
-- Resumo final (campanha, conjuntos, anúncios, janela de publicação 00:01–04:00 BRT).
-- Botão único **Publicar na Meta** — esta ação aprova a estrutura e publica em modo ATIVO no mesmo gesto, com a confirmação que já existe hoje ("esta ação é definitiva, vai começar a gastar quando rodar").
-- O modal separado de Revisão Final que existia depois de aprovar deixa de ser aberto — etapa 5 substitui ele.
+Mais travas duras:
+- Proibido inventar desconto, frete grátis, garantia, prazo ou claim regulado que não esteja na descrição.
+- Proibido usar vocabulário de outro nicho — a copy precisa encostar no produto real (nome, categoria, benefício declarado).
+- Proibido frases-clichê ("ofertas exclusivas hoje", "renove seu guarda-roupa", "qualidade e preço justo").
 
-## O que muda nos bastidores (decisões técnicas)
+A mesma base de briefing alimenta a regeneração de campo único (título, texto principal, descrição), preservando o feedback do lojista como instrução de maior prioridade.
 
-Decisões que estou tomando sozinho, dentro de critério de solidez/eficiência/segurança:
+### 2. Feedback de regeneração sempre visível
 
-- **Reaproveitar funções existentes** de gerar imagem, gerar/regerar texto e aplicar override. Adiciono apenas o caso "gerar texto do zero" (hoje só existe regenerar com feedback).
-- **Eliminar a automação que enfileirava criativos automaticamente** ao aprovar a estrutura. Geração passa a ser 100% sob comando do lojista dentro da etapa 4. Isso reduz custo (zero IA acidental) e elimina a duplicidade de telas.
-- **Marcar como descontinuado o modal de Revisão Final separado** e a seção "Propostas aprovadas em andamento" que vivia no painel — não some hoje da base, mas para de aparecer/ser navegável. Propostas antigas já aprovadas e em fila continuam pelo caminho atual até serem publicadas ou descartadas (sem regressão).
-- **Manter o diálogo de custo, o gate de prontidão, a idempotência (não duplicar custo em duplo clique) e o limite de 3 regenerações** — são as travas que já existem na regra atual.
-- **Não mexer no modal estruturado para propostas que não são de campanha** (plano estratégico, ajuste de orçamento etc. — continuam com fluxo inline ou overviewOnly como hoje).
+Hoje o lojista clica em "Regerar com IA" e só então aparece o campo de feedback — fica escondido. Vou:
 
-## O que continua igual
+- Trocar o botão "Regerar com IA" por um bloco compacto sempre visível em cada campo: rótulo "Ajustar este texto" + textarea + botão "Regenerar com este feedback" (desabilitado até 5 caracteres).
+- Aviso curto explicando que esse feedback é usado para o aprendizado da IA daquela loja (já é, hoje vira aprendizado registrado).
+- Mesma mudança no bloco de imagem: quando já existe imagem, o campo de feedback fica visível direto, igual ao padrão.
 
-- 5 etapas do wizard, mesmos nomes e ordem.
-- Regras de prontidão técnica (Meta conectada, pixel, página, URL+UTM, orçamento, tabela de preços de IA).
-- Janela de publicação 00:01–04:00 BRT (ou imediato se na faixa).
-- Aprendizados da IA a partir de feedback de regeneração.
+Isso é resposta direta ao pedido do usuário ("precisa ter como o usuário dar o feedback dela pra ajustar o aprendizado da IA"), então sigo sem nova consulta — sem mexer em mais nada da UI do wizard.
 
-## Validação antes de fechar
+### 3. Documentação e memória
 
-- Abrir uma proposta nova, ir até etapa 4, gerar imagem com IA (conferir diálogo de custo), gerar textos com IA, regenerar individualmente cada texto, regenerar imagem com feedback, substituir uma imagem pelo PC, avançar para etapa 5 e publicar.
-- Conferir que a etapa 5 bloqueia se algum anúncio ficar sem imagem ou textos.
-- Conferir que aprendizados de feedback continuam sendo gravados.
-- Conferir que propostas antigas em fila continuam funcionando sem regressão.
+- Atualizar a memória da Onda H.4.4 incluindo as regras novas de contexto + travas anti-alucinação (vira H.4.5).
+- Atualizar o doc do Gestor de Tráfego na seção do passo Anúncios para refletir o briefing enriquecido e o feedback visível.
+- Sem impacto em mapa-ui.md (não muda rota nem sidebar).
 
-## Documentação e governança
+## Validação técnica que vou rodar antes de fechar
 
-- Atualizar a especificação do Gestor de Tráfego (seção do fluxo de propostas e criativos).
-- Atualizar o mapa de UI (etapa 4 ganha blocos de IA; modal de Revisão Final separado descontinuado).
-- Atualizar as memórias de governança H.3 e H.4 para refletir que o "segundo gesto" agora vive dentro da etapa 4 do wizard, e que a Revisão Final foi absorvida pela etapa 5.
+- Disparar `generate_copy` numa proposta real do tenant Respeite o Homem e conferir que: a copy cita o produto correto, respeita o estágio frio (sem "compre agora"), e não usa termos de outro nicho.
+- Disparar `regen_copy_field` em "texto principal" com feedback "mais focado no benefício de combater queda" e conferir que o novo texto incorpora o feedback e gera registro de aprendizado.
+- Conferir nos logs que o briefing enviado contém produto + funil + voz da marca.
 
-## Bloco técnico (opcional)
+Se algum desses pontos falhar, volto para diagnóstico antes de declarar entrega.
 
-Se quiser, depois te mando a lista de arquivos tocados, funções reaproveitadas, função nova mínima para "gerar copy do zero" e os pontos de telemetria que vou preservar.
+## Detalhes técnicos (opcional)
 
-Confirma que sigo por aí?
+- Edge `ads-creative-inline-generate`: nova função interna `buildBriefing(propData, adIndex, supabase)` que junta `products` (description/price/category), `propData.adsets[ad.adset_index]` (funnel_stage/audience_type), `propData.campaign` (objective), `tenant_brand_context`/`ai_support_config` (voz) e top 3 `ads_ai_learnings` ativos `creative_copy_feedback`. Prompt do sistema reescrito com guia por etapa + lista de proibições. Contrato de resposta inalterado (`headline`/`primary_text`/`description`).
+- `AdCreativeAIPanel.tsx`: remover `openField`/toggle; cada campo passa a renderizar textarea + botão de regenerar direto. Sem nova action no backend — reaproveita `regen_copy_field` que já recebe feedback obrigatório.
+- `AdImageAIControls`: igual, textarea sempre visível quando `hasImage`.
+- Confirmação de custo da sessão (sessionStorage) preservada.
+- Sem alteração em etapas 1, 2, 3 e 5 do wizard.
