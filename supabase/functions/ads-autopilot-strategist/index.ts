@@ -71,7 +71,7 @@ async function attachObservationIfEligible(
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.50.0"; // Onda I (perf): poda inteligente de campanhas/adsets/ads no prompt + insights 365d account-scoped
+const VERSION = "v1.51.0"; // Fallback Gemini→OpenAI→Lovable também no gatilho manual (start)
 // ===================
 
 const corsHeaders = {
