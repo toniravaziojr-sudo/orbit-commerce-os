@@ -1,24 +1,24 @@
 // =============================================================================
-// ads-creative-inline-generate — Onda H.4.4
+// ads-creative-inline-generate — Onda H.4.5
 //
-// Geração inline de criativos e textos DENTRO da etapa "Anúncios" do wizard
-// de proposta de campanha (StructuredProposalModal step 4), substituindo o
-// fluxo separado de Revisão Final + creative_jobs em background.
+// Mudanças vs H.4.4:
+//   - Briefing enriquecido: produto real (cadastro), conjunto vinculado
+//     (etapa do funil + tipo de público), promessa/ângulo, voz do tenant
+//     (tenant_brand_context + ai_support_config) e últimos aprendizados
+//     de copy (ads_ai_learnings).
+//   - Regras duras anti-alucinação: proibido inventar oferta/desconto/
+//     garantia/prazo/claim regulado; proibido vocabulário de outro nicho;
+//     proibido clichês ("ofertas exclusivas", "renove seu guarda-roupa",
+//     "qualidade e preço justo", "compre o seu agora").
+//   - Diretrizes por estágio (frio/morno/quente) para copy aderente
+//     ao funil — TOF não fala em "compre agora", BOF pode fechar.
 //
-// Ações suportadas:
-//   "generate_copy"     — gera título + texto principal + descrição do zero
-//                         para um anúncio. Sem feedback obrigatório.
-//   "regen_copy_field"  — regenera APENAS um campo (headline | primary_text |
-//                         description) com feedback obrigatório (>=5 chars).
+// Ações suportadas (inalteradas):
+//   "generate_copy"     — gera título + texto principal + descrição do zero.
+//   "regen_copy_field"  — regenera apenas um campo, com feedback >=5 chars
+//                         (feedback registrado em ads_ai_learnings).
 //   "generate_image"    — gera imagem do criativo (sem feedback).
 //   "regen_image"       — regenera imagem com feedback obrigatório.
-//
-// Governança (H.4.0 / H.4.4):
-//   - Gesto explícito do lojista (cada clique).
-//   - Cobrança/aprendizado lateral via ads_ai_learnings quando há feedback.
-//   - Persiste em action_data.ads[idx] E em action_data.planned_creatives[idx]
-//     para o publisher e a UI verem o mesmo estado.
-//   - Idempotência leve: cada chamada sobrescreve os campos alvo.
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -64,6 +64,204 @@ async function recordLearning(
     console.warn("[ads-creative-inline-generate] learning insert failed:", e);
   }
 }
+
+// ---------- Briefing enriquecido ----------
+function inferStageFromAdset(adset: any, campaign: any): "cold" | "warm" | "hot" {
+  const raw = String(
+    adset?.funnel_stage || adset?.stage || campaign?.funnel_stage || campaign?.funnel || "",
+  ).toLowerCase();
+  if (/(^|[^a-z])(bof|hot|retarget|remarket|quente|fundo)/.test(raw)) return "hot";
+  if (/(mof|warm|morno|meio)/.test(raw)) return "warm";
+  if (/(tof|cold|frio|topo|prospect|lal|lookalike)/.test(raw)) return "cold";
+  // Heurística pelo tipo de público quando o stage não veio.
+  const aud = String(adset?.audience_type || adset?.audience_kind || "").toLowerCase();
+  if (/(retarget|remarket|custom|warm|engagement|visit|view|cart|purchase)/.test(aud)) return "hot";
+  if (/(lal|lookalike|interest|broad|advantage)/.test(aud)) return "cold";
+  return "cold";
+}
+
+function pickLinkedAdset(propData: any, ad: any) {
+  const adsets: any[] = Array.isArray(propData?.adsets) ? propData.adsets : [];
+  if (adsets.length === 0) return null;
+  const ref = String(ad?.ad_set_ref || ad?.adset_name || "").trim().toLowerCase();
+  if (ref) {
+    const match = adsets.find((a) => String(a?.name || "").trim().toLowerCase() === ref);
+    if (match) return match;
+  }
+  if (typeof ad?.adset_index === "number" && adsets[ad.adset_index]) return adsets[ad.adset_index];
+  return adsets[0];
+}
+
+function stageGuide(stage: "cold" | "warm" | "hot"): string {
+  if (stage === "cold") {
+    return [
+      "ESTÁGIO: TOPO DE FUNIL (público frio).",
+      "- Foco em dor/desejo/curiosidade real ligada ao produto.",
+      "- Abertura que prende em 1 segundo (pergunta, dado, contraste).",
+      "- PROIBIDO: 'compre agora', 'aproveite a oferta', 'última chance', 'promoção', menção a desconto, frete grátis ou prazo.",
+      "- CTA implícito de descoberta ('descubra', 'entenda', 'conheça') — não venda direta.",
+    ].join("\n");
+  }
+  if (stage === "warm") {
+    return [
+      "ESTÁGIO: MEIO DE FUNIL (público morno, já engajou).",
+      "- Prova, comparação, benefício específico e diferenciação.",
+      "- Urgência leve permitida, sem inventar prazo nem desconto que não exista.",
+      "- CTA de aprofundamento ou avaliação ('veja como funciona', 'compare').",
+    ].join("\n");
+  }
+  return [
+    "ESTÁGIO: FUNDO DE FUNIL (remarketing/quente).",
+    "- Fechamento direto: reforça benefício principal + chamada de ação clara.",
+    "- Pode citar oferta SE estiver explícita no contexto fornecido — nunca inventada.",
+    "- CTA de compra direto ('compre agora', 'finalize seu pedido') é permitido.",
+  ].join("\n");
+}
+
+async function buildBriefing(
+  supabase: any,
+  tenantId: string,
+  propData: any,
+  adIndex: number,
+) {
+  const planned = (propData?.planned_creatives || [])[adIndex] || {};
+  const ad = (propData?.ads || [])[adIndex] || {};
+  const campaign = propData?.campaign || {};
+  const linkedAdset = pickLinkedAdset(propData, ad);
+
+  const productId = ad.product_id || planned.product_id || propData.product_id || null;
+
+  // Produto real do cadastro (quando houver).
+  let product: any = null;
+  if (productId) {
+    const { data } = await supabase
+      .from("products")
+      .select("id, name, description, price, short_description")
+      .eq("id", productId)
+      .maybeSingle();
+    product = data || null;
+  }
+
+  // Voz da marca.
+  const [{ data: brand }, { data: aiCfg }] = await Promise.all([
+    supabase
+      .from("tenant_brand_context")
+      .select("brand_summary, tone_of_voice, approved_main_promise, banned_claims, do_not_do, allowed_claims")
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
+    supabase
+      .from("ai_support_config")
+      .select("personality_tone, business_context, forbidden_topics")
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
+  ]);
+
+  // Aprendizados recentes de copy.
+  const { data: learnings } = await supabase
+    .from("ads_ai_learnings")
+    .select("title, description, metadata, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("category", "creative_copy_feedback")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  const stage = inferStageFromAdset(linkedAdset, campaign);
+
+  const productName =
+    product?.name || ad.product_name || planned.product_name || campaign.product_name || "";
+  const productDescription =
+    product?.description || product?.short_description || ad.product_description ||
+    planned.product_description || "";
+  const productPrice = product?.price ?? null;
+
+  const audienceLabel = String(
+    linkedAdset?.target_audience || linkedAdset?.audience_summary || linkedAdset?.audience_type || "",
+  ).slice(0, 240);
+
+  const objective = String(
+    campaign?.objective_label || campaign?.objective || campaign?.campaign_objective || "",
+  ).slice(0, 80);
+
+  const promise = String(
+    planned?.promise || brand?.approved_main_promise || ad.offer_note || "",
+  ).slice(0, 240);
+
+  const angle = String(planned?.angle || planned?.ad_angle || "").slice(0, 80);
+  const format = String(planned?.format || ad.creative_format || "").slice(0, 40);
+
+  const brandTone = String(
+    brand?.tone_of_voice || aiCfg?.personality_tone || "",
+  ).slice(0, 120);
+  const brandSummary = String(brand?.brand_summary || aiCfg?.business_context || "").slice(0, 400);
+  const banned = [
+    ...(Array.isArray(brand?.banned_claims) ? brand.banned_claims : []),
+    ...(Array.isArray(brand?.do_not_do) ? brand.do_not_do : []),
+    ...(Array.isArray(aiCfg?.forbidden_topics) ? aiCfg.forbidden_topics : []),
+  ].slice(0, 8);
+  const allowed = Array.isArray(brand?.allowed_claims) ? brand.allowed_claims.slice(0, 8) : [];
+
+  const learningsLines = (learnings || [])
+    .map((l: any) => {
+      const fb = String(l?.description || "").trim().slice(0, 180);
+      return fb ? `- ${fb}` : "";
+    })
+    .filter(Boolean);
+
+  return {
+    stage,
+    productName,
+    productDescription: productDescription.slice(0, 600),
+    productPrice,
+    audienceLabel,
+    objective,
+    promise,
+    angle,
+    format,
+    brandTone,
+    brandSummary,
+    banned,
+    allowed,
+    learningsLines,
+    campaignName: String(campaign?.name || campaign?.campaign_name || "").slice(0, 120),
+    adsetName: String(linkedAdset?.name || ad.ad_set_ref || "").slice(0, 160),
+  };
+}
+
+function formatBriefingForPrompt(b: ReturnType<typeof buildBriefing> extends Promise<infer R> ? R : never): string {
+  const lines: string[] = [];
+  lines.push(`PRODUTO: ${b.productName || "(sem nome)"}`);
+  if (b.productDescription) lines.push(`DESCRIÇÃO REAL DO PRODUTO: ${b.productDescription}`);
+  if (b.productPrice != null) lines.push(`PREÇO: R$ ${b.productPrice}`);
+  if (b.campaignName) lines.push(`CAMPANHA: ${b.campaignName}`);
+  if (b.objective) lines.push(`OBJETIVO: ${b.objective}`);
+  if (b.adsetName) lines.push(`CONJUNTO: ${b.adsetName}`);
+  if (b.audienceLabel) lines.push(`PÚBLICO: ${b.audienceLabel}`);
+  if (b.angle) lines.push(`ÂNGULO: ${b.angle}`);
+  if (b.format) lines.push(`FORMATO: ${b.format}`);
+  if (b.promise) lines.push(`PROMESSA CENTRAL: ${b.promise}`);
+  if (b.brandSummary) lines.push(`MARCA: ${b.brandSummary}`);
+  if (b.brandTone) lines.push(`TOM DE VOZ: ${b.brandTone}`);
+  if (b.allowed.length) lines.push(`CLAIMS PERMITIDOS: ${b.allowed.join(" | ")}`);
+  if (b.banned.length) lines.push(`PROIBIDO PELA MARCA: ${b.banned.join(" | ")}`);
+  if (b.learningsLines.length) {
+    lines.push("APRENDIZADOS DE COPY DESTA LOJA (aplicar):");
+    lines.push(...b.learningsLines);
+  }
+  lines.push("");
+  lines.push(stageGuide(b.stage));
+  return lines.join("\n");
+}
+
+const HARD_RULES = [
+  "REGRAS DURAS (não viole):",
+  "1. Use SEMPRE o produto descrito acima. Proibido falar de outro nicho (ex.: moda/guarda-roupa em produto de cuidado pessoal).",
+  "2. Proibido inventar desconto, promoção, frete grátis, garantia, prazo de entrega ou claim que não esteja nas informações dadas.",
+  "3. Proibido clichês: 'ofertas exclusivas', 'qualidade e preço justo', 'renove seu look/guarda-roupa', 'aproveite as ofertas', 'tudo em um só lugar', 'descubra ofertas exclusivas hoje'.",
+  "4. Proibido prometer cura, resultado garantido ou claim regulado (saúde, financeiro) sem evidência explícita no contexto.",
+  "5. A copy DEVE mencionar ou encostar no produto/benefício real, não em categoria vaga.",
+  "6. Respeite o estágio do funil indicado acima.",
+].join("\n");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -116,11 +314,6 @@ Deno.serve(async (req) => {
     const plannedItem = planned[adIndex] || {};
     const adItem = adsArr[adIndex] || {};
 
-    const productId = adItem.product_id || plannedItem.product_id || propData.product_id || null;
-    const productName = adItem.product_name || plannedItem.product_name || propData.campaign?.product_name || "";
-    const productDescription = adItem.product_description || plannedItem.product_description || "";
-    const promiseHint = plannedItem.promise || adItem.offer_note || "";
-
     // Persiste patch unificado em ads[idx] e planned_creatives[idx].
     const persist = async (patch: Record<string, any>, plannedPatch?: Record<string, any>) => {
       adsArr[adIndex] = { ...adItem, ...patch };
@@ -153,39 +346,47 @@ Deno.serve(async (req) => {
         return ok({ success: false, error_pt: "Conte como você quer este texto diferente antes de regenerar." });
       }
 
+      const briefing = await buildBriefing(supabase, tenantId, propData, adIndex);
+      if (!briefing.productName) {
+        return ok({ success: false, error_pt: "Produto da campanha não encontrado para gerar a copy." });
+      }
+      const briefingText = formatBriefingForPrompt(briefing);
+
       const currHeadline = adItem.headline || plannedItem.headline || "";
       const currPrimary = adItem.primary_text || plannedItem.copy || plannedItem.primary_text || "";
       const currDesc = adItem.description || plannedItem.description || "";
-
-      const productHint = productName ? `Produto: ${productName}.` : "";
-      const promiseLine = promiseHint ? `Promessa central: ${promiseHint}.` : "";
-      const descLine = productDescription ? `Sobre o produto: ${String(productDescription).slice(0, 400)}` : "";
 
       let sys = "";
       let usr = "";
 
       if (action === "generate_copy") {
-        sys = `Você escreve copy de anúncio para Meta Ads em português do Brasil. Responda APENAS um JSON válido { "headline": string (até 40 caracteres), "primary_text": string (até 180 caracteres), "description": string (até 30 caracteres) }. Sem markdown, sem texto extra. Não invente desconto, garantia, prazo de entrega ou claim regulado que não esteja explícito nas informações do produto.`;
-        usr = `${productHint}
-${promiseLine}
-${descLine}
+        sys = `Você escreve copy de anúncio Meta Ads em português do Brasil para o produto específico descrito no briefing.
+Responda APENAS um JSON válido { "headline": string (até 40 caracteres), "primary_text": string (até 180 caracteres), "description": string (até 30 caracteres) }. Sem markdown, sem texto extra.
 
-Gere headline + texto principal + descrição para um anúncio focado em conversão.`;
+${HARD_RULES}`;
+        usr = `${briefingText}
+
+Tarefa: gerar título + texto principal + descrição para um anúncio coerente com o estágio do funil acima e centrado no produto descrito.`;
       } else {
         const labelPt = field === "headline" ? "título" : field === "primary_text" ? "texto principal" : "descrição";
         const limit = field === "headline" ? 40 : field === "primary_text" ? 180 : 30;
-        sys = `Você reescreve copy de anúncio Meta Ads em português do Brasil. Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres) }. Sem markdown, sem texto extra. Não invente desconto/garantia/prazo que não esteja no contexto.`;
-        usr = `${productHint}
-${promiseLine}
+        sys = `Você reescreve copy de anúncio Meta Ads em português do Brasil para o produto descrito no briefing.
+Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres) }. Sem markdown, sem texto extra.
+
+${HARD_RULES}
+
+INSTRUÇÃO ADICIONAL: o feedback do lojista tem prioridade máxima sobre escolhas anteriores. Acate o que ele pediu, mantendo coerência com o briefing e o estágio.`;
+        usr = `${briefingText}
 
 Versão atual do anúncio:
 - Título: ${currHeadline}
 - Texto principal: ${currPrimary}
 - Descrição: ${currDesc}
 
-Feedback do lojista (obrigatório aplicar SÓ no ${labelPt}): ${feedback}
+Feedback do lojista (obrigatório acatar, aplicar SÓ no ${labelPt}):
+"${feedback}"
 
-Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
+Reescreva APENAS o ${labelPt}, respeitando o feedback e o briefing.`;
       }
 
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -256,7 +457,14 @@ Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
         "creative_copy_feedback",
         `Campo ${field} do anúncio #${adIndex + 1} regenerado`,
         feedback,
-        { ad_index: adIndex, field, before: { headline: currHeadline, primary_text: currPrimary, description: currDesc }, after: { [field]: sliced } },
+        {
+          ad_index: adIndex,
+          field,
+          funnel_stage: briefing.stage,
+          product_name: briefing.productName,
+          before: { headline: currHeadline, primary_text: currPrimary, description: currDesc },
+          after: { [field]: sliced },
+        },
       );
 
       return ok({ success: true, [field]: sliced });
@@ -270,11 +478,12 @@ Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
         return ok({ success: false, error_pt: "Conte o que você quer diferente na imagem antes de regenerar." });
       }
 
+      const productId = adItem.product_id || plannedItem.product_id || propData.product_id || null;
       let productImageUrl = adItem.reference_image_url || plannedItem.reference || plannedItem.product_image_url || "";
-      let pName = productName;
-      let pDesc = productDescription;
+      let pName = adItem.product_name || plannedItem.product_name || propData?.campaign?.product_name || "";
+      let pDesc = adItem.product_description || plannedItem.product_description || "";
 
-      if (productId && !productImageUrl) {
+      if (productId && (!productImageUrl || !pName || !pDesc)) {
         const { data: prod } = await supabase
           .from("products")
           .select("name, description, featured_image_url")
@@ -293,7 +502,7 @@ Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
 
       const visualPrompt = plannedItem.visual_prompt || adItem.creative_prompt || "";
       const basePrompt = isRegen
-        ? `${visualPrompt}\n\nAjustes pedidos: ${feedback}`.slice(0, 1200)
+        ? `${visualPrompt}\n\nAjustes pedidos pelo lojista (acate): ${feedback}`.slice(0, 1200)
         : (visualPrompt || `Anúncio de ${pName}.`).slice(0, 1200);
 
       const formatRaw = plannedItem.format || adItem.creative_format || "square";
@@ -331,8 +540,6 @@ Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
         return ok({ success: false, error_pt: "Não foi possível iniciar a geração da imagem." });
       }
 
-      // Polling: creative-image-generate roda via EdgeRuntime.waitUntil,
-      // então precisamos aguardar o job completar. Timeout ~90s.
       let job: any = null;
       let newUrl: string | null = null;
       const startedAt = Date.now();

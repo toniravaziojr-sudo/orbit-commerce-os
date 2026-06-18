@@ -1,29 +1,25 @@
 // =============================================================================
-// AdCreativeAIPanel — Onda H.4.4
+// AdCreativeAIPanel — Onda H.4.5
 //
 // Painel inline de geração de criativo (imagem + textos) com IA, embutido
-// dentro da etapa "Anúncios" do StructuredProposalModal. Substitui o fluxo
-// separado de Revisão Final + creative_jobs em background.
+// dentro da etapa "Anúncios" do StructuredProposalModal.
 //
-// Governança:
-//   - Cada clique de gerar/regerar é um gesto explícito do lojista.
-//   - Primeira geração da sessão exige confirmação ("consome créditos de IA").
-//   - Falha mostra mensagem em PT-BR + permite nova tentativa.
-//   - Após sucesso, dispara onChanged() para o pai recarregar action_data.
+// Mudanças vs H.4.4:
+//   - Campo de feedback SEMPRE VISÍVEL em cada campo de copy e na imagem,
+//     com aviso de que vira aprendizado da IA daquela loja.
+//   - Botão "Regenerar com este feedback" desabilitado até 5 caracteres.
+//   - Feedback é mandatório no regen (já era no backend) e fica claro na UX.
 // =============================================================================
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Sparkles, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -46,15 +42,22 @@ function markConfirmed() {
   try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* noop */ }
 }
 
+type CopyField = "headline" | "primary_text" | "description";
+
 export function AdCreativeAIPanel({
   tenantId, actionId, adIndex,
   currentHeadline, currentPrimary, currentDescription,
   onChanged,
 }: Props) {
-  const [pendingAction, setPendingAction] = useState<null | { kind: "copy_all" } | { kind: "regen_field"; field: "headline" | "primary_text" | "description"; feedback: string }>(null);
-  const [busy, setBusy] = useState<null | "copy_all" | "headline" | "primary_text" | "description">(null);
-  const [openField, setOpenField] = useState<null | "headline" | "primary_text" | "description">(null);
-  const [feedbacks, setFeedbacks] = useState<Record<string, string>>({ headline: "", primary_text: "", description: "" });
+  const [pendingAction, setPendingAction] = useState<
+    null
+    | { kind: "copy_all" }
+    | { kind: "regen_field"; field: CopyField; feedback: string }
+  >(null);
+  const [busy, setBusy] = useState<null | "copy_all" | CopyField>(null);
+  const [feedbacks, setFeedbacks] = useState<Record<CopyField, string>>({
+    headline: "", primary_text: "", description: "",
+  });
 
   async function callFn(body: Record<string, any>) {
     const { data, error } = await supabase.functions.invoke("ads-creative-inline-generate", {
@@ -82,7 +85,7 @@ export function AdCreativeAIPanel({
     }
   }
 
-  function startRegenField(field: "headline" | "primary_text" | "description") {
+  function startRegenField(field: CopyField) {
     const fb = (feedbacks[field] || "").trim();
     if (fb.length < 5) {
       toast.error("Conte rapidamente como você quer este texto diferente (mínimo 5 caracteres).");
@@ -91,13 +94,12 @@ export function AdCreativeAIPanel({
     if (!isConfirmed()) { setPendingAction({ kind: "regen_field", field, feedback: fb }); return; }
     runRegenField(field, fb);
   }
-  async function runRegenField(field: "headline" | "primary_text" | "description", feedback: string) {
+  async function runRegenField(field: CopyField, feedback: string) {
     setBusy(field);
     try {
       await callFn({ action: "regen_copy_field", field, feedback });
-      toast.success("Texto regenerado com seu feedback.");
+      toast.success("Texto regenerado com seu feedback. A IA aprendeu com isso.");
       setFeedbacks((f) => ({ ...f, [field]: "" }));
-      setOpenField(null);
       onChanged();
     } catch (e: any) {
       toast.error(e?.message || "Não foi possível regenerar.");
@@ -139,56 +141,57 @@ export function AdCreativeAIPanel({
 
         {!hasAnyCopy && (
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Em um clique a IA escreve título, texto principal e descrição com base na estratégia da campanha. Depois você pode editar cada campo à mão ou regenerar individualmente.
+            A IA gera título, texto principal e descrição com base no produto, no público do conjunto vinculado e na voz da sua marca. Depois você pode editar à mão ou regenerar cada campo com o seu feedback.
           </p>
         )}
 
         {hasAnyCopy && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {(["headline", "primary_text", "description"] as const).map((field) => {
               const label = field === "headline" ? "Título" : field === "primary_text" ? "Texto principal" : "Descrição";
               const value = field === "headline" ? currentHeadline : field === "primary_text" ? currentPrimary : currentDescription;
-              const isOpen = openField === field;
+              const fb = feedbacks[field] || "";
+              const canRegen = fb.trim().length >= 5 && busy === null;
+              const placeholder = field === "headline"
+                ? "Ex.: mais direto, foco no problema, sem promessa de desconto…"
+                : field === "primary_text"
+                ? "Ex.: abrir com uma dor real, falar do benefício X, sem 'compre agora'…"
+                : "Ex.: encurtar e citar o benefício principal…";
               return (
-                <div key={field} className="rounded border border-border/40 bg-background">
-                  <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[10px] uppercase text-muted-foreground/70">{label}</span>
-                      <p className="text-xs truncate">{value || <em className="text-muted-foreground/60">vazio</em>}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setOpenField(isOpen ? null : field)}
-                      disabled={busy !== null}
-                      className="h-6 text-[11px] px-2"
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      Regerar com IA
-                    </Button>
+                <div key={field} className="rounded border border-border/40 bg-background p-2.5 space-y-2">
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground/70">{label} atual</span>
+                    <p className="text-xs leading-relaxed">{value || <em className="text-muted-foreground/60">vazio</em>}</p>
                   </div>
-                  {isOpen && (
-                    <div className="border-t border-border/40 p-2.5 space-y-2 bg-muted/20">
-                      <Label className="text-[11px]">O que mudar neste {label.toLowerCase()}?</Label>
-                      <Textarea
-                        value={feedbacks[field] || ""}
-                        onChange={(e) => setFeedbacks((f) => ({ ...f, [field]: e.target.value }))}
-                        placeholder="Ex.: mais direto, foco no benefício, sem promessa de desconto…"
-                        rows={2}
-                        maxLength={300}
-                        className="text-xs"
-                      />
-                      <div className="flex justify-end gap-1.5">
-                        <Button size="sm" variant="ghost" onClick={() => setOpenField(null)} disabled={busy === field} className="h-7 text-xs">
-                          Cancelar
-                        </Button>
-                        <Button size="sm" onClick={() => startRegenField(field)} disabled={busy !== null || (feedbacks[field] || "").trim().length < 5} className="h-7 text-xs">
-                          {busy === field ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                          Regenerar
-                        </Button>
-                      </div>
+                  <div className="space-y-1.5 border-t border-border/40 pt-2">
+                    <Label className="text-[11px] flex items-center gap-1">
+                      <Brain className="h-3 w-3 text-primary" />
+                      O que você quer diferente neste {label.toLowerCase()}?
+                    </Label>
+                    <Textarea
+                      value={fb}
+                      onChange={(e) => setFeedbacks((f) => ({ ...f, [field]: e.target.value }))}
+                      placeholder={placeholder}
+                      rows={2}
+                      maxLength={300}
+                      className="text-xs"
+                      disabled={busy === field}
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground/70">
+                        Seu feedback vira aprendizado da IA desta loja.
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={() => startRegenField(field)}
+                        disabled={!canRegen}
+                        className="h-7 text-xs"
+                      >
+                        {busy === field ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                        Regenerar com este feedback
+                      </Button>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -222,8 +225,7 @@ export function AdCreativeAIPanel({
 }
 
 // =============================================================================
-// AdImageAIControls — botões de IA para a IMAGEM do anúncio.
-// Usado dentro de AttachCreativeBlock como complemento ao upload manual.
+// AdImageAIControls — feedback de imagem sempre visível quando hasImage.
 // =============================================================================
 interface ImageProps {
   tenantId: string;
@@ -236,7 +238,6 @@ interface ImageProps {
 export function AdImageAIControls({ tenantId, actionId, adIndex, hasImage, onChanged }: ImageProps) {
   const [pending, setPending] = useState<null | { kind: "generate" } | { kind: "regen"; feedback: string }>(null);
   const [busy, setBusy] = useState<null | "generate" | "regen">(null);
-  const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
 
   async function callFn(body: Record<string, any>) {
@@ -278,9 +279,8 @@ export function AdImageAIControls({ tenantId, actionId, adIndex, hasImage, onCha
     setBusy("regen");
     try {
       await callFn({ action: "regen_image", feedback: fb });
-      toast.success("Nova imagem gerada com seu feedback.");
+      toast.success("Nova imagem gerada com seu feedback. A IA aprendeu com isso.");
       setFeedback("");
-      setOpen(false);
       onChanged();
     } catch (e: any) {
       toast.error(e?.message || "Não foi possível regenerar a imagem.");
@@ -311,19 +311,11 @@ export function AdImageAIControls({ tenantId, actionId, adIndex, hasImage, onCha
           Gerar imagem com IA
         </Button>
       ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen((v) => !v)}
-          disabled={busy !== null}
-        >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Regerar com IA
-        </Button>
-      )}
-
-      {open && hasImage && (
-        <div className="w-full mt-2 rounded-md border border-border/40 bg-muted/20 p-2.5 space-y-2">
-          <Label className="text-[11px]">O que você quer diferente na imagem?</Label>
+        <div className="w-full mt-2 rounded-md border border-primary/30 bg-primary/5 p-2.5 space-y-2">
+          <Label className="text-[11px] flex items-center gap-1">
+            <Brain className="h-3 w-3 text-primary" />
+            O que você quer diferente na imagem?
+          </Label>
           <Textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
@@ -331,14 +323,20 @@ export function AdImageAIControls({ tenantId, actionId, adIndex, hasImage, onCha
             rows={2}
             maxLength={400}
             className="text-xs"
+            disabled={busy === "regen"}
           />
-          <div className="flex justify-end gap-1.5">
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy === "regen"} className="h-7 text-xs">
-              Cancelar
-            </Button>
-            <Button size="sm" onClick={startRegen} disabled={busy !== null || feedback.trim().length < 5} className="h-7 text-xs">
-              {busy === "regen" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-              Regenerar imagem
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground/70">
+              Seu feedback vira aprendizado da IA desta loja.
+            </span>
+            <Button
+              size="sm"
+              onClick={startRegen}
+              disabled={busy !== null || feedback.trim().length < 5}
+              className="h-7 text-xs"
+            >
+              {busy === "regen" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Regenerar imagem com este feedback
             </Button>
           </div>
         </div>
