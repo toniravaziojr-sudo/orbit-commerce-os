@@ -1397,6 +1397,16 @@ Reagendado com **anon key hardcoded** no header — mesmo padrão dos jobs saud�
 
 **Aplicação obrigatória:** o registrador de feedback deve ter fallback direto de escrita/reforço de aprendizado. O orquestrador de ajuste deve normalizar `status`, aprovação interna, validação e aprovabilidade depois de adicionar vínculo de revisão/lifecycle.
 
+## 2026-06-18 — Ads: geração inline não identificava produto com imagem existente
+
+**Sintoma:** na etapa Anúncios, ao clicar em "Gerar criativo", a proposta exibia que não conseguiu identificar o produto no catálogo, mesmo com produto, link e fotos cadastrados.
+
+**Causa raiz:** a proposta legada tinha o produto apenas no nível da campanha e no link de destino; os itens planejados não traziam `product_id`. Além disso, o gerador de imagem tentava preencher a foto base a partir de um campo legado/inexistente no cadastro operacional do produto, em vez da fonte oficial de imagens.
+
+**Regra derivada:** geração inline de imagem deve resolver produto em cascata: vínculo explícito, produto da campanha, nome do conjunto/anúncio e slug do link de destino. Depois de resolver o produto, a foto base sempre vem de `product_images`, priorizando imagem principal e depois ordem de exibição.
+
+**Aplicação obrigatória:** nunca reintroduzir dependência de campo de imagem dentro de `products` para criativos de Ads; propostas antigas sem produto no anúncio precisam continuar gerando criativo se o link ou nome da campanha apontar para um produto real.
+
 ---
 
 ## 2026-04-28 — Login OAuth (Google) não registrava em `auth_login_attempts`

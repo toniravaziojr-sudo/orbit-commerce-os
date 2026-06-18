@@ -4538,7 +4538,7 @@ Toda a manipulação de criativo de um anúncio acontece **dentro de um único c
 - Botão duplicado de "Gerar criativo" no cabeçalho do card foi removido: o botão único vive na coluna de mídia e alterna entre **Gerar** e **Regenerar** no mesmo lugar.
 
 ### Implementação
-- Edge function: `supabase/functions/ads-creative-inline-generate/index.ts` — ações `generate_copy`, `regen_copy_field`, `generate_image`, `regen_image`. Inclui **fallback de resolução de produto** por nome (ilike em `products`) usando `product_name_hint`, nome do ad/adset ou parser do `destination_url`, persistindo o `product_id` resolvido de volta na proposta para evitar a falha "produto não encontrado" em propostas legadas.
+- Edge function: `supabase/functions/ads-creative-inline-generate/index.ts` — ações `generate_copy`, `regen_copy_field`, `generate_image`, `regen_image`. Inclui **fallback de resolução de produto** por ID, produto da campanha, nome do ad/adset e slug derivado do `destination_url`, persistindo o `product_id` resolvido de volta na proposta para evitar a falha "produto não encontrado" em propostas legadas. A imagem base do produto deve vir da fonte oficial `product_images` (primária e, em seguida, ordem de exibição); é proibido consultar campo inexistente/legado de imagem diretamente em `products`.
 - UI: `src/components/ads/StructuredProposalModal.tsx` (componentes internos `CreativeMediaColumn` + `Detail` com `headerExtra`) e `src/components/ads/AdCreativeAIPanel.tsx` (`AdImageAIControls`, `CopyHeaderActions`, `PerFieldRegenButton`).
 - Persistência: cada geração escreve em `action_data.ads[idx]` E em `action_data.planned_creatives[idx]`.
 
@@ -4549,7 +4549,8 @@ Toda a manipulação de criativo de um anúncio acontece **dentro de um único c
 - Proibido gerar com IA sem diálogo de custo na primeira vez da sessão e sem feedback (≥ 5 chars) em regenerações.
 - Proibido voltar a expor controles de criativo fora do card único.
 - Proibido duplicar o botão de gerar/regenerar criativo (um único botão, alterna no mesmo lugar).
-- Proibido falhar a geração de imagem por ausência de `product_id` quando o nome do produto puder ser resolvido por fallback.
+- Proibido falhar a geração de imagem por ausência de `product_id` quando o nome, slug de destino ou produto da campanha puder ser resolvido por fallback.
+- Proibido buscar imagem principal em campo legado/inexistente do cadastro do produto; a geração inline usa `product_images` como fonte de verdade da miniatura/base visual.
 
 
 
@@ -4584,6 +4585,7 @@ Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inlin
 ### H.4.9 — Persistência de produto e regeneração resiliente (2026-06-18)
 - O gerador de proposta passa a persistir `product_id` e `product_name` em cada item de `planned_creatives`, eliminando a dependência do front-end em adivinhar o produto na hora de regerar.
 - O motor de copy ganha cascata de fallback: se o nome do produto não vier no payload, deriva da URL de destino (último segmento do path) e do nome do conjunto vinculado (último segmento após `|`). Isso desbloqueia regeneração também em propostas antigas, sem migração de dados.
+- O motor de imagem usa a mesma cascata e, após identificar o produto, busca a imagem principal em `product_images`, ordenando por primária e ordem de exibição. Não deve depender de campos de imagem dentro do cadastro operacional do produto.
 
 ### Proibições
 - Voltar a usar `slice` cego que corta no meio de palavra.
