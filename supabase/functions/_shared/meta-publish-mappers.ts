@@ -135,8 +135,8 @@ export async function fetchAccountAudiences(adAccountId: string, accessToken: st
   let next: string | null = `https://graph.facebook.com/v21.0/act_${cleanId}/customaudiences?fields=id,name,subtype&limit=200&access_token=${encodeURIComponent(accessToken)}`;
   let safety = 0;
   while (next && safety++ < 10) {
-    const res = await fetch(next);
-    const data = await res.json();
+    const res: Response = await fetch(next);
+    const data: any = await res.json();
     if (data?.error) throw new Error(`Meta audiences: ${data.error.message}`);
     for (const a of (data?.data || [])) {
       out.push({ id: a.id, name: a.name, subtype: a.subtype });
