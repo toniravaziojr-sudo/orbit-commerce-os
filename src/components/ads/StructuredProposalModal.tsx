@@ -81,7 +81,7 @@ import type { GateIssue } from "@/lib/ads/gates/types";
 
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
-import { AdCreativeAIPanel, AdImageAIControls, RegenCopyButton } from "./AdCreativeAIPanel";
+import { AdImageAIControls, CopyHeaderActions, PerFieldRegenButton } from "./AdCreativeAIPanel";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
@@ -1537,8 +1537,10 @@ function CreativeMediaColumn({
             actionId={actionId}
             adIndex={adIndex}
             hasImage={hasCreative}
+            productNameHint={ad.product_name || ""}
             onChanged={() => onAfterAIChange?.()}
           />
+
         )}
         <Button
           variant="outline"
@@ -1733,13 +1735,7 @@ function AdSection({
     <div className="space-y-4">
       {/* Bloco 1: ANÚNCIO (entrega) */}
       <Block title={ad.name || "Anúncio"} icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}>
-        {editable && !editing && (
-          <div className="flex justify-end mb-2">
-            <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 text-xs">
-              <Pencil className="h-3 w-3 mr-1" /> Editar textos do anúncio
-            </Button>
-          </div>
-        )}
+
         {editable && editing ? (
           <div className="grid grid-cols-1 gap-3">
             <div>
@@ -1830,13 +1826,16 @@ function AdSection({
         title="Criativo do anúncio"
         icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
         actions={
-          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (ad.headline || ad.primary_text || ad.description) ? (
-            <RegenCopyButton
+          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !editing ? (
+            <CopyHeaderActions
               tenantId={tenantId}
               actionId={actionId}
               adIndex={adIndex}
               productNameHint={ad.product_name || ""}
               onChanged={() => { onAfterAIChange?.(); }}
+              hasAnyCopy={!!(ad.headline || ad.primary_text || ad.description)}
+              isEditing={editing}
+              onEditManual={startEdit}
             />
           ) : null
         }
@@ -1878,23 +1877,6 @@ function AdSection({
           )}
 
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Quando ainda não há nenhum texto e o lojista pode editar,
-                expor a barra "Gerar copy". Regeração com feedback fica no
-                botão "Regenerar" do header do card. */}
-            {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !(ad.headline || ad.primary_text || ad.description) && (
-              <AdCreativeAIPanel
-                tenantId={tenantId}
-                actionId={actionId}
-                adIndex={adIndex}
-                productNameHint={ad.product_name || ""}
-                currentHeadline={ad.headline || ""}
-                currentPrimary={ad.primary_text || ""}
-                currentDescription={ad.description || ""}
-                onChanged={() => { onAfterAIChange?.(); }}
-              />
-            )}
-
-
             <DetailGrid>
               <Detail label="Produto/oferta" value={ad.product_name} />
               <Detail
@@ -1903,9 +1885,60 @@ function AdSection({
                 helperText={formatOriginNote}
                 customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
               />
-              <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
-              <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
-              <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail
+                label="Título"
+                value={ad.headline}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.headline ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="headline"
+                    />
+                  ) : undefined
+                }
+              />
+              <Detail
+                label="Texto principal"
+                value={ad.primary_text}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.primary_text ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="primary_text"
+                    />
+                  ) : undefined
+                }
+              />
+              <Detail
+                label="Descrição"
+                value={ad.description}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.description ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="description"
+                    />
+                  ) : undefined
+                }
+              />
               <Detail
                 label="Botão de ação"
                 value={ctaValue}
@@ -1924,6 +1957,7 @@ function AdSection({
               {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
               {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
             </DetailGrid>
+
 
             {!editable && ad.creative_prompt && (
               <div className="rounded-md border border-border/40 bg-muted/30 p-3">
@@ -2276,24 +2310,25 @@ function DetailGrid({ children }: { children: React.ReactNode }) {
 }
 
 function Detail({
-  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText,
+  label, value, fullWidth, pendingField, futurePhase, customPlaceholder, helperText, headerExtra,
 }: {
   label: string;
   value: string | number | null | undefined;
   fullWidth?: boolean;
   pendingField?: boolean;
   futurePhase?: boolean;
-  /** H.2.3 — texto exibido quando o valor está vazio, com origem/fase clara
-   *  (ex.: "Pendente de URL do produto/oferta", "Pendente de CTA padrão",
-   *  "Será definido na etapa de criativos como variável do teste"). */
   customPlaceholder?: string;
-  /** H.2.3 — nota de origem ao lado do valor (ex.: "Padrão do objetivo Vendas"). */
   helperText?: string | null;
+  /** Conteúdo extra ao lado direito do label (ex.: mini botão "Regenerar"). */
+  headerExtra?: React.ReactNode;
 }) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn(fullWidth && "sm:col-span-2")}>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
+        {headerExtra}
+      </div>
       {empty && customPlaceholder ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30 px-1.5 py-0.5 text-[11px] font-medium">
@@ -2303,7 +2338,7 @@ function Detail({
       ) : empty && futurePhase ? (
         <p className="text-sm">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-[11px] font-medium">
-            A gerar nesta etapa (botão de IA abaixo)
+            A gerar nesta etapa (botão de IA acima)
           </span>
         </p>
       ) : empty && pendingField ? (
