@@ -956,15 +956,19 @@ function autoResolveExistingCampaignIds(plan: any, preflight: StrategicPlanPrefl
   return { ...plan, planned_actions: next };
 }
 
-export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+export function normalizeStrategicPlanCustomerExclusions(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
   const normalizedPlan = {
     ...plan,
-    planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight)),
+    planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight, signals)),
   };
 
-  const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
+  const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight, signals);
   const withBudgetSources = inferBudgetSourcesForPlan(withExclusions, preflight);
   return inferAudienceBudgetFitsForPlan(withBudgetSources, preflight);
 }
