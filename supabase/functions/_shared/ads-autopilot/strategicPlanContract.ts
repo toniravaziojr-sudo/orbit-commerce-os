@@ -1287,7 +1287,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       const includesCustomers = a.audience_exclusions?.customers === false || a.audience_inclusion?.customers === true;
       if (includesCustomers) {
         const skipReason = String(a.audience_exclusions?.exclusion_skipped_reason || "").trim();
-        if (skipReason !== TEST_NEW_LAUNCH_SKIP_REASON) {
+        if (!STRUCTURE_AWARE_SKIP_REASONS.has(skipReason)) {
           const reason = String(a.exclusion_override_reason || "").trim();
           if (reason.length < 12) {
             push({
