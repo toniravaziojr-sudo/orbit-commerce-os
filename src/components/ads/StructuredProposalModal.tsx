@@ -1537,8 +1537,10 @@ function CreativeMediaColumn({
             actionId={actionId}
             adIndex={adIndex}
             hasImage={hasCreative}
+            productNameHint={ad.product_name || ""}
             onChanged={() => onAfterAIChange?.()}
           />
+
         )}
         <Button
           variant="outline"
