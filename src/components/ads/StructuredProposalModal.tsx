@@ -605,6 +605,10 @@ export function StructuredProposalModal({
                       isStrategyStage={isStrategyStage}
                       isCampaignProposal={action.action_type === "campaign_proposal"}
                       campaign={structure.campaign}
+                      tenantId={action.tenant_id}
+                      actionId={action.id}
+                      adIndex={adIdx}
+                      onAfterAIChange={() => queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] })}
                       blockers={allBlockers.filter(
                         (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
                       )}
