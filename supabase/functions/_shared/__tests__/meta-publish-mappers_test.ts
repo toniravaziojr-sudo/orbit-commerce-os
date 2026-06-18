@@ -82,7 +82,7 @@ Deno.test("extractIncludedAudienceRefs — formatos múltiplos", () => {
   });
   assertEquals(refs.length, 4);
   assertEquals(refs[0], { id: "111" });
-  assertEquals(refs[1].name, "Lookalike 1% Compra 180D");
-  assertEquals(refs[2].name, "Carrinho 30D");
+  assertEquals(refs[1].name, "Carrinho 30D");
+  assertEquals(refs[2].name, "Lookalike 1% Compra 180D");
   assertEquals(refs[3], { id: "222333444555" });
 });
