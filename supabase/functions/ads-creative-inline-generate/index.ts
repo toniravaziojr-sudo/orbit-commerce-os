@@ -22,6 +22,19 @@
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { aiChatCompletion } from "../_shared/ai-router.ts";
+
+const COPY_MODEL = "google/gemini-2.5-pro";
+
+const COPYWRITER_PERSONA = `Você é um copywriter sênior brasileiro especializado em anúncios de performance (Meta Ads), com 10+ anos escrevendo para e-commerce. Sua copy é:
+- Em português do Brasil coloquial e natural — fala como brasileiro fala, não traduzido do inglês.
+- Específica e sensorial: cita o produto, a dor concreta, o benefício real — nunca categoria vaga.
+- Com gancho forte no início (pergunta provocativa, dado, contraste, dor nomeada, cena concreta).
+- Ritmo variado: frase curta + frase média. Verbo no começo. Sem encheção, sem advérbio fraco ("realmente", "muito", "super").
+- Sem clichê de e-commerce ("aproveite", "ofertas exclusivas", "qualidade e preço justo", "renove seu guarda-roupa", "tudo em um só lugar", "descubra hoje").
+- Sem cara de IA: nada de "no mundo de hoje", "imagine só", "transforme sua vida", "eleve seu", "potencialize", "desbloqueie".
+- Frameworks que você domina: AIDA, PAS (Problema-Agitação-Solução), 4Us (útil, urgente, único, ultra-específico), Before/After/Bridge. Use o adequado ao estágio.
+- Diretrizes por estágio: TOF = dor/curiosidade sem CTA de compra; MOF = prova/diferencial; BOF = fechamento direto.`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
