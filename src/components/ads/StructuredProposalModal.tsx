@@ -1429,9 +1429,17 @@ function AdSetSection({
 function AttachCreativeBlock({
   ad,
   onPatch,
+  tenantId,
+  actionId,
+  adIndex,
+  onAfterAIChange,
 }: {
   ad: AdNode;
   onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+  tenantId?: string;
+  actionId?: string;
+  adIndex?: number;
+  onAfterAIChange?: () => void;
 }) {
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
