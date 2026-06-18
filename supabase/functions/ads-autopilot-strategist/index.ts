@@ -4647,6 +4647,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
                   source_flow: rawActionData?.source_flow || rawActionData?.metadata?.source_flow || `strategist_${trigger || "unknown"}`,
                   campaign_account_snapshot: existingSnapshot,
                   analysis_run_id: actionRecord.analysis_run_id || rawActionData?.analysis_run_id || rawActionData?.metadata?.analysis_run_id || body?.analysis_run_id || null,
+                  tenant_signals: ((globalThis as any).__strategistTenantSignals?.get?.(tenantId) || null),
                 });
                 canonicalPlanPayload = {
                   ...revalidated.normalizedPlan,
