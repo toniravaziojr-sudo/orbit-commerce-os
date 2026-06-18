@@ -19,6 +19,7 @@ import {
   normalizeAndValidateStrategicPlanForApproval,
   getAllowedActionsForCampaignStatus,
   type StrategicPlanGuardOptions,
+  deriveCreativeTestSkipCustomerExclusionSignalFromLearnings,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import { buildStrategicPlanPreflightContext, type StrategicPlanPreflight } from "../_shared/ads-autopilot/strategicPlanPreflight.ts";
 import { buildCampaignProposalsFromApprovedPlan } from "../_shared/ads-autopilot/campaignProposals.ts";
@@ -96,20 +97,7 @@ async function buildStrategicPlanApprovalContext(
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .limit(100);
-    const reA = /(teste\s+criativo|creative\s+test)[\s\S]{0,80}(n[aã]o\s+(excluir|exclui|s[aã]o\s+exclu[ií]dos|ser[aã]o\s+exclu[ií]dos)|sem\s+exclus[aã]o)[\s\S]{0,40}(clientes|comprador)/i;
-    const reB = /(clientes|comprador)[\s\S]{0,40}(n[aã]o\s+(precisa|devem|deve)\s+(ser|serem)\s+exclu[ií]dos?)[\s\S]{0,60}(teste\s+criativo|creative\s+test)/i;
-    for (const l of (learnings || [])) {
-      const text = `${(l as any)?.title || ""} ${(l as any)?.description || ""}`;
-      if (reA.test(text) || reB.test(text)) {
-        tenantSignals.creative_test_skip_customer_exclusion = {
-          active: true,
-          reason: String((l as any)?.description || (l as any)?.title || "Aprendizado ativo: teste criativo não exclui clientes.").trim().slice(0, 280),
-          learning_id: (l as any)?.id || null,
-          learning_title: (l as any)?.title || null,
-        };
-        break;
-      }
-    }
+    tenantSignals = deriveCreativeTestSkipCustomerExclusionSignalFromLearnings((learnings || []) as any);
   } catch (e: any) {
     console.warn(`[execute-approved] tenant_signals fetch failed: ${e?.message}`);
   }

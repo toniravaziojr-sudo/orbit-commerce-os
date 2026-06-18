@@ -18,6 +18,7 @@ import {
   normalizeAndValidateStrategicPlanForApproval,
   CONTRACT_VERSION as PLAN_CONTRACT_VERSION,
   getAllowedActionsForCampaignStatus,
+  deriveCreativeTestSkipCustomerExclusionSignalFromLearnings,
 } from "../_shared/ads-autopilot/strategicPlanContract.ts";
 import {
   scoreProposal,
@@ -1535,25 +1536,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
 
   // Onda H.6 — Sinais estratégicos do tenant derivados dos aprendizados ativos.
   // Suporta hoje: "teste criativo não exclui clientes" (sobrepõe default de segurança).
-  const tenantStrategicSignals: any = (() => {
-    const out: any = { creative_test_skip_customer_exclusion: null };
-    if (!Array.isArray(activeLearnings) || activeLearnings.length === 0) return out;
-    const reA = /(teste\s+criativo|creative\s+test)[\s\S]{0,80}(n[aã]o\s+(excluir|exclui|s[aã]o\s+exclu[ií]dos|ser[aã]o\s+exclu[ií]dos)|sem\s+exclus[aã]o)[\s\S]{0,40}(clientes|comprador)/i;
-    const reB = /(clientes|comprador)[\s\S]{0,40}(n[aã]o\s+(precisa|devem|deve)\s+(ser|serem)\s+exclu[ií]dos?)[\s\S]{0,60}(teste\s+criativo|creative\s+test)/i;
-    for (const l of activeLearnings) {
-      const text = `${(l as any)?.title || ""} ${(l as any)?.description || ""}`;
-      if (reA.test(text) || reB.test(text)) {
-        out.creative_test_skip_customer_exclusion = {
-          active: true,
-          reason: String((l as any)?.description || (l as any)?.title || "Aprendizado ativo: teste criativo não exclui clientes.").trim().slice(0, 280),
-          learning_id: (l as any)?.id || null,
-          learning_title: (l as any)?.title || null,
-        };
-        break;
-      }
-    }
-    return out;
-  })();
+  const tenantStrategicSignals: any = deriveCreativeTestSkipCustomerExclusionSignalFromLearnings(activeLearnings as any);
   if (tenantStrategicSignals?.creative_test_skip_customer_exclusion?.active) {
     console.log(`[ads-autopilot-strategist][${VERSION}][tenant-signal] creative_test_skip_customer_exclusion=ACTIVE learning_id=${tenantStrategicSignals.creative_test_skip_customer_exclusion.learning_id}`);
   }
