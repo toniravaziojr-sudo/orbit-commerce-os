@@ -1826,10 +1826,26 @@ function AdSection({
       </Block>
 
 
+      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
+        <AdCreativeAIPanel
+          tenantId={tenantId}
+          actionId={actionId}
+          adIndex={adIndex}
+          currentHeadline={ad.headline || ""}
+          currentPrimary={ad.primary_text || ""}
+          currentDescription={ad.description || ""}
+          onChanged={() => { onAfterAIChange?.(); }}
+        />
+      )}
+
       {editable ? (
         <AttachCreativeBlock
           ad={ad}
           onPatch={onPatch}
+          tenantId={tenantId}
+          actionId={actionId}
+          adIndex={adIndex}
+          onAfterAIChange={onAfterAIChange}
         />
       ) : (
         (ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
