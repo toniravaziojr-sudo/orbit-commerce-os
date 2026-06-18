@@ -1511,16 +1511,16 @@ function AttachCreativeBlock({
               onChanged={() => onAfterAIChange?.()}
             />
           )}
-          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-9">
+          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-8 text-xs">
             {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
             {hasCreative ? "Substituir do PC" : "Enviar do PC"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-9">
+          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-8 text-xs">
             <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
             {hasCreative ? "Trocar pelo Drive" : "Escolher no Drive"}
           </Button>
           {hasCreative && (
-            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10">
               <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
             </Button>
           )}
