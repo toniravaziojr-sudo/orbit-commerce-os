@@ -8,7 +8,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
-import { ApprovedProposalsSection } from "./ApprovedProposalsSection";
+// Onda H.5 — Seção "Propostas aprovadas aguardando publicação" removida.
+// Toda a jornada acontece dentro do assistente. Proposta sai da fila apenas
+// quando o publish na Meta retorna sucesso; falhas/cancelamentos vão para o histórico.
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { showErrorToast } from '@/lib/error-toast';
 import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
