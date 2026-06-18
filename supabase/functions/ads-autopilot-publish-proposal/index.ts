@@ -241,20 +241,25 @@ Deno.serve(async (req) => {
     const dailyBudgetCents = Number(campaign.daily_budget_cents || 0);
 
     if (["OUTCOME_SALES", "OUTCOME_LEADS"].includes(String(objective).toUpperCase()) && !identity.pixel_id) {
+      await markFailed(supabase, action_id, propData, lifecycle, "pixel_missing", "Pixel da Meta não configurado para campanhas de vendas/leads.");
       return new Response(JSON.stringify({ success: false, error_pt: "Pixel da Meta não configurado para campanhas de vendas/leads." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     if (String(campaign.budget_mode || "CBO").toUpperCase() === "CBO" && dailyBudgetCents <= 0) {
+      await markFailed(supabase, action_id, propData, lifecycle, "budget_missing", "Orçamento diário da campanha não definido.");
       return new Response(JSON.stringify({ success: false, error_pt: "Orçamento diário da campanha não definido." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     for (let i = 0; i < adsetsList.length; i++) {
       const a = adsetsList[i] || {};
       if (a.use_advantage_audience === true && Number(a.age_min || 18) > 25) {
-        return new Response(JSON.stringify({ success: false, error_pt: `Conjunto ${i + 1}: a Meta não permite público Advantage+ com idade mínima acima de 25 anos.` }),
+        const errMsg = `Conjunto ${i + 1}: a Meta não permite público Advantage+ com idade mínima acima de 25 anos.`;
+        await markFailed(supabase, action_id, propData, lifecycle, "advantage_audience_age_blocked", errMsg);
+        return new Response(JSON.stringify({ success: false, error_pt: errMsg }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       if (adsetsList.length > 1 && readyCreatives.some(c => c.planned && typeof c.planned.adset_index !== "number")) {
+        await markFailed(supabase, action_id, propData, lifecycle, "creative_adset_index_missing", "Há criativos sem vínculo com conjunto de anúncios. Revise os anúncios antes de publicar.");
         return new Response(JSON.stringify({ success: false, error_pt: "Há criativos sem vínculo com conjunto de anúncios. Revise os anúncios antes de publicar." }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -386,6 +391,7 @@ Deno.serve(async (req) => {
         billing_event: billingEvent,
         targeting,
         status: scheduling.status,
+        use_advantage_audience: adset.use_advantage_audience === true,
       };
       if (scheduling.start_time) adsetBody.start_time = scheduling.start_time;
       if (adset.end_time) adsetBody.end_time = adset.end_time;
