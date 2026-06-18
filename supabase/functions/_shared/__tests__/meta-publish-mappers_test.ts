@@ -32,8 +32,14 @@ Deno.test("mapGeoLocations — fallback BR", () => {
 Deno.test("applyPlacements — Advantage+ Placements NÃO ativa advantage_audience (regressão 1870188 em 2026-06-18)", () => {
   const t: any = {};
   applyPlacements(t, { placements: ["advantage_plus"] });
-  assertEquals(t.targeting_automation, undefined);
+  assertEquals(t.targeting_automation, { advantage_audience: 0 });
   assertEquals(t.publisher_platforms, undefined);
+});
+
+Deno.test("applyPlacements — força opt-out explícito quando público Advantage+ não foi pedido explicitamente", () => {
+  const t: any = { targeting_automation: { advantage_audience: 1 } };
+  applyPlacements(t, { placements: ["advantage_plus"], age_min: 30 });
+  assertEquals(t.targeting_automation, { advantage_audience: 0 });
 });
 
 Deno.test("applyPlacements — Advantage+ Audience só liga com flag explícita", () => {
@@ -55,7 +61,7 @@ Deno.test("applyPlacements — vazio não polui targeting", () => {
   const t: any = {};
   applyPlacements(t, {});
   assertEquals(t.publisher_platforms, undefined);
-  assertEquals(t.targeting_automation, undefined);
+  assertEquals(t.targeting_automation, { advantage_audience: 0 });
 });
 
 Deno.test("mapAttributionSpec — 7d clique + 1d view", () => {

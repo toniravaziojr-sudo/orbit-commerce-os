@@ -3,7 +3,7 @@ import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.t
 import { getMetaConnectionForTenant, type MetaConnection } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.4.0"; // Remove default targeting_automation injection (mapper é a fonte única)
+const VERSION = "v2.6.0"; // Opt-out explícito de Advantage+ Audience para targeting manual
 // ===========================================================
 
 const corsHeaders = {
@@ -36,6 +36,34 @@ async function graphApi(path: string, token: string, method = "GET", body?: any)
   }
   const res = await fetch(baseUrl, options);
   return res.json();
+}
+
+function normalizeTargetingForCreate(rawTargeting: any, allowAdvantageAudience: boolean): { targeting: any; blockedError?: string } {
+  const targeting = rawTargeting && typeof rawTargeting === "object"
+    ? { ...rawTargeting }
+    : { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
+
+  const automation = targeting.targeting_automation && typeof targeting.targeting_automation === "object"
+    ? { ...targeting.targeting_automation }
+    : null;
+
+  const wantsAdvantageAudience = automation?.advantage_audience === 1 || automation?.advantage_audience === "1";
+  if (wantsAdvantageAudience && !allowAdvantageAudience) {
+    targeting.targeting_automation = { advantage_audience: 0 };
+  } else if (wantsAdvantageAudience && Number(targeting.age_min || 0) > 25) {
+    return {
+      targeting,
+      blockedError: "A Meta não permite público Advantage+ com idade mínima acima de 25 anos. Remova a automação de público ou ajuste a idade mínima.",
+    };
+  } else if (automation && Object.keys(automation).length > 0) {
+    targeting.targeting_automation = automation;
+  }
+
+  if (!allowAdvantageAudience) {
+    targeting.targeting_automation = { advantage_audience: 0 };
+  }
+
+  return { targeting };
 }
 
 Deno.serve(async (req) => {
@@ -244,6 +272,7 @@ Deno.serve(async (req) => {
         status: adsetStatus,
         promoted_object,
         attribution_spec,
+        use_advantage_audience,
       } = body;
 
       const adAccountId = targetAcct || adAccounts[0].id;
@@ -255,12 +284,22 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Targeting vem pronto do publicador (meta-publish-mappers).
-      // PROIBIDO injetar targeting_automation por padrão aqui — a Meta interpreta
-      // a presença do bloco como opt-in de Advantage+ Audience e rejeita conjuntos
-      // com age_min > 25 (erro 1870188). O mapper é a única fonte de verdade
-      // sobre targeting_automation. Veja mem://constraints/ads-publish-full-parity-meta.
-      const finalTargeting = targeting || { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
+      // Targeting vem pronto do publicador (meta-publish-mappers), mas esta função
+      // também é chamada por fluxos legados. Por isso sanitizamos aqui como cinto
+      // de segurança: posicionamento Advantage+ não pode virar Advantage+ Audience.
+      const { targeting: finalTargeting, blockedError } = normalizeTargetingForCreate(
+        targeting,
+        use_advantage_audience === true,
+      );
+      if (blockedError) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: blockedError,
+          code: "META_ADVANTAGE_AUDIENCE_AGE_MIN_BLOCKED",
+          category: "validation",
+          retryable: false,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
 
       const createBody: any = {
         name: adsetName,
@@ -316,7 +355,7 @@ Deno.serve(async (req) => {
           optimization_goal: optimization_goal || "OFFSITE_CONVERSIONS",
           billing_event: billing_event || "IMPRESSIONS",
           daily_budget_cents,
-          targeting: targeting || { geo_locations: { countries: ["BR"] } },
+          targeting: finalTargeting,
           synced_at: new Date().toISOString(),
         })
         .select()

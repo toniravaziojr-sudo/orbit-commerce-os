@@ -22,7 +22,7 @@ Garantir que **100% dos campos** definidos numa Proposta de Campanha sejam efeti
 | Localização (BR/estados/cidades) | ⚠️ só país BR | aceitar `geo_locations` estruturado quando vier |
 | Idade min/max | ✅ | manter |
 | **Gênero (Masculino/Feminino/Todos)** | ❌ não enviado | mapear para `genders:[1]/[2]/omit` |
-| **Posicionamentos (advantage_plus / feed / reels / stories)** | ❌ não enviado | mapear corretamente: Advantage+ ⇒ `targeting_automation.advantage_audience=1` (placements automáticos); lista específica ⇒ `publisher_platforms` + `facebook_positions`/`instagram_positions`/`device_platforms` |
+| **Posicionamentos (advantage_plus / feed / reels / stories)** | ✅ corrigido | Advantage+ Posicionamentos ⇒ omitir `publisher_platforms`/positions; lista específica ⇒ `publisher_platforms` + positions. Para targeting manual, enviar opt-out explícito de Advantage+ Público. **Nunca** ligar automação de público por causa de posicionamento automático. |
 | **Públicos a incluir (custom audiences)** | ❌ não suportado | enviar `targeting.custom_audiences` com IDs |
 | **Lookalikes a incluir** | ❌ não suportado | enviar nos `custom_audiences` (Meta trata igual) |
 | Públicos a excluir | ✅ enviado | manter |
@@ -57,7 +57,7 @@ Hoje o gerador de proposta deixa nomes de público em texto livre (ex.: "Lookali
 ## Recuperação da campanha já publicada
 A campanha "Shampoo Calvície Zero" subiu sem gênero, sem Instagram, sem Advantage+ e sem o Lookalike no CJ2.
 
-**Recomendação**: pausar imediatamente os 2 conjuntos na Meta e republicar a proposta pelo fluxo corrigido. Editar in-place é mais arriscado (a Meta reinicia aprendizado em qualquer alteração estrutural; o efeito prático é o mesmo) e perde rastreabilidade. **Aguardo seu OK** entre pausar+republicar (recomendado) ou editar in-place.
+**Recomendação atualizada**: descartar campanhas órfãs criadas sem conjunto/anúncio e republicar a proposta pelo fluxo corrigido. Editar in-place é mais arriscado e perde rastreabilidade. O backend deve impedir nova campanha órfã pausando automaticamente a campanha quando o primeiro conjunto falhar.
 
 ## Anti-regressão
 - Bateria de testes do publicador cobrindo: gênero PT-BR, Advantage+, lookalike por nome, atribuição, descrição e Instagram actor.
