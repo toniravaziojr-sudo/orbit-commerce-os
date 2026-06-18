@@ -1824,13 +1824,16 @@ function AdSection({
         title="Criativo do anúncio"
         icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
         actions={
-          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (ad.headline || ad.primary_text || ad.description) ? (
-            <RegenCopyButton
+          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !editing ? (
+            <CopyHeaderActions
               tenantId={tenantId}
               actionId={actionId}
               adIndex={adIndex}
               productNameHint={ad.product_name || ""}
               onChanged={() => { onAfterAIChange?.(); }}
+              hasAnyCopy={!!(ad.headline || ad.primary_text || ad.description)}
+              isEditing={editing}
+              onEditManual={startEdit}
             />
           ) : null
         }
@@ -1872,23 +1875,6 @@ function AdSection({
           )}
 
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Quando ainda não há nenhum texto e o lojista pode editar,
-                expor a barra "Gerar copy". Regeração com feedback fica no
-                botão "Regenerar" do header do card. */}
-            {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !(ad.headline || ad.primary_text || ad.description) && (
-              <AdCreativeAIPanel
-                tenantId={tenantId}
-                actionId={actionId}
-                adIndex={adIndex}
-                productNameHint={ad.product_name || ""}
-                currentHeadline={ad.headline || ""}
-                currentPrimary={ad.primary_text || ""}
-                currentDescription={ad.description || ""}
-                onChanged={() => { onAfterAIChange?.(); }}
-              />
-            )}
-
-
             <DetailGrid>
               <Detail label="Produto/oferta" value={ad.product_name} />
               <Detail
@@ -1897,9 +1883,60 @@ function AdSection({
                 helperText={formatOriginNote}
                 customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
               />
-              <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
-              <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
-              <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail
+                label="Título"
+                value={ad.headline}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.headline ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="headline"
+                    />
+                  ) : undefined
+                }
+              />
+              <Detail
+                label="Texto principal"
+                value={ad.primary_text}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.primary_text ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="primary_text"
+                    />
+                  ) : undefined
+                }
+              />
+              <Detail
+                label="Descrição"
+                value={ad.description}
+                fullWidth
+                futurePhase={copyAsFuturePhase}
+                headerExtra={
+                  editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && ad.description ? (
+                    <PerFieldRegenButton
+                      tenantId={tenantId}
+                      actionId={actionId}
+                      adIndex={adIndex}
+                      productNameHint={ad.product_name || ""}
+                      onChanged={() => { onAfterAIChange?.(); }}
+                      field="description"
+                    />
+                  ) : undefined
+                }
+              />
               <Detail
                 label="Botão de ação"
                 value={ctaValue}
@@ -1918,6 +1955,7 @@ function AdSection({
               {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
               {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
             </DetailGrid>
+
 
             {!editable && ad.creative_prompt && (
               <div className="rounded-md border border-border/40 bg-muted/30 p-3">
