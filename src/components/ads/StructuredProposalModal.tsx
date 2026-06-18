@@ -1575,6 +1575,10 @@ function AdSection({
   blockers,
   editable = false,
   onPatch,
+  tenantId,
+  actionId,
+  adIndex,
+  onAfterAIChange,
 }: {
   ad: AdNode | null;
   isStrategyStage: boolean;
@@ -1583,6 +1587,10 @@ function AdSection({
   blockers: GateIssue[];
   editable?: boolean;
   onPatch?: (patch: Record<string, any>) => void | Promise<void>;
+  tenantId?: string;
+  actionId?: string;
+  adIndex?: number;
+  onAfterAIChange?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(ad?.name || "");
