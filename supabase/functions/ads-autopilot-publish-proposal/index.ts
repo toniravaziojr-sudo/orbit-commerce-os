@@ -79,6 +79,7 @@ const OBJECTIVE_MAP: Record<string, string> = {
 };
 
 Deno.serve(async (req) => {
+  console.log(`[publish-proposal][${VERSION}] ${req.method}`);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
