@@ -409,16 +409,8 @@ Deno.serve(async (req) => {
         // ficaria sozinha na Meta (sem conjunto, sem anúncio). Pausamos para evitar
         // que o lojista veja "campanha vazia" e tenha que limpar manualmente.
         if (createdAdsetIds.length === 0 && metaCampaignId) {
-          try {
-            await fetch(`https://graph.facebook.com/v21.0/${metaCampaignId}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "PAUSED", access_token: metaConn.access_token }),
-            }).then(r => r.json()).catch(() => null);
-            console.log(`[publish] Campanha órfã ${metaCampaignId} pausada após falha no 1º conjunto.`);
-          } catch (e: any) {
-            console.warn(`[publish] Falha ao pausar campanha órfã: ${e?.message}`);
-          }
+          await pauseMetaObjects(metaConn.access_token, metaCampaignId, []);
+          console.log(`[publish] Campanha órfã ${metaCampaignId} pausada após falha no 1º conjunto.`);
         }
 
         await markFailed(supabase, action_id, propData, lifecycle, "adset_create_failed", errMsg, {
@@ -613,6 +605,11 @@ Deno.serve(async (req) => {
       ? createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | ")
       : null;
 
+    if (!allOk) {
+      await pauseMetaObjects(metaConn.access_token, metaCampaignId, createdAdsetIds);
+      console.log(`[publish] Campanha ${metaCampaignId} e ${createdAdsetIds.length} conjunto(s) pausados após falha em anúncios.`);
+    }
+
     await supabase.from("ads_autopilot_actions").update({
       // Sucesso total → executed e sai da fila.
       // Qualquer falha → volta para pending_approval para o lojista tentar de novo.
@@ -632,6 +629,7 @@ Deno.serve(async (req) => {
           meta_campaign_id: metaCampaignId,
           meta_adset_ids: createdAdsetIds,
           ads_created: createdAdIds,
+          rollback_paused: allOk ? false : true,
           scheduled_start_time: scheduling.start_time || null,
           scheduling_mode: scheduling.start_time ? "scheduled_next_window" : "immediate",
           events: [
