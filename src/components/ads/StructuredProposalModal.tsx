@@ -81,7 +81,7 @@ import type { GateIssue } from "@/lib/ads/gates/types";
 
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
-import { AdCreativeAIPanel, AdImageAIControls } from "./AdCreativeAIPanel";
+import { AdCreativeAIPanel, AdImageAIControls, RegenCopyButton } from "./AdCreativeAIPanel";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
@@ -1511,16 +1511,16 @@ function AttachCreativeBlock({
               onChanged={() => onAfterAIChange?.()}
             />
           )}
-          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-9">
+          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-8 text-xs">
             {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
             {hasCreative ? "Substituir do PC" : "Enviar do PC"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-9">
+          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-8 text-xs">
             <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
             {hasCreative ? "Trocar pelo Drive" : "Escolher no Drive"}
           </Button>
           {hasCreative && (
-            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10">
               <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
             </Button>
           )}
@@ -1823,7 +1823,21 @@ function AdSection({
       )}
 
       {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
-      <Block title="Criativo do anúncio" icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
+      <Block
+        title="Criativo do anúncio"
+        icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
+        actions={
+          editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (ad.headline || ad.primary_text || ad.description) ? (
+            <RegenCopyButton
+              tenantId={tenantId}
+              actionId={actionId}
+              adIndex={adIndex}
+              productNameHint={ad.product_name || ""}
+              onChanged={() => { onAfterAIChange?.(); }}
+            />
+          ) : null
+        }
+      >
         <DetailGrid>
           <Detail label="Produto/oferta" value={ad.product_name} />
           <Detail
@@ -2220,13 +2234,16 @@ function PublishStepSummary({
 }
 
 
-function Block({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Block({ title, icon, children, actions }: { title: string; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <section>
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2">
-        {icon}
-        {title}
-      </h3>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          {icon}
+          {title}
+        </h3>
+        {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
+      </div>
       <div className="rounded-md border border-border/40 bg-card/40 p-3">{children}</div>
     </section>
   );
