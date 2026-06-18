@@ -191,6 +191,7 @@ async function buildStrategicPlanApprovalContext(
       source_flow: options?.sourceFlow || "approval_endpoint",
       analysis_run_id: options?.analysisRunId || null,
       campaign_account_snapshot: campaignAccountSnapshot,
+      tenant_signals: tenantSignals,
     },
   };
 }
