@@ -81,6 +81,7 @@ import type { GateIssue } from "@/lib/ads/gates/types";
 
 import { ProposalStructuredEditor } from "./ProposalStructuredEditor";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { AdCreativeAIPanel, AdImageAIControls } from "./AdCreativeAIPanel";
 import { formatDateTimeBR } from "@/lib/date-format";
 
 type StepId = "overview" | "campaign" | "adsets" | "ads" | "publish";
