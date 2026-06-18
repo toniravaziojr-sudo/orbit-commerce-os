@@ -172,8 +172,11 @@ export function extractIncludedAudienceRefs(adset: any): Array<{ id?: string; na
       if (/^\d{6,}$/.test(v)) out.push({ id: v });
       else out.push({ name: v });
     } else if (typeof v === "object") {
-      if (v.id) out.push({ id: String(v.id), name: v.name });
-      else if (v.name) out.push({ name: String(v.name) });
+      if (v.id) {
+        const o: { id: string; name?: string } = { id: String(v.id) };
+        if (v.name) o.name = String(v.name);
+        out.push(o);
+      } else if (v.name) out.push({ name: String(v.name) });
     }
   };
   const ti = adset?.targeting?.custom_audiences;
