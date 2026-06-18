@@ -1507,7 +1507,16 @@ function AttachCreativeBlock({
               <p className="text-xs text-muted-foreground">
                 Esta é a imagem que será publicada neste anúncio.
               </p>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-start">
+                {tenantId && actionId && typeof adIndex === "number" && (
+                  <AdImageAIControls
+                    tenantId={tenantId}
+                    actionId={actionId}
+                    adIndex={adIndex}
+                    hasImage={true}
+                    onChanged={() => onAfterAIChange?.()}
+                  />
+                )}
                 <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
                   <Upload className="h-3.5 w-3.5 mr-1.5" /> Substituir do PC
                 </Button>
