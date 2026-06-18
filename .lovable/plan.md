@@ -1,70 +1,74 @@
-# Onda H.4.5 — Copy contextualizada + feedback visível no passo Anúncios
+## Objetivo
+Garantir que **100% dos campos** definidos numa Proposta de Campanha sejam efetivamente enviados à Meta, no formato que ela aceita, sem perda, sem invenção e sem mudar a UI/UX.
 
-## Por que a IA escreveu copy de "guarda-roupa" para um shampoo
+## Mapa Proposta → Meta (auditoria campo a campo)
 
-O gerador de textos do passo Anúncios manda para a IA praticamente só o nome do produto. Fica de fora:
+### Campanha
+| Campo da proposta | Estado hoje | Ação |
+|---|---|---|
+| Nome | ✅ enviado | manter |
+| Objetivo (sales/leads/...) | ✅ traduzido para OUTCOME_* | manter |
+| Modo de compra (AUCTION/RESERVED) | ❌ não enviado | passar `buying_type` |
+| Modo de orçamento (CBO/ABO) | ⚠️ parcial | confirmar CBO via `campaign.daily_budget` e bloquear orçamento de conjunto |
+| Orçamento diário | ✅ enviado | manter |
+| Estratégia de lance | ✅ enviado | manter |
+| Categoria especial de anúncio | ✅ enviado | manter |
+| Janela de atribuição | ❌ não enviado | enviar `attribution_spec` no conjunto |
 
-1. **A descrição real do produto** (hoje só é buscada para a imagem).
-2. **A camada de funil e o público do anúncio** — o caso do print é "LAL 1% Compra | TOF | Shampoo Calvície Zero", ou seja **público frio**. Para frio, "não perca nossas promoções / compre o seu agora" queima a campanha. A etapa do funil e o tipo de público nunca chegam no prompt.
-3. **A estratégia e a promessa da campanha** (objetivo, ângulo, hipótese) — existem no rascunho da proposta mas não entram no briefing.
-4. **A voz da marca** (nome da loja, tom, categoria do negócio, persona).
-5. **Travas anti-alucinação** — sem regra explícita para não inventar oferta/desconto/garantia e não usar vocabulário de outro nicho (moda, guarda-roupa, etc.).
+### Conjunto (adset)
+| Campo da proposta | Estado hoje | Ação |
+|---|---|---|
+| Nome | ✅ | manter |
+| Localização (BR/estados/cidades) | ⚠️ só país BR | aceitar `geo_locations` estruturado quando vier |
+| Idade min/max | ✅ | manter |
+| **Gênero (Masculino/Feminino/Todos)** | ❌ não enviado | mapear para `genders:[1]/[2]/omit` |
+| **Posicionamentos (advantage_plus / feed / reels / stories)** | ❌ não enviado | mapear corretamente: Advantage+ ⇒ `targeting_automation.advantage_audience=1` (placements automáticos); lista específica ⇒ `publisher_platforms` + `facebook_positions`/`instagram_positions`/`device_platforms` |
+| **Públicos a incluir (custom audiences)** | ❌ não suportado | enviar `targeting.custom_audiences` com IDs |
+| **Lookalikes a incluir** | ❌ não suportado | enviar nos `custom_audiences` (Meta trata igual) |
+| Públicos a excluir | ✅ enviado | manter |
+| Meta de otimização | ✅ enviado | manter |
+| Evento de cobrança | ✅ enviado | manter |
+| Evento de conversão + Pixel | ✅ enviado em `promoted_object` | manter |
+| Orçamento do conjunto (ABO) | ✅ | manter |
+| Agendamento (início/fim) | ⚠️ usa janela 00:01 BRT | manter contrato H.4.2 |
 
-Resultado: a IA cai em molde genérico e escreve copy de outro segmento.
+### Anúncio (ad / creative)
+| Campo da proposta | Estado hoje | Ação |
+|---|---|---|
+| Texto principal | ✅ enviado | manter |
+| Título (headline) | ✅ enviado | manter |
+| Descrição | ❌ não enviado | enviar como `description` no `link_data` |
+| CTA | ✅ enviado | manter |
+| URL de destino + UTM | ✅ enviado | manter |
+| Página do Facebook | ✅ enviado | manter |
+| **Instagram Actor** | ❌ não enviado | passar `instagram_actor_id` no `object_story_spec` (sem isso, anúncio só roda no Facebook) |
+| Imagem (binário + fallback URL) | ✅ enviado | manter |
+| Vínculo ao conjunto correto | ✅ corrigido na H.5 | manter |
 
-## O que vou ajustar
+## Lacuna estrutural: materialização de público
+Hoje o gerador de proposta deixa nomes de público em texto livre (ex.: "Lookalike 1% Compra 180D") sem materializar o ID real da conta. Quando o publicador for entregar para a Meta, não há ID a enviar.
 
-### 1. Briefing enriquecido na geração e regeneração de textos
+**Decisão técnica**: o publicador, antes de criar cada conjunto, vai **resolver nomes → IDs reais** consultando a conta de anúncios da Meta:
+- Buscar a lista de públicos customizados e lookalikes da conta uma vez por publicação (cache em memória).
+- Para cada nome citado em "audience"/"required_audiences"/"required_lookalikes", procurar correspondência exata; se não houver, procurar por similaridade segura (igualdade case-insensitive sem acentos).
+- Se encontrar → usar o ID.
+- Se NÃO encontrar → falhar o conjunto com mensagem clara em português ("Público X não existe na conta") e devolver a proposta à fila, sem publicar parcialmente.
 
-Antes de chamar o modelo, monto um briefing único com:
+## Recuperação da campanha já publicada
+A campanha "Shampoo Calvície Zero" subiu sem gênero, sem Instagram, sem Advantage+ e sem o Lookalike no CJ2.
 
-- **Produto:** nome, descrição real, preço e categoria (busca no cadastro).
-- **Funil e público:** lê o conjunto vinculado ao anúncio e extrai etapa (frio/morno/quente), tipo de público (Lookalike, Interesse, Retargeting, Advantage+) e objetivo da campanha.
-- **Promessa, ângulo e formato** do criativo planejado.
-- **Voz da marca:** nome da loja, tom e categoria do negócio.
-- **Aprendizados recentes** de copy daquela loja (últimos correções) para não repetir erros já apontados.
+**Recomendação**: pausar imediatamente os 2 conjuntos na Meta e republicar a proposta pelo fluxo corrigido. Editar in-place é mais arriscado (a Meta reinicia aprendizado em qualquer alteração estrutural; o efeito prático é o mesmo) e perde rastreabilidade. **Aguardo seu OK** entre pausar+republicar (recomendado) ou editar in-place.
 
-E reescrevo as instruções do modelo com regras por etapa:
+## Anti-regressão
+- Bateria de testes do publicador cobrindo: gênero PT-BR, Advantage+, lookalike por nome, atribuição, descrição e Instagram actor.
+- Registro permanente em memória de governança: "publicador deve transcrever todos os campos da proposta sem perda; novos campos exigem mapper + teste".
 
-- **Frio (topo):** dor/desejo/curiosidade, sem "promoção/desconto/compre agora", CTA de descoberta.
-- **Morno (meio):** prova, comparação, benefício específico, urgência leve.
-- **Quente/Retargeting (fundo):** oferta direta, urgência, fechamento.
+## Documentação
+- Atualizar gestor-trafego.md (H.4.2 — seção "Paridade total Proposta → Meta") com a tabela campo a campo.
+- Atualizar plataformas-baseline.md com o mapeamento de gênero/placements/atribuição.
 
-Mais travas duras:
-- Proibido inventar desconto, frete grátis, garantia, prazo ou claim regulado que não esteja na descrição.
-- Proibido usar vocabulário de outro nicho — a copy precisa encostar no produto real (nome, categoria, benefício declarado).
-- Proibido frases-clichê ("ofertas exclusivas hoje", "renove seu guarda-roupa", "qualidade e preço justo").
+## Status pretendido após implementação
+Diagnóstico ✅ → Proposta ✅ → **Aguardando sua confirmação** para aplicar (item da republicação em particular).
 
-A mesma base de briefing alimenta a regeneração de campo único (título, texto principal, descrição), preservando o feedback do lojista como instrução de maior prioridade.
-
-### 2. Feedback de regeneração sempre visível
-
-Hoje o lojista clica em "Regerar com IA" e só então aparece o campo de feedback — fica escondido. Vou:
-
-- Trocar o botão "Regerar com IA" por um bloco compacto sempre visível em cada campo: rótulo "Ajustar este texto" + textarea + botão "Regenerar com este feedback" (desabilitado até 5 caracteres).
-- Aviso curto explicando que esse feedback é usado para o aprendizado da IA daquela loja (já é, hoje vira aprendizado registrado).
-- Mesma mudança no bloco de imagem: quando já existe imagem, o campo de feedback fica visível direto, igual ao padrão.
-
-Isso é resposta direta ao pedido do usuário ("precisa ter como o usuário dar o feedback dela pra ajustar o aprendizado da IA"), então sigo sem nova consulta — sem mexer em mais nada da UI do wizard.
-
-### 3. Documentação e memória
-
-- Atualizar a memória da Onda H.4.4 incluindo as regras novas de contexto + travas anti-alucinação (vira H.4.5).
-- Atualizar o doc do Gestor de Tráfego na seção do passo Anúncios para refletir o briefing enriquecido e o feedback visível.
-- Sem impacto em mapa-ui.md (não muda rota nem sidebar).
-
-## Validação técnica que vou rodar antes de fechar
-
-- Disparar `generate_copy` numa proposta real do tenant Respeite o Homem e conferir que: a copy cita o produto correto, respeita o estágio frio (sem "compre agora"), e não usa termos de outro nicho.
-- Disparar `regen_copy_field` em "texto principal" com feedback "mais focado no benefício de combater queda" e conferir que o novo texto incorpora o feedback e gera registro de aprendizado.
-- Conferir nos logs que o briefing enviado contém produto + funil + voz da marca.
-
-Se algum desses pontos falhar, volto para diagnóstico antes de declarar entrega.
-
-## Detalhes técnicos (opcional)
-
-- Edge `ads-creative-inline-generate`: nova função interna `buildBriefing(propData, adIndex, supabase)` que junta `products` (description/price/category), `propData.adsets[ad.adset_index]` (funnel_stage/audience_type), `propData.campaign` (objective), `tenant_brand_context`/`ai_support_config` (voz) e top 3 `ads_ai_learnings` ativos `creative_copy_feedback`. Prompt do sistema reescrito com guia por etapa + lista de proibições. Contrato de resposta inalterado (`headline`/`primary_text`/`description`).
-- `AdCreativeAIPanel.tsx`: remover `openField`/toggle; cada campo passa a renderizar textarea + botão de regenerar direto. Sem nova action no backend — reaproveita `regen_copy_field` que já recebe feedback obrigatório.
-- `AdImageAIControls`: igual, textarea sempre visível quando `hasImage`.
-- Confirmação de custo da sessão (sessionStorage) preservada.
-- Sem alteração em etapas 1, 2, 3 e 5 do wizard.
+### Detalhes técnicos (opcional)
+Alvos: `supabase/functions/ads-autopilot-publish-proposal/index.ts` (transmissor) e helper compartilhado `_shared/meta-audience-resolver.ts` (novo). Sem mexer em UI nem em geração de proposta — só transmissão e resolução de IDs no momento do publish.
