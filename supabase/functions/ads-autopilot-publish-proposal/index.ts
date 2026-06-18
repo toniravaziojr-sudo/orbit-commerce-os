@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.2.0-h5-full-parity";
+const VERSION = "v1.3.0-h5-anti-orphan-and-raw-meta-error";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -361,13 +361,33 @@ Deno.serve(async (req) => {
       const adsetRes = await supabase.functions.invoke("meta-ads-adsets", { body: adsetBody });
       if (adsetRes.error || !adsetRes.data?.success) {
         const errMsg = adsetRes.error?.message || adsetRes.data?.error || `Falha ao criar conjunto ${aIdx + 1} na Meta.`;
+        const metaErr = adsetRes.data?.meta_error || null;
+
+        // Anti-órfã: se ainda não criamos NENHUM conjunto, a campanha recém-criada
+        // ficaria sozinha na Meta (sem conjunto, sem anúncio). Pausamos para evitar
+        // que o lojista veja "campanha vazia" e tenha que limpar manualmente.
+        if (createdAdsetIds.length === 0 && metaCampaignId) {
+          try {
+            await fetch(`https://graph.facebook.com/v21.0/${metaCampaignId}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "PAUSED", access_token: metaConn.access_token }),
+            }).then(r => r.json()).catch(() => null);
+            console.log(`[publish] Campanha órfã ${metaCampaignId} pausada após falha no 1º conjunto.`);
+          } catch (e: any) {
+            console.warn(`[publish] Falha ao pausar campanha órfã: ${e?.message}`);
+          }
+        }
+
         await markFailed(supabase, action_id, propData, lifecycle, "adset_create_failed", errMsg, {
           meta_campaign_id: metaCampaignId,
           meta_adset_ids_created: createdAdsetIds,
           failed_adset_index: aIdx,
           audience_resolution: audienceResolutionLog,
+          meta_error_detail: metaErr,
+          orphan_campaign_paused: createdAdsetIds.length === 0,
         });
-        return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "adset", adset_index: aIdx, meta_campaign_id: metaCampaignId }),
+        return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "adset", adset_index: aIdx, meta_campaign_id: metaCampaignId, meta_error: metaErr }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const metaAdsetId = adsetRes.data?.data?.meta_adset_id;

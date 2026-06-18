@@ -3,7 +3,7 @@ import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.t
 import { getMetaConnectionForTenant, type MetaConnection } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v2.4.0"; // Remove default targeting_automation injection (mapper é a fonte única)
 // ===========================================================
 
 const corsHeaders = {
