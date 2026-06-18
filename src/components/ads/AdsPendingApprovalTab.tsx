@@ -8,7 +8,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
-import { ApprovedProposalsSection } from "./ApprovedProposalsSection";
+// Onda H.5 — Seção "Propostas aprovadas aguardando publicação" removida.
+// Toda a jornada acontece dentro do assistente. Proposta sai da fila apenas
+// quando o publish na Meta retorna sucesso; falhas/cancelamentos vão para o histórico.
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { showErrorToast } from '@/lib/error-toast';
 import { useAdsAutopilotFeedbackGate } from "@/hooks/useAdsAutopilotFeedbackGate";
@@ -269,7 +271,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   if (displayCount === 0) {
     return (
       <div className="space-y-4">
-        <ApprovedProposalsSection channelFilter={channelFilter} />
+        {/* Onda H.5 — Seção de aprovadas aguardando publicação removida. */}
         {isAdjusting ? (
           <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
             <Loader2 className="h-5 w-5 text-primary animate-spin" />
@@ -293,8 +295,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   return (
     <div className="space-y-4">
-      {/* Propostas aprovadas em andamento (H.4.2) */}
-      <ApprovedProposalsSection channelFilter={channelFilter} />
+      {/* Onda H.5 — Seção de aprovadas aguardando publicação removida. */}
 
       {/* Budget Summary */}
       <BudgetSummaryHeader pendingActions={pendingActions} />

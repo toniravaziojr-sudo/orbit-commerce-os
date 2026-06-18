@@ -10,6 +10,8 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -403,7 +405,46 @@ export function StructuredProposalModal({
 
   const approveBlocked = approveBlockedByFit || approveBlockedByGates || approveBlockedByContract || approveBlockedByCampaignProposalH3 || approveBlockedByH2Lock;
 
-  const isApproving = approveStrategy.isPending || approvingId === action.id;
+  const queryClient = useQueryClient();
+
+  // Onda H.5 — Publicação direta na Meta a partir do assistente.
+  // Mantém a proposta na fila até o publish concluir com sucesso.
+  // Encadeia: aprovar estrutura -> publicar campanha.
+  const publishToMeta = useMutation({
+    mutationFn: async () => {
+      // 1. Aprovação estrutural (idempotente — se já aprovada, segue).
+      const { data: approveData, error: approveErr } = await supabase.functions.invoke(
+        "ads-autopilot-execute-approved",
+        { body: { tenant_id: action.tenant_id, action_id: action.id } },
+      );
+      if (approveErr) throw approveErr;
+      if (approveData && (approveData as any).success === false) {
+        throw new Error((approveData as any).error_pt || (approveData as any).error || "Falha ao aprovar a proposta.");
+      }
+      // 2. Publicação real na Meta.
+      const { data: pubData, error: pubErr } = await supabase.functions.invoke(
+        "ads-autopilot-publish-proposal",
+        { body: { tenant_id: action.tenant_id, action_id: action.id } },
+      );
+      if (pubErr) throw pubErr;
+      if (!(pubData as any)?.success) {
+        throw new Error((pubData as any)?.error_pt || (pubData as any)?.error || "Falha ao publicar campanha na Meta.");
+      }
+      return pubData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ads-pending-approval"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
+      toast.success("Campanha publicada na Meta!");
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Não foi possível publicar a campanha. Tente novamente.");
+    },
+  });
+
+  const isApproving = approveStrategy.isPending || approvingId === action.id || publishToMeta.isPending;
   const handleApprove = () => {
     if (approveBlocked) return;
     // Onda H.3 — Confirmação explícita antes de aprovar estrutura (sem IA, sem Meta, sem publicar).
@@ -416,6 +457,11 @@ export function StructuredProposalModal({
   };
   const confirmApprove = () => {
     setConfirmApproveOpen(false);
+    if (isCampaignProposal) {
+      // Onda H.5 — Publicar na Meta substitui a aprovação. Proposta só sai da fila após publish OK.
+      publishToMeta.mutate();
+      return;
+    }
     if (isStrategyStage) approveStrategy.mutate(action.id);
     else onApprove(action.id);
   };
