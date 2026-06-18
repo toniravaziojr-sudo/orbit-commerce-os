@@ -295,8 +295,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   return (
     <div className="space-y-4">
-      {/* Propostas aprovadas em andamento (H.4.2) */}
-      <ApprovedProposalsSection channelFilter={channelFilter} />
+      {/* Onda H.5 — Seção de aprovadas aguardando publicação removida. */}
 
       {/* Budget Summary */}
       <BudgetSummaryHeader pendingActions={pendingActions} />
