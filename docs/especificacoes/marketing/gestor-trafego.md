@@ -4617,7 +4617,7 @@ A publicação da Proposta de Campanha agora transcreve 100% dos campos definido
 - geo_locations (objeto estruturado ou fallback BR)
 - age_min/max
 - **genders** — mapeado de "Masculino"/"Feminino"/"Todos" para [1]/[2]/omitir
-- **Advantage+ Placements** — quando `placements=["advantage_plus"]`, **apenas omite** `publisher_platforms`/positions. NÃO seta `targeting_automation.advantage_audience` — isso é Advantage+ Audience (outra automação) e quebra conjuntos com `age_min > 25` (erro 1870188). Só ligar `advantage_audience=1` se a proposta tiver `use_advantage_audience: true` explícito.
+- **Advantage+ Placements** — quando `placements=["advantage_plus"]`, **apenas omite** `publisher_platforms`/positions. NÃO seta `targeting_automation.advantage_audience=1` — isso é Advantage+ Audience (outra automação) e quebra conjuntos com `age_min > 25` (erro 1870188). Em targeting manual, envia opt-out explícito `advantage_audience=0` para evitar default automático da Meta. Só ligar `advantage_audience=1` se a proposta tiver `use_advantage_audience: true` explícito.
 - **publisher_platforms + *_positions** — quando lista manual (facebook_feed, instagram_reels, etc.)
 - **custom_audiences** (inclusão) — resolve nomes para IDs reais da conta na hora do publish
 - excluded_custom_audiences (exclusão)
@@ -4630,4 +4630,7 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 ### Anti-regressão
 - Tradutores centralizados em `_shared/meta-publish-mappers.ts` com bateria de testes obrigatória.
 - Novo campo na Proposta exige mapper + teste correspondente.
+- O serviço de criação de conjunto também sanitiza `targeting_automation` como cinto de segurança para fluxos legados: se `use_advantage_audience` não vier explícito, força opt-out de automação de público antes de chamar a Meta. Se vier explícito com idade mínima acima de 25, a criação é bloqueada internamente com erro de validação claro, sem criar conjunto inválido.
+- Antes de criar a campanha, o publicador valida pixel para vendas/leads, orçamento CBO, vínculo de criativos a conjuntos e incompatibilidade de Advantage+ Público com idade mínima acima de 25. Falhas nessa etapa voltam para "Aguardando Ação" sem criar objeto na Meta.
+- Se qualquer etapa posterior falhar após criar campanha/conjunto, o publicador pausa a campanha e os conjuntos já criados antes de devolver a proposta para a fila, evitando campanha ativa vazia.
 - Memória: `mem://constraints/ads-publish-full-parity-meta`.

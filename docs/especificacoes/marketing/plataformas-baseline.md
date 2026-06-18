@@ -62,6 +62,7 @@ Esta baseline é a fonte de verdade do que o Gestor de Tráfego IA assume hoje s
 
 - Categorias especiais (Crédito/Emprego/Moradia/Política) restringem targeting demográfico.
 - Advantage+ shopping têm restrições próprias de targeting.
+- Advantage+ Posicionamentos e Advantage+ Público são recursos diferentes. O default `adset.placements = advantage_plus` significa posicionamento automático e não deve ativar automação de público. Quando Advantage+ Público é ativado explicitamente, a Meta não aceita idade mínima acima de 25 anos; para públicos com 30+, manter segmentação manual, apenas posicionamentos automáticos e opt-out explícito de Advantage+ Público.
 - Pixel exige evento padrão (não custom) para otimização confiável.
 
 ## Google Ads — não verificado

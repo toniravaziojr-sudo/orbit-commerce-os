@@ -57,6 +57,10 @@ const PLACEMENT_ALIAS: Record<string, { platform: "facebook" | "instagram" | "me
 };
 
 export function applyPlacements(targeting: any, adset: any): void {
+  if (adset?.use_advantage_audience !== true) {
+    targeting.targeting_automation = { advantage_audience: 0 };
+  }
+
   const list = Array.isArray(adset?.placements) ? adset.placements : [];
   const advantageRequested = list.some((p: any) => String(p).toLowerCase() === "advantage_plus")
     || adset?.use_advantage_placements === true
@@ -68,7 +72,8 @@ export function applyPlacements(targeting: any, adset: any): void {
     // Advantage+ AUDIENCE (automação de público), coisa diferente, e força
     // a Meta a rejeitar age_min > 25 (erro 1870188 em 2026-06-18).
     // Advantage+ Audience só deve ser ativado se a proposta pedir explicitamente
-    // via adset.use_advantage_audience === true.
+    // via adset.use_advantage_audience === true. Para targeting manual, enviamos
+    // advantage_audience=0 explicitamente para evitar default automático da Meta.
     if (adset?.use_advantage_audience === true) {
       targeting.targeting_automation = { ...(targeting.targeting_automation || {}), advantage_audience: 1 };
     }
