@@ -4617,7 +4617,7 @@ A publicação da Proposta de Campanha agora transcreve 100% dos campos definido
 - geo_locations (objeto estruturado ou fallback BR)
 - age_min/max
 - **genders** — mapeado de "Masculino"/"Feminino"/"Todos" para [1]/[2]/omitir
-- **Advantage+ Placements** — quando `placements=["advantage_plus"]`, ativa `targeting_automation.advantage_audience=1` e NÃO envia `publisher_platforms`
+- **Advantage+ Placements** — quando `placements=["advantage_plus"]`, **apenas omite** `publisher_platforms`/positions. NÃO seta `targeting_automation.advantage_audience` — isso é Advantage+ Audience (outra automação) e quebra conjuntos com `age_min > 25` (erro 1870188). Só ligar `advantage_audience=1` se a proposta tiver `use_advantage_audience: true` explícito.
 - **publisher_platforms + *_positions** — quando lista manual (facebook_feed, instagram_reels, etc.)
 - **custom_audiences** (inclusão) — resolve nomes para IDs reais da conta na hora do publish
 - excluded_custom_audiences (exclusão)
