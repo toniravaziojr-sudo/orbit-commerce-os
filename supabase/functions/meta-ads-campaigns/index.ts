@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     // CREATE — Create campaign on Meta + local
     // ========================
     if (action === "create") {
-      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time, destination_type } = body;
+      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time, destination_type, buying_type } = body;
       const adAccountId = targetAccountId || adAccounts[0].id;
 
       if (!name || !objective) {
@@ -250,6 +250,7 @@ Deno.serve(async (req) => {
         status: campaignStatus || "PAUSED",
         special_ad_categories: special_ad_categories || [],
         bid_strategy: bid_strategy || "LOWEST_COST_WITHOUT_CAP",
+        buying_type: buying_type || "AUCTION",
       };
 
       // Force WEBSITE destination for conversion/sales/leads campaigns (never "site + app")
