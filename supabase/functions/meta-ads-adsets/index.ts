@@ -243,6 +243,7 @@ Deno.serve(async (req) => {
         end_time,
         status: adsetStatus,
         promoted_object,
+        attribution_spec,
       } = body;
 
       const adAccountId = targetAcct || adAccounts[0].id;
@@ -276,6 +277,7 @@ Deno.serve(async (req) => {
       if (start_time) createBody.start_time = start_time;
       if (end_time) createBody.end_time = end_time;
       if (promoted_object) createBody.promoted_object = promoted_object;
+      if (Array.isArray(attribution_spec) && attribution_spec.length > 0) createBody.attribution_spec = attribution_spec;
 
       console.log(`[meta-ads-adsets][${traceId}] Creating adset: ${adsetName} in campaign ${meta_campaign_id}`);
 
