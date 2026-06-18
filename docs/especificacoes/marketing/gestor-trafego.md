@@ -4462,3 +4462,31 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 
 **Anti-regressão.** A guarda PT-BR DEVE cobrir tanto o texto interno quanto o resumo executivo visível. Cobrir só um dos dois reabre o bug, como aconteceu entre as Ondas 3.3 e 3.4.
 
+
+---
+
+## 17 — Onda H.5 — Pipeline único da Proposta de Campanha até a publicação na Meta (2026-06-18)
+
+### Regra de negócio
+- A proposta de campanha tem **um único ciclo de vida visível** para o lojista:
+  1. Aparece em **"Aguardando ação"** assim que é criada.
+  2. Ao clicar "Visualizar proposta", abre o **assistente passo a passo** (revisar, editar, anexar criativos). A proposta **continua na fila** durante todo o tempo em que o lojista está no assistente — fechar e reabrir não a retira.
+  3. O botão **"Publicar na Meta"**, na etapa final do assistente, é a **única ação terminal**: aprova a estrutura e publica a campanha na Meta em uma única operação encadeada.
+  4. **Somente** quando o publish retorna sucesso, a proposta sai da fila e passa a aparecer apenas no **histórico de Ações da IA**.
+- Recusar ou cancelar a proposta também a remove da fila e a envia para o histórico (comportamento já existente — preservado).
+- Se a publicação na Meta falhar, o lojista recebe mensagem clara em PT-BR e a proposta **continua em "Aguardando ação"** para nova tentativa direto no assistente.
+
+### O que foi removido
+- A seção paralela **"Propostas aprovadas em andamento"** (introduzida em H.4.2), que listava propostas aprovadas aguardando geração de criativos / revisão final / publicação. Não existe mais limbo intermediário visível: ou está em "Aguardando ação", ou está no histórico.
+- O conceito de **"Aprovar estrutura"** como gesto separado para o lojista. Aprovação estrutural ainda acontece no backend, mas embutida na publicação, sem botão dedicado.
+
+### Tratamento de erros
+- Falha de aprovação estrutural (gates, pendências de conta Meta): mostra erro PT-BR no assistente, proposta segue na fila.
+- Falha do publish na Meta (token, página, pixel, orçamento, criativo recusado): mostra erro PT-BR no assistente, proposta segue na fila. O lojista pode ajustar e tentar de novo sem perder o trabalho.
+- O botão "Publicar na Meta" só ativa quando todos os anúncios da proposta têm criativo anexado (regra de H.4.2 mantida).
+
+### Anti-regressão
+- Memória obrigatória: `mem://constraints/ads-proposal-single-pipeline`.
+- Proibido reintroduzir botão isolado "Aprovar estrutura" no assistente ou no card de proposta.
+- Proibido reintroduzir seção/lista paralela visível para o lojista do tipo "aprovadas aguardando publicação", "aguardando criativos" ou "pronto para publicar". O componente técnico antigo permanece no repositório apenas para uso interno/diagnóstico — não pode voltar à tela sem aprovação explícita.
+- Proibido marcar a proposta como aprovada sem disparar o publish em sequência (deixa a proposta em limbo invisível).
