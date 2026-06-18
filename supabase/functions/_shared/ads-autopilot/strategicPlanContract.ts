@@ -15,6 +15,25 @@ export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
 export const TEST_NEW_LAUNCH_SKIP_REASON = "test_for_new_or_launch_product" as const;
+export const CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON = "creative_test_tenant_learning" as const;
+const STRUCTURE_AWARE_SKIP_REASONS = new Set<string>([
+  TEST_NEW_LAUNCH_SKIP_REASON,
+  CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+]);
+
+export interface TenantStrategicSignals {
+  /**
+   * Aprendizado ativo do tenant que pede para NÃO excluir clientes em teste criativo.
+   * Quando ativo, sobrepõe o default de segurança (que exclui clientes mesmo em
+   * carro-chefe) para campanhas com `campaign_intent === "creative_test"`.
+   */
+  creative_test_skip_customer_exclusion?: {
+    active: boolean;
+    reason: string;
+    learning_id?: string | null;
+    learning_title?: string | null;
+  } | null;
+}
 
 // Sinais de produto em lançamento/novo (não-carro-chefe). Aplicados a product_name,
 // product_lifecycle e tags do action quando disponíveis. Sinais carro-chefe vencem.
