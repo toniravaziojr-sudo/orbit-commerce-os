@@ -106,6 +106,7 @@ export interface StrategicPlanGuardOptions {
   source_flow?: string | null;
   campaign_account_snapshot?: any[] | null;
   analysis_run_id?: string | null;
+  tenant_signals?: TenantStrategicSignals | null;
 }
 
 const LEGACY_CAMPAIGN_TYPES = new Set([
