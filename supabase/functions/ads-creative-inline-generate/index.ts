@@ -151,8 +151,31 @@ async function buildBriefing(
   const linkedAdset = pickLinkedAdset(propData, ad);
 
   const productId = ad.product_id || planned.product_id || propData.product_id || null;
+
+  // Fallbacks adicionais: derivar produto da URL de destino e do nome do conjunto.
+  // Ex.: "https://loja.com.br/produto/shampoo-calvicie-zero" -> "shampoo calvicie zero"
+  //      "CJ1 - Broad | TOF | Shampoo Calvície Zero"         -> "Shampoo Calvície Zero"
+  const deriveFromDestination = (url: string | null | undefined): string => {
+    if (!url || typeof url !== "string") return "";
+    try {
+      const u = new URL(url);
+      const parts = u.pathname.split("/").filter(Boolean);
+      const last = parts[parts.length - 1] || "";
+      if (!last) return "";
+      return decodeURIComponent(last).replace(/[-_]+/g, " ").replace(/\.[a-z0-9]{1,5}$/i, "").trim();
+    } catch { return ""; }
+  };
+  const deriveFromAdsetName = (name: string | null | undefined): string => {
+    if (!name || typeof name !== "string") return "";
+    const segs = name.split("|").map((s) => s.trim()).filter(Boolean);
+    return segs.length >= 2 ? segs[segs.length - 1] : "";
+  };
+  const destinationHint = deriveFromDestination(ad.destination_url || planned.destination_url);
+  const adsetHint = deriveFromAdsetName(linkedAdset?.name || planned.linked_adset_name);
+
   const productNameHint = String(
-    hintName || ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name || "",
+    hintName || ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name
+      || adsetHint || destinationHint || "",
   ).trim();
 
   // Produto real do cadastro (quando houver) — por ID, com fallback por nome.
