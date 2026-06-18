@@ -237,6 +237,7 @@ Deno.serve(async (req) => {
       daily_budget_cents: dailyBudgetCents,
       special_ad_categories: campaign.special_ad_categories || [],
       bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
+      buying_type: campaign.buying_type || "AUCTION",
     };
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
@@ -250,25 +251,40 @@ Deno.serve(async (req) => {
     const metaCampaignId = campaignRes.data?.data?.meta_campaign_id;
 
     // ===== Step 2: Criar TODOS os conjuntos da proposta =====
-    // Mapeia adset_index -> meta_adset_id criado, para vincular cada anúncio
-    // ao conjunto correto na etapa 3.
     const accountIdClean = String(adAccountId).replace("act_", "");
     const adsetIdByIndex = new Map<number, string>();
     const createdAdsetIds: string[] = [];
 
+    // Catálogo de públicos da conta (1 fetch por publicação)
+    let audienceCatalog: MetaAudience[] | null = null;
+    const audienceResolutionLog: any[] = [];
+    const ensureCatalog = async (): Promise<MetaAudience[]> => {
+      if (audienceCatalog) return audienceCatalog;
+      try {
+        audienceCatalog = await fetchAccountAudiences(adAccountId, metaConn.access_token);
+      } catch (e: any) {
+        console.error(`[publish] fetch audiences falhou: ${e?.message}`);
+        audienceCatalog = [];
+      }
+      return audienceCatalog;
+    };
+
     for (let aIdx = 0; aIdx < adsetsList.length; aIdx++) {
       const adset = adsetsList[aIdx] || {};
       const targeting: any = {
-        geo_locations: adset.geo_locations
-          || (adset.location ? { countries: [String(adset.location).slice(0, 2).toUpperCase() === "BR" ? "BR" : "BR"] } : { countries: ["BR"] }),
+        geo_locations: mapGeoLocations(adset),
         age_min: adset.age_min || 18,
         age_max: adset.age_max || 65,
       };
-      if (Array.isArray(adset.genders) && adset.genders.length > 0) targeting.genders = adset.genders;
-      if (Array.isArray(adset.publisher_platforms) && adset.publisher_platforms.length > 0) {
-        targeting.publisher_platforms = adset.publisher_platforms;
-      }
-      // Exclusões: aceita formato moderno (targeting.excluded_custom_audiences) ou legado (excluded_audience_ids).
+
+      // Gênero (mapeia "Masculino"/"Feminino"/"Todos" para [1]/[2]/omitir)
+      const g = mapGender(adset.genders ?? adset.gender);
+      if (g) targeting.genders = g;
+
+      // Posicionamentos (Advantage+ ou lista manual)
+      applyPlacements(targeting, adset);
+
+      // Exclusões de público (formato moderno + legado)
       const exclArrRaw = adset?.targeting?.excluded_custom_audiences
         || (Array.isArray(adset.excluded_audience_ids)
           ? adset.excluded_audience_ids.map((a: any) => (typeof a === "object" ? a : { id: a }))
@@ -277,9 +293,46 @@ Deno.serve(async (req) => {
         targeting.excluded_custom_audiences = exclArrRaw.map((a: any) => ({ id: a.id || a }));
       }
 
+      // Inclusão de público / Lookalikes — resolve nomes para IDs reais na conta
+      const includeRefs = extractIncludedAudienceRefs(adset);
+      if (includeRefs.length > 0) {
+        const catalog = await ensureCatalog();
+        const resolved: Array<{ id: string }> = [];
+        const missing: string[] = [];
+        for (const ref of includeRefs) {
+          if (ref.id) {
+            resolved.push({ id: ref.id });
+            audienceResolutionLog.push({ adset_index: aIdx, ref, resolved_id: ref.id, source: "id" });
+            continue;
+          }
+          if (ref.name) {
+            const hit = findAudienceByName(catalog, ref.name);
+            if (hit) {
+              resolved.push({ id: hit.id });
+              audienceResolutionLog.push({ adset_index: aIdx, ref, resolved_id: hit.id, matched_name: hit.name, source: "name" });
+            } else {
+              missing.push(ref.name);
+              audienceResolutionLog.push({ adset_index: aIdx, ref, resolved_id: null, source: "name", error: "not_found" });
+            }
+          }
+        }
+        if (missing.length > 0) {
+          const errMsg = `Conjunto ${aIdx + 1}: público(s) não encontrado(s) na conta: ${missing.join(", ")}.`;
+          await markFailed(supabase, action_id, propData, lifecycle, "audience_not_found", errMsg, {
+            meta_campaign_id: metaCampaignId,
+            meta_adset_ids_created: createdAdsetIds,
+            failed_adset_index: aIdx,
+            audience_resolution: audienceResolutionLog,
+          });
+          return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "audience_resolve", adset_index: aIdx }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        if (resolved.length > 0) targeting.custom_audiences = resolved;
+      }
+
       const optimizationGoal = adset.optimization_goal || "OFFSITE_CONVERSIONS";
       const billingEvent = adset.billing_event || "IMPRESSIONS";
-      const conversionEvent = adset.conversion_event || identity.conversion_event || "PURCHASE";
+      const conversionEvent = adset.conversion_event || identity.conversion_event_default || identity.conversion_event || "PURCHASE";
 
       const adsetBody: any = {
         tenant_id,
@@ -293,6 +346,7 @@ Deno.serve(async (req) => {
         status: scheduling.status,
       };
       if (scheduling.start_time) adsetBody.start_time = scheduling.start_time;
+      if (adset.end_time) adsetBody.end_time = adset.end_time;
       if (identity.pixel_id) {
         adsetBody.promoted_object = { pixel_id: identity.pixel_id, custom_event_type: conversionEvent };
       }
@@ -300,6 +354,9 @@ Deno.serve(async (req) => {
       if (adset.daily_budget_cents && String(campaign.budget_mode || "").toUpperCase() !== "CBO") {
         adsetBody.daily_budget_cents = Number(adset.daily_budget_cents);
       }
+      // Janela de atribuição
+      const attribSpec = mapAttributionSpec(adset.attribution_window || campaign.attribution_window || identity.attribution_window);
+      if (attribSpec) adsetBody.attribution_spec = attribSpec;
 
       const adsetRes = await supabase.functions.invoke("meta-ads-adsets", { body: adsetBody });
       if (adsetRes.error || !adsetRes.data?.success) {
@@ -308,6 +365,7 @@ Deno.serve(async (req) => {
           meta_campaign_id: metaCampaignId,
           meta_adset_ids_created: createdAdsetIds,
           failed_adset_index: aIdx,
+          audience_resolution: audienceResolutionLog,
         });
         return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "adset", adset_index: aIdx, meta_campaign_id: metaCampaignId }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
