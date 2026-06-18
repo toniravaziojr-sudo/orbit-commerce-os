@@ -558,9 +558,9 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       }
 
       if (action === "generate_copy") {
-        const headline = String(parsed?.headline || "").trim().slice(0, 40);
-        const primary_text = String(parsed?.primary_text || parsed?.copy || "").trim().slice(0, 180);
-        const description = String(parsed?.description || "").trim().slice(0, 30);
+        const headline = smartTrim(String(parsed?.headline || ""), COPY_LIMITS.headline);
+        const primary_text = smartTrim(String(parsed?.primary_text || parsed?.copy || ""), COPY_LIMITS.primary_text);
+        const description = smartTrim(String(parsed?.description || ""), COPY_LIMITS.description);
         if (!headline || !primary_text) {
           return ok({ success: false, error_pt: "A copy gerada veio incompleta. Tente novamente." });
         }
@@ -584,8 +584,8 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
 
       // regen single field
       const value = String(parsed?.[field] || "").trim();
-      const limit = field === "headline" ? 40 : field === "primary_text" ? 180 : 30;
-      const sliced = value.slice(0, limit);
+      const limit = COPY_LIMITS[field as keyof typeof COPY_LIMITS];
+      const sliced = smartTrim(value, limit);
       if (!sliced) {
         return ok({ success: false, error_pt: "A nova versão veio vazia. Tente novamente." });
       }
