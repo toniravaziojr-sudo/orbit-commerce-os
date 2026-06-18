@@ -46,7 +46,7 @@ function markConfirmed() {
 type CopyField = "headline" | "primary_text" | "description";
 
 export function AdCreativeAIPanel({
-  tenantId, actionId, adIndex,
+  tenantId, actionId, adIndex, productNameHint,
   currentHeadline, currentPrimary, currentDescription,
   onChanged,
 }: Props) {
@@ -62,7 +62,13 @@ export function AdCreativeAIPanel({
 
   async function callFn(body: Record<string, any>) {
     const { data, error } = await supabase.functions.invoke("ads-creative-inline-generate", {
-      body: { tenant_id: tenantId, action_id: actionId, ad_index: adIndex, ...body },
+      body: {
+        tenant_id: tenantId,
+        action_id: actionId,
+        ad_index: adIndex,
+        product_name_hint: productNameHint || undefined,
+        ...body,
+      },
     });
     if (error) throw new Error(error.message || "Falha na chamada.");
     if (!(data as any)?.success) throw new Error((data as any)?.error_pt || "Não foi possível concluir.");
