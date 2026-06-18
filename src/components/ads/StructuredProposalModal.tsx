@@ -1823,23 +1823,9 @@ function AdSection({
         )}
       </Block>
 
-      {/* Painel de IA de textos — fica ACIMA do bloco de criativo para que
-          o botão "Gerar tudo novamente" e os feedbacks por campo apareçam
-          antes das copies. */}
-      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
-        <AdCreativeAIPanel
-          tenantId={tenantId}
-          actionId={actionId}
-          adIndex={adIndex}
-          productNameHint={ad.product_name || ""}
-          currentHeadline={ad.headline || ""}
-          currentPrimary={ad.primary_text || ""}
-          currentDescription={ad.description || ""}
-          onChanged={() => { onAfterAIChange?.(); }}
-        />
-      )}
-
-      {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
+      {/* Card único: CRIATIVO DO ANÚNCIO
+          Concentra miniatura + ações de imagem (esquerda) e textos + ações de copy (direita).
+          O lojista enxerga aqui exatamente o que vai para a Meta. */}
       <Block
         title="Criativo do anúncio"
         icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
@@ -1855,84 +1841,109 @@ function AdSection({
           ) : null
         }
       >
-        <DetailGrid>
-          <Detail label="Produto/oferta" value={ad.product_name} />
-          <Detail
-            label="Formato"
-            value={formatDisplayValue}
-            helperText={formatOriginNote}
-            customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
-          />
-          {/* H.2.3 — copy final (título/texto/descrição) é sempre H.4 em proposta de campanha. */}
-          <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail
-            label="Botão de ação"
-            value={ctaValue}
-            helperText={ctaOriginNote}
-            customPlaceholder={!ctaValue ? "Pendente de CTA padrão" : undefined}
-          />
-          {ad.alternative_formats.length > 0 && (
-            <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
-          )}
-
-          <Detail
-            label="Link de destino"
-            value={destValue}
-            fullWidth
-            customPlaceholder={destPlaceholder ?? (!destValue ? "Pendente de URL do produto/oferta" : undefined)}
-          />
-          {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
-          {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
-        </DetailGrid>
-      </Block>
-
-
-      {editable ? (
-        <AttachCreativeBlock
-          ad={ad}
-          onPatch={onPatch}
-          tenantId={tenantId}
-          actionId={actionId}
-          adIndex={adIndex}
-          onAfterAIChange={onAfterAIChange}
-        />
-      ) : (
-        (ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
-          <Block
-            title={ad.creative_final_url ? "Conferência do criativo" : "Conferência do criativo (referência + prompt)"}
-            icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-          >
-            <div className="space-y-3">
-              {(ad.reference_image_url || ad.creative_final_url) && (
-                <div className="flex items-start gap-3">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {editable ? (
+            <CreativeMediaColumn
+              ad={ad}
+              onPatch={onPatch}
+              tenantId={tenantId}
+              actionId={actionId}
+              adIndex={adIndex}
+              onAfterAIChange={onAfterAIChange}
+            />
+          ) : (
+            (ad.creative_final_url || ad.reference_image_url) && (
+              <div className="w-full sm:w-[180px] shrink-0">
+                <a
+                  href={ad.creative_final_url || ad.reference_image_url || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                  title="Abrir em tamanho real"
+                >
                   <img
                     src={ad.creative_final_url || ad.reference_image_url || ""}
                     alt={ad.creative_final_url ? "Criativo" : "Referência do produto"}
-                    className="h-32 w-32 object-cover rounded-md border border-border/40"
+                    className={`w-full aspect-square object-cover rounded-md border border-border/40 ${!ad.creative_final_url ? "opacity-70" : ""}`}
                   />
-                  {!ad.creative_final_url && (
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Imagem usada apenas como referência do produto. Não é o criativo final.
-                      {isStrategyStage && " A geração do criativo só acontece após aprovar a estratégia."}
-                    </p>
-                  )}
+                </a>
+                {!ad.creative_final_url && (
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                    Apenas referência — não é o criativo final.
+                    {isStrategyStage && " A geração acontece após aprovar a estratégia."}
+                  </p>
+                )}
+              </div>
+            )
+          )}
+
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Quando ainda não há nenhum texto e o lojista pode editar,
+                expor um único botão "Gerar copy" inline. Regeração com feedback
+                fica no botão "Regenerar" do header do card. */}
+            {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !(ad.headline || ad.primary_text || ad.description) && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-xs text-foreground">Gere título, texto e descrição com IA.</span>
                 </div>
+                <AdCreativeAIPanel
+                  tenantId={tenantId}
+                  actionId={actionId}
+                  adIndex={adIndex}
+                  productNameHint={ad.product_name || ""}
+                  currentHeadline={ad.headline || ""}
+                  currentPrimary={ad.primary_text || ""}
+                  currentDescription={ad.description || ""}
+                  onChanged={() => { onAfterAIChange?.(); }}
+                  compact
+                />
+              </div>
+            )}
+
+            <DetailGrid>
+              <Detail label="Produto/oferta" value={ad.product_name} />
+              <Detail
+                label="Formato"
+                value={formatDisplayValue}
+                helperText={formatOriginNote}
+                customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
+              />
+              <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail
+                label="Botão de ação"
+                value={ctaValue}
+                helperText={ctaOriginNote}
+                customPlaceholder={!ctaValue ? "Pendente de CTA padrão" : undefined}
+              />
+              {ad.alternative_formats.length > 0 && (
+                <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
               )}
-              {ad.creative_prompt && (
-                <div className="rounded-md border border-border/40 bg-muted/30 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    <p className="text-[11px] font-medium text-foreground uppercase tracking-wide">Prompt do criativo</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
+              <Detail
+                label="Link de destino"
+                value={destValue}
+                fullWidth
+                customPlaceholder={destPlaceholder ?? (!destValue ? "Pendente de URL do produto/oferta" : undefined)}
+              />
+              {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
+              {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
+            </DetailGrid>
+
+            {!editable && ad.creative_prompt && (
+              <div className="rounded-md border border-border/40 bg-muted/30 p-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-[11px] font-medium text-foreground uppercase tracking-wide">Prompt do criativo</p>
                 </div>
-              )}
-            </div>
-          </Block>
-        )
-      )}
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Block>
+
 
       {ad.rationale && (
         <Block title="Por que este anúncio" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
