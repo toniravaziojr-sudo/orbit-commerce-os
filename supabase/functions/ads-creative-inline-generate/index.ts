@@ -419,28 +419,65 @@ Feedback/direção do lojista (interpretar, NÃO copiar):
 Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respeitando briefing, estágio e limites.`;
       }
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: sys }, { role: "user", content: usr }],
-        }),
-      });
+      const callAI = async (sysMsg: string, usrMsg: string) => {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }],
+          }),
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(() => "");
+          console.error("[ads-creative-inline-generate] AI gateway error:", r.status, t);
+          return null;
+        }
+        const j = await r.json();
+        const txt = j?.choices?.[0]?.message?.content || "";
+        try {
+          const m = txt.match(/\{[\s\S]*\}/);
+          return JSON.parse(m ? m[0] : txt);
+        } catch {
+          return null;
+        }
+      };
 
-      if (!aiRes.ok) {
-        const t = await aiRes.text().catch(() => "");
-        console.error("[ads-creative-inline-generate] AI gateway error:", aiRes.status, t);
+      // Normalizador simples para detectar eco do feedback.
+      const norm = (s: string) =>
+        String(s || "").toLowerCase().replace(/["“”'`]/g, "").replace(/\s+/g, " ").trim();
+      const echoesFeedback = (out: string) => {
+        if (!isRegen || !feedback) return false;
+        const a = norm(out);
+        const b = norm(feedback);
+        if (!a || !b) return false;
+        if (a === b) return true;
+        // se a saída cabe inteira dentro do feedback, é eco/cópia.
+        if (b.includes(a) && a.length >= 8) return true;
+        // se a saída é o trecho entre aspas do feedback.
+        const quoted = feedback.match(/["“'`]([^"“”'`]{4,})["”'`]/);
+        if (quoted && norm(quoted[1]) === a) return true;
+        return false;
+      };
+
+      let parsed = await callAI(sys, usr);
+      if (!parsed) {
         return ok({ success: false, error_pt: "Não foi possível gerar a copy agora. Tente de novo em instantes." });
       }
-      const aiJson = await aiRes.json();
-      const raw = aiJson?.choices?.[0]?.message?.content || "";
-      let parsed: any = null;
-      try {
-        const m = raw.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(m ? m[0] : raw);
-      } catch {
-        return ok({ success: false, error_pt: "Resposta da IA veio em formato inesperado. Tente novamente." });
+
+      // Retry uma vez se a saída do regen está copiando o feedback literal.
+      if (isRegen) {
+        const out = String(parsed?.[field] || "").trim();
+        if (echoesFeedback(out)) {
+          const retrySys = sys +
+            `\n\nATENÇÃO: a tentativa anterior devolveu praticamente o feedback do lojista. ` +
+            `Isso é ERRADO. Gere agora uma versão ORIGINAL, diferente do feedback em palavras, ` +
+            `mantendo apenas a INTENÇÃO/ângulo dele.`;
+          const retried = await callAI(retrySys, usr);
+          if (retried && String(retried?.[field] || "").trim()) {
+            parsed = retried;
+          }
+        }
       }
 
       if (action === "generate_copy") {
