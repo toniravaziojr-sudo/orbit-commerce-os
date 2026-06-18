@@ -1544,8 +1544,17 @@ function AttachCreativeBlock({
                 </p>
               </div>
             )}
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="default" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
+            <div className="flex gap-2 flex-wrap items-start">
+              {tenantId && actionId && typeof adIndex === "number" && (
+                <AdImageAIControls
+                  tenantId={tenantId}
+                  actionId={actionId}
+                  adIndex={adIndex}
+                  hasImage={false}
+                  onChanged={() => onAfterAIChange?.()}
+                />
+              )}
+              <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
                 {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
                 Enviar do PC
               </Button>
@@ -1554,7 +1563,7 @@ function AttachCreativeBlock({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Formatos: PNG, JPG ou WEBP — até 10 MB. Arquivos enviados do PC vão para a pasta mensal do Drive.
+              Gere com IA, envie do PC ou escolha no Drive. PNG, JPG ou WEBP — até 10 MB. Arquivos do PC vão para a pasta mensal do Drive.
             </p>
           </div>
         )}
