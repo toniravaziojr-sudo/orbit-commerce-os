@@ -305,7 +305,25 @@ const HARD_RULES = [
   "6. Respeite o estágio do funil indicado acima.",
   "7. TÍTULO não pode terminar em '?' por padrão. Use pergunta APENAS quando o ângulo for explicitamente provocativo/diagnóstico e a pergunta agregar — caso contrário, prefira afirmação, benefício direto, frase de impacto ou comando curto. Varie a forma; nunca use '?' como muleta.",
   "8. Não termine o título com reticências '...'. Pontuação final do título é opcional: ponto final, exclamação moderada ou sem pontuação são preferíveis.",
+  "9. COMPLETUDE OBRIGATÓRIA: termine TODAS as frases. Nunca corte no meio de uma palavra ou ideia. Se o texto não couber no limite, REESCREVA mais curto — não trunque. O texto principal precisa terminar com pontuação final ('.', '!') ou fechamento natural.",
+  "10. VARIAÇÃO OBRIGATÓRIA: a cada regeneração, mude radicalmente abertura, ritmo, framework e ângulo. NUNCA devolva o mesmo padrão de frase que já apareceu antes (ver 'VERSÕES ANTERIORES' quando houver). Se já usou um gancho, use outro completamente diferente.",
 ].join("\n");
+
+// Meta aceita textos bem maiores que o recomendado curto. Limites generosos
+// para a IA não precisar truncar no meio: headline 60, primary 500, desc 90.
+const COPY_LIMITS = { headline: 60, primary_text: 500, description: 90 } as const;
+
+// Apara só no fim de frase/palavra — nunca no meio de palavra.
+function smartTrim(s: string, limit: number): string {
+  const t = String(s || "").trim();
+  if (t.length <= limit) return t;
+  const cut = t.slice(0, limit);
+  const sent = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+  if (sent >= Math.floor(limit * 0.5)) return cut.slice(0, sent + 1).trim();
+  const sp = cut.lastIndexOf(" ");
+  if (sp >= Math.floor(limit * 0.5)) return cut.slice(0, sp).trim() + "…";
+  return cut.trim();
+}
 
 
 Deno.serve(async (req) => {
@@ -406,34 +424,39 @@ Deno.serve(async (req) => {
       let usr = "";
 
       if (action === "generate_copy") {
+        const priorBlock = (currHeadline || currPrimary || currDesc)
+          ? `\n\nVERSÕES ANTERIORES (NÃO repita estrutura, abertura nem ritmo):\n- Título anterior: ${currHeadline || "(vazio)"}\n- Texto anterior: ${currPrimary || "(vazio)"}\n- Descrição anterior: ${currDesc || "(vazio)"}\n\nGere algo radicalmente diferente das versões acima — outra abertura, outro framework (AIDA / PAS / 4Us / Before-After-Bridge), outro ângulo emocional.`
+          : "";
         sys = `${COPYWRITER_PERSONA}
 
-Você vai gerar 3 versões INTERNAMENTE (diferentes entre si em ângulo/abertura), criticar cada uma contra os critérios abaixo, e devolver APENAS a melhor.
+Você vai gerar 3 versões INTERNAMENTE (diferentes entre si em ângulo/abertura/framework), criticar cada uma contra os critérios abaixo, e devolver APENAS a melhor.
 
 Critérios de seleção (peso alto):
 - Gancho forte nos primeiros 5 caracteres do título.
-- Especificidade ao produto descrito (não vale frase que serviria para qualquer marca).
+- Texto principal COMPLETO, com frase finalizada — nada cortado no meio.
+- Especificidade ao produto descrito (não vale frase genérica que serviria para qualquer marca).
 - Zero clichê e zero cara de IA.
 - Coerente com o estágio do funil.
 - Ritmo natural em PT-BR coloquial.
 
 Responda APENAS um JSON válido (sem markdown, sem texto extra) no formato:
-{ "headline": string (até 40 chars), "primary_text": string (até 180 chars), "description": string (até 30 chars) }
+{ "headline": string (até ${COPY_LIMITS.headline} chars, frase completa), "primary_text": string (até ${COPY_LIMITS.primary_text} chars, 2 a 4 frases completas terminando em pontuação), "description": string (até ${COPY_LIMITS.description} chars, frase completa) }
 
 ${HARD_RULES}`;
-        usr = `${briefingText}
+        usr = `${briefingText}${priorBlock}
 
-Tarefa: escreva título + texto principal + descrição para um anúncio Meta Ads centrado no produto acima, no estágio indicado. Gere 3 internamente, escolha a melhor, devolva só ela.`;
+Tarefa: escreva título + texto principal + descrição para um anúncio Meta Ads centrado no produto acima, no estágio indicado. Texto principal pode ter 2 a 4 frases — sempre completas, sempre terminando em pontuação. Gere 3 internamente, escolha a melhor, devolva só ela.`;
       } else {
         const labelPt = field === "headline" ? "título" : field === "primary_text" ? "texto principal" : "descrição";
-        const limit = field === "headline" ? 40 : field === "primary_text" ? 180 : 30;
+        const limit = COPY_LIMITS[field as keyof typeof COPY_LIMITS];
+        const currField = field === "headline" ? currHeadline : field === "primary_text" ? currPrimary : currDesc;
         sys = `${COPYWRITER_PERSONA}
 
-Você vai reescrever APENAS o ${labelPt} de um anúncio Meta Ads. Gere 3 versões diferentes internamente, escolha a melhor pelos critérios abaixo e devolva só ela.
+Você vai reescrever APENAS o ${labelPt} de um anúncio Meta Ads. Gere 3 versões diferentes internamente (cada uma com abertura, ritmo e framework distintos), escolha a melhor pelos critérios abaixo e devolva só ela.
 
-Critérios: gancho forte, específica ao produto, zero clichê, coerente com estágio, ritmo PT-BR natural.
+Critérios: gancho forte, frase completa (nunca cortada), específica ao produto, zero clichê, coerente com estágio, ritmo PT-BR natural, ESTRUTURALMENTE DIFERENTE da versão atual.
 
-Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres) }. Sem markdown, sem texto extra.
+Responda APENAS um JSON válido { "${field}": string (até ${limit} caracteres, frase completa terminando em pontuação${field === "primary_text" ? "; aceita múltiplas frases" : ""}) }. Sem markdown, sem texto extra.
 
 ${HARD_RULES}
 
@@ -449,10 +472,13 @@ Versão atual do anúncio:
 - Texto principal: ${currPrimary}
 - Descrição: ${currDesc}
 
+VERSÃO ATUAL DO ${labelPt.toUpperCase()} (NÃO repita estrutura, abertura nem ritmo):
+"${currField || "(vazio)"}"
+
 Feedback/direção do lojista (interpretar, NÃO copiar):
 "${feedback}"
 
-Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respeitando briefing, estágio e limites.`;
+Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão atual em abertura/framework/ritmo, inspirada na direção do lojista, respeitando briefing, estágio e limites. Frase completa, sem cortar no meio.`;
       }
 
       const callAI = async (sysMsg: string, usrMsg: string) => {
@@ -532,9 +558,9 @@ Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respei
       }
 
       if (action === "generate_copy") {
-        const headline = String(parsed?.headline || "").trim().slice(0, 40);
-        const primary_text = String(parsed?.primary_text || parsed?.copy || "").trim().slice(0, 180);
-        const description = String(parsed?.description || "").trim().slice(0, 30);
+        const headline = smartTrim(String(parsed?.headline || ""), COPY_LIMITS.headline);
+        const primary_text = smartTrim(String(parsed?.primary_text || parsed?.copy || ""), COPY_LIMITS.primary_text);
+        const description = smartTrim(String(parsed?.description || ""), COPY_LIMITS.description);
         if (!headline || !primary_text) {
           return ok({ success: false, error_pt: "A copy gerada veio incompleta. Tente novamente." });
         }
@@ -558,8 +584,8 @@ Gere uma versão NOVA APENAS do ${labelPt}, inspirada na direção acima, respei
 
       // regen single field
       const value = String(parsed?.[field] || "").trim();
-      const limit = field === "headline" ? 40 : field === "primary_text" ? 180 : 30;
-      const sliced = value.slice(0, limit);
+      const limit = COPY_LIMITS[field as keyof typeof COPY_LIMITS];
+      const sliced = smartTrim(value, limit);
       if (!sliced) {
         return ok({ success: false, error_pt: "A nova versão veio vazia. Tente novamente." });
       }
