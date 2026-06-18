@@ -1499,6 +1499,33 @@ function AttachCreativeBlock({
       icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}
     >
       <div className="space-y-3">
+        {/* Barra de ações de criativo — sempre no topo do bloco, para o lojista
+            ver primeiro como gerar/subir/trocar antes da preview. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {tenantId && actionId && typeof adIndex === "number" && (
+            <AdImageAIControls
+              tenantId={tenantId}
+              actionId={actionId}
+              adIndex={adIndex}
+              hasImage={hasCreative}
+              onChanged={() => onAfterAIChange?.()}
+            />
+          )}
+          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-9">
+            {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+            {hasCreative ? "Substituir do PC" : "Enviar do PC"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-9">
+            <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+            {hasCreative ? "Trocar pelo Drive" : "Escolher no Drive"}
+          </Button>
+          {hasCreative && (
+            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
+            </Button>
+          )}
+        </div>
+
         {hasCreative ? (
           <div className="flex items-start gap-3">
             <img
@@ -1506,31 +1533,9 @@ function AttachCreativeBlock({
               alt="Criativo do anúncio"
               className="h-32 w-32 object-cover rounded-md border border-border/40"
             />
-            <div className="flex-1 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Esta é a imagem que será publicada neste anúncio.
-              </p>
-              <div className="flex gap-2 flex-wrap items-start">
-                {tenantId && actionId && typeof adIndex === "number" && (
-                  <AdImageAIControls
-                    tenantId={tenantId}
-                    actionId={actionId}
-                    adIndex={adIndex}
-                    hasImage={true}
-                    onChanged={() => onAfterAIChange?.()}
-                  />
-                )}
-                <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
-                  <Upload className="h-3.5 w-3.5 mr-1.5" /> Substituir do PC
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading}>
-                  <FolderOpen className="h-3.5 w-3.5 mr-1.5" /> Trocar pelo Drive
-                </Button>
-                <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
-                </Button>
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+              Esta é a imagem que será publicada neste anúncio. Use os botões acima para gerar uma nova versão com IA, trocar pelo PC ou pelo Drive.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1543,28 +1548,10 @@ function AttachCreativeBlock({
                 />
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Esta é apenas a foto do produto para referência. <strong>Não</strong> é o criativo final.
-                  Anexe abaixo a imagem que será publicada.
+                  Use os botões acima para gerar a imagem que será publicada.
                 </p>
               </div>
             )}
-            <div className="flex gap-2 flex-wrap items-start">
-              {tenantId && actionId && typeof adIndex === "number" && (
-                <AdImageAIControls
-                  tenantId={tenantId}
-                  actionId={actionId}
-                  adIndex={adIndex}
-                  hasImage={false}
-                  onChanged={() => onAfterAIChange?.()}
-                />
-              )}
-              <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading}>
-                {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-                Enviar do PC
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading}>
-                <FolderOpen className="h-3.5 w-3.5 mr-1.5" /> Escolher no Drive
-              </Button>
-            </div>
             <p className="text-[11px] text-muted-foreground">
               Gere com IA, envie do PC ou escolha no Drive. PNG, JPG ou WEBP — até 10 MB. Arquivos do PC vão para a pasta mensal do Drive.
             </p>
