@@ -305,7 +305,25 @@ const HARD_RULES = [
   "6. Respeite o estágio do funil indicado acima.",
   "7. TÍTULO não pode terminar em '?' por padrão. Use pergunta APENAS quando o ângulo for explicitamente provocativo/diagnóstico e a pergunta agregar — caso contrário, prefira afirmação, benefício direto, frase de impacto ou comando curto. Varie a forma; nunca use '?' como muleta.",
   "8. Não termine o título com reticências '...'. Pontuação final do título é opcional: ponto final, exclamação moderada ou sem pontuação são preferíveis.",
+  "9. COMPLETUDE OBRIGATÓRIA: termine TODAS as frases. Nunca corte no meio de uma palavra ou ideia. Se o texto não couber no limite, REESCREVA mais curto — não trunque. O texto principal precisa terminar com pontuação final ('.', '!') ou fechamento natural.",
+  "10. VARIAÇÃO OBRIGATÓRIA: a cada regeneração, mude radicalmente abertura, ritmo, framework e ângulo. NUNCA devolva o mesmo padrão de frase que já apareceu antes (ver 'VERSÕES ANTERIORES' quando houver). Se já usou um gancho, use outro completamente diferente.",
 ].join("\n");
+
+// Meta aceita textos bem maiores que o recomendado curto. Limites generosos
+// para a IA não precisar truncar no meio: headline 60, primary 500, desc 90.
+const COPY_LIMITS = { headline: 60, primary_text: 500, description: 90 } as const;
+
+// Apara só no fim de frase/palavra — nunca no meio de palavra.
+function smartTrim(s: string, limit: number): string {
+  const t = String(s || "").trim();
+  if (t.length <= limit) return t;
+  const cut = t.slice(0, limit);
+  const sent = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+  if (sent >= Math.floor(limit * 0.5)) return cut.slice(0, sent + 1).trim();
+  const sp = cut.lastIndexOf(" ");
+  if (sp >= Math.floor(limit * 0.5)) return cut.slice(0, sp).trim() + "…";
+  return cut.trim();
+}
 
 
 Deno.serve(async (req) => {
