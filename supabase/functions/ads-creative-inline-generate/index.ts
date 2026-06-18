@@ -645,16 +645,16 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         return ok({ success: false, error_pt: "Conte o que você quer diferente na imagem antes de regenerar." });
       }
 
-      const productId = adItem.product_id || plannedItem.product_id || propData.product_id || null;
+      let resolvedProductId: string | null = adItem.product_id || plannedItem.product_id || propData.product_id || null;
       let productImageUrl = adItem.reference_image_url || plannedItem.reference || plannedItem.product_image_url || "";
       let pName = adItem.product_name || plannedItem.product_name || propData?.campaign?.product_name || "";
       let pDesc = adItem.product_description || plannedItem.product_description || "";
 
-      if (productId && (!productImageUrl || !pName || !pDesc)) {
+      if (resolvedProductId && (!productImageUrl || !pName || !pDesc)) {
         const { data: prod } = await supabase
           .from("products")
           .select("name, description, featured_image_url")
-          .eq("id", productId)
+          .eq("id", resolvedProductId)
           .maybeSingle();
         if (prod) {
           pName = pName || prod.name;
@@ -663,9 +663,68 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         }
       }
 
-      if (!productId || !productImageUrl) {
-        return ok({ success: false, error_pt: "Produto da campanha não encontrado para gerar a imagem." });
+      // Fallback: derivar produto por nome (hint do front, do conjunto ou da URL de destino).
+      if (!resolvedProductId || !productImageUrl) {
+        const deriveFromDestination = (url: string | null | undefined): string => {
+          if (!url || typeof url !== "string") return "";
+          try {
+            const u = new URL(url);
+            const parts = u.pathname.split("/").filter(Boolean);
+            const last = parts[parts.length - 1] || "";
+            return decodeURIComponent(last).replace(/[-_]+/g, " ").replace(/\.[a-z0-9]{1,5}$/i, "").trim();
+          } catch { return ""; }
+        };
+        const deriveFromAdsetName = (name: string | null | undefined): string => {
+          if (!name || typeof name !== "string") return "";
+          const segs = name.split("|").map((s) => s.trim()).filter(Boolean);
+          return segs.length >= 2 ? segs[segs.length - 1] : "";
+        };
+        const linkedAdsetForImg = pickLinkedAdset(propData, adItem);
+        const nameCandidates = [
+          productNameHint,
+          pName,
+          adItem.product_name,
+          plannedItem.product_name,
+          deriveFromAdsetName(linkedAdsetForImg?.name || plannedItem.linked_adset_name),
+          deriveFromDestination(adItem.destination_url || plannedItem.destination_url),
+        ].map((s) => String(s || "").trim()).filter(Boolean);
+
+        for (const cand of nameCandidates) {
+          const { data: byName } = await supabase
+            .from("products")
+            .select("id, name, description, featured_image_url")
+            .eq("tenant_id", tenantId)
+            .ilike("name", cand)
+            .limit(1);
+          let match = (byName && byName[0]) || null;
+          if (!match) {
+            const { data: byLike } = await supabase
+              .from("products")
+              .select("id, name, description, featured_image_url")
+              .eq("tenant_id", tenantId)
+              .ilike("name", `%${cand}%`)
+              .limit(1);
+            match = (byLike && byLike[0]) || null;
+          }
+          if (match) {
+            resolvedProductId = resolvedProductId || match.id;
+            pName = pName || match.name;
+            pDesc = pDesc || (match.description || "");
+            productImageUrl = productImageUrl || (match.featured_image_url || "");
+            if (resolvedProductId && productImageUrl) break;
+          }
+        }
       }
+
+      if (!resolvedProductId || !productImageUrl) {
+        return ok({
+          success: false,
+          error_pt: !resolvedProductId
+            ? "Não consegui identificar o produto desta campanha no seu catálogo. Confirme o produto vinculado na proposta."
+            : "O produto vinculado não tem imagem principal cadastrada. Adicione uma foto ao produto no catálogo.",
+        });
+      }
+      const productId = resolvedProductId;
 
       const visualPrompt = plannedItem.visual_prompt || adItem.creative_prompt || "";
       const basePrompt = isRegen
