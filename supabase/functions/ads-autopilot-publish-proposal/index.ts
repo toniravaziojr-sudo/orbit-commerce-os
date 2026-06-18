@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.3.0-h5-anti-orphan-and-raw-meta-error";
+const VERSION = "v1.4.0-h5-meta-preflight-and-rollback";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +48,21 @@ function getSchedulingParams(): { status: string; start_time?: string } {
   if (brtHour >= 4) nextPublish.setUTCDate(nextPublish.getUTCDate() + 1);
   nextPublish.setUTCHours(3, 1, 0, 0);
   return { status: "ACTIVE", start_time: nextPublish.toISOString() };
+}
+
+async function pauseMetaObjects(accessToken: string, metaCampaignId?: string | null, metaAdsetIds: string[] = []) {
+  const ids = [...metaAdsetIds, ...(metaCampaignId ? [metaCampaignId] : [])];
+  for (const id of ids) {
+    try {
+      await fetch(`https://graph.facebook.com/v21.0/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PAUSED", access_token: accessToken }),
+      }).then(r => r.json()).catch(() => null);
+    } catch (e: any) {
+      console.warn(`[publish] Falha ao pausar objeto Meta ${id}: ${e?.message}`);
+    }
+  }
 }
 
 const OBJECTIVE_MAP: Record<string, string> = {
