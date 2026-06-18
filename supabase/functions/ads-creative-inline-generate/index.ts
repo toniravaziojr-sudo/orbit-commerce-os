@@ -50,7 +50,7 @@ async function recordLearning(
   // copy de anúncio -> "copy"; imagem de anúncio -> "criativo".
   const category = subtype === "creative_copy_feedback" ? "copy" : "criativo";
   try {
-    await supabase.from("ads_ai_learnings").insert({
+    const { error } = await supabase.from("ads_ai_learnings").insert({
       tenant_id: tenantId,
       title,
       description,
@@ -63,9 +63,13 @@ async function recordLearning(
       created_by: userId,
       metadata: { ...metadata, subtype },
     });
+    if (error) {
+      console.error("[ads-creative-inline-generate] learning insert rejected:", error);
+    }
   } catch (e) {
-    console.warn("[ads-creative-inline-generate] learning insert failed:", e);
+    console.error("[ads-creative-inline-generate] learning insert failed:", e);
   }
+
 }
 
 // ---------- Briefing enriquecido ----------

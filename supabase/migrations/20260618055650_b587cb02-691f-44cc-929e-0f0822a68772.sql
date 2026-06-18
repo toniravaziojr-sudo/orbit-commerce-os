@@ -1,0 +1,2 @@
+ALTER TABLE public.ads_ai_learnings DROP CONSTRAINT IF EXISTS ads_ai_learnings_source_type_check;
+ALTER TABLE public.ads_ai_learnings ADD CONSTRAINT ads_ai_learnings_source_type_check CHECK (source_type = ANY (ARRAY['approval','rejection','adjustment','manual','system','user_feedback']));
