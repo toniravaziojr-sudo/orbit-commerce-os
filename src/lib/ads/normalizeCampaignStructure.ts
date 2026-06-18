@@ -581,54 +581,59 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
   });
 
   const planned: any[] = Array.isArray(data?.planned_creatives) ? data.planned_creatives : [];
-  const ads: AdNode[] = planned.map((p: any, i: number) => {
-    // H.2.2 — vínculo explícito com o conjunto:
-    //   1) linked_adset_name (gerador novo)
-    //   2) adset_name (legado da estratégia)
-    //   3) nome do conjunto no índice apontado por adset_index
-    //   4) fallback "Conjunto N"
+  const adsPatched: any[] = Array.isArray(data?.ads) ? data.ads : [];
+  const adsLen = Math.max(planned.length, adsPatched.length);
+  const ads: AdNode[] = Array.from({ length: adsLen }, (_, i) => {
+    const p: any = planned[i] || {};
+    // a = patch persistido pela UI/edge (uploads PC/Drive, geração IA, edição manual de copy).
+    // Tem precedência sobre planned_creatives, porque representa a versão mais recente
+    // escolhida pelo lojista no fluxo de aprovação.
+    const a: any = adsPatched[i] || {};
     const adsetIdx = typeof p?.adset_index === "number" ? p.adset_index : null;
     const linkedFromAdsets = adsetIdx !== null && ad_sets[adsetIdx]
       ? ad_sets[adsetIdx].name
       : null;
-    // H.2.3 — humaniza o nome do conjunto vinculado APENAS na UI.
-    // Mantém o nome técnico salvo no payload intacto.
-    const rawLinked = pickStr(p?.linked_adset_name, p?.adset_name, p?.ad_set_ref, linkedFromAdsets);
+    const rawLinked = pickStr(a?.ad_set_ref, p?.linked_adset_name, p?.adset_name, p?.ad_set_ref, linkedFromAdsets);
     const humanizedLinked = rawLinked
       ? humanizeAdsetDisplayName(rawLinked, adsetIdx ?? i)
       : (adsetIdx !== null ? `Conjunto ${adsetIdx + 1}` : null);
+
+    const finalUrl = pickStr(
+      a?.creative_final_url, a?.creative_url, a?.asset_url,
+      p?.creative_final_url, p?.image_url, p?.creative_url, p?.asset_url,
+    );
+    const status: AdNode["creative_status"] = (pickStr(a?.creative_status, p?.creative_status) as AdNode["creative_status"])
+      || (finalUrl ? "ready" : "pending_strategy_approval");
+
     return {
-      name: humanizeAdDisplayName(pickStr(p?.name), i),
+      name: humanizeAdDisplayName(pickStr(a?.name, p?.name), i),
       ad_set_ref: humanizedLinked,
-      product_name: pickStr(c?.product, raw?.product_name),
-      offer_note: pickStr(p?.promise),
-      primary_text: pickStr(p?.copy, p?.primary_text),
-      headline: pickStr(p?.headline),
-      description: pickStr(p?.description),
-      cta: pickStr(p?.cta, p?.planned_cta),
-      destination_url: pickStr(p?.final_url_with_utm, p?.destination_url),
+      product_name: pickStr(a?.product_name, p?.product_name, c?.product, raw?.product_name),
+      offer_note: pickStr(a?.offer_note, p?.promise),
+      primary_text: pickStr(a?.primary_text, a?.copy_text, a?.body, p?.copy, p?.primary_text),
+      headline: pickStr(a?.headline, p?.headline),
+      description: pickStr(a?.description, p?.description),
+      cta: pickStr(a?.cta, a?.cta_type, p?.cta, p?.planned_cta),
+      destination_url: pickStr(a?.destination_url, a?.url, p?.final_url_with_utm, p?.destination_url),
       tracking_params: typeof p?.utm_template === "string" ? p.utm_template
         : (p?.utm_template && typeof p.utm_template === "object")
           ? Object.entries(p.utm_template).map(([k, v]) => `${k}=${v}`).join("&")
           : null,
-      creative_prompt: pickStr(p?.visual_prompt),
-      creative_format: pickStr(p?.creative_format, p?.format),
+      creative_prompt: pickStr(a?.creative_prompt, p?.visual_prompt),
+      creative_format: pickStr(a?.creative_format, p?.creative_format, p?.format),
       alternative_formats: [],
-      reference_image_url: pickStr(p?.reference),
-      creative_final_url: null,
-      creative_status: "pending_strategy_approval",
-      rationale: pickStr(p?.angle),
-      // H.2.3 — metadados de origem/fase para a UI exibir mensagens corretas.
+      reference_image_url: pickStr(a?.reference_image_url, p?.reference),
+      creative_final_url: finalUrl,
+      creative_status: status,
+      rationale: pickStr(a?.rationale, p?.angle),
       cta_source: (p?.cta_source as any) || null,
       destination_source: (p?.destination_source as any) || null,
       destination_pending_reason: (p?.destination_pending_reason as any) || null,
       format_phase: (p?.format_resolution_phase as any) || (p?.resolution_phase?.format as any) || null,
-      // H.2.5 — origem humanizada do formato resolvido.
       format_source: (p?.format_source as any) || null,
       format_source_label_pt: pickStr(p?.format_source_label_pt),
       format_label: pickStr(p?.format_label),
     } as AdNode;
-
   });
 
   const cv = typeof data?.contract_version === "string" ? data.contract_version : (data?.schema_version === "campaign_proposal_v1_1" ? "campaign_proposal_v1_1" : "campaign_proposal_v1");
