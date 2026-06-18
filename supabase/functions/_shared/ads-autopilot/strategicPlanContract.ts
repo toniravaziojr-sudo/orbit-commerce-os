@@ -1008,7 +1008,7 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = autoResolveExistingCampaignIds(
-    normalizeStrategicPlanCustomerExclusions(plan, preflight),
+    normalizeStrategicPlanCustomerExclusions(plan, preflight, options?.tenant_signals ?? null),
     preflight,
   );
   const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
