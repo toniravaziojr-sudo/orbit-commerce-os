@@ -71,7 +71,7 @@ async function attachObservationIfEligible(
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.51.0"; // Fallback Gemini→OpenAI→Lovable também no gatilho manual (start)
+const VERSION = "v1.52.0"; // Onda H.6: tenant_signals (aprendizado teste criativo sem exclusão de clientes) + coerência texto↔estrutura
 // ===================
 
 const corsHeaders = {
