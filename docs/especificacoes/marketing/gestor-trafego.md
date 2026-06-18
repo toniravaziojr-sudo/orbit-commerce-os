@@ -4586,6 +4586,7 @@ Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inlin
 - O gerador de proposta passa a persistir `product_id` e `product_name` em cada item de `planned_creatives`, eliminando a dependência do front-end em adivinhar o produto na hora de regerar.
 - O motor de copy ganha cascata de fallback: se o nome do produto não vier no payload, deriva da URL de destino (último segmento do path) e do nome do conjunto vinculado (último segmento após `|`). Isso desbloqueia regeneração também em propostas antigas, sem migração de dados.
 - O motor de imagem usa a mesma cascata e, após identificar o produto, busca a imagem principal em `product_images`, ordenando por primária e ordem de exibição. Não deve depender de campos de imagem dentro do cadastro operacional do produto.
+- O fluxo inline considera geração concluída quando o job de imagem retornar `completed` ou `succeeded`; ambos devem salvar a URL final no card do anúncio.
 
 ### Proibições
 - Voltar a usar `slice` cego que corta no meio de palavra.
@@ -4593,6 +4594,7 @@ Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inlin
 - Renderizar o painel de IA abaixo do bloco de criativo.
 - Regenerar sem passar a versão atual e as anteriores no prompt.
 - Falhar regeneração apenas porque o front-end não passou o nome do produto: o motor é obrigado a tentar derivar do conjunto e da URL de destino antes de recusar.
+- Tratar `succeeded` como erro/timeout no fluxo inline de imagem.
 
 ### Memórias relacionadas
 - `mem://constraints/ads-h48-copy-limits-layout-and-anti-repeat`
