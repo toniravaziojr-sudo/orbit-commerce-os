@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
         return ok({ success: false, error_pt: "Conte como você quer este texto diferente antes de regenerar." });
       }
 
-      const briefing = await buildBriefing(supabase, tenantId, propData, adIndex);
+      const briefing = await buildBriefing(supabase, tenantId, propData, adIndex, productNameHint);
       if (!briefing.productName) {
         return ok({ success: false, error_pt: "Produto da campanha não encontrado para gerar a copy." });
       }
