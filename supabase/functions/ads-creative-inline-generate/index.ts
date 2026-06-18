@@ -123,6 +123,7 @@ async function buildBriefing(
   tenantId: string,
   propData: any,
   adIndex: number,
+  hintName?: string,
 ) {
   const planned = (propData?.planned_creatives || [])[adIndex] || {};
   const ad = (propData?.ads || [])[adIndex] || {};
@@ -130,8 +131,11 @@ async function buildBriefing(
   const linkedAdset = pickLinkedAdset(propData, ad);
 
   const productId = ad.product_id || planned.product_id || propData.product_id || null;
+  const productNameHint = String(
+    hintName || ad.product_name || planned.product_name || campaign?.product_name || propData?.product_name || "",
+  ).trim();
 
-  // Produto real do cadastro (quando houver).
+  // Produto real do cadastro (quando houver) — por ID, com fallback por nome.
   let product: any = null;
   if (productId) {
     const { data } = await supabase
@@ -140,6 +144,24 @@ async function buildBriefing(
       .eq("id", productId)
       .maybeSingle();
     product = data || null;
+  }
+  if (!product && productNameHint) {
+    const { data: exact } = await supabase
+      .from("products")
+      .select("id, name, description, price, short_description")
+      .eq("tenant_id", tenantId)
+      .ilike("name", productNameHint)
+      .limit(1);
+    product = (exact && exact[0]) || null;
+    if (!product) {
+      const { data: like } = await supabase
+        .from("products")
+        .select("id, name, description, price, short_description")
+        .eq("tenant_id", tenantId)
+        .ilike("name", `%${productNameHint}%`)
+        .limit(1);
+      product = (like && like[0]) || null;
+    }
   }
 
   // Voz da marca.
@@ -169,7 +191,7 @@ async function buildBriefing(
   const stage = inferStageFromAdset(linkedAdset, campaign);
 
   const productName =
-    product?.name || ad.product_name || planned.product_name || campaign.product_name || "";
+    product?.name || productNameHint || ad.product_name || planned.product_name || campaign.product_name || "";
   const productDescription =
     product?.description || product?.short_description || ad.product_description ||
     planned.product_description || "";
@@ -284,6 +306,7 @@ Deno.serve(async (req) => {
     const actionId = String(body.action_id || "");
     const adIndex = Number(body.ad_index);
     const action = String(body.action || "");
+    const productNameHint = String(body.product_name_hint || "").trim();
 
     if (!tenantId || !actionId || !Number.isFinite(adIndex) || !action) {
       return ok({ success: false, error_pt: "Parâmetros obrigatórios ausentes." });
@@ -346,7 +369,7 @@ Deno.serve(async (req) => {
         return ok({ success: false, error_pt: "Conte como você quer este texto diferente antes de regenerar." });
       }
 
-      const briefing = await buildBriefing(supabase, tenantId, propData, adIndex);
+      const briefing = await buildBriefing(supabase, tenantId, propData, adIndex, productNameHint);
       if (!briefing.productName) {
         return ok({ success: false, error_pt: "Produto da campanha não encontrado para gerar a copy." });
       }
