@@ -15,6 +15,25 @@ export const PLAN_SCHEMA_VERSION = "strategic_plan_v2";
 export const CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_not_detected" as const;
 export const LEGACY_CUSTOMER_AUDIENCE_PENDING_DEPENDENCY = "customer_audience_missing" as const;
 export const TEST_NEW_LAUNCH_SKIP_REASON = "test_for_new_or_launch_product" as const;
+export const CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON = "creative_test_tenant_learning" as const;
+const STRUCTURE_AWARE_SKIP_REASONS = new Set<string>([
+  TEST_NEW_LAUNCH_SKIP_REASON,
+  CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+]);
+
+export interface TenantStrategicSignals {
+  /**
+   * Aprendizado ativo do tenant que pede para NÃO excluir clientes em teste criativo.
+   * Quando ativo, sobrepõe o default de segurança (que exclui clientes mesmo em
+   * carro-chefe) para campanhas com `campaign_intent === "creative_test"`.
+   */
+  creative_test_skip_customer_exclusion?: {
+    active: boolean;
+    reason: string;
+    learning_id?: string | null;
+    learning_title?: string | null;
+  } | null;
+}
 
 // Sinais de produto em lançamento/novo (não-carro-chefe). Aplicados a product_name,
 // product_lifecycle e tags do action quando disponíveis. Sinais carro-chefe vencem.
@@ -87,6 +106,7 @@ export interface StrategicPlanGuardOptions {
   source_flow?: string | null;
   campaign_account_snapshot?: any[] | null;
   analysis_run_id?: string | null;
+  tenant_signals?: TenantStrategicSignals | null;
 }
 
 const LEGACY_CAMPAIGN_TYPES = new Set([
@@ -294,6 +314,70 @@ function hasCreativeTestCustomerOverride(action: any): boolean {
 }
 
 /**
+ * Aprendizado ativo do tenant pede para não excluir clientes em teste criativo.
+ * Aplica-se quando NÃO é teste de produto novo/lançamento (esse já tem seu próprio
+ * caminho determinístico) e quando NÃO há override explícito do LLM.
+ */
+function creativeTestLearningSkipsExclusion(action: any, signals?: TenantStrategicSignals | null): boolean {
+  if (!signals?.creative_test_skip_customer_exclusion?.active) return false;
+  const intent = normValue(action?.campaign_intent);
+  if (intent !== "creative test") return false;
+  return true;
+}
+
+function getLearningSkipReasonText(signals?: TenantStrategicSignals | null): string {
+  const fromSignal = String(signals?.creative_test_skip_customer_exclusion?.reason || "").trim();
+  if (fromSignal.length >= 12) return fromSignal;
+  return "Aprendizado ativo do tenant: testes criativos não excluem clientes.";
+}
+
+/** Remove cláusulas que afirmam o OPOSTO da decisão final de exclusão. */
+function stripContradictoryExclusionPhrases(text: string, finalExcludes: boolean): string {
+  if (!text || typeof text !== "string") return text || "";
+  let out = text;
+  const positiveExclusionPhrases = [
+    /,?\s*excluindo\s+(?:os\s+)?clientes(?:\s+existentes|\s+atuais)?[^\.,;]*/gi,
+    /(?:^|[\.\s])\s*(?:os\s+)?clientes\s+(?:ser[aã]o|s[aã]o|foram)\s+exclu[ií]dos[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*exclui(?:r)?\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+  ];
+  const negativeExclusionPhrases = [
+    /(?:^|[\.\s])\s*(?:os\s+)?clientes\s+n[aã]o\s+(?:ser[aã]o|s[aã]o|foram)\s+exclu[ií]dos[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*n[aã]o\s+exclui(?:r)?\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+    /(?:^|[\.\s])\s*mantendo\s+(?:os\s+)?clientes[^\.]*\.?/gi,
+  ];
+  const toStrip = finalExcludes ? negativeExclusionPhrases : positiveExclusionPhrases;
+  for (const re of toStrip) out = out.replace(re, " ");
+  out = out.replace(/\s{2,}/g, " ").replace(/\s+([\.,;])/g, "$1").trim();
+  return out;
+}
+
+/** Reescreve textos livres do action e adsets para casar com a estrutura final. */
+function rewriteTextsToMatchExclusion(
+  obj: any,
+  finalExcludes: boolean,
+  skipReason?: string | null,
+): void {
+  if (!obj || typeof obj !== "object") return;
+  const suffixExcluding = "Exclui clientes existentes.";
+  const suffixKeeping = skipReason === CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON
+    ? "Clientes mantidos no público — aprendizado ativo da IA para testes criativos."
+    : skipReason === TEST_NEW_LAUNCH_SKIP_REASON
+      ? "Clientes mantidos no público — teste de produto novo/lançamento."
+      : "Clientes mantidos no público.";
+  const suffix = finalExcludes ? suffixExcluding : suffixKeeping;
+
+  const excl = (obj.audience_exclusions && typeof obj.audience_exclusions === "object") ? obj.audience_exclusions : null;
+  if (excl) {
+    const cleaned = stripContradictoryExclusionPhrases(String(excl.reason || ""), finalExcludes);
+    excl.reason = cleaned ? `${cleaned} ${suffix}`.trim() : suffix;
+  }
+  if (typeof obj.audience_description === "string" && obj.audience_description.length > 0) {
+    const cleaned = stripContradictoryExclusionPhrases(obj.audience_description, finalExcludes);
+    obj.audience_description = cleaned ? `${cleaned} ${suffix}`.trim() : suffix;
+  }
+}
+
+/**
  * Detecta se a ação é um TESTE (creative_test/offer_test) para produto novo ou em lançamento.
  * Nesse cenário, manter a base de clientes no público é desejável para validar atratividade
  * do produto novo — então a exclusão automática NÃO se aplica.
@@ -402,7 +486,29 @@ function normalizeProspectingAdsetCustomerExclusion(adset: any, preflight: Strat
   };
 }
 
-export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+/** Limpa o público de clientes dos campos estruturais de targeting do adset. */
+function stripCustomerAudienceFromAdsetTargeting(adset: any, preflight: StrategicPlanPreflight): any {
+  const customerId = preflight?.customer_audience?.customer_audience_id
+    ? String(preflight.customer_audience.customer_audience_id)
+    : null;
+  if (!customerId) return adset;
+  const currentTargeting = adset?.targeting && typeof adset.targeting === "object" ? adset.targeting : {};
+  const currentExcludedCA = ensureArray<any>(currentTargeting?.excluded_custom_audiences)
+    .filter((entry: any) => String(entry?.id ?? entry) !== customerId);
+  const currentExcludedIds = ensureArray<any>(adset?.excluded_audience_ids)
+    .filter((entry: any) => String(entry?.id ?? entry) !== customerId);
+  return {
+    ...adset,
+    targeting: { ...currentTargeting, excluded_custom_audiences: currentExcludedCA },
+    excluded_audience_ids: currentExcludedIds,
+  };
+}
+
+export function enforceProspectingAdsetCustomerExclusions(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
   return {
@@ -410,14 +516,40 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
     planned_actions: plan.planned_actions.map((action: any) => {
       if (!action || typeof action !== "object" || !Array.isArray(action.adsets)) return action;
       if (hasCreativeTestCustomerOverride(action)) return action;
-      if (isTestForNewOrLaunchProduct(action)) {
-        // Teste de produto novo/lançamento: marca exceção determinística nos adsets,
-        // mas não força exclusão. Validador respeita o motivo.
+
+      // Aprendizado do tenant ativo para teste criativo: pula exclusão.
+      if (creativeTestLearningSkipsExclusion(action, signals)) {
+        const reasonText = getLearningSkipReasonText(signals);
         const normalizedAdsets = action.adsets.map((adset: any) => {
           if (!isProspectingLikeAdset(action, adset)) return adset;
-          const currentExclusion = adset?.audience_exclusions && typeof adset.audience_exclusions === "object" ? adset.audience_exclusions : {};
-          return {
-            ...adset,
+          const stripped = stripCustomerAudienceFromAdsetTargeting(adset, preflight);
+          const currentExclusion = stripped?.audience_exclusions && typeof stripped.audience_exclusions === "object" ? stripped.audience_exclusions : {};
+          const { customer_audience_id: _cid, customer_audience_name: _cname, pending_dependency: _pd, ...restExcl } = currentExclusion;
+          const next = {
+            ...stripped,
+            audience_exclusions: {
+              ...restExcl,
+              customers: false,
+              customer_audience_detected: false,
+              exclusion_skipped_reason: CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+              reason: reasonText,
+            },
+          };
+          rewriteTextsToMatchExclusion(next, false, CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON);
+          return next;
+        });
+        const nextAction = { ...action, adsets: normalizedAdsets };
+        rewriteTextsToMatchExclusion(nextAction, false, CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON);
+        return nextAction;
+      }
+
+      if (isTestForNewOrLaunchProduct(action)) {
+        const normalizedAdsets = action.adsets.map((adset: any) => {
+          if (!isProspectingLikeAdset(action, adset)) return adset;
+          const stripped = stripCustomerAudienceFromAdsetTargeting(adset, preflight);
+          const currentExclusion = stripped?.audience_exclusions && typeof stripped.audience_exclusions === "object" ? stripped.audience_exclusions : {};
+          const next = {
+            ...stripped,
             audience_exclusions: {
               ...currentExclusion,
               customers: false,
@@ -427,19 +559,26 @@ export function enforceProspectingAdsetCustomerExclusions(plan: any, preflight: 
                 "Teste de produto novo/lançamento — manter base de clientes no público para validar atratividade.",
             },
           };
+          rewriteTextsToMatchExclusion(next, false, TEST_NEW_LAUNCH_SKIP_REASON);
+          return next;
         });
-        return { ...action, adsets: normalizedAdsets };
+        const nextAction = { ...action, adsets: normalizedAdsets };
+        rewriteTextsToMatchExclusion(nextAction, false, TEST_NEW_LAUNCH_SKIP_REASON);
+        return nextAction;
       }
 
       const normalizedAdsets = action.adsets.map((adset: any) => {
         if (!isProspectingLikeAdset(action, adset)) return adset;
-        return normalizeProspectingAdsetCustomerExclusion(adset, preflight);
+        const normalized = normalizeProspectingAdsetCustomerExclusion(adset, preflight);
+        const finalExcludes = normalized?.audience_exclusions?.customers === true;
+        rewriteTextsToMatchExclusion(normalized, finalExcludes, null);
+        return normalized;
       });
 
-      return {
-        ...action,
-        adsets: normalizedAdsets,
-      };
+      const nextAction = { ...action, adsets: normalizedAdsets };
+      const actionExcludes = nextAction?.audience_exclusions?.customers === true;
+      rewriteTextsToMatchExclusion(nextAction, actionExcludes, null);
+      return nextAction;
     }),
   };
 }
@@ -592,7 +731,11 @@ function inferAudienceBudgetFitsForPlan(plan: any, preflight: StrategicPlanPrefl
   return { ...plan, planned_actions: next };
 }
 
-function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPreflight): any {
+function normalizeStrategicPlanAction(
+  action: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!action || typeof action !== "object") return action;
 
   const campaignType = String(canonicalizeCampaignType(action));
@@ -608,13 +751,25 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
   let audienceExclusions = current;
   const isTestNewLaunch = isTestForNewOrLaunchProduct({ ...action, campaign_type: campaignType, campaign_intent: campaignIntent, funnel_stage: funnelStage, affected_funnel: affectedFunnel });
   const hasOverride = hasCreativeTestCustomerOverride({ ...action, campaign_intent: campaignIntent });
+  const learningSkipsExclusion = creativeTestLearningSkipsExclusion(
+    { ...action, campaign_intent: campaignIntent },
+    signals,
+  ) && !isTestNewLaunch && !hasOverride;
   // Default seguro: testes criativos sem sinal de lançamento e sem justificativa
-  // formal devem excluir clientes (mesmo critério do tráfego frio). Evita bloqueio
-  // por omissão do LLM e respeita a regra de negócio: só mantém clientes quando há
-  // sinal explícito de produto novo/lançamento.
+  // formal devem excluir clientes (mesmo critério do tráfego frio). Aprendizado
+  // ATIVO do tenant sobrepõe esse default para teste criativo.
   const isCreativeTestWithoutLaunch =
-    campaignIntent === "creative_test" && !isTestNewLaunch && !hasOverride;
-  if ((isCold || isCreativeTestWithoutLaunch) && !hasOverride && !isTestNewLaunch) {
+    campaignIntent === "creative_test" && !isTestNewLaunch && !hasOverride && !learningSkipsExclusion;
+  if (learningSkipsExclusion) {
+    const { customer_audience_id: _cid, customer_audience_name: _cname, pending_dependency: _pd, ...rest } = current;
+    audienceExclusions = {
+      ...rest,
+      customers: false,
+      customer_audience_detected: false,
+      exclusion_skipped_reason: CREATIVE_TEST_TENANT_LEARNING_SKIP_REASON,
+      reason: getLearningSkipReasonText(signals),
+    };
+  } else if ((isCold || isCreativeTestWithoutLaunch) && !hasOverride && !isTestNewLaunch) {
     if (detected) {
       const { pending_dependency: _pending, ...rest } = current;
       audienceExclusions = {
@@ -649,9 +804,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
   }
 
   // Auto-cura A: rebaixar `catalog_*` quando o estrategista NÃO preencheu nenhum
-  // campo de catálogo. Isso indica que a intenção real era prospecção/retargeting
-  // comum (vídeo/imagem estática) e o prefixo `catalog_` foi um erro de rotulagem
-  // do LLM. Sem essa auto-cura, o plano inteiro caía em "incompleto".
+  // campo de catálogo.
   const csIncoming = (action.catalog_setup && typeof action.catalog_setup === "object")
     ? action.catalog_setup
     : null;
@@ -666,9 +819,7 @@ function normalizeStrategicPlanAction(action: any, preflight: StrategicPlanPrefl
     demotedFromCatalog = true;
   }
 
-  // Auto-cura B: catálogo dinâmico sem catálogo Meta detectado → injetar
-  // pending_dependency determinística para evitar bloqueio do plano inteiro
-  // por falha do LLM em declarar a pendência.
+  // Auto-cura B: catálogo dinâmico sem catálogo Meta detectado.
   let catalogSetup = action.catalog_setup;
   if (isCatalogType(campaignTypeFinal) && !preflight.catalog_availability?.catalog_detected) {
     const cs = (catalogSetup && typeof catalogSetup === "object") ? catalogSetup : {};
@@ -805,15 +956,19 @@ function autoResolveExistingCampaignIds(plan: any, preflight: StrategicPlanPrefl
   return { ...plan, planned_actions: next };
 }
 
-export function normalizeStrategicPlanCustomerExclusions(plan: any, preflight: StrategicPlanPreflight): any {
+export function normalizeStrategicPlanCustomerExclusions(
+  plan: any,
+  preflight: StrategicPlanPreflight,
+  signals?: TenantStrategicSignals | null,
+): any {
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.planned_actions)) return plan;
 
   const normalizedPlan = {
     ...plan,
-    planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight)),
+    planned_actions: plan.planned_actions.map((action: any) => normalizeStrategicPlanAction(action, preflight, signals)),
   };
 
-  const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight);
+  const withExclusions = enforceProspectingAdsetCustomerExclusions(normalizedPlan, preflight, signals);
   const withBudgetSources = inferBudgetSourcesForPlan(withExclusions, preflight);
   return inferAudienceBudgetFitsForPlan(withBudgetSources, preflight);
 }
@@ -853,7 +1008,7 @@ export function normalizeAndValidateStrategicPlanForApproval(
   }
 
   const normalizedPlanBase = autoResolveExistingCampaignIds(
-    normalizeStrategicPlanCustomerExclusions(plan, preflight),
+    normalizeStrategicPlanCustomerExclusions(plan, preflight, options?.tenant_signals ?? null),
     preflight,
   );
   const hasCustomerAudiencePending = Array.isArray(normalizedPlanBase?.planned_actions) && normalizedPlanBase.planned_actions.some((action: any) => {
@@ -1132,7 +1287,7 @@ export function validateStrategicPlanContract(plan: any, preflight: StrategicPla
       const includesCustomers = a.audience_exclusions?.customers === false || a.audience_inclusion?.customers === true;
       if (includesCustomers) {
         const skipReason = String(a.audience_exclusions?.exclusion_skipped_reason || "").trim();
-        if (skipReason !== TEST_NEW_LAUNCH_SKIP_REASON) {
+        if (!STRUCTURE_AWARE_SKIP_REASONS.has(skipReason)) {
           const reason = String(a.exclusion_override_reason || "").trim();
           if (reason.length < 12) {
             push({
