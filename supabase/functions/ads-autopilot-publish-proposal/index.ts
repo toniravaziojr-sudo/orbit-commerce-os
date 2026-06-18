@@ -462,22 +462,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Paridade total: só consideramos "publicada" se TODOS os criativos prontos
+    // viraram anúncio na Meta. Qualquer falha (parcial ou total) reabre a proposta
+    // na fila "Aguardando Ação" — sem limbo invisível.
     const successAds = createdAdIds.filter(a => a.meta_ad_id).length;
-    const finalStatus = successAds > 0 ? "campaign_implemented" : "campaign_implementation_failed";
+    const expectedAds = readyCreatives.length;
+    const allOk = successAds > 0 && successAds === expectedAds;
+    const finalStatus = allOk ? "campaign_implemented" : "campaign_implementation_failed";
     const nowIso = new Date().toISOString();
+    const failureDetail = !allOk
+      ? createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | ")
+      : null;
 
     await supabase.from("ads_autopilot_actions").update({
-      status: successAds > 0 ? "executed" : "approved",
-      executed_at: successAds > 0 ? nowIso : null,
+      // Sucesso total → executed e sai da fila.
+      // Qualquer falha → volta para pending_approval para o lojista tentar de novo.
+      status: allOk ? "executed" : "pending_approval",
+      executed_at: allOk ? nowIso : null,
+      approved_at: allOk ? action.approved_at : null,
       action_data: {
         ...propData,
         lifecycle: {
           ...lifecycle,
           status: finalStatus,
-          version: "h42_v1",
-          published_at: successAds > 0 ? nowIso : null,
+          version: "h5_v1",
+          published_at: allOk ? nowIso : null,
+          failed_at: allOk ? null : nowIso,
+          failure_code: allOk ? null : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed"),
+          failure_message_pt: allOk ? null : (failureDetail || "Falha ao publicar todos os anúncios na Meta."),
           meta_campaign_id: metaCampaignId,
-          meta_adset_id: metaAdsetId,
+          meta_adset_ids: createdAdsetIds,
           ads_created: createdAdIds,
           scheduled_start_time: scheduling.start_time || null,
           scheduling_mode: scheduling.start_time ? "scheduled_next_window" : "immediate",
@@ -495,7 +509,7 @@ Deno.serve(async (req) => {
       },
       rollback_data: {
         meta_campaign_id: metaCampaignId,
-        meta_adset_id: metaAdsetId,
+        meta_adset_ids: createdAdsetIds,
         meta_ad_ids: createdAdIds.filter(a => a.meta_ad_id).map(a => a.meta_ad_id),
       },
     }).eq("id", action_id);
@@ -505,31 +519,43 @@ Deno.serve(async (req) => {
       tenant_id,
       channel: action.channel || "meta",
       ad_account_id: adAccountId,
-      title: successAds > 0 ? "🚀 Campanha publicada na Meta" : "⚠️ Falha ao publicar campanha",
-      body: successAds > 0
-        ? `"${campaignName}" foi publicada com ${successAds} anúncio(s)${scheduling.start_time ? ` e iniciará às 00:01 (horário de Brasília) do próximo dia` : " (ativa imediatamente)"}.`
-        : `Não foi possível publicar "${campaignName}". Tente novamente ou ajuste os criativos.`,
+      title: allOk ? "🚀 Campanha publicada na Meta" : "⚠️ Falha ao publicar campanha",
+      body: allOk
+        ? `"${campaignName}" foi publicada com ${successAds} anúncio(s) em ${createdAdsetIds.length} conjunto(s)${scheduling.start_time ? ` e iniciará às 00:01 (horário de Brasília) do próximo dia` : " (ativa imediatamente)"}.`
+        : `Não foi possível publicar "${campaignName}" (${successAds}/${expectedAds} anúncios). ${failureDetail || ""} A proposta voltou para a fila para nova tentativa.`,
       category: "strategy",
-      priority: successAds > 0 ? "medium" : "high",
-      sentiment: successAds > 0 ? "positive" : "negative",
+      priority: allOk ? "medium" : "high",
+      sentiment: allOk ? "positive" : "negative",
       status: "open",
     });
 
     return new Response(JSON.stringify({
-      success: successAds > 0,
+      success: allOk,
+      error_pt: allOk ? undefined : (failureDetail || "Falha ao publicar todos os anúncios."),
       data: {
         lifecycle_status: finalStatus,
         meta_campaign_id: metaCampaignId,
-        meta_adset_id: metaAdsetId,
+        meta_adset_ids: createdAdsetIds,
         ads: createdAdIds,
         scheduled_start_time: scheduling.start_time || null,
         success_count: successAds,
-        total_creatives: readyCreatives.length,
+        total_creatives: expectedAds,
       },
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err: any) {
     console.error(`[publish-proposal][${VERSION}] fatal:`, err?.message);
+    // Anti-limbo: garante que erro inesperado também devolve a proposta para a fila.
+    try {
+      const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { action_id } = await req.clone().json().catch(() => ({}));
+      if (action_id) {
+        await sb.from("ads_autopilot_actions").update({
+          status: "pending_approval",
+          approved_at: null,
+        }).eq("id", action_id).eq("status", "approved");
+      }
+    } catch { /* ignore */ }
     return new Response(JSON.stringify({ success: false, error_pt: `Erro inesperado: ${err?.message || err}` }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
@@ -544,13 +570,16 @@ async function markFailed(
   message: string,
   extra: any = {},
 ) {
+  // Anti-limbo: reabre a proposta na fila com lifecycle de falha.
   await supabase.from("ads_autopilot_actions").update({
+    status: "pending_approval",
+    approved_at: null,
     action_data: {
       ...propData,
       lifecycle: {
         ...lifecycle,
         status: "campaign_implementation_failed",
-        version: "h42_v1",
+        version: "h5_v1",
         failed_at: new Date().toISOString(),
         failure_code: code,
         failure_message_pt: message,
@@ -558,4 +587,5 @@ async function markFailed(
       },
     },
   }).eq("id", action_id);
+}
 }
