@@ -305,7 +305,7 @@ function buildPlannedCreativesSnapshot(
       linked_adset_name: adsetName(adsetIdx),
       // Vínculo de produto persistido para a etapa Anúncios conseguir regerar copy/imagem
       // sem depender de hint do front-end (Onda H.4.9).
-      product_id: c?.product_id || action?.product_id || options?.productId || null,
+      product_id: c?.product_id || action?.product_id || null,
       product_name: c?.product_name || baseProductName || null,
       quantity: c?.quantity ?? 1,
       format: planned_format,
