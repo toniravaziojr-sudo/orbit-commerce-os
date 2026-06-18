@@ -85,11 +85,24 @@ Deno.serve(async (req) => {
     }
     const propData = action.action_data || {};
     const lifecycle = propData.lifecycle || {};
-    if (lifecycle.status !== "campaign_creatives_ready") {
+
+    // Lifecycles aceitáveis para tentar publicar:
+    // - estrutura aprovada (fluxo manual: usuário anexa/gera criativo no próprio assistente)
+    // - criativos prontos (fluxo antigo em lote via creative_jobs)
+    // - falhas anteriores (retry)
+    const PUBLISH_ALLOWED_LIFECYCLES = new Set([
+      "structure_approved_awaiting_creatives",
+      "campaign_creatives_generating",
+      "campaign_creatives_ready",
+      "campaign_creatives_failed",
+      "campaign_implementation_failed",
+    ]);
+    const currentLifecycleStatus = lifecycle.status || null;
+    if (currentLifecycleStatus && !PUBLISH_ALLOWED_LIFECYCLES.has(currentLifecycleStatus)) {
       return new Response(JSON.stringify({
         success: false,
-        error_pt: "Esta proposta ainda não está pronta para publicação. Aguarde a geração de todos os criativos.",
-        current_lifecycle: lifecycle.status || null,
+        error_pt: "Esta proposta não está em um estado que permita publicação agora.",
+        current_lifecycle: currentLifecycleStatus,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -97,6 +110,7 @@ Deno.serve(async (req) => {
     const identity = propData.identity || {};
     const adsetsList = Array.isArray(propData.adsets) ? propData.adsets : [];
     const plannedCreatives = Array.isArray(propData.planned_creatives) ? propData.planned_creatives : [];
+    const adsList = Array.isArray(propData.ads) ? propData.ads : [];
     const creativeJobsMeta = Array.isArray(lifecycle.creative_jobs) ? lifecycle.creative_jobs : [];
 
     const adAccountId = propData.ad_account_id || campaign.ad_account_id;
@@ -113,34 +127,80 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Carrega creative_jobs do banco para obter output_urls
-    // Aceita tanto { job_id, creative_index } quanto { id, planned_creative_index }
-    const jobIds = creativeJobsMeta.map((j: any) => j.job_id || j.id).filter(Boolean);
-    const { data: jobs } = await supabase
-      .from("creative_jobs")
-      .select("id, status, output_urls, product_id, prompt")
-      .in("id", jobIds.length > 0 ? jobIds : ["00000000-0000-0000-0000-000000000000"]);
-
+    // ---------- Coleta de criativos prontos ----------
+    // Fonte 1 (preferencial): planned_creatives[i] / ads[i] com URL final
+    //   (anexo do PC, Drive ou IA inline gravam aqui via StructuredProposalModal).
+    // Fonte 2 (legado): creative_jobs em lote do fluxo H.4.1.
     const readyCreatives: Array<{ creative_index: number; image_url: string; product_id: string | null; planned: any }> = [];
-    for (const meta of creativeJobsMeta) {
-      const jobId = meta.job_id || meta.id;
-      const creativeIndex = (typeof meta.creative_index === "number") ? meta.creative_index : (meta.planned_creative_index ?? 0);
-      const job = (jobs || []).find((j: any) => j.id === jobId);
-      if (!job || job.status !== "succeeded") continue;
-      const url = Array.isArray(job.output_urls) && job.output_urls.length > 0 ? job.output_urls[0] : null;
+    const seenIndexes = new Set<number>();
+
+    const pickStr = (...vals: any[]): string | null => {
+      for (const v of vals) {
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return null;
+    };
+
+    const totalSlots = Math.max(plannedCreatives.length, adsList.length);
+    for (let i = 0; i < totalSlots; i++) {
+      const planned = plannedCreatives[i] || {};
+      const adNode = adsList[i] || {};
+      const url = pickStr(
+        adNode.creative_final_url, adNode.creative_url, adNode.asset_url, adNode.image_url,
+        planned.creative_final_url, planned.image_url, planned.creative_url, planned.asset_url,
+      );
       if (!url) continue;
-      const planned = plannedCreatives[creativeIndex] || {};
+      // Mescla copy/headline/cta/destination do ads[i] dentro do planned (ads[i] é o que o usuário editou).
+      const mergedPlanned = {
+        ...planned,
+        copy: pickStr(adNode.primary_text, adNode.copy, planned.copy, planned.primary_text) || planned.copy,
+        primary_text: pickStr(adNode.primary_text, planned.primary_text, planned.copy) || planned.primary_text,
+        headline: pickStr(adNode.headline, planned.headline) || planned.headline,
+        cta: pickStr(adNode.cta, planned.cta) || planned.cta,
+        destination_url: pickStr(adNode.destination_url, planned.destination_url, planned.final_url_with_utm) || planned.destination_url,
+      };
       readyCreatives.push({
-        creative_index: creativeIndex,
+        creative_index: i,
         image_url: url,
-        product_id: job.product_id || planned.product_id || null,
-        planned,
+        product_id: adNode.product_id || planned.product_id || null,
+        planned: mergedPlanned,
       });
+      seenIndexes.add(i);
+    }
+
+    // Fonte 2 — creative_jobs (fluxo legado em lote). Só usa se ainda não temos
+    // criativo para aquele índice via fonte 1.
+    if (creativeJobsMeta.length > 0) {
+      const jobIds = creativeJobsMeta.map((j: any) => j.job_id || j.id).filter(Boolean);
+      const { data: jobs } = await supabase
+        .from("creative_jobs")
+        .select("id, status, output_urls, product_id, prompt")
+        .in("id", jobIds.length > 0 ? jobIds : ["00000000-0000-0000-0000-000000000000"]);
+
+      for (const meta of creativeJobsMeta) {
+        const jobId = meta.job_id || meta.id;
+        const creativeIndex = (typeof meta.creative_index === "number") ? meta.creative_index : (meta.planned_creative_index ?? 0);
+        if (seenIndexes.has(creativeIndex)) continue;
+        const job = (jobs || []).find((j: any) => j.id === jobId);
+        if (!job || (job.status !== "succeeded" && job.status !== "completed")) continue;
+        const url = Array.isArray(job.output_urls) && job.output_urls.length > 0 ? job.output_urls[0] : null;
+        if (!url) continue;
+        const planned = plannedCreatives[creativeIndex] || {};
+        readyCreatives.push({
+          creative_index: creativeIndex,
+          image_url: url,
+          product_id: job.product_id || planned.product_id || null,
+          planned,
+        });
+        seenIndexes.add(creativeIndex);
+      }
     }
 
     if (readyCreatives.length === 0) {
-      return new Response(JSON.stringify({ success: false, error_pt: "Nenhum criativo gerado com sucesso para publicar." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({
+        success: false,
+        error_pt: "Nenhum criativo anexado ou gerado. Anexe ou gere ao menos um criativo antes de publicar.",
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
