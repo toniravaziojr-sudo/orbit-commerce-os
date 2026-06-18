@@ -27,8 +27,8 @@ Um único assistente do início ao fim. O lojista revisa tudo pronto, edita o qu
 - **Fase 1** ✅ Esqueleto navegável (5 etapas).
 - **Fase 2** ✅ Rodapé novo (Cancelar + Ajustar).
 - **Fase 3** ✅ Etapa Publicar com resumo + bloqueio se faltar criativo.
-- **Fase 4** ✅ Edição inline (Campanha + Conjuntos) com aviso de sobrescrita, persistindo em `action_data`.
-- **Fase 5 (próxima) — Etapa Anúncios com criativo (gerar/upload/Drive) + copy editável + regenerar.**
-- **Fase 6 — Documentação + memória anti-regressão.**
+- **Fase 4** ✅ Edição inline (Campanha + Conjuntos) com aviso de sobrescrita.
+- **Fase 5** ⏸ Etapa Anúncios com criativo (gerar/upload/Drive) + copy editável + regenerar — parcialmente entregue, B.3 pendente.
+- **Fase 6 (atual — Onda H.5)** ✅ Fluxo único: proposta fica na fila até "Publicar na Meta" concluir com sucesso. Removida a seção paralela de "aprovadas aguardando publicação". O assistente encadeia aprovação estrutural + publicação real na Meta em uma única ação.
+- **Fase 7** Documentação (gestor de tráfego, mapa-ui) + memória anti-regressão.
 
-Cada fase é entregue e validada antes da próxima — evita um lote único enorme sem chance de teste.
