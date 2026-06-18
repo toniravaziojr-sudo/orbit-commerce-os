@@ -49,7 +49,7 @@ export function deriveCreativeTestSkipCustomerExclusionSignalFromLearnings(
 
   const creativeTestIntent = /(?:campanhas?\s+de\s+)?(?:teste(?:s)?\s+(?:de\s+)?criativ(?:o|os|as)|creative\s+test)/i;
   const customerAudience = /clientes?|compradores?|p[úu]blico/i;
-  const skipExclusion = /(?:n[aã]o\s+(?:precisa(?:m)?|dev(?:e|em)?|necessita(?:m)?|exig(?:e|em)?|ser[aã]o|s[aã]o)?\s*(?:de\s+)?(?:ser(?:em)?\s+)?exclu[ií]d(?:o|os|a|as)|sem\s+exclus[aã]o|manter\s+(?:os\s+)?clientes)/i;
+  const skipExclusion = /(?:n[aã]o\s+(?:precisa(?:m)?|dev(?:e|em)?|necessita(?:m)?|exig(?:e|em)?|ser[aã]o|s[aã]o)?\s*(?:de\s+)?(?:ser(?:em)?\s+)?(?:excluir|exclui|exclu[ií]d(?:o|os|a|as))|sem\s+exclus[aã]o|manter\s+(?:os\s+)?clientes)/i;
 
   for (const learning of learnings) {
     const text = `${learning?.title || ""} ${learning?.description || ""}`.trim();
