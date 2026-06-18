@@ -4490,3 +4490,26 @@ Ambos os caminhos compartilham o mesmo invariável: **ajuste nunca rejeita**; or
 - Proibido reintroduzir botão isolado "Aprovar estrutura" no assistente ou no card de proposta.
 - Proibido reintroduzir seção/lista paralela visível para o lojista do tipo "aprovadas aguardando publicação", "aguardando criativos" ou "pronto para publicar". O componente técnico antigo permanece no repositório apenas para uso interno/diagnóstico — não pode voltar à tela sem aprovação explícita.
 - Proibido marcar a proposta como aprovada sem disparar o publish em sequência (deixa a proposta em limbo invisível).
+
+---
+
+## 18 — Onda H.6 — Coerência entre Aprendizado da IA e exclusão de clientes (2026-06-18)
+
+### Regra de negócio
+- Em campanhas de público frio/prospecção, a IA continua propondo excluir clientes existentes por padrão.
+- Em campanhas de teste criativo, a exclusão também é o padrão seguro quando não existe regra ativa em contrário.
+- Quando há um **Aprendizado da IA ativo** dizendo que campanhas/testes de criativos não precisam excluir clientes do público, esse aprendizado vence o padrão seguro para campanhas de teste criativo.
+- A decisão exibida no plano deve ser única: badge, descrição do público e motivo da IA não podem se contradizer.
+
+### Garantias do fluxo
+1. A análise estratégica lê os aprendizados ativos antes de normalizar o plano.
+2. Frases equivalentes como “Campanhas de teste de criativos não precisa excluir clientes do público” são reconhecidas como regra ativa, mesmo quando não usam uma redação exata.
+3. Quando o aprendizado manda manter clientes no público, o plano remove a exclusão tanto da campanha quanto dos conjuntos de anúncios.
+4. O validador aceita esse caso como válido, desde que o motivo venha de aprendizado ativo ou de outra exceção estrutural reconhecida.
+5. Textos livres são reescritos para refletir a estrutura final: se mantém clientes, não pode sobrar “Exclui clientes existentes”; se exclui, não pode sobrar “não exclui clientes”.
+
+### Anti-regressão
+- Proibido depender de correspondência textual estreita para reconhecer aprendizados de exclusão de clientes em testes criativos.
+- Proibido revalidar o plano ignorando o aprendizado ativo do tenant.
+- Proibido reinjetar exclusão nos conjuntos quando a campanha de teste criativo já possui exceção estrutural por aprendizado ativo.
+- Validação mínima: gerar plano com aprendizado ativo “Campanhas de teste de criativos não precisa excluir clientes do público” e confirmar que campanha e conjuntos aparecem sem exclusão de clientes.

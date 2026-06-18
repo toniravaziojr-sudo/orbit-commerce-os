@@ -31,4 +31,5 @@ Um único assistente do início ao fim. O lojista revisa tudo pronto, edita o qu
 - **Fase 5** ⏸ Etapa Anúncios com criativo (gerar/upload/Drive) + copy editável + regenerar — parcialmente entregue, B.3 pendente.
 - **Fase 6 (atual — Onda H.5)** ✅ Fluxo único: proposta fica na fila até "Publicar na Meta" concluir com sucesso. Removida a seção paralela de "aprovadas aguardando publicação". O assistente encadeia aprovação estrutural + publicação real na Meta em uma única ação.
 - **Fase 7** Documentação (gestor de tráfego, mapa-ui) + memória anti-regressão.
+- **Observação H.6** ✅ Plano Estratégico ajustado apenas na coerência regra/aprendizado: aprendizado ativo de teste criativo sem exclusão de clientes agora é reconhecido e aplicado antes da validação.
 
