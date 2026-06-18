@@ -27,6 +27,7 @@ interface Props {
   tenantId: string;
   actionId: string;
   adIndex: number;
+  productNameHint?: string;
   currentHeadline: string;
   currentPrimary: string;
   currentDescription: string;
