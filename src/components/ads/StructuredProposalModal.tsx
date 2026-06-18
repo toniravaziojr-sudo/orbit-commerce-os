@@ -617,6 +617,18 @@ export function StructuredProposalModal({
                         overwriteActionData((curr) => {
                           const arr = Array.isArray(curr.ads) ? [...curr.ads] : [];
                           arr[adIdx] = { ...(arr[adIdx] || {}), ...patch };
+                          // Espelha também em planned_creatives[i] para manter a
+                          // mesma convenção da edge function ads-creative-inline-generate
+                          // e garantir que qualquer consumidor que leia planned_creatives
+                          // (ex.: publicação na Meta) enxergue o criativo anexado.
+                          const planned = Array.isArray(curr.planned_creatives) ? [...curr.planned_creatives] : [];
+                          if (planned.length > adIdx || arr.length > 0) {
+                            const base = planned[adIdx] || {};
+                            const mirror: Record<string, any> = { ...patch };
+                            if ("creative_final_url" in patch) mirror.image_url = patch.creative_final_url;
+                            planned[adIdx] = { ...base, ...mirror };
+                            return { ...curr, ads: arr, planned_creatives: planned };
+                          }
                           return { ...curr, ads: arr };
                         })
                       }
