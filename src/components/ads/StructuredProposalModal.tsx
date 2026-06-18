@@ -1061,12 +1061,12 @@ function OverviewSection({
 
             {h4Future.length > 0 && (
               <Block
-                title="Será gerado na próxima etapa"
+                title="A gerar na etapa Anúncios"
                 icon={<Sparkles className="h-3.5 w-3.5 text-muted-foreground" />}
               >
                 <p className="text-[11px] text-muted-foreground">
                   {h4Future.length} item(ns) do anúncio final (textos, criativo, link de destino e identificadores)
-                  serão gerados na etapa seguinte. Não bloqueiam a revisão da estratégia.
+                  serão gerados ou enviados na etapa <strong>Anúncios</strong>, com IA ou upload do seu PC/Drive.
                 </p>
               </Block>
             )}
