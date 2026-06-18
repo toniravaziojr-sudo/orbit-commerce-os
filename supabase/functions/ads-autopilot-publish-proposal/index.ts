@@ -258,7 +258,8 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ success: false, error_pt: errMsg }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      if (adsetsList.length > 1 && readyCreatives.some(c => c.planned && typeof c.planned.adset_index !== "number")) {
+      const canInferOneToOneAdset = adsetsList.length > 1 && readyCreatives.length === adsetsList.length;
+      if (adsetsList.length > 1 && !canInferOneToOneAdset && readyCreatives.some(c => c.planned && typeof c.planned.adset_index !== "number")) {
         await markFailed(supabase, action_id, propData, lifecycle, "creative_adset_index_missing", "Há criativos sem vínculo com conjunto de anúncios. Revise os anúncios antes de publicar.");
         return new Response(JSON.stringify({ success: false, error_pt: "Há criativos sem vínculo com conjunto de anúncios. Revise os anúncios antes de publicar." }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -456,7 +457,7 @@ Deno.serve(async (req) => {
       // Conjunto-alvo do anúncio: usa adset_index do planned/ad; cai para 0 se não existir.
       const targetAdsetIdx = (typeof creative.planned?.adset_index === "number")
         ? creative.planned.adset_index
-        : 0;
+        : ((adsetsList.length > 1 && readyCreatives.length === adsetsList.length) ? creative.creative_index : 0);
       const metaAdsetIdForAd = adsetIdByIndex.get(targetAdsetIdx) ?? adsetIdByIndex.get(0) ?? null;
       if (!metaAdsetIdForAd) {
         createdAdIds.push({ creative_index: creative.creative_index, meta_ad_id: null, meta_adset_id: null, error: "Conjunto-alvo não encontrado." });
