@@ -2871,6 +2871,7 @@ async function executeToolCall(
         source_flow: `strategist_${options?.trigger || "unknown"}`,
         campaign_account_snapshot: accountCampaignSnapshot,
         analysis_run_id: options?.analysisRunId || null,
+        tenant_signals: ((globalThis as any).__strategistTenantSignals?.get?.(tenantId) || null),
       });
       normalizedPlanArgs = guard.normalizedPlan;
       contract = guard.contract;
