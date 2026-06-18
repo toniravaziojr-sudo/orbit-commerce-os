@@ -240,6 +240,26 @@ Deno.serve(async (req) => {
     const campaignName = (campaign.name || "Nova Campanha").startsWith("[AI]") ? campaign.name : `[AI] ${campaign.name || "Nova Campanha"}`;
     const dailyBudgetCents = Number(campaign.daily_budget_cents || 0);
 
+    if (["OUTCOME_SALES", "OUTCOME_LEADS"].includes(String(objective).toUpperCase()) && !identity.pixel_id) {
+      return new Response(JSON.stringify({ success: false, error_pt: "Pixel da Meta não configurado para campanhas de vendas/leads." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (String(campaign.budget_mode || "CBO").toUpperCase() === "CBO" && dailyBudgetCents <= 0) {
+      return new Response(JSON.stringify({ success: false, error_pt: "Orçamento diário da campanha não definido." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    for (let i = 0; i < adsetsList.length; i++) {
+      const a = adsetsList[i] || {};
+      if (a.use_advantage_audience === true && Number(a.age_min || 18) > 25) {
+        return new Response(JSON.stringify({ success: false, error_pt: `Conjunto ${i + 1}: a Meta não permite público Advantage+ com idade mínima acima de 25 anos.` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (adsetsList.length > 1 && readyCreatives.some(c => c.planned && typeof c.planned.adset_index !== "number")) {
+        return new Response(JSON.stringify({ success: false, error_pt: "Há criativos sem vínculo com conjunto de anúncios. Revise os anúncios antes de publicar." }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
     // ===== Step 1: Campaign =====
     const campaignBody: any = {
       tenant_id,
@@ -259,11 +279,18 @@ Deno.serve(async (req) => {
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
     if (campaignRes.error || !campaignRes.data?.success) {
       const errMsg = campaignRes.error?.message || campaignRes.data?.error || "Falha ao criar campanha na Meta.";
-      await markFailed(supabase, action_id, propData, lifecycle, "campaign_create_failed", errMsg);
-      return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "campaign" }),
+      const metaErr = campaignRes.data?.meta_error || null;
+      await markFailed(supabase, action_id, propData, lifecycle, "campaign_create_failed", errMsg, { meta_error_detail: metaErr });
+      return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "campaign", meta_error: metaErr }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const metaCampaignId = campaignRes.data?.data?.meta_campaign_id;
+    if (!metaCampaignId) {
+      const errMsg = "A Meta não retornou o ID da campanha criada.";
+      await markFailed(supabase, action_id, propData, lifecycle, "campaign_id_missing", errMsg);
+      return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "campaign" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // ===== Step 2: Criar TODOS os conjuntos da proposta =====
     const accountIdClean = String(adAccountId).replace("act_", "");
