@@ -1,10 +1,11 @@
 // =============================================================================
-// AdsAILearningsTab — Onda F
-// Área editável de Aprendizados da IA do Gestor de Tráfego.
-// Vive dentro de Configurações Gerais do Gestor de Tráfego IA.
+// AdsAILearningsTab — Onda H.4.6
+// Aprendizados da IA do Gestor de Tráfego, organizados em abas por TEMA:
+// Copys · Criativos · Estratégias · Públicos · Configurações
+// Filtro secundário por status dentro de cada aba.
 // =============================================================================
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Sparkles, Pause, Play, Archive, Trash2, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,29 +31,95 @@ const STATUS_VARIANT: Record<LearningStatus, "default" | "secondary" | "outline"
   archived: "outline",
 };
 
+type ThemeKey = "copys" | "criativos" | "estrategias" | "publicos" | "configuracoes";
+
+const THEMES: Array<{
+  key: ThemeKey;
+  label: string;
+  categories: LearningCategory[];
+  defaultCategory: LearningCategory;
+  description: string;
+}> = [
+  {
+    key: "copys",
+    label: "Copys",
+    categories: ["copy"],
+    defaultCategory: "copy",
+    description: "Tom, ângulos, palavras evitadas e direções de texto de anúncio.",
+  },
+  {
+    key: "criativos",
+    label: "Criativos",
+    categories: ["criativo", "produto"],
+    defaultCategory: "criativo",
+    description: "Estilo de imagem, composição, uso do produto e referências visuais.",
+  },
+  {
+    key: "estrategias",
+    label: "Estratégias",
+    categories: ["funil", "oferta", "performance"],
+    defaultCategory: "funil",
+    description: "Funil, ofertas, leitura de performance e decisões de campanha.",
+  },
+  {
+    key: "publicos",
+    label: "Públicos",
+    categories: ["publico"],
+    defaultCategory: "publico",
+    description: "Quem incluir, quem excluir, lookalikes e segmentações que funcionam.",
+  },
+  {
+    key: "configuracoes",
+    label: "Configurações",
+    categories: ["orcamento", "tracking", "restricao", "outro"],
+    defaultCategory: "outro",
+    description: "Orçamento, tracking, restrições e regras gerais da conta.",
+  },
+];
+
+type StatusFilter = "all" | LearningStatus;
+
 export function AdsAILearningsTab() {
   const { learnings, isLoading, create, update, setStatus, remove } = useAdsAILearnings();
-  const [tab, setTab] = useState<"all" | LearningStatus>("all");
+
+  const [theme, setTheme] = useState<ThemeKey>("copys");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdsAILearning | null>(null);
   const [form, setForm] = useState<{ title: string; description: string; category: LearningCategory }>({
     title: "",
     description: "",
-    category: "outro",
+    category: "copy",
   });
 
-  const filtered = tab === "all" ? learnings : learnings.filter((l) => l.status === tab);
-  const counts = {
-    all: learnings.length,
-    suggested: learnings.filter((l) => l.status === "suggested").length,
-    active: learnings.filter((l) => l.status === "active").length,
-    paused: learnings.filter((l) => l.status === "paused").length,
-    archived: learnings.filter((l) => l.status === "archived").length,
-  };
+  // Conta itens por tema (independente do status filter).
+  const countsByTheme = useMemo(() => {
+    const map: Record<ThemeKey, number> = { copys: 0, criativos: 0, estrategias: 0, publicos: 0, configuracoes: 0 };
+    for (const l of learnings) {
+      if (l.status === "archived") continue; // não polui o contador principal
+      for (const t of THEMES) {
+        if (t.categories.includes(l.category)) {
+          map[t.key]++;
+          break;
+        }
+      }
+    }
+    return map;
+  }, [learnings]);
+
+  const currentTheme = THEMES.find((t) => t.key === theme)!;
+
+  const filtered = useMemo(() => {
+    return learnings.filter((l) => {
+      if (!currentTheme.categories.includes(l.category)) return false;
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      return true;
+    });
+  }, [learnings, currentTheme, statusFilter]);
 
   function openCreate() {
     setEditing(null);
-    setForm({ title: "", description: "", category: "outro" });
+    setForm({ title: "", description: "", category: currentTheme.defaultCategory });
     setDialogOpen(true);
   }
   function openEdit(l: AdsAILearning) {
@@ -70,6 +137,10 @@ export function AdsAILearningsTab() {
     setDialogOpen(false);
   }
 
+  const allowedCategoriesForForm: LearningCategory[] = editing
+    ? (Object.keys(LEARNING_CATEGORY_LABELS) as LearningCategory[])
+    : currentTheme.categories;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -79,8 +150,8 @@ export function AdsAILearningsTab() {
             Aprendizados da IA
           </CardTitle>
           <CardDescription>
-            Decisões e preferências aprendidas do Gestor de Tráfego. Só aprendizados <strong>ativos</strong> entram nas próximas análises.
-            Aprendizados gerados a partir de feedbacks já entram <strong>ativos</strong> automaticamente — você pode pausar, editar ou remover quando quiser.
+            Decisões e preferências que a IA aplica ao planejar e gerar campanhas. Os feedbacks que você dá ao
+            regenerar copy ou criativo entram aqui automaticamente como aprendizados <strong>ativos</strong>.
           </CardDescription>
         </div>
         <Button onClick={openCreate} size="sm">
@@ -88,35 +159,59 @@ export function AdsAILearningsTab() {
         </Button>
       </CardHeader>
       <CardContent>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList>
-            <TabsTrigger value="all">Todos ({counts.all})</TabsTrigger>
-            <TabsTrigger value="suggested">Sugeridos ({counts.suggested})</TabsTrigger>
-            <TabsTrigger value="active">Ativos ({counts.active})</TabsTrigger>
-            <TabsTrigger value="paused">Pausados ({counts.paused})</TabsTrigger>
-            <TabsTrigger value="archived">Arquivados ({counts.archived})</TabsTrigger>
+        <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeKey)}>
+          <TabsList className="flex-wrap h-auto">
+            {THEMES.map((t) => (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label} ({countsByTheme[t.key]})
+              </TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value={tab} className="mt-4 space-y-2">
+
+          <TabsContent value={theme} className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">{currentTheme.description}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Status:</span>
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                  <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">{LEARNING_STATUS_LABELS.active}</SelectItem>
+                    <SelectItem value="suggested">{LEARNING_STATUS_LABELS.suggested}</SelectItem>
+                    <SelectItem value="paused">{LEARNING_STATUS_LABELS.paused}</SelectItem>
+                    <SelectItem value="archived">{LEARNING_STATUS_LABELS.archived}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
             {!isLoading && filtered.length === 0 && (
               <p className="text-sm text-muted-foreground py-8 text-center">
-                Nenhum aprendizado nesta aba. Eles aparecem aqui conforme você aprova, recusa ou ajusta propostas.
+                Nenhum aprendizado nesta aba ainda. Eles aparecem aqui conforme você dá feedback nas regenerações
+                ou aprova/recusa propostas.
               </p>
             )}
+
             {filtered.map((l) => (
               <div key={l.id} className="border rounded-md p-3 flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <Badge variant={STATUS_VARIANT[l.status]}>{LEARNING_STATUS_LABELS[l.status]}</Badge>
-                    <Badge variant="outline">{LEARNING_CATEGORY_LABELS[l.category]}</Badge>
+                    <Badge variant="outline">{LEARNING_CATEGORY_LABELS[l.category] || l.category}</Badge>
                     <span className="text-xs text-muted-foreground">
                       {l.evidence_count} evidência{l.evidence_count === 1 ? "" : "s"} · confiança {Math.round(l.confidence * 100)}%
                     </span>
                   </div>
                   <p className="font-medium text-sm">{l.title}</p>
-                  {l.description && <p className="text-sm text-muted-foreground mt-1">{l.description}</p>}
+                  {l.description && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{l.description}</p>}
                   <p className="text-xs text-muted-foreground mt-1">
-                    Origem: {l.source_type === "manual" ? "criado manualmente" : l.source_type}
+                    Origem: {
+                      l.source_type === "manual" ? "criado manualmente" :
+                      l.source_type === "user_feedback" ? "feedback do lojista" :
+                      l.source_type
+                    }
                     {" · "}
                     {new Date(l.created_at).toLocaleDateString("pt-BR")}
                   </p>
@@ -155,7 +250,7 @@ export function AdsAILearningsTab() {
           <DialogHeader>
             <DialogTitle>{editing ? "Editar aprendizado" : "Novo aprendizado"}</DialogTitle>
             <DialogDescription>
-              Frases curtas e diretas funcionam melhor. Ex.: “Evitar kits de quantidade em público frio.”
+              Frases curtas e diretas funcionam melhor. Ex.: "Evitar kits de quantidade em público frio."
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -172,7 +267,7 @@ export function AdsAILearningsTab() {
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as LearningCategory })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(LEARNING_CATEGORY_LABELS) as LearningCategory[]).map((c) => (
+                  {allowedCategoriesForForm.map((c) => (
                     <SelectItem key={c} value={c}>{LEARNING_CATEGORY_LABELS[c]}</SelectItem>
                   ))}
                 </SelectContent>
