@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeAndValidateStrategicPlanForApproval, normalizeStrategicPlanCustomerExclusions, validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
+import { deriveCreativeTestSkipCustomerExclusionSignalFromLearnings, normalizeAndValidateStrategicPlanForApproval, normalizeStrategicPlanCustomerExclusions, validateStrategicPlanContract } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanContract";
 import { buildStrategicPlanPreflightContext } from "../../supabase/functions/_shared/ads-autopilot/strategicPlanPreflight";
 
 const basePreflight = buildStrategicPlanPreflightContext({
@@ -679,5 +679,55 @@ describe("Exceção — teste de produto novo/lançamento não exige exclusão d
     const action = guarded.normalizedPlan.planned_actions[0];
     expect(action.adsets[0].audience_exclusions.customers).toBe(true);
     expect(action.adsets[0].audience_exclusions.exclusion_skipped_reason).toBeUndefined();
+  });
+
+  it("aprendizado ativo do tenant sobrepõe o default de teste criativo e remove exclusão dos conjuntos", () => {
+    const tenantSignals = deriveCreativeTestSkipCustomerExclusionSignalFromLearnings([
+      {
+        id: "learning_1",
+        title: "Campanhas de teste de criativos não precisa excluir clientes do público.",
+        description: "Campanhas de teste de criativos não precisa excluir clientes do público.",
+      },
+    ]);
+    const plan = basePlan({
+      explicit_non_action_reasons: nonActionReasons,
+      planned_actions: [
+        {
+          action_type: "create_campaign",
+          campaign_type: "testing",
+          campaign_intent: "creative_test",
+          affected_funnel: "tests",
+          funnel_stage: "test",
+          product_name: "Fast Upgrade",
+          target_audience: "Homens 30-65, Brasil",
+          daily_budget_brl: 45,
+          budget_source: "test_allocation",
+          audience_exclusions: { customers: true, reason: "Teste criativo sem sinal de produto novo — excluir clientes." },
+          audience_budget_fit: { fit: "insufficient_data" },
+          adsets: [
+            {
+              adset_name: "CJ1 - Broad | Teste criativo",
+              audience_type: "broad",
+              audience_description: "Homens 30-65, Brasil. Exclui clientes existentes.",
+              audience_exclusions: { customers: true, customer_audience_id: "aud1", customer_audience_name: "Clientes" },
+              excluded_audience_ids: ["aud1"],
+              targeting: { excluded_custom_audiences: [{ id: "aud1", name: "Clientes" }] },
+            },
+          ],
+        },
+      ],
+    });
+
+    const guarded = normalizeAndValidateStrategicPlanForApproval(plan, basePreflight, { tenant_signals: tenantSignals });
+
+    expect(guarded.contract.ok).toBe(true);
+    const action = guarded.normalizedPlan.planned_actions[0];
+    expect(action.audience_exclusions.customers).toBe(false);
+    expect(action.audience_exclusions.exclusion_skipped_reason).toBe("creative_test_tenant_learning");
+    expect(action.adsets[0].audience_exclusions.customers).toBe(false);
+    expect(action.adsets[0].excluded_audience_ids).not.toContain("aud1");
+    expect(action.adsets[0].targeting.excluded_custom_audiences).toEqual([]);
+    expect(action.adsets[0].audience_description).toContain("Clientes mantidos no público");
+    expect(action.adsets[0].audience_description).not.toContain("Exclui clientes existentes");
   });
 });
