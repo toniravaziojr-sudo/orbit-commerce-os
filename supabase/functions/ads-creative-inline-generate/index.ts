@@ -330,16 +330,31 @@ Reescreva APENAS o ${labelPt}, mantendo coerência com os outros campos.`;
       if (!jobId) {
         return ok({ success: false, error_pt: "Não foi possível iniciar a geração da imagem." });
       }
-      const { data: job } = await supabase
-        .from("creative_jobs")
-        .select("status, output_urls, error_message")
-        .eq("id", jobId)
-        .maybeSingle();
-      const newUrl = Array.isArray(job?.output_urls) && job!.output_urls.length > 0 ? job!.output_urls[0] : null;
+
+      // Polling: creative-image-generate roda via EdgeRuntime.waitUntil,
+      // então precisamos aguardar o job completar. Timeout ~90s.
+      let job: any = null;
+      let newUrl: string | null = null;
+      const startedAt = Date.now();
+      const MAX_MS = 90_000;
+      while (Date.now() - startedAt < MAX_MS) {
+        const { data } = await supabase
+          .from("creative_jobs")
+          .select("status, output_urls, error_message")
+          .eq("id", jobId)
+          .maybeSingle();
+        job = data;
+        if (job?.status === "completed" || job?.status === "failed") break;
+        if (Array.isArray(job?.output_urls) && job.output_urls.length > 0) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      newUrl = Array.isArray(job?.output_urls) && job!.output_urls.length > 0 ? job!.output_urls[0] : null;
       if (!newUrl) {
         return ok({
           success: false,
-          error_pt: job?.error_message || "A geração não retornou uma imagem válida.",
+          error_pt: job?.error_message || (job?.status === "running"
+            ? "A geração está demorando mais que o normal. Tente novamente em instantes."
+            : "A geração não retornou uma imagem válida."),
         });
       }
 
