@@ -271,7 +271,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   if (displayCount === 0) {
     return (
       <div className="space-y-4">
-        <ApprovedProposalsSection channelFilter={channelFilter} />
+        {/* Onda H.5 — Seção de aprovadas aguardando publicação removida. */}
         {isAdjusting ? (
           <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
             <Loader2 className="h-5 w-5 text-primary animate-spin" />
