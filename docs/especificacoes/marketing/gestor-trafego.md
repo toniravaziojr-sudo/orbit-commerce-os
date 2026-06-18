@@ -4602,3 +4602,32 @@ Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inlin
 - `mem://constraints/ads-h48-copy-limits-layout-and-anti-repeat`
 - `mem://constraints/ads-h44-inline-creative-generation`
 
+
+---
+
+## H.5.2 — Paridade Total Proposta → Meta (2026-06-18, v1.2.0-h5-full-parity)
+
+A publicação da Proposta de Campanha agora transcreve 100% dos campos definidos para o formato esperado pela Meta. Nenhum campo é silenciosamente perdido.
+
+### Campos transmitidos por nível
+
+**Campanha** — name, objective (canônico→OUTCOME_*), status, destination_type=WEBSITE, daily_budget, bid_strategy, **buying_type** (AUCTION/RESERVED), special_ad_categories, start_time.
+
+**Conjunto (adset)** — name, optimization_goal, billing_event, status, start_time, end_time, promoted_object (pixel+evento de conversão), daily_budget (apenas ABO), **attribution_spec** (derivado da janela de atribuição), e targeting completo:
+- geo_locations (objeto estruturado ou fallback BR)
+- age_min/max
+- **genders** — mapeado de "Masculino"/"Feminino"/"Todos" para [1]/[2]/omitir
+- **Advantage+ Placements** — quando `placements=["advantage_plus"]`, ativa `targeting_automation.advantage_audience=1` e NÃO envia `publisher_platforms`
+- **publisher_platforms + *_positions** — quando lista manual (facebook_feed, instagram_reels, etc.)
+- **custom_audiences** (inclusão) — resolve nomes para IDs reais da conta na hora do publish
+- excluded_custom_audiences (exclusão)
+
+**Anúncio** — name, status, creative_id; object_story_spec com page_id, **instagram_actor_id** (sem isso o anúncio só roda no Facebook), link_data com message, name (headline), **description**, link, image_hash, call_to_action.
+
+### Resolução de público por nome
+Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D"), o publicador busca o ID real na conta de anúncios uma vez por publicação (cache em memória). Match exato → match sem acento/case → match por inclusão. Se não encontrar, **falha o conjunto** com mensagem PT-BR e devolve a proposta para a fila "Aguardando Ação".
+
+### Anti-regressão
+- Tradutores centralizados em `_shared/meta-publish-mappers.ts` com bateria de testes obrigatória.
+- Novo campo na Proposta exige mapper + teste correspondente.
+- Memória: `mem://constraints/ads-publish-full-parity-meta`.
