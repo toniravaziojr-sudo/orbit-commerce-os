@@ -1429,7 +1429,7 @@ function AdSetSection({
   );
 }
 
-function AttachCreativeBlock({
+function CreativeMediaColumn({
   ad,
   onPatch,
   tenantId,
@@ -1453,7 +1453,6 @@ function AttachCreativeBlock({
     subPath: "ads",
     folderId: folderId || undefined,
   });
-  const fileInputRef = useState<HTMLInputElement | null>(null);
   let inputEl: HTMLInputElement | null = null;
 
   const applyCreative = async (url: string, sourceLabel: "manual_upload" | "manual_drive") => {
@@ -1492,93 +1491,111 @@ function AttachCreativeBlock({
   };
 
   const hasCreative = !!ad.creative_final_url;
+  const previewUrl = ad.creative_final_url || ad.reference_image_url || null;
+  const isReference = !hasCreative && !!ad.reference_image_url;
 
   return (
-    <Block
-      title={hasCreative ? "Criativo anexado" : "Anexar criativo"}
-      icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />}
-    >
-      <div className="space-y-3">
-        {/* Barra de ações de criativo — sempre no topo do bloco, para o lojista
-            ver primeiro como gerar/subir/trocar antes da preview. */}
-        <div className="flex flex-wrap items-center gap-2">
-          {tenantId && actionId && typeof adIndex === "number" && (
-            <AdImageAIControls
-              tenantId={tenantId}
-              actionId={actionId}
-              adIndex={adIndex}
-              hasImage={hasCreative}
-              onChanged={() => onAfterAIChange?.()}
-            />
-          )}
-          <Button variant="outline" size="sm" onClick={() => inputEl?.click()} disabled={isUploading} className="h-8 text-xs">
-            {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-            {hasCreative ? "Substituir do PC" : "Enviar do PC"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setDrivePickerOpen(true)} disabled={isUploading} className="h-8 text-xs">
-            <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-            {hasCreative ? "Trocar pelo Drive" : "Escolher no Drive"}
-          </Button>
-          {hasCreative && (
-            <Button variant="ghost" size="sm" onClick={handleRemove} disabled={removing || isUploading} className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10">
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
-            </Button>
-          )}
-        </div>
-
-        {hasCreative ? (
-          <div className="flex items-start gap-3">
+    <div className="flex flex-col gap-2 w-full sm:w-[180px] shrink-0">
+      <div className="relative">
+        {previewUrl ? (
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block group"
+            title="Abrir em tamanho real"
+          >
             <img
-              src={ad.creative_final_url!}
-              alt="Criativo do anúncio"
-              className="h-32 w-32 object-cover rounded-md border border-border/40"
+              src={previewUrl}
+              alt={hasCreative ? "Criativo do anúncio" : "Referência do produto"}
+              className={`w-full aspect-square object-cover rounded-md border border-border/40 ${isReference ? "opacity-70" : ""} group-hover:opacity-90 transition-opacity`}
             />
-            <p className="text-xs text-muted-foreground leading-relaxed flex-1">
-              Esta é a imagem que será publicada neste anúncio. Use os botões acima para gerar uma nova versão com IA, trocar pelo PC ou pelo Drive.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {ad.reference_image_url && (
-              <div className="flex items-start gap-3 rounded-md border border-dashed border-border/50 p-3">
-                <img
-                  src={ad.reference_image_url}
-                  alt="Referência do produto"
-                  className="h-20 w-20 object-cover rounded-md border border-border/40"
-                />
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Esta é apenas a foto do produto para referência. <strong>Não</strong> é o criativo final.
-                  Use os botões acima para gerar a imagem que será publicada.
-                </p>
-              </div>
+            {isReference && (
+              <span className="absolute top-1 left-1 text-[9px] uppercase tracking-wide bg-background/80 backdrop-blur px-1.5 py-0.5 rounded text-muted-foreground border border-border/40">
+                referência
+              </span>
             )}
-            <p className="text-[11px] text-muted-foreground">
-              Gere com IA, envie do PC ou escolha no Drive. PNG, JPG ou WEBP — até 10 MB. Arquivos do PC vão para a pasta mensal do Drive.
-            </p>
+          </a>
+        ) : (
+          <div className="w-full aspect-square rounded-md border border-dashed border-border/60 bg-muted/30 flex flex-col items-center justify-center text-center px-2">
+            <ImageIcon className="h-6 w-6 text-muted-foreground/60 mb-1" />
+            <p className="text-[10px] text-muted-foreground leading-tight">Sem criativo ainda</p>
           </div>
         )}
-
-        <input
-          ref={(el) => { inputEl = el; }}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFile(f);
-            e.target.value = "";
-          }}
-        />
-
-        <DriveFilePicker
-          open={drivePickerOpen}
-          onOpenChange={setDrivePickerOpen}
-          onSelect={(url) => { setDrivePickerOpen(false); applyCreative(url, "manual_drive"); }}
-          accept="image"
-          title="Escolher imagem do Meu Drive"
-        />
       </div>
-    </Block>
+
+      {isReference && (
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          Apenas foto do produto — gere ou anexe o criativo final.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        {tenantId && actionId && typeof adIndex === "number" && (
+          <AdImageAIControls
+            tenantId={tenantId}
+            actionId={actionId}
+            adIndex={adIndex}
+            hasImage={hasCreative}
+            onChanged={() => onAfterAIChange?.()}
+          />
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => inputEl?.click()}
+          disabled={isUploading}
+          className="h-8 text-xs justify-start"
+        >
+          {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+          {hasCreative ? "Substituir do PC" : "Enviar do PC"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDrivePickerOpen(true)}
+          disabled={isUploading}
+          className="h-8 text-xs justify-start"
+        >
+          <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+          {hasCreative ? "Trocar pelo Drive" : "Escolher no Drive"}
+        </Button>
+        {hasCreative && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRemove}
+            disabled={removing || isUploading}
+            className="h-8 text-xs justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
+          </Button>
+        )}
+        <p className="text-[10px] text-muted-foreground/80 leading-snug">
+          PNG, JPG ou WEBP — até 10 MB. Arquivos do PC vão para a pasta mensal do Drive.
+        </p>
+      </div>
+
+      <input
+        ref={(el) => { inputEl = el; }}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
+      />
+
+      <DriveFilePicker
+        open={drivePickerOpen}
+        onOpenChange={setDrivePickerOpen}
+        onSelect={(url) => { setDrivePickerOpen(false); applyCreative(url, "manual_drive"); }}
+        accept="image"
+        title="Escolher imagem do Meu Drive"
+      />
+    </div>
   );
 }
 
@@ -1806,23 +1823,9 @@ function AdSection({
         )}
       </Block>
 
-      {/* Painel de IA de textos — fica ACIMA do bloco de criativo para que
-          o botão "Gerar tudo novamente" e os feedbacks por campo apareçam
-          antes das copies. */}
-      {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && (
-        <AdCreativeAIPanel
-          tenantId={tenantId}
-          actionId={actionId}
-          adIndex={adIndex}
-          productNameHint={ad.product_name || ""}
-          currentHeadline={ad.headline || ""}
-          currentPrimary={ad.primary_text || ""}
-          currentDescription={ad.description || ""}
-          onChanged={() => { onAfterAIChange?.(); }}
-        />
-      )}
-
-      {/* Bloco 2: CRIATIVO (conteúdo do anúncio) */}
+      {/* Card único: CRIATIVO DO ANÚNCIO
+          Concentra miniatura + ações de imagem (esquerda) e textos + ações de copy (direita).
+          O lojista enxerga aqui exatamente o que vai para a Meta. */}
       <Block
         title="Criativo do anúncio"
         icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
@@ -1838,84 +1841,103 @@ function AdSection({
           ) : null
         }
       >
-        <DetailGrid>
-          <Detail label="Produto/oferta" value={ad.product_name} />
-          <Detail
-            label="Formato"
-            value={formatDisplayValue}
-            helperText={formatOriginNote}
-            customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
-          />
-          {/* H.2.3 — copy final (título/texto/descrição) é sempre H.4 em proposta de campanha. */}
-          <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
-          <Detail
-            label="Botão de ação"
-            value={ctaValue}
-            helperText={ctaOriginNote}
-            customPlaceholder={!ctaValue ? "Pendente de CTA padrão" : undefined}
-          />
-          {ad.alternative_formats.length > 0 && (
-            <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
-          )}
-
-          <Detail
-            label="Link de destino"
-            value={destValue}
-            fullWidth
-            customPlaceholder={destPlaceholder ?? (!destValue ? "Pendente de URL do produto/oferta" : undefined)}
-          />
-          {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
-          {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
-        </DetailGrid>
-      </Block>
-
-
-      {editable ? (
-        <AttachCreativeBlock
-          ad={ad}
-          onPatch={onPatch}
-          tenantId={tenantId}
-          actionId={actionId}
-          adIndex={adIndex}
-          onAfterAIChange={onAfterAIChange}
-        />
-      ) : (
-        (ad.reference_image_url || ad.creative_final_url || ad.creative_prompt) && (
-          <Block
-            title={ad.creative_final_url ? "Conferência do criativo" : "Conferência do criativo (referência + prompt)"}
-            icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-          >
-            <div className="space-y-3">
-              {(ad.reference_image_url || ad.creative_final_url) && (
-                <div className="flex items-start gap-3">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {editable ? (
+            <CreativeMediaColumn
+              ad={ad}
+              onPatch={onPatch}
+              tenantId={tenantId}
+              actionId={actionId}
+              adIndex={adIndex}
+              onAfterAIChange={onAfterAIChange}
+            />
+          ) : (
+            (ad.creative_final_url || ad.reference_image_url) && (
+              <div className="w-full sm:w-[180px] shrink-0">
+                <a
+                  href={ad.creative_final_url || ad.reference_image_url || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                  title="Abrir em tamanho real"
+                >
                   <img
                     src={ad.creative_final_url || ad.reference_image_url || ""}
                     alt={ad.creative_final_url ? "Criativo" : "Referência do produto"}
-                    className="h-32 w-32 object-cover rounded-md border border-border/40"
+                    className={`w-full aspect-square object-cover rounded-md border border-border/40 ${!ad.creative_final_url ? "opacity-70" : ""}`}
                   />
-                  {!ad.creative_final_url && (
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Imagem usada apenas como referência do produto. Não é o criativo final.
-                      {isStrategyStage && " A geração do criativo só acontece após aprovar a estratégia."}
-                    </p>
-                  )}
-                </div>
+                </a>
+                {!ad.creative_final_url && (
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                    Apenas referência — não é o criativo final.
+                    {isStrategyStage && " A geração acontece após aprovar a estratégia."}
+                  </p>
+                )}
+              </div>
+            )
+          )}
+
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Quando ainda não há nenhum texto e o lojista pode editar,
+                expor a barra "Gerar copy". Regeração com feedback fica no
+                botão "Regenerar" do header do card. */}
+            {editable && isCampaignProposal && tenantId && actionId && typeof adIndex === "number" && !(ad.headline || ad.primary_text || ad.description) && (
+              <AdCreativeAIPanel
+                tenantId={tenantId}
+                actionId={actionId}
+                adIndex={adIndex}
+                productNameHint={ad.product_name || ""}
+                currentHeadline={ad.headline || ""}
+                currentPrimary={ad.primary_text || ""}
+                currentDescription={ad.description || ""}
+                onChanged={() => { onAfterAIChange?.(); }}
+              />
+            )}
+
+
+            <DetailGrid>
+              <Detail label="Produto/oferta" value={ad.product_name} />
+              <Detail
+                label="Formato"
+                value={formatDisplayValue}
+                helperText={formatOriginNote}
+                customPlaceholder={formatPlaceholder ?? (!formatDisplayValue ? "Pendente de definição do formato planejado" : undefined)}
+              />
+              <Detail label="Título" value={ad.headline} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail label="Texto principal" value={ad.primary_text} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail label="Descrição" value={ad.description} fullWidth futurePhase={copyAsFuturePhase} />
+              <Detail
+                label="Botão de ação"
+                value={ctaValue}
+                helperText={ctaOriginNote}
+                customPlaceholder={!ctaValue ? "Pendente de CTA padrão" : undefined}
+              />
+              {ad.alternative_formats.length > 0 && (
+                <Detail label="Formatos alternativos" value={ad.alternative_formats.join(", ")} />
               )}
-              {ad.creative_prompt && (
-                <div className="rounded-md border border-border/40 bg-muted/30 p-3">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    <p className="text-[11px] font-medium text-foreground uppercase tracking-wide">Prompt do criativo</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
+              <Detail
+                label="Link de destino"
+                value={destValue}
+                fullWidth
+                customPlaceholder={destPlaceholder ?? (!destValue ? "Pendente de URL do produto/oferta" : undefined)}
+              />
+              {ad.tracking_params && <Detail label="Parâmetros de rastreamento" value={ad.tracking_params} fullWidth />}
+              {ad.offer_note && <Detail label="Observação de oferta" value={ad.offer_note} fullWidth />}
+            </DetailGrid>
+
+            {!editable && ad.creative_prompt && (
+              <div className="rounded-md border border-border/40 bg-muted/30 p-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-[11px] font-medium text-foreground uppercase tracking-wide">Prompt do criativo</p>
                 </div>
-              )}
-            </div>
-          </Block>
-        )
-      )}
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{ad.creative_prompt}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Block>
+
 
       {ad.rationale && (
         <Block title="Por que este anúncio" icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />}>
