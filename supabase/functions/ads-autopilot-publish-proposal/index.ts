@@ -365,11 +365,13 @@ Deno.serve(async (req) => {
         }
         if (missing.length > 0) {
           const errMsg = `Conjunto ${aIdx + 1}: público(s) não encontrado(s) na conta: ${missing.join(", ")}.`;
+          await pauseMetaObjects(metaConn.access_token, metaCampaignId, createdAdsetIds);
           await markFailed(supabase, action_id, propData, lifecycle, "audience_not_found", errMsg, {
             meta_campaign_id: metaCampaignId,
             meta_adset_ids_created: createdAdsetIds,
             failed_adset_index: aIdx,
             audience_resolution: audienceResolutionLog,
+            rollback_paused: true,
           });
           return new Response(JSON.stringify({ success: false, error_pt: errMsg, stage: "audience_resolve", adset_index: aIdx }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
