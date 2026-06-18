@@ -712,7 +712,7 @@ export function StructuredProposalModal({
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full">
               {isCampaignProposal ? (
                 <>
                   <Button
@@ -720,7 +720,7 @@ export function StructuredProposalModal({
                     size="sm"
                     onClick={() => setConfirmCancelOpen(true)}
                     disabled={!!rejectingId || isApproving}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
                   >
                     <X className="h-3.5 w-3.5" />
                     Cancelar campanha
@@ -734,11 +734,12 @@ export function StructuredProposalModal({
                     }}
                     disabled={isApproving || !!rejectingId || !onAdjustRequest}
                     title={!onAdjustRequest ? "Ajuste via texto livre indisponível neste contexto" : undefined}
+                    className="h-9"
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                     Ajustar proposta
                   </Button>
-                  <span className="text-[11px] text-muted-foreground ml-2">
+                  <span className="text-[11px] text-muted-foreground hidden md:inline-block max-w-[220px] leading-tight">
                     A aprovação acontece ao publicar na última etapa.
                   </span>
                 </>
@@ -749,7 +750,7 @@ export function StructuredProposalModal({
                     size="sm"
                     onClick={() => onReject(action.id)}
                     disabled={!!rejectingId || isApproving}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
                   >
                     <X className="h-3.5 w-3.5" />
                     Recusar proposta
@@ -767,6 +768,7 @@ export function StructuredProposalModal({
                       }
                     }}
                     disabled={isApproving || !!rejectingId}
+                    className="h-9"
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                     Ajustar proposta
@@ -776,6 +778,7 @@ export function StructuredProposalModal({
                     onClick={handleApprove}
                     disabled={isApproving || !!rejectingId || approveBlocked}
                     title={approveBlockedReason || undefined}
+                    className="h-9"
                   >
                     {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                     {approveLabel}
