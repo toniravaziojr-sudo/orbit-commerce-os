@@ -473,21 +473,30 @@ Deno.serve(async (req) => {
         const ov2 = overridesMap[String(creative.creative_index)] || {};
         const copyText = ov2.copy || creative.planned.copy || creative.planned.primary_text || "Conheça nosso produto.";
         const headline = ov2.headline || creative.planned.headline || campaign.name || "Confira";
-        const ctaType = ov2.cta || creative.planned.cta || identity.default_cta || "SHOP_NOW";
+        const descriptionText = ov2.description || creative.planned.description || null;
+        const ctaType = ov2.cta || creative.planned.cta || identity.cta_default || identity.default_cta || "SHOP_NOW";
+
+        const linkData: any = {
+          message: copyText,
+          name: headline,
+          link: destinationUrl,
+          image_hash: imageHash,
+          call_to_action: { type: ctaType, value: { link: destinationUrl } },
+        };
+        if (descriptionText) linkData.description = descriptionText;
+
+        const objectStorySpec: any = {
+          page_id: identity.facebook_page_id,
+          link_data: linkData,
+        };
+        if (identity.instagram_actor_id) {
+          objectStorySpec.instagram_actor_id = identity.instagram_actor_id;
+        }
 
         const creativeBody = {
           name: `[AI] Creative ${creative.creative_index + 1} - ${new Date().toISOString().split("T")[0]}`,
           access_token: metaConn.access_token,
-          object_story_spec: {
-            page_id: identity.facebook_page_id,
-            link_data: {
-              message: copyText,
-              name: headline,
-              link: destinationUrl,
-              image_hash: imageHash,
-              call_to_action: { type: ctaType, value: { link: destinationUrl } },
-            },
-          },
+          object_story_spec: objectStorySpec,
         };
 
         const adCreativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
