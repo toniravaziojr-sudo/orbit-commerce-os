@@ -1857,6 +1857,7 @@ function AdSection({
           tenantId={tenantId}
           actionId={actionId}
           adIndex={adIndex}
+          productNameHint={ad.product_name || ""}
           currentHeadline={ad.headline || ""}
           currentPrimary={ad.primary_text || ""}
           currentDescription={ad.description || ""}
