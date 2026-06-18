@@ -4631,4 +4631,5 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Tradutores centralizados em `_shared/meta-publish-mappers.ts` com bateria de testes obrigatória.
 - Novo campo na Proposta exige mapper + teste correspondente.
 - O serviço de criação de conjunto também sanitiza `targeting_automation` como cinto de segurança para fluxos legados: se `use_advantage_audience` não vier explícito, força opt-out de automação de público antes de chamar a Meta. Se vier explícito com idade mínima acima de 25, a criação é bloqueada internamente com erro de validação claro, sem criar conjunto inválido.
+- Antes de criar a campanha, o publicador valida pixel para vendas/leads, orçamento CBO, vínculo de criativos a conjuntos e incompatibilidade de Advantage+ Público com idade mínima acima de 25. Falhas nessa etapa voltam para
 - Memória: `mem://constraints/ads-publish-full-parity-meta`.
