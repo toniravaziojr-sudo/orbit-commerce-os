@@ -281,6 +281,14 @@ Deno.serve(async (req) => {
       bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       buying_type: campaign.buying_type || "AUCTION",
     };
+    // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
+    // "new_customers" → Conquistar novos clientes (true). Qualquer outro valor
+    // (incluindo null/"all") deixa a Meta no padrão "Obter conversões de todos
+    // os públicos". Só aplicável a OUTCOME_SALES no site.
+    const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
+    if (customerAcq === "new_customers" && String(objective).toUpperCase() === "OUTCOME_SALES") {
+      campaignBody.is_new_customer_acquisition = true;
+    }
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
@@ -553,8 +561,14 @@ Deno.serve(async (req) => {
           page_id: identity.facebook_page_id,
           link_data: linkData,
         };
-        if (identity.instagram_actor_id) {
-          objectStorySpec.instagram_actor_id = identity.instagram_actor_id;
+        // Meta v21: campo legado `instagram_actor_id` rejeita IGBA (17841…) com
+        // "must be a valid Instagram account id". O campo aceito hoje é
+        // `instagram_user_id`, que recebe diretamente o ID da Conta Instagram
+        // Business vinculada à Página. Mantemos `instagram_actor_id` como
+        // fallback apenas quando a proposta explicitamente fornecer um valor
+        // diferente (compatibilidade com integrações antigas).
+        if (identity.instagram_user_id || identity.instagram_actor_id) {
+          objectStorySpec.instagram_user_id = identity.instagram_user_id || identity.instagram_actor_id;
         }
 
         const creativeBody = {

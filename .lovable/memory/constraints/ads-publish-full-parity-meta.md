@@ -4,7 +4,13 @@ description: Publicador de propostas deve transcrever 100% dos campos da propost
 type: constraint
 ---
 
-A partir de 2026-06-18 (v1.2.0-h5-full-parity), `ads-autopilot-publish-proposal` é o **transmissor fiel** da Proposta de Campanha para a Meta Ads API. Nenhum campo definido na proposta pode ser silenciosamente ignorado.
+A partir de 2026-06-18 (v1.3.0-h5-instagram-and-customer-acq), `ads-autopilot-publish-proposal` é o **transmissor fiel** da Proposta de Campanha para a Meta Ads API. Nenhum campo definido na proposta pode ser silenciosamente ignorado.
+
+## Regras críticas adicionadas em 2026-06-18
+
+- **Instagram do anúncio:** PROIBIDO usar `object_story_spec.instagram_actor_id` quando o valor é IGBA (`17841…`). Meta v21 rejeita com "must be a valid Instagram account id". Usar `instagram_user_id`, que aceita IGBA diretamente. Manter `instagram_actor_id` apenas como fallback para integrações antigas que explicitamente forneçam o valor.
+- **Estratégia de ciclo de vida do cliente:** campo `campaign.customer_acquisition` é obrigatório no snapshot da proposta. Valores: `"new_customers"` → Meta `is_new_customer_acquisition=true` (Conquistar novos clientes) | `"all"`/null → padrão Meta (Todos os públicos). IA decide com base na etapa do funil dos conjuntos; lojista pode ajustar antes de aprovar. Só aplicável a OUTCOME_SALES no site.
+
 
 ## Tradutores obrigatórios (em `_shared/meta-publish-mappers.ts`)
 - `mapGender`: "Masculino"/"masc"/"homem"/"male" → `[1]`; "Feminino"/"female"/"mulher" → `[2]`; "Todos"/"ambos"/vazio → omitir. Aceita array `[1,2]` direto.

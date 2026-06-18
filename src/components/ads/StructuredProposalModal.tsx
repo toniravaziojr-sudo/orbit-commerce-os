@@ -169,6 +169,10 @@ const DICT: Record<string, Record<string, string>> = {
     REQUEST_TIME: "Agendar horário",
   },
   buying_type: { AUCTION: "Leilão", RESERVED: "Reserva" },
+  customer_acquisition: {
+    new_customers: "Conquistar novos clientes",
+    all: "Todos os públicos",
+  },
   funnel: {
     tof: "Topo do funil / Público frio",
     mof: "Meio do funil / Público morno",
@@ -1129,6 +1133,7 @@ function CampaignSection({
     campaign.daily_budget_cents != null ? (campaign.daily_budget_cents / 100).toFixed(2) : "",
   );
   const [draftStatus, setDraftStatus] = useState(campaign.planned_status || "PAUSED");
+  const [draftCustomerAcq, setDraftCustomerAcq] = useState<string>(campaign.customer_acquisition || "all");
   const [saving, setSaving] = useState(false);
 
   const budgetMode = campaign.budget_mode || null;
@@ -1143,6 +1148,7 @@ function CampaignSection({
     setDraftName(campaign.name || "");
     setDraftBudget(campaign.daily_budget_cents != null ? (campaign.daily_budget_cents / 100).toFixed(2) : "");
     setDraftStatus(campaign.planned_status || "PAUSED");
+    setDraftCustomerAcq(campaign.customer_acquisition || "all");
     setEditing(true);
   };
 
@@ -1151,6 +1157,9 @@ function CampaignSection({
     const patch: Record<string, any> = {};
     if (draftName.trim() && draftName.trim() !== (campaign.name || "")) patch.name = draftName.trim();
     if (draftStatus && draftStatus !== campaign.planned_status) patch.planned_status = draftStatus;
+    if (draftCustomerAcq && draftCustomerAcq !== (campaign.customer_acquisition || "all")) {
+      patch.customer_acquisition = draftCustomerAcq;
+    }
     if (budgetMode !== "ABO") {
       const b = Number(String(draftBudget).replace(",", "."));
       if (Number.isFinite(b) && b > 0) {
@@ -1210,6 +1219,17 @@ function CampaignSection({
                 </SelectContent>
               </Select>
             </div>
+            <div className="sm:col-span-2">
+              <Label className="text-[11px] text-muted-foreground">Estratégia de ciclo de vida do cliente</Label>
+              <Select value={draftCustomerAcq} onValueChange={setDraftCustomerAcq}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os públicos</SelectItem>
+                  <SelectItem value="new_customers">Conquistar novos clientes</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">A IA sugere com base na etapa do funil. Ajuste se quiser priorizar novos clientes.</p>
+            </div>
             <div className="sm:col-span-2 flex justify-end gap-2 pt-1">
               <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
                 Cancelar
@@ -1229,6 +1249,7 @@ function CampaignSection({
             <Detail label="Tipo de orçamento" value={budgetModeLabel || tr("budget_type", campaign.budget_type)} />
             <Detail label={budgetLabel} value={budgetMode === "ABO" && !campaign.daily_budget_cents ? "Definido nos conjuntos" : formatBudgetBRL(campaign.daily_budget_cents)} />
             <Detail label="Status inicial" value={tr("planned_status", campaign.planned_status)} />
+            <Detail label="Ciclo de vida do cliente" value={tr("customer_acquisition", campaign.customer_acquisition || "all")} />
           </DetailGrid>
         )}
       </Block>

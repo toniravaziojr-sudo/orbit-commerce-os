@@ -165,6 +165,21 @@ function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null, k
     ?? brlToCents(action?.budget_brl)
     ?? pickFunnelShareCents(defaults || null, funnelStage)
     ?? null;
+
+  // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
+  // IA decide com base na etapa do funil dos conjuntos; lojista pode ajustar antes
+  // de aprovar. Valores: "new_customers" (Conquistar novos clientes) | "all" (padrão Meta).
+  let customerAcquisition: "new_customers" | "all" | null = action?.customer_acquisition || null;
+  if (!customerAcquisition) {
+    const adsetsForStage = Array.isArray(action?.adsets) ? action.adsets : [];
+    const stages = [String(funnelStage || ""), ...adsetsForStage.map((a: any) => String(a?.funnel_stage || ""))]
+      .map((s) => s.toLowerCase());
+    const isCold = stages.some((s) => s.includes("tof") || s.includes("cold") || s.includes("frio") || s.includes("prosp") || s.includes("broad") || s.includes("topo"));
+    const isWarm = stages.some((s) => s.includes("mof") || s.includes("bof") || s.includes("remark") || s.includes("warm") || s.includes("quente") || s.includes("fundo") || s.includes("meio"));
+    if (isCold && !isWarm) customerAcquisition = "new_customers";
+    else customerAcquisition = "all";
+  }
+
   return {
     name: action?.campaign_name || action?.name || autoCampaignName(action, kind),
     objective: action?.objective || defaults?.default_objective || null,
@@ -188,6 +203,7 @@ function buildCampaignSnapshot(action: any, defaults?: AccountDefaults | null, k
     budget_source: action?.budget_source || (dailyBudgetCents && !action?.daily_budget_cents ? "funnel_share_fallback" : null),
     existing_campaign_id: action?.target_campaign_id || action?.campaign_id || null,
     existing_campaign_action: action?.existing_campaign_action || null,
+    customer_acquisition: customerAcquisition,
   };
 }
 

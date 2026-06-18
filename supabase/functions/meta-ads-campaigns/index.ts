@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     // CREATE — Create campaign on Meta + local
     // ========================
     if (action === "create") {
-      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time, destination_type, buying_type } = body;
+      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time, destination_type, buying_type, is_new_customer_acquisition } = body;
       const adAccountId = targetAccountId || adAccounts[0].id;
 
       if (!name || !objective) {
@@ -265,6 +265,9 @@ Deno.serve(async (req) => {
       if (lifetime_budget_cents) createBody.lifetime_budget = String(lifetime_budget_cents);
       if (start_time) createBody.start_time = start_time;
       if (stop_time) createBody.stop_time = stop_time;
+      // Estratégia de ciclo de vida do cliente — "Conquistar novos clientes".
+      // Aceita tanto a chave canônica (is_new_customer_acquisition) quanto bool.
+      if (is_new_customer_acquisition === true) createBody.is_new_customer_acquisition = true;
 
       const result = await graphApi(
         `act_${adAccountId.replace("act_", "")}/campaigns`,

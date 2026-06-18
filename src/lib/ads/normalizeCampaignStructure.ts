@@ -34,6 +34,9 @@ export interface CampaignNode {
   sales_subtype?: string | null;
   /** Contrato v1.1 — exige catálogo Meta? */
   requires_catalog?: boolean | null;
+  /** Estratégia de ciclo de vida do cliente (Meta is_new_customer_acquisition).
+   *  "new_customers" → Conquistar novos clientes. "all"/null → Todos os públicos. */
+  customer_acquisition?: "new_customers" | "all" | null;
 }
 
 export interface AdSetNode {
@@ -534,6 +537,7 @@ function fromCampaignProposalV1(data: any): CampaignStructure {
     internal_strategy_tag: pickStr(c?.internal_strategy_tag),
     sales_subtype: pickStr(c?.sales_subtype),
     requires_catalog: typeof c?.requires_catalog === "boolean" ? c.requires_catalog : null,
+    customer_acquisition: (c?.customer_acquisition === "new_customers" || c?.customer_acquisition === "all") ? c.customer_acquisition : null,
   };
 
   const h2Adsets: any[] = Array.isArray(data?.adsets) ? data.adsets : [];
