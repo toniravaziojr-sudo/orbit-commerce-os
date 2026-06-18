@@ -181,12 +181,12 @@ async function buildBriefing(
       .maybeSingle(),
   ]);
 
-  // Aprendizados recentes de copy.
+  // Aprendizados recentes de copy (categoria oficial "copy").
   const { data: learnings } = await supabase
     .from("ads_ai_learnings")
     .select("title, description, metadata, created_at")
     .eq("tenant_id", tenantId)
-    .eq("category", "creative_copy_feedback")
+    .eq("category", "copy")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(3);
