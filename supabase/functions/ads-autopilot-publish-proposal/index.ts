@@ -435,20 +435,20 @@ Deno.serve(async (req) => {
     }
 
     let lifecycleNotice: string | null = null;
-    let lifecycleAudienceUsed: { id: string; name: string } | null = null;
+    let lifecycleAudienceUsed: { id: string; name: string; source?: string } | null = null;
     if (effectiveAcq === "new_customers" && supportsAcq) {
-      // Procura audiência de compradores existente na conta (não cria nova).
+      // Fonte de verdade do público de clientes: proposta/configuração interna primeiro,
+      // mapeamento de sync depois, catálogo Meta por último. Não usar regex genérico
+      // que possa escolher leads/newsletter como "clientes atuais".
       try {
-        const cat = await fetchAccountAudiences(adAccountId, metaConn.access_token);
-        const buyerRegex = /(compradores?|clientes?|customers?|buyers?|purchas|compra|comprou)/i;
-        const buyerAud = cat.find((a) => a?.name && buyerRegex.test(a.name));
+        const buyerAud = await resolveExistingCustomerAudience(supabase, tenant_id, adAccountId, propData, adsetsList, metaConn.access_token);
         if (buyerAud) {
           campaignBody.is_new_customer_acquisition = true;
           campaignBody.customer_acquisition_spec = { custom_audiences: [{ id: buyerAud.id }] };
-          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name };
+          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name, source: buyerAud.source };
         } else {
           lifecycleNotice =
-            "Estratégia de ciclo de vida do cliente não aplicada: a conta da Meta ainda não tem uma audiência de compradores (ex.: \"Compradores 180d\" via evento Purchase do pixel). Crie em Gerenciador de Anúncios → Públicos e republique para ativar \"Conquistar novos clientes\".";
+            "Estratégia de ciclo de vida do cliente não aplicada: não há público de Clientes/Compradores ativo e sincronizado para esta conta de anúncios. Sincronize o público de Clientes e republique para ativar \"Conquistar novos clientes\".";
         }
       } catch (e: any) {
         lifecycleNotice = `Estratégia de ciclo de vida do cliente não aplicada: falha ao consultar audiências da conta (${e?.message || e}).`;
@@ -850,12 +850,14 @@ Deno.serve(async (req) => {
             applied,
             audience_used: lifecycleAudienceUsed,
           };
-          if (!applied && !lifecycleNotice) {
+          if (!applied) {
             lifecycleNotice =
-              "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". Verifique se há uma audiência de compradores na conta e se a campanha tem objetivo Vendas.";
+              lifecycleNotice || "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". A proposta voltou para revisão para evitar publicação com configuração parcial.";
+            parityMismatch = "Meta não confirmou a configuração \"Conquistar novos clientes\".";
           }
         } catch (e: any) {
           parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
+          parityMismatch = "Não foi possível confirmar com a Meta a configuração \"Conquistar novos clientes\".";
         }
       }
       if (parityMismatch) {
