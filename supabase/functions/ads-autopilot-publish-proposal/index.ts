@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.9.0-account-level-existing-customers-registration";
+const VERSION = "v2.0.0-all-audiences-with-manual-customer-exclusion";
 
 // ---------------------------------------------------------------------------
 // Registro idempotente da lista de "clientes atuais" no NÍVEL DA CONTA de
@@ -445,19 +445,26 @@ Deno.serve(async (req) => {
       bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       buying_type: campaign.buying_type || "AUCTION",
     };
-    // Estratégia de ciclo de vida do cliente (Meta: "is_new_customer_acquisition").
-    // "new_customers" → Conquistar novos clientes. Segurança em camada extra:
-    // campanha fria (TOF) de vendas/leads sem escolha do lojista → força "new_customers".
-    // Pré-requisito Meta: a flag só "engata" se a campanha tiver
-    // customer_acquisition_spec apontando para uma audiência de "clientes atuais"
-    // (Customer File ou Website Purchase). Sem essa audiência, a Meta aceita o POST
-    // mas exibe o seletor vazio. Por isso resolvemos pela fonte interna de Clientes
-    // e bloqueamos a publicação se a Meta não confirmar a configuração.
+    // Estratégia de aquisição de clientes (v2.0.0 — 2026-06-19):
+    // A Meta tem duas opções no painel:
+    //   (a) "Obter conversões de todos os públicos" → permite exclusão manual de
+    //       clientes pelo conjunto. É o que sempre fizemos via exclude_custom_audiences.
+    //   (b) "Conquistar novos clientes" (is_new_customer_acquisition=true) → modo
+    //       AUTOMÁTICO da Meta. Incompatível com exclusão manual. Se enviado em
+    //       conjunto com exclusão manual, a Meta aceita o POST mas mantém (a)
+    //       silenciosamente — não há erro, apenas é ignorado.
+    //
+    // Como nosso fluxo sempre injeta a audiência de Clientes como exclusão manual
+    // (controle explícito e auditável), a opção CORRETA é (a). Nunca enviamos
+    // is_new_customer_acquisition nem customer_acquisition_spec. O efeito prático
+    // é o mesmo: o anúncio não atinge quem já é cliente.
+    let lifecycleNotice: string | null = null;
+    let lifecycleAudienceUsed: { id: string; name: string; source?: string } | null = null;
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
     const objUpper = String(objective).toUpperCase();
     const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
-    let effectiveAcq = customerAcq;
-    if ((!effectiveAcq || effectiveAcq === "all") && supportsAcq) {
+    const requestedAcq = (() => {
+      if (customerAcq && customerAcq !== "all") return customerAcq;
       const stages = [
         String(campaign.funnel_stage || ""),
         String(campaign.affected_funnel || ""),
@@ -471,53 +478,25 @@ Deno.serve(async (req) => {
         s.includes("mof") || s.includes("bof") || s.includes("remark") ||
         s.includes("warm") || s.includes("quente") || s.includes("fundo") || s.includes("meio"),
       );
-      if (isCold && !isWarm) effectiveAcq = "new_customers";
-    }
+      return (isCold && !isWarm) ? "new_customers" : "all";
+    })();
+    // Mantemos a intenção registrada apenas para fins de auditoria. Nunca
+    // viramos a flag is_new_customer_acquisition na Meta — usamos sempre o modo
+    // "todos os públicos" com exclusão manual de clientes.
 
-    let lifecycleNotice: string | null = null;
-    let lifecycleAudienceUsed: { id: string; name: string; source?: string } | null = null;
-    if (effectiveAcq === "new_customers" && supportsAcq) {
-      // Fonte de verdade do público de clientes: proposta/configuração interna primeiro,
-      // mapeamento de sync depois, catálogo Meta por último. Não usar regex genérico
-      // que possa escolher leads/newsletter como "clientes atuais".
+    if (requestedAcq === "new_customers" && supportsAcq) {
       try {
         const buyerAud = await resolveExistingCustomerAudience(supabase, tenant_id, adAccountId, propData, adsetsList, metaConn.access_token);
         if (buyerAud) {
-          campaignBody.is_new_customer_acquisition = true;
-          campaignBody.customer_acquisition_spec = { custom_audiences: [{ id: buyerAud.id }] };
           lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name, source: buyerAud.source };
         } else {
-          lifecycleNotice =
-            "Estratégia de ciclo de vida do cliente não aplicada: não há público de Clientes/Compradores ativo e sincronizado para esta conta de anúncios. Sincronize o público de Clientes e republique para ativar \"Conquistar novos clientes\".";
+          lifecycleNotice = "Aviso: não havia público de Clientes/Compradores sincronizado para excluir manualmente. A campanha foi publicada sem essa exclusão. Sincronize o público de Clientes para refinar a próxima publicação.";
         }
       } catch (e: any) {
-        lifecycleNotice = `Estratégia de ciclo de vida do cliente não aplicada: falha ao consultar audiências da conta (${e?.message || e}).`;
+        lifecycleNotice = `Aviso ao consultar audiências da conta para exclusão manual de clientes: ${e?.message || e}.`;
       }
     }
 
-    if (effectiveAcq === "new_customers" && supportsAcq && !lifecycleAudienceUsed) {
-      await markFailed(supabase, action_id, propData, lifecycle, "customer_lifecycle_audience_missing", lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.");
-      return new Response(JSON.stringify({ success: false, error_pt: lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.", stage: "customer_lifecycle" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    // Pré-requisito Meta (doc oficial): a lista de "clientes atuais" precisa
-    // estar definida no NÍVEL DA CONTA de anúncios para que a flag
-    // `is_new_customer_acquisition` da campanha seja efetivada. Faz uma vez
-    // por conta+audiência (idempotente: lê a lista atual, só escreve se faltar).
-    if (effectiveAcq === "new_customers" && supportsAcq && lifecycleAudienceUsed) {
-      const reg = await ensureAccountExistingCustomers(metaConn.access_token, adAccountId, lifecycleAudienceUsed.id);
-      if (!reg.ok) {
-        await markFailed(supabase, action_id, propData, lifecycle, "account_existing_customers_setup_failed",
-          `Falha ao registrar a lista de clientes na conta de anúncios da Meta (pré-requisito de Conquistar novos clientes): ${reg.error || "erro desconhecido"}.`);
-        return new Response(JSON.stringify({
-          success: false,
-          error_pt: "Não foi possível registrar a sua lista de clientes na conta de anúncios da Meta. Sem esse cadastro, a Meta não ativa \"Conquistar novos clientes\". Tente novamente; se persistir, verifique as permissões da conexão com a Meta.",
-          stage: "account_existing_customers",
-        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      console.log(`[publish] Lista de clientes ${reg.alreadyPresent ? "já estava registrada" : "registrada agora"} na conta act_${String(adAccountId).replace(/^act_/, "")} (audiência ${lifecycleAudienceUsed.id}).`);
-    }
 
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
@@ -571,31 +550,24 @@ Deno.serve(async (req) => {
       // Posicionamentos (Advantage+ ou lista manual)
       applyPlacements(targeting, adset);
 
-      // Exclusões de público (formato moderno + legado).
-      // REGRA CRÍTICA (v1.8.0): quando a campanha está com "Conquistar novos
-      // clientes" ativo e usa a audiência de clientes como referência de
-      // customer_acquisition_spec, NÃO podemos duplicar a mesma audiência como
-      // exclusão manual do conjunto. A Meta aceita a criação, mas silenciosamente
-      // não ativa is_new_customer_acquisition quando a mesma audiência aparece
-      // como referência de "clientes atuais" e como exclusão manual ao mesmo
-      // tempo (conflito interno). A exclusão de compradores continua aplicada
-      // pelo próprio mecanismo nativo de Lifecycle da Meta.
-      const lifecycleAudId = lifecycleAudienceUsed?.id ? String(lifecycleAudienceUsed.id) : null;
+      // Exclusões de público (v2.0.0): mantemos sempre a exclusão manual da
+      // audiência de Clientes. Esse é o caminho oficial da Meta para "todos os
+      // públicos com exclusão de clientes" — equivalente à intenção de campanha
+      // fria sem conflito com modo automático.
       const exclArrRaw = adset?.targeting?.excluded_custom_audiences
         || (Array.isArray(adset.excluded_audience_ids)
           ? adset.excluded_audience_ids.map((a: any) => (typeof a === "object" ? a : { id: a }))
           : []);
       if (Array.isArray(exclArrRaw) && exclArrRaw.length > 0) {
-        const dedup = exclArrRaw
-          .map((a: any) => ({ id: String(a.id || a) }))
-          .filter((a: any) => !lifecycleAudId || a.id !== lifecycleAudId);
-        if (dedup.length > 0) {
-          targeting.excluded_custom_audiences = dedup;
+        const seen = new Set<string>();
+        const normalized: Array<{ id: string }> = [];
+        for (const a of exclArrRaw) {
+          const id = String((a && (a.id || a)) || "").trim();
+          if (id && !seen.has(id)) { seen.add(id); normalized.push({ id }); }
         }
-        if (lifecycleAudId && dedup.length !== exclArrRaw.length) {
-          console.log(`[publish] Adset ${aIdx + 1}: removida exclusão duplicada da audiência de clientes ${lifecycleAudId} (já usada em customer_acquisition_spec).`);
-        }
+        if (normalized.length > 0) targeting.excluded_custom_audiences = normalized;
       }
+
 
       // Inclusão de público / Lookalikes — resolve nomes para IDs reais na conta
       const includeRefs = extractIncludedAudienceRefs(adset);
@@ -915,32 +887,16 @@ Deno.serve(async (req) => {
           parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
         }
       }
-      // Conferência do ciclo de vida do cliente: lê o campo de volta na Meta.
-      // Se a flag foi enviada mas a Meta retornou false (sem audiência base válida,
-      // por exemplo), registramos como aviso — sem reabrir a proposta, porque a
-      // campanha em si está válida; só essa otimização específica não engatou.
-      if (effectiveAcq === "new_customers" && supportsAcq) {
-        try {
-          const cr = await fetch(
-            `https://graph.facebook.com/v21.0/${metaCampaignId}?fields=is_new_customer_acquisition&access_token=${encodeURIComponent(metaConn.access_token)}`,
-          );
-          const cj = await cr.json();
-          const applied = cj?.is_new_customer_acquisition === true;
-          parityCheck.lifecycle = {
-            requested: "new_customers",
-            applied,
-            audience_used: lifecycleAudienceUsed,
-          };
-          if (!applied) {
-            lifecycleNotice =
-              lifecycleNotice || "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". A proposta voltou para revisão para evitar publicação com configuração parcial.";
-            parityMismatch = "Meta não confirmou a configuração \"Conquistar novos clientes\".";
-          }
-        } catch (e: any) {
-          parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
-          parityMismatch = "Não foi possível confirmar com a Meta a configuração \"Conquistar novos clientes\".";
-        }
-      }
+      // v2.0.0: não conferimos mais is_new_customer_acquisition na Meta.
+      // Sempre publicamos no modo "Obter conversões de todos os públicos"
+      // com exclusão manual da audiência de Clientes nos conjuntos — equivalente
+      // funcional, sem o conflito interno que fazia a Meta ignorar a flag.
+      parityCheck.lifecycle = {
+        strategy: "all_audiences_with_manual_customer_exclusion",
+        audience_excluded: lifecycleAudienceUsed,
+        notice: lifecycleNotice,
+      };
+
       if (parityMismatch) {
         allOk = false;
       }
