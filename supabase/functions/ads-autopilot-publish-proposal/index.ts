@@ -338,10 +338,15 @@ Deno.serve(async (req) => {
       bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       buying_type: campaign.buying_type || "AUCTION",
     };
-    // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
-    // "new_customers" → Conquistar novos clientes (true). Segurança em camada extra:
-    // se a campanha é fria (TOF) de vendas/leads e o lojista não escolheu nada, força
-    // "new_customers" para não cair no default ruim "Todos os públicos".
+    // Estratégia de ciclo de vida do cliente (Meta: "is_new_customer_acquisition").
+    // "new_customers" → Conquistar novos clientes. Segurança em camada extra:
+    // campanha fria (TOF) de vendas/leads sem escolha do lojista → força "new_customers".
+    // Pré-requisito Meta: a flag só "engata" se a campanha tiver
+    // customer_acquisition_spec apontando para uma audiência de "clientes atuais"
+    // (Customer File ou Website Purchase). Sem essa audiência, a Meta aceita o POST
+    // mas exibe o seletor vazio. Por isso buscamos no catálogo da conta uma
+    // audiência cujo nome sugira compradores; se não houver, publicamos sem a
+    // flag e registramos aviso técnico claro na proposta.
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
     const objUpper = String(objective).toUpperCase();
     const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
@@ -362,8 +367,26 @@ Deno.serve(async (req) => {
       );
       if (isCold && !isWarm) effectiveAcq = "new_customers";
     }
+
+    let lifecycleNotice: string | null = null;
+    let lifecycleAudienceUsed: { id: string; name: string } | null = null;
     if (effectiveAcq === "new_customers" && supportsAcq) {
-      campaignBody.is_new_customer_acquisition = true;
+      // Procura audiência de compradores existente na conta (não cria nova).
+      try {
+        const cat = await fetchAccountAudiences(adAccountId, metaConn.access_token);
+        const buyerRegex = /(compradores?|clientes?|customers?|buyers?|purchas|compra|comprou)/i;
+        const buyerAud = cat.find((a) => a?.name && buyerRegex.test(a.name));
+        if (buyerAud) {
+          campaignBody.is_new_customer_acquisition = true;
+          campaignBody.customer_acquisition_spec = { custom_audiences: [{ id: buyerAud.id }] };
+          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name };
+        } else {
+          lifecycleNotice =
+            "Estratégia de ciclo de vida do cliente não aplicada: a conta da Meta ainda não tem uma audiência de compradores (ex.: \"Compradores 180d\" via evento Purchase do pixel). Crie em Gerenciador de Anúncios → Públicos e republique para ativar \"Conquistar novos clientes\".";
+        }
+      } catch (e: any) {
+        lifecycleNotice = `Estratégia de ciclo de vida do cliente não aplicada: falha ao consultar audiências da conta (${e?.message || e}).`;
+      }
     }
 
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
