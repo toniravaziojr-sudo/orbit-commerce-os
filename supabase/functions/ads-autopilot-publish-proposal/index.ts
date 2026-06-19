@@ -411,14 +411,13 @@ Deno.serve(async (req) => {
     // Pré-requisito Meta: a flag só "engata" se a campanha tiver
     // customer_acquisition_spec apontando para uma audiência de "clientes atuais"
     // (Customer File ou Website Purchase). Sem essa audiência, a Meta aceita o POST
-    // mas exibe o seletor vazio. Por isso buscamos no catálogo da conta uma
-    // audiência cujo nome sugira compradores; se não houver, publicamos sem a
-    // flag e registramos aviso técnico claro na proposta.
+    // mas exibe o seletor vazio. Por isso resolvemos pela fonte interna de Clientes
+    // e bloqueamos a publicação se a Meta não confirmar a configuração.
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
     const objUpper = String(objective).toUpperCase();
     const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
     let effectiveAcq = customerAcq;
-    if (!effectiveAcq && supportsAcq) {
+    if ((!effectiveAcq || effectiveAcq === "all") && supportsAcq) {
       const stages = [
         String(campaign.funnel_stage || ""),
         String(campaign.affected_funnel || ""),
