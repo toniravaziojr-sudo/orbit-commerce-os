@@ -742,7 +742,7 @@ Deno.serve(async (req) => {
     // Antes de declarar "publicada", consulta a Meta e confere quantos anúncios
     // ATIVOS existem em cada conjunto. Se divergir do esperado, marca paridade
     // como falha e devolve a proposta para a fila com mensagem clara.
-    const parityCheck: any = { ran: false, adsets: [] };
+    const parityCheck: any = { ran: false, adsets: [], lifecycle: null };
     let parityMismatch: string | null = null;
     if (allOk) {
       parityCheck.ran = true;
@@ -766,6 +766,30 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           parityCheck.adsets.push({ meta_adset_id: adsetId, expected, error: e?.message || String(e) });
           parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
+        }
+      }
+      // Conferência do ciclo de vida do cliente: lê o campo de volta na Meta.
+      // Se a flag foi enviada mas a Meta retornou false (sem audiência base válida,
+      // por exemplo), registramos como aviso — sem reabrir a proposta, porque a
+      // campanha em si está válida; só essa otimização específica não engatou.
+      if (effectiveAcq === "new_customers" && supportsAcq) {
+        try {
+          const cr = await fetch(
+            `https://graph.facebook.com/v21.0/${metaCampaignId}?fields=is_new_customer_acquisition&access_token=${encodeURIComponent(metaConn.access_token)}`,
+          );
+          const cj = await cr.json();
+          const applied = cj?.is_new_customer_acquisition === true;
+          parityCheck.lifecycle = {
+            requested: "new_customers",
+            applied,
+            audience_used: lifecycleAudienceUsed,
+          };
+          if (!applied && !lifecycleNotice) {
+            lifecycleNotice =
+              "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". Verifique se há uma audiência de compradores na conta e se a campanha tem objetivo Vendas.";
+          }
+        } catch (e: any) {
+          parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
         }
       }
       if (parityMismatch) {
