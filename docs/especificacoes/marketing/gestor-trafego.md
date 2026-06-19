@@ -4635,15 +4635,15 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Se qualquer etapa posterior falhar após criar campanha/conjunto, o publicador pausa a campanha e os conjuntos já criados antes de devolver a proposta para a fila, evitando campanha ativa vazia.
 - Memória: `mem://constraints/ads-publish-full-parity-meta`.
 
-## 17 — Onda H.5 — Ciclo de vida, UTMs e conferência pós-publicação (2026-06-19)
+## 17 — Onda H.5 — Ciclo de vida, UTMs e conferência pós-publicação (2026-06-19, revisado v2.0.0 em 2026-06-19)
 
-### 17.1 — Estratégia de ciclo de vida do cliente (auto)
-- Toda campanha fria (TOF) de vendas (`OUTCOME_SALES`) ou leads (`OUTCOME_LEADS`) sobe com "Conquistar novos clientes" por padrão.
-- Remarketing/retenção (MOF/BOF/warm/hot) mantém "Todos os públicos".
-- Decisão é tomada na geração da proposta e revalidada no momento da publicação (segunda camada). Se a proposta vier como "Todos os públicos", mas os sinais de funil indicarem campanha fria/prospecção, o publicador reclassifica para "Conquistar novos clientes" como defesa contra proposta legada ou edição incompleta. Escolha manual explícita do lojista continua prevalecendo quando o contexto não for frio.
-- A edição da campanha deve persistir sempre a seleção exibida de ciclo de vida, mesmo quando ela for igual ao valor visual padrão, para evitar banco vazio interpretado de forma diferente no publicador.
-- **Pré-requisito Meta:** o seletor "Conquistar novos clientes" só fica ativo na Meta quando a campanha traz, junto da flag, uma audiência de "clientes atuais". O publicador resolve essa audiência pela fonte interna de Clientes já sincronizada para a conta de anúncios; só usa o catálogo da Meta como fallback. Audiências de Leads, Newsletter, Popup ou formulários não podem ser usadas como clientes atuais.
-- **Fail-closed:** se a campanha fria exigir "Conquistar novos clientes" e o público de Clientes/Compradores não for encontrado, a publicação é bloqueada antes de criar objetos na Meta. Se a Meta criar a campanha mas não confirmar o seletor na leitura de retorno, a publicação falha, a campanha/conjuntos criados são pausados e a proposta volta para "Aguardando Ação". É proibido declarar campanha publicada com essa configuração parcial.
+### 17.1 — Estratégia de ciclo de vida do cliente (decisão atual)
+- **Regra vigente (v2.0.0 — "all-audiences-with-manual-customer-exclusion"):** toda campanha publicada pelo autopilot sobe no modo "Obter conversões de todos os públicos" da Meta. A exclusão de clientes atuais é feita manualmente pelo publicador, adicionando os públicos de Clientes/Compradores na exclusão de públicos de cada conjunto frio/prospecção.
+- **Motivo da mudança:** o modo "Conquistar novos clientes" da Meta só fica ativo quando ela aceita silenciosamente a flag junto com o público de clientes atuais; quando não aceita, a campanha era devolvida para "Aguardando Ação" mesmo já publicada e ativa na Meta. Mantendo "Todos os públicos" + exclusão manual, o resultado prático é o mesmo (anúncio não atinge cliente atual) e a Meta nunca rejeita silenciosamente.
+- **Comportamento do publicador:** não envia mais a flag de "Conquistar novos clientes", não registra a conta na lista de clientes atuais da Meta, não deduplica o público de Clientes da lista de exclusão e não roda conferência pós-publicação dessa flag.
+- **UI da Meta:** o painel da Meta NÃO marca visualmente o radio "Obter conversões de todos os públicos" como selecionado quando a campanha é criada sem a flag de aquisição — esse é o estado padrão/base e a Meta só destaca o radio quando o lojista escolhe explicitamente "Conquistar novos clientes". Comportamento esperado, não é bug.
+- **Seleção manual do lojista:** se algum tenant precisar do modo "Conquistar novos clientes" da Meta como obrigatório, isso é feito manualmente no painel da Meta após a publicação. O autopilot não toma essa decisão automaticamente nesta onda.
+- **Edição da campanha:** o campo de ciclo de vida na proposta deixa de afetar o publicador; permanece visível apenas como referência histórica até uma próxima onda decidir reativá-lo.
 
 ### 17.2 — UTMs obrigatórias em todo anúncio
 - Padrão fixo aplicado antes de publicar: `utm_source=meta`, `utm_medium=paid_social` (padrão GA4/setor; é o único valor que o motor de "ROAS Real (Ads)" reconhece — usar `social_paid` quebra a atribuição de venda paga), `utm_campaign=<slug do nome da campanha>`, `utm_content=ad_<n>`, `utm_term=<slug do conjunto>`, `utm_audience=<slug do público>` quando disponível.
@@ -4652,10 +4652,10 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Proibido publicar anúncio sem UTMs.
 
 ### 17.3 — Conferência pós-publicação com a Meta
-- Após criar todos os anúncios, o publicador consulta `GET /<adset_id>/ads` para cada conjunto criado e confere se a quantidade de anúncios na Meta bate com o esperado.
-- Divergência → campanha/conjuntos pausados, proposta devolvida para "Aguardando Ação" com mensagem clara, `lifecycle.failure_code = "meta_parity_mismatch"`.
-- Só é declarado "publicado" depois que `parity_check.ran === true` e todos os conjuntos têm contagem ≥ esperada.
-- A mesma conferência roda também para `is_new_customer_acquisition` (item 17.1): leitura de volta na Meta, resultado em `parity_check.lifecycle`.
+- Após criar todos os anúncios, o publicador consulta a Meta por conjunto criado e confere se a quantidade de anúncios na Meta bate com o esperado.
+- Divergência → campanha/conjuntos pausados, proposta devolvida para "Aguardando Ação" com mensagem clara e falha registrada.
+- Só é declarado "publicado" quando a conferência rodou e todos os conjuntos têm contagem ≥ esperada.
+- A conferência da flag de "Conquistar novos clientes" foi REMOVIDA nesta onda (ver 17.1). O publicador não lê mais essa flag de volta da Meta.
 
 ### 17.4 — Histórico visual igual ao da aprovação
 - A aba "Ações da IA" renderiza Proposta de Campanha e Plano Estratégico usando o mesmo card visual e modal usado em "Aguardando Ação", em modo somente leitura.
