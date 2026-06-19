@@ -655,11 +655,15 @@ Deno.serve(async (req) => {
           objectStorySpec.instagram_user_id = identity.instagram_user_id || identity.instagram_actor_id;
         }
 
-        const creativeBody = {
+        const creativeBody: any = {
           name: `[AI] Creative ${creative.creative_index + 1} - ${new Date().toISOString().split("T")[0]}`,
           access_token: metaConn.access_token,
           object_story_spec: objectStorySpec,
         };
+        // Camada nativa de UTM da Meta: garante atribuição mesmo se a URL
+        // for reescrita por algum middleware/encurtador.
+        if (urlTagsString) creativeBody.url_tags = urlTagsString;
+
 
         const adCreativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
           method: "POST",
