@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.5.0-utm-mandatory-lifecycle-leads-postverify";
+const VERSION = "v1.6.0-utm-paid-social-and-lifecycle-spec-with-audience";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,9 +55,12 @@ function buildAdUtms(opts: {
   creativeIndex: number;
   audienceLabel?: string | null;
 }): Record<string, string> {
+  // utm_medium=paid_social é o padrão GA4/setor e é o ÚNICO valor reconhecido
+  // pelo motor de "ROAS Real (Ads)" do gestor de tráfego. Não trocar por
+  // social_paid/social/paid — quebra a atribuição de venda paga.
   const out: Record<string, string> = {
     utm_source: "meta",
-    utm_medium: "social_paid",
+    utm_medium: "paid_social",
     utm_campaign: utmSlug(opts.campaignName) || "campanha",
     utm_content: `ad_${opts.creativeIndex + 1}`,
   };
@@ -598,7 +601,7 @@ Deno.serve(async (req) => {
 
 
         // Destination URL com UTMs obrigatórias.
-        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=social_paid,
+        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=paid_social,
         // campaign=<nome>, content=ad_N, term=<conjunto>). Quando o tenant tiver utm_base
         // configurada, ela complementa (não sobrescreve) os valores acima.
         let destinationUrl = creative.planned.destination_url || null;
