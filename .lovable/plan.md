@@ -1,80 +1,42 @@
-📋 CHECKLIST DE CONFORMIDADE
-- Doc de Regras lido: sim.
-- Doc formal do tema lido: gestor-trafego.md, plataformas-baseline.md, mapa-ui.md, memórias de governança Ads.
-- Fluxo: proposta da IA → aprovação visual → publicação Meta → histórico em "Ações da IA".
-- Fonte de verdade: proposta aprovada (snapshot) + retorno real da Meta.
-- Módulos: Gestor de Tráfego IA (Aguardando Ação, Ações da IA), publicador Meta, rastreamento/UTM, doc + memórias.
-- Impacto cruzado: ROAS real, atribuição, exclusão de clientes, leitura de histórico pelo usuário.
-- UI impactada: sim — aba "Ações da IA" passa a usar o mesmo card visual da aprovação (já solicitado pelo usuário). Mapa de UI será atualizado.
-- Situação: Aguardando confirmação do usuário.
+## Revisão do raciocínio
 
-📌 STATUS DA ENTREGA: Proposta
+Reli os docs e o histórico. Duas correções de rota em relação ao plano anterior:
 
-## Como funciona hoje
+1. **UTMs já estão indo corretas na Meta.** O print confirma `utm_source=meta&utm_medium=social_paid&utm_campaign=…&utm_content=ad_2&utm_term=…` chegando ao anúncio. Não preciso mexer no publicador — preciso só **validar que essa URL é lida pelo nosso rastreamento de venda** (cookie/sessão do visitante → atribuição do pedido → relatórios de tráfego). Se a leitura estiver ok, encerro essa frente.
 
-1. A IA cria propostas e o usuário aprova em "Aguardando Ação" com um card visual completo (resumo de negócio, modal passo a passo).
-2. Quando executadas, as propostas migram para "Ações da IA" e perdem identidade visual: aparecem como "campaign_proposal", "Meta" e abrem um modal com JSON cru. O usuário não consegue identificar qual campanha aprovou.
-3. Propostas de campanha fria não preenchem a "Estratégia de ciclo de vida do cliente" (deveria vir "Conquistar novos clientes" por padrão em TOF).
-4. Anúncios sobem sem UTMs, derrubando atribuição.
-5. Não há conferência final com a Meta após publicar — uma campanha do Kit Banho Calvície Zero aparenta ter ficado com criativo faltando, mas internamente os 2 anúncios constam como criados; falta a verificação que prova.
+2. **O ciclo de vida do cliente continua vazio porque a Meta exige um pré-requisito que hoje não cumprimos.** O campo "Conquiste novos clientes" só fica selecionável quando a conta tem uma **audiência de "clientes atuais" vinculada à campanha**. Estamos enviando a instrução para o Meta, mas sem essa audiência base o Meta descarta em silêncio. Além disso, a leitura desse seletor na UI da Meta acontece no nível do **conjunto de anúncios**, então a instrução precisa ir nos dois níveis (campanha + conjunto).
 
-## O problema
+## O que vou fazer (decisões técnicas, sem mudança de UI/UX)
 
-Quatro frentes que se reforçam:
-- Histórico ilegível para o usuário.
-- Configuração de ciclo de vida em branco em campanhas frias.
-- UTMs ausentes nos anúncios publicados.
-- Sucesso de publicação declarado sem conferir com a Meta.
+**Frente A — Validar UTMs ponta a ponta (read-only, sem alterações se estiver ok)**
+- Conferir, num pedido real recente, se um clique com essas UTMs grava origem "Meta — Pago" no rastreamento e aparece corretamente nos relatórios de atribuição e no ROAS Real do gestor de tráfego.
+- Se algum elo estiver quebrado, corrijo só esse elo.
 
-## O que eu faria
+**Frente B — Resolver o ciclo de vida do cliente de verdade**
+- Enviar a instrução nos dois níveis (campanha + conjunto de anúncios).
+- Antes de publicar, procurar na conta uma audiência já existente de compradores (Purchase) gerada pelo pixel. Se existir, vinculo automaticamente como "clientes atuais" da campanha. Isso destrava o seletor sem precisar subir lista manual.
+- Se não existir audiência de compradores na conta, publico a campanha normalmente, mas registro um aviso técnico claro na proposta dizendo: "Ciclo de vida não pôde ser aplicado: a conta da Meta ainda não tem audiência de compradores disponível. Crie uma audiência de evento Purchase (Gerenciador de Anúncios → Públicos) e republique." Sem isso, a Meta vai continuar zerando o campo, então é melhor sermos transparentes do que silenciar.
+- Após publicar, leio de volta o seletor no Meta. Se vier preenchido → ok. Se vier vazio → marco aviso na proposta (sem reverter a campanha; ela está válida, só sem essa otimização específica).
 
-### Frente 1 — Histórico visual igual ao da aprovação (UI, precisa aval)
-- A aba "Ações da IA" passa a renderizar o mesmo card visual usado na aprovação, em modo somente leitura.
-- Cada item exibe: tipo em linguagem de negócio (Proposta de Campanha, Plano Estratégico, Pausa, Ajuste de Orçamento), nome amigável (nome da campanha/plano + data), resumo de negócio, selo de status (Aprovada · Publicada na Meta · Falhou · Recusada · Desfeita) e datas (criada, aprovada, publicada).
-- Botão "Visualizar" abre o mesmo modal passo a passo da aprovação (Visão Geral, Campanha, Conjuntos, Anúncios, Publicação), sem botões de aprovar/recusar/ajustar.
-- Modal técnico (JSON) deixa de ser o padrão; fica recolhido atrás de "Ver detalhes técnicos" para diagnóstico.
-- Confirmar com o usuário antes de mexer na UI (é mudança visual).
+**Frente C — Validação técnica obrigatória antes de fechar**
+- Republicar a campanha "Kit Banho Calvície Zero" (que já está em Aguardando Ação) com o ajuste.
+- Ler na Meta: parâmetros de URL do anúncio (já validado), ciclo de vida do cliente, e quantidade de anúncios por conjunto.
+- Só declaro "Corrigido e validado" se UTMs continuarem corretas E o ciclo de vida vier preenchido (ou avisar com clareza se a conta não tiver audiência de compradores ainda).
 
-### Frente 2 — Ciclo de vida automático (decisão técnica)
-- Campanha fria de vendas (TOF) entra com "Conquistar novos clientes" por padrão, na geração da proposta e como segunda camada de segurança no publicador.
-- Remarketing/retenção mantém "Todos os públicos".
-- Escolha manual do usuário sempre prevalece.
+**Frente D — Documentação e anti-regressão**
+- Atualizar especificação do gestor de tráfego com o pré-requisito de audiência de compradores e a regra de envio em dois níveis.
+- Reforçar memória anti-regressão.
 
-### Frente 3 — UTMs obrigatórias (decisão técnica)
-- Aplicar UTMs padrão em todo anúncio antes de publicar (origem Meta, mídia paga social, campanha, conjunto, anúncio, público), tanto na URL final quanto na camada nativa de parâmetros da Meta.
-- Bloquear publicação se faltar UTM obrigatória.
+## O que NÃO vou fazer
 
-### Frente 4 — Conferência pós-publicação (decisão técnica)
-- Após publicar, consultar a Meta e confirmar campanha, conjuntos e quantidade de anúncios por conjunto contra o snapshot aprovado.
-- Divergiu? Proposta volta para "Aguardando Ação" com mensagem clara, sem declarar sucesso.
-- Conferir agora a campanha do Kit Banho Calvície Zero suspeita: se a Meta confirmar 2 anúncios, problema é só de leitura; se confirmar 1, abrir incidente e republicar o criativo faltante (sem republicar a campanha inteira).
+- Não mexo na UI da aprovação nem da aba "Ações da IA" (já entregue).
+- Não crio audiência nova na Meta sem você pedir (só uso o que já existe).
+- Não republico campanhas que já estão rodando na Meta sem sua autorização.
+- Não toco no rastreamento atual de UTM se estiver funcionando.
 
-### Frente 5 — Propostas em aberto e campanhas já publicadas
-- Propostas ainda não publicadas: aplicar ciclo de vida + UTMs automaticamente antes da próxima publicação.
-- Campanhas já publicadas na Meta: não altero sem sua autorização explícita por campanha.
+## Resultado esperado
 
-### Frente 6 — Documentação e anti-regressão
-- Atualizar gestor-trafego.md e plataformas-baseline.md com: ciclo de vida automático em TOF, UTM obrigatória, conferência pós-publicação, paridade visual no histórico.
-- Atualizar mapa-ui.md com a nova apresentação da aba "Ações da IA".
-- Registrar memórias de governança: "histórico de Ações da IA usa o mesmo card da aprovação", "UTM obrigatória em todo anúncio", "publicação só é sucesso após paridade com a Meta", "TOF vendas = novos clientes por padrão".
-- Testes anti-regressão cobrindo as quatro frentes.
+- Você abre a campanha republicada e vê: UTMs no anúncio (já visto), seletor "Conquiste novos clientes" marcado, dois criativos no conjunto.
+- Se a Meta não aceitar o ciclo de vida por falta da audiência base, você vê uma mensagem clara na proposta dizendo exatamente o que falta resolver na conta da Meta, em vez de campo zerado e silêncio.
 
-## Resultado final esperado
-
-- "Ações da IA" mostra cada plano/campanha com nome e resumo iguais ao da aprovação.
-- Campanhas frias de vendas sobem com "Conquistar novos clientes".
-- Todo anúncio sobe com UTMs.
-- "Publicado" só é declarado após bater com a Meta; divergência volta para o usuário.
-
-## Validação que farei após o ajuste
-
-- Abrir "Ações da IA" e conferir card visual + nome + modal de leitura.
-- Validar uma proposta fria nova: precisa mostrar novos clientes + UTMs antes de publicar.
-- Conferir retorno da Meta no pós-publicação e logs internos.
-- Auditar a campanha suspeita do Kit Banho Calvície Zero (leitura na Meta, sem alterar nada sem seu aval).
-
-## Ação destrutiva ou sensível
-
-Não altero campanhas já publicadas na Meta sem autorização separada por campanha.
-
-É isso? Confirma que eu ajusto?
+Confirma que eu sigo assim?

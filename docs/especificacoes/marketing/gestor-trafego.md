@@ -4641,9 +4641,11 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Toda campanha fria (TOF) de vendas (`OUTCOME_SALES`) ou leads (`OUTCOME_LEADS`) sobe com "Conquistar novos clientes" por padrão.
 - Remarketing/retenção (MOF/BOF/warm/hot) mantém "Todos os públicos".
 - Decisão é tomada na geração da proposta e revalidada no momento da publicação (segunda camada). Escolha manual do lojista sempre prevalece.
+- **Pré-requisito Meta:** o seletor "Conquistar novos clientes" só fica ativo na Meta quando a campanha traz, junto da flag, uma audiência de "clientes atuais" (audiência de compradores existente na conta da Meta). O publicador procura automaticamente uma audiência cujo nome cite compradores/clientes/purchase e a vincula. Se a conta não tiver essa audiência, a campanha é publicada normalmente, mas com aviso claro na proposta dizendo: "Crie uma audiência de compradores (evento Purchase do pixel) em Gerenciador de Anúncios → Públicos para ativar esta otimização."
+- **Conferência pós-publicação:** depois de criar a campanha, o publicador lê o campo de volta na Meta. Se o seletor não engatou (mesmo enviando a flag), o aviso é registrado na proposta sem reverter a publicação — a campanha está válida; só essa otimização específica não foi aplicada.
 
 ### 17.2 — UTMs obrigatórias em todo anúncio
-- Padrão fixo aplicado antes de publicar: `utm_source=meta`, `utm_medium=social_paid`, `utm_campaign=<slug do nome da campanha>`, `utm_content=ad_<n>`, `utm_term=<slug do conjunto>`, `utm_audience=<slug do público>` quando disponível.
+- Padrão fixo aplicado antes de publicar: `utm_source=meta`, `utm_medium=paid_social` (padrão GA4/setor; é o único valor que o motor de "ROAS Real (Ads)" reconhece — usar `social_paid` quebra a atribuição de venda paga), `utm_campaign=<slug do nome da campanha>`, `utm_content=ad_<n>`, `utm_term=<slug do conjunto>`, `utm_audience=<slug do público>` quando disponível.
 - A UTM base do tenant (`identity.utm_base`) complementa (não sobrescreve) esses pares.
 - Os mesmos pares são gravados no campo nativo `url_tags` do AdCreative da Meta como segurança extra contra reescrita de URL.
 - Proibido publicar anúncio sem UTMs.
@@ -4652,6 +4654,7 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Após criar todos os anúncios, o publicador consulta `GET /<adset_id>/ads` para cada conjunto criado e confere se a quantidade de anúncios na Meta bate com o esperado.
 - Divergência → campanha/conjuntos pausados, proposta devolvida para "Aguardando Ação" com mensagem clara, `lifecycle.failure_code = "meta_parity_mismatch"`.
 - Só é declarado "publicado" depois que `parity_check.ran === true` e todos os conjuntos têm contagem ≥ esperada.
+- A mesma conferência roda também para `is_new_customer_acquisition` (item 17.1): leitura de volta na Meta, resultado em `parity_check.lifecycle`.
 
 ### 17.4 — Histórico visual igual ao da aprovação
 - A aba "Ações da IA" renderiza Proposta de Campanha e Plano Estratégico usando o mesmo card visual e modal usado em "Aguardando Ação", em modo somente leitura.

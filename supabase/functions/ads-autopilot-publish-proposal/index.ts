@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.5.0-utm-mandatory-lifecycle-leads-postverify";
+const VERSION = "v1.6.0-utm-paid-social-and-lifecycle-spec-with-audience";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,9 +55,12 @@ function buildAdUtms(opts: {
   creativeIndex: number;
   audienceLabel?: string | null;
 }): Record<string, string> {
+  // utm_medium=paid_social é o padrão GA4/setor e é o ÚNICO valor reconhecido
+  // pelo motor de "ROAS Real (Ads)" do gestor de tráfego. Não trocar por
+  // social_paid/social/paid — quebra a atribuição de venda paga.
   const out: Record<string, string> = {
     utm_source: "meta",
-    utm_medium: "social_paid",
+    utm_medium: "paid_social",
     utm_campaign: utmSlug(opts.campaignName) || "campanha",
     utm_content: `ad_${opts.creativeIndex + 1}`,
   };
@@ -335,10 +338,15 @@ Deno.serve(async (req) => {
       bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       buying_type: campaign.buying_type || "AUCTION",
     };
-    // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
-    // "new_customers" → Conquistar novos clientes (true). Segurança em camada extra:
-    // se a campanha é fria (TOF) de vendas/leads e o lojista não escolheu nada, força
-    // "new_customers" para não cair no default ruim "Todos os públicos".
+    // Estratégia de ciclo de vida do cliente (Meta: "is_new_customer_acquisition").
+    // "new_customers" → Conquistar novos clientes. Segurança em camada extra:
+    // campanha fria (TOF) de vendas/leads sem escolha do lojista → força "new_customers".
+    // Pré-requisito Meta: a flag só "engata" se a campanha tiver
+    // customer_acquisition_spec apontando para uma audiência de "clientes atuais"
+    // (Customer File ou Website Purchase). Sem essa audiência, a Meta aceita o POST
+    // mas exibe o seletor vazio. Por isso buscamos no catálogo da conta uma
+    // audiência cujo nome sugira compradores; se não houver, publicamos sem a
+    // flag e registramos aviso técnico claro na proposta.
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
     const objUpper = String(objective).toUpperCase();
     const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
@@ -359,8 +367,26 @@ Deno.serve(async (req) => {
       );
       if (isCold && !isWarm) effectiveAcq = "new_customers";
     }
+
+    let lifecycleNotice: string | null = null;
+    let lifecycleAudienceUsed: { id: string; name: string } | null = null;
     if (effectiveAcq === "new_customers" && supportsAcq) {
-      campaignBody.is_new_customer_acquisition = true;
+      // Procura audiência de compradores existente na conta (não cria nova).
+      try {
+        const cat = await fetchAccountAudiences(adAccountId, metaConn.access_token);
+        const buyerRegex = /(compradores?|clientes?|customers?|buyers?|purchas|compra|comprou)/i;
+        const buyerAud = cat.find((a) => a?.name && buyerRegex.test(a.name));
+        if (buyerAud) {
+          campaignBody.is_new_customer_acquisition = true;
+          campaignBody.customer_acquisition_spec = { custom_audiences: [{ id: buyerAud.id }] };
+          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name };
+        } else {
+          lifecycleNotice =
+            "Estratégia de ciclo de vida do cliente não aplicada: a conta da Meta ainda não tem uma audiência de compradores (ex.: \"Compradores 180d\" via evento Purchase do pixel). Crie em Gerenciador de Anúncios → Públicos e republique para ativar \"Conquistar novos clientes\".";
+        }
+      } catch (e: any) {
+        lifecycleNotice = `Estratégia de ciclo de vida do cliente não aplicada: falha ao consultar audiências da conta (${e?.message || e}).`;
+      }
     }
 
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
@@ -598,7 +624,7 @@ Deno.serve(async (req) => {
 
 
         // Destination URL com UTMs obrigatórias.
-        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=social_paid,
+        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=paid_social,
         // campaign=<nome>, content=ad_N, term=<conjunto>). Quando o tenant tiver utm_base
         // configurada, ela complementa (não sobrescreve) os valores acima.
         let destinationUrl = creative.planned.destination_url || null;
@@ -716,7 +742,7 @@ Deno.serve(async (req) => {
     // Antes de declarar "publicada", consulta a Meta e confere quantos anúncios
     // ATIVOS existem em cada conjunto. Se divergir do esperado, marca paridade
     // como falha e devolve a proposta para a fila com mensagem clara.
-    const parityCheck: any = { ran: false, adsets: [] };
+    const parityCheck: any = { ran: false, adsets: [], lifecycle: null };
     let parityMismatch: string | null = null;
     if (allOk) {
       parityCheck.ran = true;
@@ -740,6 +766,30 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           parityCheck.adsets.push({ meta_adset_id: adsetId, expected, error: e?.message || String(e) });
           parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
+        }
+      }
+      // Conferência do ciclo de vida do cliente: lê o campo de volta na Meta.
+      // Se a flag foi enviada mas a Meta retornou false (sem audiência base válida,
+      // por exemplo), registramos como aviso — sem reabrir a proposta, porque a
+      // campanha em si está válida; só essa otimização específica não engatou.
+      if (effectiveAcq === "new_customers" && supportsAcq) {
+        try {
+          const cr = await fetch(
+            `https://graph.facebook.com/v21.0/${metaCampaignId}?fields=is_new_customer_acquisition&access_token=${encodeURIComponent(metaConn.access_token)}`,
+          );
+          const cj = await cr.json();
+          const applied = cj?.is_new_customer_acquisition === true;
+          parityCheck.lifecycle = {
+            requested: "new_customers",
+            applied,
+            audience_used: lifecycleAudienceUsed,
+          };
+          if (!applied && !lifecycleNotice) {
+            lifecycleNotice =
+              "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". Verifique se há uma audiência de compradores na conta e se a campanha tem objetivo Vendas.";
+          }
+        } catch (e: any) {
+          parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
         }
       }
       if (parityMismatch) {
@@ -777,6 +827,8 @@ Deno.serve(async (req) => {
           failed_at: allOk ? null : nowIso,
           failure_code: allOk ? null : (parityMismatch ? "meta_parity_mismatch" : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed")),
           parity_check: parityCheck,
+          lifecycle_notice_pt: lifecycleNotice,
+          lifecycle_audience_used: lifecycleAudienceUsed,
 
           failure_message_pt: allOk ? null : (failureDetail || "Falha ao publicar todos os anúncios na Meta."),
           meta_campaign_id: metaCampaignId,
