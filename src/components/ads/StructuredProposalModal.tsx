@@ -99,8 +99,8 @@ interface Props {
   childActions?: PendingAction[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
   onAdjust?: (id: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
@@ -115,7 +115,14 @@ interface Props {
   approveLabelOverride?: string;
   /** Callback para acionar fluxo de ajuste externo (texto livre) quando não há editor estruturado. */
   onAdjustRequest?: () => void;
+  /**
+   * Quando true, exibe a proposta em modo somente leitura (sem aprovar/recusar/ajustar,
+   * sem editor estruturado, sem botões de geração de IA). Usado na aba "Ações da IA"
+   * para mostrar exatamente o card visual que o usuário aprovou.
+   */
+  readOnly?: boolean;
 }
+
 
 /* ---------------------------------------------------------------------------
    Tradutores PT-BR (sem chamadas externas)
