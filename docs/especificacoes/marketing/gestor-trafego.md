@@ -4640,7 +4640,8 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 ### 17.1 — Estratégia de ciclo de vida do cliente (auto)
 - Toda campanha fria (TOF) de vendas (`OUTCOME_SALES`) ou leads (`OUTCOME_LEADS`) sobe com "Conquistar novos clientes" por padrão.
 - Remarketing/retenção (MOF/BOF/warm/hot) mantém "Todos os públicos".
-- Decisão é tomada na geração da proposta e revalidada no momento da publicação (segunda camada). Escolha manual do lojista sempre prevalece.
+- Decisão é tomada na geração da proposta e revalidada no momento da publicação (segunda camada). Se a proposta vier como "Todos os públicos", mas os sinais de funil indicarem campanha fria/prospecção, o publicador reclassifica para "Conquistar novos clientes" como defesa contra proposta legada ou edição incompleta. Escolha manual explícita do lojista continua prevalecendo quando o contexto não for frio.
+- A edição da campanha deve persistir sempre a seleção exibida de ciclo de vida, mesmo quando ela for igual ao valor visual padrão, para evitar banco vazio interpretado de forma diferente no publicador.
 - **Pré-requisito Meta:** o seletor "Conquistar novos clientes" só fica ativo na Meta quando a campanha traz, junto da flag, uma audiência de "clientes atuais". O publicador resolve essa audiência pela fonte interna de Clientes já sincronizada para a conta de anúncios; só usa o catálogo da Meta como fallback. Audiências de Leads, Newsletter, Popup ou formulários não podem ser usadas como clientes atuais.
 - **Fail-closed:** se a campanha fria exigir "Conquistar novos clientes" e o público de Clientes/Compradores não for encontrado, a publicação é bloqueada antes de criar objetos na Meta. Se a Meta criar a campanha mas não confirmar o seletor na leitura de retorno, a publicação falha, a campanha/conjuntos criados são pausados e a proposta volta para "Aguardando Ação". É proibido declarar campanha publicada com essa configuração parcial.
 

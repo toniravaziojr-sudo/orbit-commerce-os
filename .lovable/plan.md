@@ -14,6 +14,8 @@ Reli os docs e o histórico. Duas correções de rota em relação ao plano ante
 
 **Frente B — Resolver o ciclo de vida do cliente de verdade**
 - Usar como fonte principal o público de Clientes já sincronizado pelo sistema para a conta de anúncios, não uma busca genérica por nome que poderia escolher Leads/Newsletter.
+- Reavaliar campanha fria no momento da publicação mesmo quando o snapshot salvo vier como "todos os públicos", para evitar que proposta legada ou salvamento incompleto anule a regra de prospecção.
+- Salvar sempre a seleção de ciclo de vida feita no modal, mesmo quando ela for igual ao default visual.
 - Antes de publicar, vincular esse público como "clientes atuais" da campanha quando a estratégia for "Conquistar novos clientes".
 - Se o público de Clientes não existir, bloquear antes de criar objetos na Meta e devolver mensagem clara na proposta.
 - Após publicar, ler de volta o seletor na Meta. Se vier preenchido → ok. Se vier vazio → falha de paridade: pausa campanha/conjuntos e devolve para "Aguardando Ação".
