@@ -1,37 +1,55 @@
 ## Status
 
-✅ Correção v1.9.0 aplicada e implantada em produção (causa raiz real).
+Ajuste aplicado — pendente de validação pela republicação.
 
-## Histórico de tentativas
+## Contexto novo (2026-06-19, após relato do usuário)
 
-- v1.7.0: ativou flag + audiência de referência → ignorada silenciosamente pela Meta.
-- v1.8.0: removeu duplicidade da audiência nas exclusões → ainda ignorada.
-- **v1.9.0 (atual):** registra a lista de clientes no nível da CONTA de anúncios antes de criar a campanha — pré-requisito documentado pela Meta que estava faltando.
+Proposta "Fast Upgrade" falhou ao publicar com erro genérico da Meta
+(code=100, subcode=4834011 — "Parâmetro inválido"). Diferente do caso
+anterior ("Shampoo Calvície Zero", CBO), esta campanha é ABO: orçamento
+por conjunto (R$ 15/dia por conjunto) e sem orçamento na campanha.
 
-## Causa raiz comprovada (documentação oficial Meta)
+## Causa raiz
 
-A configuração "Conquistar novos clientes" só engata se a lista de clientes atuais estiver cadastrada no nível da conta de anúncios na Meta. Sem esse cadastro, a Meta aceita o pedido na campanha, mas ignora a flag silenciosamente — não retorna erro nem aviso. Esse é o motivo de v1.7.0 e v1.8.0 não terem resolvido: atacavam o sintoma na camada de campanha, mas a falha estava na ausência do pré-requisito na camada de conta.
+O publicador sempre enviava `bid_strategy` no nível da campanha (default
+"LOWEST_COST_WITHOUT_CAP"), mesmo em ABO. A Meta rejeita silenciosamente
+estratégia de lance no nível da campanha quando não existe orçamento de
+campanha (CBO). Por isso só ABO quebrava; CBO sempre funcionou.
 
-## O que foi corrigido em v1.9.0
+Diagnóstico confirmado pela proposta no banco:
+- `budget_mode = ABO`
+- `daily_budget_cents` da campanha nulo
+- `bid_strategy` da campanha nulo na proposta (era injetado pelo default
+  do publicador no momento do POST)
+- 3 conjuntos, cada um com seu próprio orçamento
 
-- Antes de publicar qualquer campanha de "Conquistar novos clientes", o sistema garante que a lista de clientes resolvida esteja registrada no cadastro permanente da conta de anúncios na Meta.
-- Operação idempotente: lê primeiro o que já está lá; só escreve se faltar a lista. Em conta já configurada, é só uma leitura rápida (sem custo de processamento extra).
-- Falha no cadastro bloqueia a publicação antes de criar qualquer objeto na Meta, com mensagem PT-BR explicando o que aconteceu.
-- A dedupe de audiência (v1.8.0) continua ativa como camada adicional.
-- Fail-closed pós-publicação continua ativo: se a Meta não confirmar a flag, o sistema pausa tudo e devolve a proposta para revisão.
+## Correção aplicada
 
-## O que não mudou
+No publicador, ao montar o corpo de criação da campanha:
+- CBO: continua enviando `daily_budget_cents` e `bid_strategy` na
+  campanha (comportamento que sempre funcionou).
+- ABO: NÃO envia `daily_budget_cents` nem `bid_strategy` na campanha.
+  Ambos passam a viver exclusivamente no conjunto, como a Meta exige.
 
-- Nenhuma alteração de UI/UX.
-- Nenhuma alteração de regra de negócio (frio continua mirando aquisição).
-- UTMs, remarketing, campanhas quentes e overrides do usuário continuam iguais.
-- A escolha da audiência de clientes continua seguindo a mesma ordem de prioridade.
+Nenhuma alteração de UI, de regra de negócio nem de fluxo. Apenas
+correção técnica do tradutor proposta→Meta.
 
 ## Próximo passo
 
-Republicar a proposta "Shampoo Calvície Zero" (já está em "Aguardando aprovação"). Após a publicação, o sistema vai ler de volta na Meta e confirmar se a flag engatou. Se sim, status final "Corrigido e validado". Se não, volta para revisão com mensagem clara — mas agora com o pré-requisito da Meta atendido, a expectativa é que engate de primeira.
+Republicar a proposta "Fast Upgrade" (continua em "Aguardando
+aprovação"). Expectativa: campanha criada em ABO, 3 conjuntos com R$ 15
+diários cada, sem o erro de parâmetro inválido.
 
-## Documentação atualizada
+## Documentação a atualizar
 
-- Memória anti-regressão: nova regra v1.9.0 sobre registro de `existing_customers` no nível da conta.
-- Base de conhecimento técnico: lição 9.5 documenta causa raiz real, solução e regra derivada.
+- Memória `ads-publish-full-parity-meta`: regra explícita "ABO não envia
+  bid_strategy nem daily_budget no nível de campanha".
+- Base de conhecimento técnico: lição "Meta rejeita bid_strategy de
+  campanha sem CBO ativo (code 100 / subcode 4834011)".
+
+## Histórico anterior (já resolvido em 2026-06-19, v2.0.0)
+
+Plano antigo era sobre "Conquistar novos clientes" (v1.7→v1.9). Esse
+caminho foi REVOGADO pela regra v2.0.0 atual: o publicador não tenta
+mais ativar essa flag automaticamente; usa exclusão manual de público
+de clientes nos conjuntos frios. Mantido aqui só como histórico.
