@@ -597,7 +597,10 @@ Deno.serve(async (req) => {
         console.log(`[publish] Imagem ${creative.creative_index + 1} enviada via ${uploadMode}, hash=${imageHash}`);
 
 
-        // Destination URL com UTM
+        // Destination URL com UTMs obrigatórias.
+        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=social_paid,
+        // campaign=<nome>, content=ad_N, term=<conjunto>). Quando o tenant tiver utm_base
+        // configurada, ela complementa (não sobrescreve) os valores acima.
         let destinationUrl = creative.planned.destination_url || null;
         if (!destinationUrl) {
           let productSlug = "";
@@ -607,14 +610,21 @@ Deno.serve(async (req) => {
           }
           destinationUrl = productSlug ? `https://${storeHost}/produto/${productSlug}` : `https://${storeHost}`;
         }
-        const utmBase = identity.utm_base || {};
-        try {
-          const u = new URL(destinationUrl);
-          for (const [k, v] of Object.entries(utmBase)) {
-            if (v && !u.searchParams.has(k)) u.searchParams.set(k, String(v));
-          }
-          destinationUrl = u.toString();
-        } catch { /* ignore */ }
+        const adsetForUtm = adsetsList[targetAdsetIdx] || {};
+        const audienceLabelForUtm =
+          (Array.isArray(adsetForUtm?.required_audiences) && adsetForUtm.required_audiences[0]) ||
+          (Array.isArray(adsetForUtm?.required_lookalikes) && adsetForUtm.required_lookalikes[0]) ||
+          adsetForUtm?.audience_type || null;
+        const adUtms = buildAdUtms({
+          base: identity.utm_base || null,
+          campaignName: campaignName,
+          adsetName: adsetForUtm?.name || null,
+          creativeIndex: creative.creative_index,
+          audienceLabel: typeof audienceLabelForUtm === "string" ? audienceLabelForUtm : null,
+        });
+        destinationUrl = applyUtmsToUrl(destinationUrl, adUtms);
+        const urlTagsString = utmsToUrlTags(adUtms);
+
 
         const ov2 = overridesMap[String(creative.creative_index)] || {};
         const copyText = ov2.copy || creative.planned.copy || creative.planned.primary_text || "Conheça nosso produto.";
