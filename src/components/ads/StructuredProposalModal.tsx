@@ -99,8 +99,8 @@ interface Props {
   childActions?: PendingAction[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
   onAdjust?: (id: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
@@ -115,7 +115,14 @@ interface Props {
   approveLabelOverride?: string;
   /** Callback para acionar fluxo de ajuste externo (texto livre) quando não há editor estruturado. */
   onAdjustRequest?: () => void;
+  /**
+   * Quando true, exibe a proposta em modo somente leitura (sem aprovar/recusar/ajustar,
+   * sem editor estruturado, sem botões de geração de IA). Usado na aba "Ações da IA"
+   * para mostrar exatamente o card visual que o usuário aprovou.
+   */
+  readOnly?: boolean;
 }
+
 
 /* ---------------------------------------------------------------------------
    Tradutores PT-BR (sem chamadas externas)
@@ -267,8 +274,14 @@ export function StructuredProposalModal({
   titleOverride,
   approveLabelOverride,
   onAdjustRequest,
+  readOnly = false,
 }: Props) {
+  // No-op handlers garantem que o modal renderiza mesmo quando os callbacks
+  // não são passados (modo somente leitura na aba "Ações da IA").
+  const safeOnApprove = onApprove || (() => {});
+  const safeOnReject = onReject || (() => {});
   const data = action.action_data || {};
+
   const isTwoStep = isTwoStepAction(action);
   const twoStepStage = getTwoStepStage(action);
   const isStrategyStage = isTwoStep && twoStepStage === "strategy";
@@ -458,7 +471,7 @@ export function StructuredProposalModal({
       return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
-    else onApprove(action.id);
+    else safeOnApprove(action.id);
   };
   const confirmApprove = () => {
     setConfirmApproveOpen(false);
@@ -468,7 +481,7 @@ export function StructuredProposalModal({
       return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
-    else onApprove(action.id);
+    else safeOnApprove(action.id);
   };
 
 
@@ -557,7 +570,7 @@ export function StructuredProposalModal({
                     campaign={structure.campaign}
                     channel={action.channel}
                     identity={(structure as any).identity}
-                    editable={editableCampaign}
+                    editable={!readOnly && editableCampaign}
                     onPatch={(patch) =>
                       overwriteActionData((curr) => ({
                         ...curr,
@@ -582,7 +595,7 @@ export function StructuredProposalModal({
                       blockers={allBlockers.filter(
                         (b) => b.node_type === "ad_set" && b.node_id === String(adsetIdx),
                       )}
-                      editable={editableCampaign}
+                      editable={!readOnly && editableCampaign}
                       onPatch={(patch) =>
                         overwriteActionData((curr) => {
                           const adsets = Array.isArray(curr.adsets) ? [...curr.adsets] : [];
@@ -616,7 +629,7 @@ export function StructuredProposalModal({
                       blockers={allBlockers.filter(
                         (b) => (b.node_type === "ad" || b.node_type === "creative") && b.node_id === String(adIdx),
                       )}
-                      editable={editableCampaign}
+                      editable={!readOnly && editableCampaign}
                       onPatch={(patch) =>
                         overwriteActionData((curr) => {
                           const arr = Array.isArray(curr.ads) ? [...curr.ads] : [];
@@ -728,7 +741,20 @@ export function StructuredProposalModal({
               </div>
             )}
 
+            {readOnly ? (
+              <div className="flex items-center gap-2 w-full">
+                <Badge variant="outline" className="text-xs">Somente leitura</Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  Esta proposta já foi aprovada — visualização do que você aprovou.
+                </span>
+                <div className="flex-1" />
+                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-9">
+                  Fechar
+                </Button>
+              </div>
+            ) : (
             <div className="flex items-center gap-2 w-full">
+
               {isCampaignProposal ? (
                 <>
                   <Button
@@ -764,7 +790,7 @@ export function StructuredProposalModal({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onReject(action.id)}
+                    onClick={() => safeOnReject(action.id)}
                     disabled={!!rejectingId || isApproving}
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
                   >
@@ -802,7 +828,9 @@ export function StructuredProposalModal({
                 </>
               )}
             </div>
+            )}
           </div>
+
         </DialogContent>
       </Dialog>
 
@@ -849,7 +877,7 @@ export function StructuredProposalModal({
             <AlertDialogAction
               onClick={() => {
                 setConfirmCancelOpen(false);
-                onReject(action.id);
+                safeOnReject(action.id);
                 toast.success("Campanha cancelada", {
                   description: "A proposta foi removida da fila.",
                 });

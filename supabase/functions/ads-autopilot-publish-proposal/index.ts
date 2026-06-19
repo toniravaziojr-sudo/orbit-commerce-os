@@ -30,12 +30,66 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.4.0-h5-meta-preflight-and-rollback";
+const VERSION = "v1.5.0-utm-mandatory-lifecycle-leads-postverify";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ---- UTM helpers ---------------------------------------------------------
+function utmSlug(s: any, max = 60): string {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, max);
+}
+
+function buildAdUtms(opts: {
+  base?: Record<string, any> | null;
+  campaignName: string;
+  adsetName?: string | null;
+  creativeIndex: number;
+  audienceLabel?: string | null;
+}): Record<string, string> {
+  const out: Record<string, string> = {
+    utm_source: "meta",
+    utm_medium: "social_paid",
+    utm_campaign: utmSlug(opts.campaignName) || "campanha",
+    utm_content: `ad_${opts.creativeIndex + 1}`,
+  };
+  if (opts.adsetName) out.utm_term = utmSlug(opts.adsetName);
+  if (opts.audienceLabel) out.utm_audience = utmSlug(opts.audienceLabel);
+  if (opts.base && typeof opts.base === "object") {
+    for (const [k, v] of Object.entries(opts.base)) {
+      if (v && !(k in out)) out[k] = String(v);
+    }
+  }
+  return out;
+}
+
+function applyUtmsToUrl(url: string, utms: Record<string, string>): string {
+  try {
+    const u = new URL(url);
+    for (const [k, v] of Object.entries(utms)) {
+      if (v && !u.searchParams.has(k)) u.searchParams.set(k, v);
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function utmsToUrlTags(utms: Record<string, string>): string {
+  return Object.entries(utms)
+    .filter(([, v]) => v !== "" && v !== null && v !== undefined)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join("&");
+}
+
 
 function getSchedulingParams(): { status: string; start_time?: string } {
   const now = new Date();
@@ -282,13 +336,33 @@ Deno.serve(async (req) => {
       buying_type: campaign.buying_type || "AUCTION",
     };
     // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
-    // "new_customers" → Conquistar novos clientes (true). Qualquer outro valor
-    // (incluindo null/"all") deixa a Meta no padrão "Obter conversões de todos
-    // os públicos". Só aplicável a OUTCOME_SALES no site.
+    // "new_customers" → Conquistar novos clientes (true). Segurança em camada extra:
+    // se a campanha é fria (TOF) de vendas/leads e o lojista não escolheu nada, força
+    // "new_customers" para não cair no default ruim "Todos os públicos".
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
-    if (customerAcq === "new_customers" && String(objective).toUpperCase() === "OUTCOME_SALES") {
+    const objUpper = String(objective).toUpperCase();
+    const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
+    let effectiveAcq = customerAcq;
+    if (!effectiveAcq && supportsAcq) {
+      const stages = [
+        String(campaign.funnel_stage || ""),
+        String(campaign.affected_funnel || ""),
+        ...adsetsList.map((a: any) => String(a?.funnel_stage || "")),
+      ].map((s) => s.toLowerCase());
+      const isCold = stages.some((s) =>
+        s.includes("tof") || s.includes("cold") || s.includes("frio") ||
+        s.includes("prosp") || s.includes("broad") || s.includes("topo"),
+      );
+      const isWarm = stages.some((s) =>
+        s.includes("mof") || s.includes("bof") || s.includes("remark") ||
+        s.includes("warm") || s.includes("quente") || s.includes("fundo") || s.includes("meio"),
+      );
+      if (isCold && !isWarm) effectiveAcq = "new_customers";
+    }
+    if (effectiveAcq === "new_customers" && supportsAcq) {
       campaignBody.is_new_customer_acquisition = true;
     }
+
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
@@ -523,7 +597,10 @@ Deno.serve(async (req) => {
         console.log(`[publish] Imagem ${creative.creative_index + 1} enviada via ${uploadMode}, hash=${imageHash}`);
 
 
-        // Destination URL com UTM
+        // Destination URL com UTMs obrigatórias.
+        // Regra: todo anúncio sobe com UTMs padronizadas (source=meta, medium=social_paid,
+        // campaign=<nome>, content=ad_N, term=<conjunto>). Quando o tenant tiver utm_base
+        // configurada, ela complementa (não sobrescreve) os valores acima.
         let destinationUrl = creative.planned.destination_url || null;
         if (!destinationUrl) {
           let productSlug = "";
@@ -533,14 +610,21 @@ Deno.serve(async (req) => {
           }
           destinationUrl = productSlug ? `https://${storeHost}/produto/${productSlug}` : `https://${storeHost}`;
         }
-        const utmBase = identity.utm_base || {};
-        try {
-          const u = new URL(destinationUrl);
-          for (const [k, v] of Object.entries(utmBase)) {
-            if (v && !u.searchParams.has(k)) u.searchParams.set(k, String(v));
-          }
-          destinationUrl = u.toString();
-        } catch { /* ignore */ }
+        const adsetForUtm = adsetsList[targetAdsetIdx] || {};
+        const audienceLabelForUtm =
+          (Array.isArray(adsetForUtm?.required_audiences) && adsetForUtm.required_audiences[0]) ||
+          (Array.isArray(adsetForUtm?.required_lookalikes) && adsetForUtm.required_lookalikes[0]) ||
+          adsetForUtm?.audience_type || null;
+        const adUtms = buildAdUtms({
+          base: identity.utm_base || null,
+          campaignName: campaignName,
+          adsetName: adsetForUtm?.name || null,
+          creativeIndex: creative.creative_index,
+          audienceLabel: typeof audienceLabelForUtm === "string" ? audienceLabelForUtm : null,
+        });
+        destinationUrl = applyUtmsToUrl(destinationUrl, adUtms);
+        const urlTagsString = utmsToUrlTags(adUtms);
+
 
         const ov2 = overridesMap[String(creative.creative_index)] || {};
         const copyText = ov2.copy || creative.planned.copy || creative.planned.primary_text || "Conheça nosso produto.";
@@ -571,11 +655,15 @@ Deno.serve(async (req) => {
           objectStorySpec.instagram_user_id = identity.instagram_user_id || identity.instagram_actor_id;
         }
 
-        const creativeBody = {
+        const creativeBody: any = {
           name: `[AI] Creative ${creative.creative_index + 1} - ${new Date().toISOString().split("T")[0]}`,
           access_token: metaConn.access_token,
           object_story_spec: objectStorySpec,
         };
+        // Camada nativa de UTM da Meta: garante atribuição mesmo se a URL
+        // for reescrita por algum middleware/encurtador.
+        if (urlTagsString) creativeBody.url_tags = urlTagsString;
+
 
         const adCreativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
           method: "POST",
@@ -622,17 +710,56 @@ Deno.serve(async (req) => {
     // na fila "Aguardando Ação" — sem limbo invisível.
     const successAds = createdAdIds.filter(a => a.meta_ad_id).length;
     const expectedAds = readyCreatives.length;
-    const allOk = successAds > 0 && successAds === expectedAds;
+    let allOk = successAds > 0 && successAds === expectedAds;
+
+    // Frente 4 — Conferência pós-publicação contra a Meta.
+    // Antes de declarar "publicada", consulta a Meta e confere quantos anúncios
+    // ATIVOS existem em cada conjunto. Se divergir do esperado, marca paridade
+    // como falha e devolve a proposta para a fila com mensagem clara.
+    const parityCheck: any = { ran: false, adsets: [] };
+    let parityMismatch: string | null = null;
+    if (allOk) {
+      parityCheck.ran = true;
+      const expectedByAdset = new Map<string, number>();
+      for (const ad of createdAdIds) {
+        if (ad.meta_ad_id && ad.meta_adset_id) {
+          expectedByAdset.set(ad.meta_adset_id, (expectedByAdset.get(ad.meta_adset_id) || 0) + 1);
+        }
+      }
+      for (const [adsetId, expected] of expectedByAdset.entries()) {
+        try {
+          const r = await fetch(
+            `https://graph.facebook.com/v21.0/${adsetId}/ads?fields=id,effective_status&limit=200&access_token=${encodeURIComponent(metaConn.access_token)}`,
+          );
+          const j = await r.json();
+          const ids = Array.isArray(j?.data) ? j.data.map((x: any) => x.id).filter(Boolean) : [];
+          parityCheck.adsets.push({ meta_adset_id: adsetId, expected, found: ids.length, ad_ids: ids });
+          if (ids.length < expected) {
+            parityMismatch = `Conjunto ${adsetId}: esperado ${expected} anúncio(s), Meta confirmou ${ids.length}.`;
+          }
+        } catch (e: any) {
+          parityCheck.adsets.push({ meta_adset_id: adsetId, expected, error: e?.message || String(e) });
+          parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
+        }
+      }
+      if (parityMismatch) {
+        allOk = false;
+      }
+    }
+
     const finalStatus = allOk ? "campaign_implemented" : "campaign_implementation_failed";
     const nowIso = new Date().toISOString();
     const failureDetail = !allOk
-      ? createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | ")
+      ? (parityMismatch
+          ? `Conferência com a Meta falhou: ${parityMismatch}`
+          : createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | "))
       : null;
 
     if (!allOk) {
       await pauseMetaObjects(metaConn.access_token, metaCampaignId, createdAdsetIds);
       console.log(`[publish] Campanha ${metaCampaignId} e ${createdAdsetIds.length} conjunto(s) pausados após falha em anúncios.`);
     }
+
 
     await supabase.from("ads_autopilot_actions").update({
       // Sucesso total → executed e sai da fila.
@@ -648,7 +775,9 @@ Deno.serve(async (req) => {
           version: "h5_v1",
           published_at: allOk ? nowIso : null,
           failed_at: allOk ? null : nowIso,
-          failure_code: allOk ? null : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed"),
+          failure_code: allOk ? null : (parityMismatch ? "meta_parity_mismatch" : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed")),
+          parity_check: parityCheck,
+
           failure_message_pt: allOk ? null : (failureDetail || "Falha ao publicar todos os anúncios na Meta."),
           meta_campaign_id: metaCampaignId,
           meta_adset_ids: createdAdsetIds,

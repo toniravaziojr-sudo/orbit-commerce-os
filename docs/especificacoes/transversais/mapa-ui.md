@@ -717,3 +717,8 @@ Dentro de cada canal (Meta, Google, TikTok) do Gestor de Tráfego IA (`/ads`), a
 - **Histórico de Estratégias** (abaixo): planos anteriores (substituídos, recusados ou aguardando), em ordem cronológica decrescente, com data, status, contagem de campanhas e link para abrir detalhes.
 
 Lê do mesmo registro de plano estratégico já existente no banco — não cria tabela nova. Não exibe nenhum texto em inglês: protegido pelo guard PT-BR da Onda 3.4.
+
+### Gestor de Tráfego IA — Aba "Ações da IA" com card visual da aprovação (Onda H.5, rev 2026-06-19)
+
+Na aba **Ações da IA** do Gestor de Tráfego, Proposta de Campanha e Plano Estratégico passam a usar o **mesmo card visual e o mesmo modal passo a passo** usados em "Aguardando Ação", agora em **modo somente leitura**. Cada item exibe nome amigável (nome da campanha gravado no snapshot; título do plano), selo de status legível (**Aprovada · Publicada na Meta · Falhou · Recusada · Desfeita**) e data. O modal abre com a mesma navegação (Visão Geral · Campanha · Conjuntos · Anúncios · Publicação) sem botões de aprovar/recusar/ajustar, sem editor estruturado e sem botões de geração de IA. Detalhes técnicos (JSON cru) deixam de ser o padrão para esses tipos. Ações operacionais simples (pausar, ajustar verba, gerar criativo, etc.) seguem com o card inline atual.
+

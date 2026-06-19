@@ -69,6 +69,7 @@ function getActionLabel(action: AutopilotAction): string {
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
   executed: { label: "Executada", variant: "default", icon: CheckCircle2 },
+  published_meta: { label: "Publicada na Meta", variant: "default", icon: CheckCircle2 },
   validated: { label: "Validada", variant: "secondary", icon: Clock },
   pending: { label: "Pendente", variant: "outline", icon: Clock },
   pending_approval: { label: "Aguardando Aprovação", variant: "secondary", icon: Hourglass },
@@ -79,18 +80,40 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   rolled_back: { label: "Revertida", variant: "outline", icon: Undo2 },
 };
 
+/** Deriva selo de status mais informativo para o histórico. */
+function getStatusKey(action: AutopilotAction): string {
+  const lifecycle = (action.action_data as any)?.lifecycle;
+  if (action.status === "executed" && lifecycle?.status === "campaign_implemented") {
+    return "published_meta";
+  }
+  return action.status;
+}
+
+
 /** Get a readable entity name from action data */
 function getEntityName(action: AutopilotAction): string | null {
-  const data = action.action_data;
+  const data = action.action_data || {};
   if (!data) return null;
-  
+
+  // Proposta de Campanha: prioriza nome da campanha gravado pelo gerador.
+  if (action.action_type === "campaign_proposal") {
+    const camp = data.campaign || {};
+    const name = camp.name || data.campaign_name || data.name;
+    if (name) return String(name);
+  }
+  // Plano Estratégico: usa título resumido se houver.
+  if (action.action_type === "strategic_plan") {
+    if (data.title) return String(data.title);
+    if (data.plan_summary) return String(data.plan_summary).slice(0, 80);
+  }
   if (data.campaign_name) return data.campaign_name;
   if (data.adset_name) return data.adset_name;
-  
+
   const id = data.campaign_id || data.adset_id;
   if (id) return `ID: ${id}`;
   return null;
 }
+
 
 /** Get budget impact display from action data */
 function getBudgetImpact(action: AutopilotAction): string | null {
@@ -225,7 +248,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
       )}
       {sorted.map(action => {
         const Icon = ACTION_ICONS[action.action_type] || Bot;
-        const statusConfig = STATUS_CONFIG[action.status] || STATUS_CONFIG.pending;
+        const statusConfig = STATUS_CONFIG[getStatusKey(action)] || STATUS_CONFIG.pending;
         const StatusIcon = statusConfig.icon;
         const isPending = action.status === "pending_approval";
         const isProcessing = processingId === action.id;

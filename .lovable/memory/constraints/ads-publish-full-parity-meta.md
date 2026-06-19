@@ -9,7 +9,14 @@ A partir de 2026-06-18 (v1.3.0-h5-instagram-and-customer-acq), `ads-autopilot-pu
 ## Regras críticas adicionadas em 2026-06-18
 
 - **Instagram do anúncio:** PROIBIDO usar `object_story_spec.instagram_actor_id` quando o valor é IGBA (`17841…`). Meta v21 rejeita com "must be a valid Instagram account id". Usar `instagram_user_id`, que aceita IGBA diretamente. Manter `instagram_actor_id` apenas como fallback para integrações antigas que explicitamente forneçam o valor.
-- **Estratégia de ciclo de vida do cliente:** campo `campaign.customer_acquisition` é obrigatório no snapshot da proposta. Valores: `"new_customers"` → Meta `is_new_customer_acquisition=true` (Conquistar novos clientes) | `"all"`/null → padrão Meta (Todos os públicos). IA decide com base na etapa do funil dos conjuntos; lojista pode ajustar antes de aprovar. Só aplicável a OUTCOME_SALES no site.
+- **Estratégia de ciclo de vida do cliente:** campo `campaign.customer_acquisition` é obrigatório no snapshot da proposta. Valores: `"new_customers"` → Meta `is_new_customer_acquisition=true` (Conquistar novos clientes) | `"all"`/null → padrão Meta. Aplicável a OUTCOME_SALES e OUTCOME_LEADS. O publicador tem uma camada extra de segurança: se a proposta não trouxer valor e a campanha for fria (TOF) de vendas/leads, força `new_customers` automaticamente. Escolha manual do lojista sempre prevalece.
+
+## Regras críticas adicionadas em 2026-06-19 (v1.5.0)
+
+- **UTMs obrigatórias em todo anúncio:** `ads-autopilot-publish-proposal` aplica padrão fixo antes de publicar — `utm_source=meta`, `utm_medium=social_paid`, `utm_campaign=<slug do nome da campanha>`, `utm_content=ad_<n>`, `utm_term=<slug do conjunto>`, `utm_audience=<slug do público>` quando disponível. `identity.utm_base` do tenant complementa (não sobrescreve) esses pares. Os mesmos pares são gravados em `creativeBody.url_tags` (campo nativo da Meta) como segurança extra contra reescrita de URL por middlewares/encurtadores. PROIBIDO publicar anúncio sem UTMs.
+- **Conferência pós-publicação contra a Meta:** após criar todos os anúncios, o publicador consulta `GET /<adset_id>/ads` para cada conjunto criado e confere se a quantidade de anúncios na Meta é igual à esperada. Divergência → `lifecycle.failure_code = "meta_parity_mismatch"`, campanha/conjuntos pausados, proposta devolvida para `pending_approval` com mensagem PT-BR ("Conferência com a Meta falhou: …"). PROIBIDO declarar `campaign_implemented` sem `parity_check.ran === true`.
+- **Histórico visual igual ao da aprovação:** a aba "Ações da IA" deve renderizar Proposta de Campanha e Plano Estratégico usando o mesmo `StructuredProposalModal` da aprovação, em modo `readOnly` (sem aprovar/recusar/ajustar, sem editor estruturado, sem botões de IA). PROIBIDO voltar a exibir JSON cru ("Dados da Ação") como detalhe padrão desses tipos.
+
 
 
 ## Tradutores obrigatórios (em `_shared/meta-publish-mappers.ts`)
