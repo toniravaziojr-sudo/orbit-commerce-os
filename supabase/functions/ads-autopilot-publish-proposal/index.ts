@@ -455,6 +455,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (effectiveAcq === "new_customers" && supportsAcq && !lifecycleAudienceUsed) {
+      await markFailed(supabase, action_id, propData, lifecycle, "customer_lifecycle_audience_missing", lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.");
+      return new Response(JSON.stringify({ success: false, error_pt: lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.", stage: "customer_lifecycle" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
