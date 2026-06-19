@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.9.0-account-level-existing-customers-registration";
+const VERSION = "v2.0.0-all-audiences-with-manual-customer-exclusion";
 
 // ---------------------------------------------------------------------------
 // Registro idempotente da lista de "clientes atuais" no NÍVEL DA CONTA de
