@@ -30,12 +30,66 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.4.0-h5-meta-preflight-and-rollback";
+const VERSION = "v1.5.0-utm-mandatory-lifecycle-leads-postverify";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ---- UTM helpers ---------------------------------------------------------
+function utmSlug(s: any, max = 60): string {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, max);
+}
+
+function buildAdUtms(opts: {
+  base?: Record<string, any> | null;
+  campaignName: string;
+  adsetName?: string | null;
+  creativeIndex: number;
+  audienceLabel?: string | null;
+}): Record<string, string> {
+  const out: Record<string, string> = {
+    utm_source: "meta",
+    utm_medium: "social_paid",
+    utm_campaign: utmSlug(opts.campaignName) || "campanha",
+    utm_content: `ad_${opts.creativeIndex + 1}`,
+  };
+  if (opts.adsetName) out.utm_term = utmSlug(opts.adsetName);
+  if (opts.audienceLabel) out.utm_audience = utmSlug(opts.audienceLabel);
+  if (opts.base && typeof opts.base === "object") {
+    for (const [k, v] of Object.entries(opts.base)) {
+      if (v && !(k in out)) out[k] = String(v);
+    }
+  }
+  return out;
+}
+
+function applyUtmsToUrl(url: string, utms: Record<string, string>): string {
+  try {
+    const u = new URL(url);
+    for (const [k, v] of Object.entries(utms)) {
+      if (v && !u.searchParams.has(k)) u.searchParams.set(k, v);
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function utmsToUrlTags(utms: Record<string, string>): string {
+  return Object.entries(utms)
+    .filter(([, v]) => v !== "" && v !== null && v !== undefined)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join("&");
+}
+
 
 function getSchedulingParams(): { status: string; start_time?: string } {
   const now = new Date();
