@@ -710,17 +710,56 @@ Deno.serve(async (req) => {
     // na fila "Aguardando Ação" — sem limbo invisível.
     const successAds = createdAdIds.filter(a => a.meta_ad_id).length;
     const expectedAds = readyCreatives.length;
-    const allOk = successAds > 0 && successAds === expectedAds;
+    let allOk = successAds > 0 && successAds === expectedAds;
+
+    // Frente 4 — Conferência pós-publicação contra a Meta.
+    // Antes de declarar "publicada", consulta a Meta e confere quantos anúncios
+    // ATIVOS existem em cada conjunto. Se divergir do esperado, marca paridade
+    // como falha e devolve a proposta para a fila com mensagem clara.
+    const parityCheck: any = { ran: false, adsets: [] };
+    let parityMismatch: string | null = null;
+    if (allOk) {
+      parityCheck.ran = true;
+      const expectedByAdset = new Map<string, number>();
+      for (const ad of createdAdIds) {
+        if (ad.meta_ad_id && ad.meta_adset_id) {
+          expectedByAdset.set(ad.meta_adset_id, (expectedByAdset.get(ad.meta_adset_id) || 0) + 1);
+        }
+      }
+      for (const [adsetId, expected] of expectedByAdset.entries()) {
+        try {
+          const r = await fetch(
+            `https://graph.facebook.com/v21.0/${adsetId}/ads?fields=id,effective_status&limit=200&access_token=${encodeURIComponent(metaConn.access_token)}`,
+          );
+          const j = await r.json();
+          const ids = Array.isArray(j?.data) ? j.data.map((x: any) => x.id).filter(Boolean) : [];
+          parityCheck.adsets.push({ meta_adset_id: adsetId, expected, found: ids.length, ad_ids: ids });
+          if (ids.length < expected) {
+            parityMismatch = `Conjunto ${adsetId}: esperado ${expected} anúncio(s), Meta confirmou ${ids.length}.`;
+          }
+        } catch (e: any) {
+          parityCheck.adsets.push({ meta_adset_id: adsetId, expected, error: e?.message || String(e) });
+          parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
+        }
+      }
+      if (parityMismatch) {
+        allOk = false;
+      }
+    }
+
     const finalStatus = allOk ? "campaign_implemented" : "campaign_implementation_failed";
     const nowIso = new Date().toISOString();
     const failureDetail = !allOk
-      ? createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | ")
+      ? (parityMismatch
+          ? `Conferência com a Meta falhou: ${parityMismatch}`
+          : createdAdIds.filter(a => !a.meta_ad_id).map(a => `Anúncio ${a.creative_index + 1}: ${a.error || "falhou"}`).join(" | "))
       : null;
 
     if (!allOk) {
       await pauseMetaObjects(metaConn.access_token, metaCampaignId, createdAdsetIds);
       console.log(`[publish] Campanha ${metaCampaignId} e ${createdAdsetIds.length} conjunto(s) pausados após falha em anúncios.`);
     }
+
 
     await supabase.from("ads_autopilot_actions").update({
       // Sucesso total → executed e sai da fila.
