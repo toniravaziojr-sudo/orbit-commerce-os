@@ -501,6 +501,24 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Pré-requisito Meta (doc oficial): a lista de "clientes atuais" precisa
+    // estar definida no NÍVEL DA CONTA de anúncios para que a flag
+    // `is_new_customer_acquisition` da campanha seja efetivada. Faz uma vez
+    // por conta+audiência (idempotente: lê a lista atual, só escreve se faltar).
+    if (effectiveAcq === "new_customers" && supportsAcq && lifecycleAudienceUsed) {
+      const reg = await ensureAccountExistingCustomers(metaConn.access_token, adAccountId, lifecycleAudienceUsed.id);
+      if (!reg.ok) {
+        await markFailed(supabase, action_id, propData, lifecycle, "account_existing_customers_setup_failed",
+          `Falha ao registrar a lista de clientes na conta de anúncios da Meta (pré-requisito de Conquistar novos clientes): ${reg.error || "erro desconhecido"}.`);
+        return new Response(JSON.stringify({
+          success: false,
+          error_pt: "Não foi possível registrar a sua lista de clientes na conta de anúncios da Meta. Sem esse cadastro, a Meta não ativa \"Conquistar novos clientes\". Tente novamente; se persistir, verifique as permissões da conexão com a Meta.",
+          stage: "account_existing_customers",
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      console.log(`[publish] Lista de clientes ${reg.alreadyPresent ? "já estava registrada" : "registrada agora"} na conta act_${String(adAccountId).replace(/^act_/, "")} (audiência ${lifecycleAudienceUsed.id}).`);
+    }
+
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
