@@ -248,7 +248,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
       )}
       {sorted.map(action => {
         const Icon = ACTION_ICONS[action.action_type] || Bot;
-        const statusConfig = STATUS_CONFIG[action.status] || STATUS_CONFIG.pending;
+        const statusConfig = STATUS_CONFIG[getStatusKey(action)] || STATUS_CONFIG.pending;
         const StatusIcon = statusConfig.icon;
         const isPending = action.status === "pending_approval";
         const isProcessing = processingId === action.id;
