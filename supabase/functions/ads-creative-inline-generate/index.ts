@@ -62,6 +62,19 @@ async function getPrimaryProductImageUrl(supabase: any, tenantId: string, produc
   return data?.[0]?.url || "";
 }
 
+function buildLearningTitle(base: string, feedback: string): string {
+  // Cada feedback do lojista é único — garantimos isso no título para não cair
+  // no índice de dedupe (idx_ads_ai_learnings_dedup) por título normalizado.
+  const snippet = (feedback || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+  if (snippet) return `${base} — "${snippet}"`;
+  // Sem feedback (não esperado em fluxos de regeneração) → desempata por timestamp curto.
+  const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  return `${base} — ${stamp}`;
+}
+
 async function recordLearning(
   supabase: any,
   tenantId: string,
@@ -75,10 +88,11 @@ async function recordLearning(
   // Mapeia para as categorias oficiais usadas na UI de Aprendizados.
   // copy de anúncio -> "copy"; imagem de anúncio -> "criativo".
   const category = subtype === "creative_copy_feedback" ? "copy" : "criativo";
+  const finalTitle = buildLearningTitle(title, description);
   try {
     const { error } = await supabase.from("ads_ai_learnings").insert({
       tenant_id: tenantId,
-      title,
+      title: finalTitle,
       description,
       category,
       status: "active",
@@ -87,15 +101,36 @@ async function recordLearning(
       evidence_count: 1,
       confidence: 0.8,
       created_by: userId,
-      metadata: { ...metadata, subtype },
+      metadata: { ...metadata, subtype, base_title: title },
     });
     if (error) {
-      console.error("[ads-creative-inline-generate] learning insert rejected:", error);
+      // Fallback raro: se ainda colidir (mesmo feedback literal repetido), desempata por timestamp.
+      if ((error as any)?.code === "23505") {
+        const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+        const retryTitle = `${finalTitle} (${stamp})`;
+        const retry = await supabase.from("ads_ai_learnings").insert({
+          tenant_id: tenantId,
+          title: retryTitle,
+          description,
+          category,
+          status: "active",
+          source_type: "user_feedback",
+          source_action_id: actionId,
+          evidence_count: 1,
+          confidence: 0.8,
+          created_by: userId,
+          metadata: { ...metadata, subtype, base_title: title, dedup_retry: true },
+        });
+        if (retry.error) {
+          console.error("[ads-creative-inline-generate] learning insert retry rejected:", retry.error);
+        }
+      } else {
+        console.error("[ads-creative-inline-generate] learning insert rejected:", error);
+      }
     }
   } catch (e) {
     console.error("[ads-creative-inline-generate] learning insert failed:", e);
   }
-
 }
 
 // ---------- Briefing enriquecido ----------
