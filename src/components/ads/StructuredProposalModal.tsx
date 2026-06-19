@@ -1185,9 +1185,7 @@ function CampaignSection({
     const patch: Record<string, any> = {};
     if (draftName.trim() && draftName.trim() !== (campaign.name || "")) patch.name = draftName.trim();
     if (draftStatus && draftStatus !== campaign.planned_status) patch.planned_status = draftStatus;
-    if (draftCustomerAcq && draftCustomerAcq !== (campaign.customer_acquisition || "all")) {
-      patch.customer_acquisition = draftCustomerAcq;
-    }
+    if (draftCustomerAcq) patch.customer_acquisition = draftCustomerAcq;
     if (budgetMode !== "ABO") {
       const b = Number(String(draftBudget).replace(",", "."));
       if (Number.isFinite(b) && b > 0) {

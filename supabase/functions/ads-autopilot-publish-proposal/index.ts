@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.6.0-utm-paid-social-and-lifecycle-spec-with-audience";
+const VERSION = "v1.7.0-lifecycle-current-customer-source-of-truth";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +91,72 @@ function utmsToUrlTags(utms: Record<string, string>): string {
     .filter(([, v]) => v !== "" && v !== null && v !== undefined)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
+}
+
+type CustomerAudiencePick = { id: string; name: string; source: string };
+
+function normalizeAudienceId(input: any): string | null {
+  if (input === null || input === undefined) return null;
+  const s = String(typeof input === "object" ? (input.id || input.platform_audience_id || "") : input).trim();
+  return /^\d{6,}$/.test(s) ? s : null;
+}
+
+function pickCustomerAudienceFromProposal(propData: any, adsetsList: any[]): CustomerAudiencePick | null {
+  const candidates: Array<{ id: any; name?: any; source: string }> = [];
+  const push = (id: any, name: any, source: string) => candidates.push({ id, name, source });
+  const campaign = propData?.campaign || {};
+  const top = propData?.customer_audience_exclusion || propData?.audience_exclusions || campaign?.audience_exclusions || {};
+  push(campaign?.customer_audience_id, campaign?.customer_audience_name, "campaign.customer_audience_id");
+  push(top?.customer_audience_id || top?.meta_audience_id, top?.customer_audience_name || top?.audience_name, "proposal.customer_audience_exclusion");
+  for (let i = 0; i < adsetsList.length; i++) {
+    const adset = adsetsList[i] || {};
+    const ex = adset?.audience_exclusions || {};
+    push(ex?.customer_audience_id || ex?.meta_audience_id, ex?.customer_audience_name || ex?.audience_name, `adsets[${i}].audience_exclusions`);
+  }
+  for (const c of candidates) {
+    const id = normalizeAudienceId(c.id);
+    if (id) return { id, name: String(c.name || "Clientes"), source: c.source };
+  }
+  return null;
+}
+
+function rankCustomerAudienceName(name: string): number {
+  const n = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!n) return -100;
+  if (/\bclientes\b/.test(n) && !/(potenciais|leads?|newsletter|popup|formulario|site)/.test(n)) return 100;
+  if (/(compradores?|comprou|compra|purchase|buyers?|customers?)/.test(n) && !/(potenciais|leads?|newsletter|popup|formulario)/.test(n)) return 80;
+  if (/\bclientes\b/.test(n)) return 40;
+  return -100;
+}
+
+async function resolveExistingCustomerAudience(supabase: any, tenantId: string, adAccountId: string, propData: any, adsetsList: any[], accessToken: string): Promise<CustomerAudiencePick | null> {
+  const fromProposal = pickCustomerAudienceFromProposal(propData, adsetsList);
+  if (fromProposal) return fromProposal;
+
+  const { data: mappings } = await supabase
+    .from("audience_sync_mappings")
+    .select("platform_audience_id, audience_name, members_synced")
+    .eq("tenant_id", tenantId)
+    .eq("platform", "meta")
+    .eq("ad_account_id", adAccountId)
+    .eq("status", "active");
+
+  const mapped = (mappings || [])
+    .map((m: any) => ({
+      id: normalizeAudienceId(m.platform_audience_id),
+      name: String(m.audience_name || ""),
+      score: rankCustomerAudienceName(String(m.audience_name || "")) + Math.min(Number(m.members_synced || 0) / 100000, 1),
+    }))
+    .filter((m: any) => m.id && m.score >= 40)
+    .sort((a: any, b: any) => b.score - a.score)[0];
+  if (mapped?.id) return { id: mapped.id, name: mapped.name || "Clientes", source: "audience_sync_mappings" };
+
+  const catalog = await fetchAccountAudiences(adAccountId, accessToken);
+  const fromCatalog = catalog
+    .map((a: MetaAudience) => ({ ...a, score: rankCustomerAudienceName(a.name) }))
+    .filter((a: any) => normalizeAudienceId(a.id) && a.score >= 40)
+    .sort((a: any, b: any) => b.score - a.score)[0];
+  return fromCatalog ? { id: fromCatalog.id, name: fromCatalog.name, source: "meta_customaudiences" } : null;
 }
 
 
@@ -174,6 +240,7 @@ Deno.serve(async (req) => {
     // - criativos prontos (fluxo antigo em lote via creative_jobs)
     // - falhas anteriores (retry)
     const PUBLISH_ALLOWED_LIFECYCLES = new Set([
+      "ready_for_review",
       "structure_approved_awaiting_creatives",
       "campaign_creatives_generating",
       "campaign_creatives_ready",
@@ -344,14 +411,13 @@ Deno.serve(async (req) => {
     // Pré-requisito Meta: a flag só "engata" se a campanha tiver
     // customer_acquisition_spec apontando para uma audiência de "clientes atuais"
     // (Customer File ou Website Purchase). Sem essa audiência, a Meta aceita o POST
-    // mas exibe o seletor vazio. Por isso buscamos no catálogo da conta uma
-    // audiência cujo nome sugira compradores; se não houver, publicamos sem a
-    // flag e registramos aviso técnico claro na proposta.
+    // mas exibe o seletor vazio. Por isso resolvemos pela fonte interna de Clientes
+    // e bloqueamos a publicação se a Meta não confirmar a configuração.
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
     const objUpper = String(objective).toUpperCase();
     const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
     let effectiveAcq = customerAcq;
-    if (!effectiveAcq && supportsAcq) {
+    if ((!effectiveAcq || effectiveAcq === "all") && supportsAcq) {
       const stages = [
         String(campaign.funnel_stage || ""),
         String(campaign.affected_funnel || ""),
@@ -369,24 +435,30 @@ Deno.serve(async (req) => {
     }
 
     let lifecycleNotice: string | null = null;
-    let lifecycleAudienceUsed: { id: string; name: string } | null = null;
+    let lifecycleAudienceUsed: { id: string; name: string; source?: string } | null = null;
     if (effectiveAcq === "new_customers" && supportsAcq) {
-      // Procura audiência de compradores existente na conta (não cria nova).
+      // Fonte de verdade do público de clientes: proposta/configuração interna primeiro,
+      // mapeamento de sync depois, catálogo Meta por último. Não usar regex genérico
+      // que possa escolher leads/newsletter como "clientes atuais".
       try {
-        const cat = await fetchAccountAudiences(adAccountId, metaConn.access_token);
-        const buyerRegex = /(compradores?|clientes?|customers?|buyers?|purchas|compra|comprou)/i;
-        const buyerAud = cat.find((a) => a?.name && buyerRegex.test(a.name));
+        const buyerAud = await resolveExistingCustomerAudience(supabase, tenant_id, adAccountId, propData, adsetsList, metaConn.access_token);
         if (buyerAud) {
           campaignBody.is_new_customer_acquisition = true;
           campaignBody.customer_acquisition_spec = { custom_audiences: [{ id: buyerAud.id }] };
-          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name };
+          lifecycleAudienceUsed = { id: buyerAud.id, name: buyerAud.name, source: buyerAud.source };
         } else {
           lifecycleNotice =
-            "Estratégia de ciclo de vida do cliente não aplicada: a conta da Meta ainda não tem uma audiência de compradores (ex.: \"Compradores 180d\" via evento Purchase do pixel). Crie em Gerenciador de Anúncios → Públicos e republique para ativar \"Conquistar novos clientes\".";
+            "Estratégia de ciclo de vida do cliente não aplicada: não há público de Clientes/Compradores ativo e sincronizado para esta conta de anúncios. Sincronize o público de Clientes e republique para ativar \"Conquistar novos clientes\".";
         }
       } catch (e: any) {
         lifecycleNotice = `Estratégia de ciclo de vida do cliente não aplicada: falha ao consultar audiências da conta (${e?.message || e}).`;
       }
+    }
+
+    if (effectiveAcq === "new_customers" && supportsAcq && !lifecycleAudienceUsed) {
+      await markFailed(supabase, action_id, propData, lifecycle, "customer_lifecycle_audience_missing", lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.");
+      return new Response(JSON.stringify({ success: false, error_pt: lifecycleNotice || "Público de Clientes/Compradores não encontrado para ativar Conquistar novos clientes.", stage: "customer_lifecycle" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
@@ -784,12 +856,14 @@ Deno.serve(async (req) => {
             applied,
             audience_used: lifecycleAudienceUsed,
           };
-          if (!applied && !lifecycleNotice) {
+          if (!applied) {
             lifecycleNotice =
-              "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". Verifique se há uma audiência de compradores na conta e se a campanha tem objetivo Vendas.";
+              lifecycleNotice || "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". A proposta voltou para revisão para evitar publicação com configuração parcial.";
+            parityMismatch = "Meta não confirmou a configuração \"Conquistar novos clientes\".";
           }
         } catch (e: any) {
           parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
+          parityMismatch = "Não foi possível confirmar com a Meta a configuração \"Conquistar novos clientes\".";
         }
       }
       if (parityMismatch) {
