@@ -1623,3 +1623,15 @@ o default seguro é mandar as duas.
 
 **Anti-regressão.** A validação fail-closed pós-publicação continua obrigatória mesmo com v1.9.0 — é a última linha de defesa para qualquer cenário em que a Meta mude o contrato silenciosamente. Tentativas anteriores (v1.7.0 sem dedupe, v1.8.0 sem registro account-level) provaram que assumir o sucesso pelo HTTP 200 é insuficiente: só `applied=true` na leitura de retorno confirma a publicação.
 
+
+### 9.6 Meta — ABO + bid_strategy/daily_budget vazando no nível de campanha (v2026-06-19)
+
+**Problema.** Proposta "Fast Upgrade" (3 conjuntos, R$ 15/dia cada, sem orçamento de campanha) falhava ao publicar com erro genérico `code=100 / subcode=4834011` ("Parâmetro inválido"). Mesma rota publicava "Shampoo Calvície Zero" (CBO) sem erro.
+
+**Causa raiz.** O publicador (`ads-autopilot-publish-proposal`) sempre injetava `bid_strategy` (default "LOWEST_COST_WITHOUT_CAP") e `daily_budget_cents` no corpo da criação da campanha, independente do modo de orçamento. Em ABO, esses dois campos vivem exclusivamente no conjunto; enviar `bid_strategy` no nível de campanha sem CBO ativo dispara o erro 4834011, que é genérico e não cita o campo culpado.
+
+**Solução.** No publicador, gating por `campaign.budget_mode`: CBO inclui `daily_budget_cents` e `bid_strategy` no corpo da campanha; ABO omite ambos. Conjuntos continuam recebendo seu próprio `daily_budget` (a Meta aplica a estratégia padrão por conjunto).
+
+**Regra derivada.** Memória anti-regressão `mem://constraints/ads-publish-full-parity-meta` (regra "ABO vs CBO no nível de campanha"). Qualquer novo campo de campanha que dependa de CBO deve passar pelo mesmo gate.
+
+**Anti-regressão.** Erro genérico 4834011 sem contexto deve disparar checagem imediata de "campo de CBO vazando em ABO" antes de qualquer outra hipótese.
