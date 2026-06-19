@@ -400,9 +400,26 @@ function RawDataPreview({ data, title }: { data: Record<string, any>; title: str
 export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailDialogProps) {
   if (!action) return null;
 
+  // Frente 1 — Histórico visual: para Proposta de Campanha e Plano Estratégico,
+  // reaproveita o MESMO card visual usado em "Aguardando Ação", em modo somente
+  // leitura, para que o usuário reconheça exatamente o que aprovou.
+  if (action.action_type === "campaign_proposal" || action.action_type === "strategic_plan") {
+    return (
+      <StructuredProposalModal
+        action={action as any}
+        open={open}
+        onOpenChange={onOpenChange}
+        readOnly
+        overviewOnly={action.action_type === "strategic_plan"}
+        titleOverride={action.action_type === "strategic_plan" ? "Plano Estratégico" : undefined}
+      />
+    );
+  }
+
   const data = action.action_data || {};
   const rollback = action.rollback_data;
   const label = ACTION_LABELS[action.action_type] || action.action_type;
+
 
   const renderPreview = () => {
     switch (action.action_type) {
