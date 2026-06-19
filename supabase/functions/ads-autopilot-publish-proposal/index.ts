@@ -336,13 +336,33 @@ Deno.serve(async (req) => {
       buying_type: campaign.buying_type || "AUCTION",
     };
     // Estratégia de ciclo de vida do cliente (campo Meta "is_new_customer_acquisition").
-    // "new_customers" → Conquistar novos clientes (true). Qualquer outro valor
-    // (incluindo null/"all") deixa a Meta no padrão "Obter conversões de todos
-    // os públicos". Só aplicável a OUTCOME_SALES no site.
+    // "new_customers" → Conquistar novos clientes (true). Segurança em camada extra:
+    // se a campanha é fria (TOF) de vendas/leads e o lojista não escolheu nada, força
+    // "new_customers" para não cair no default ruim "Todos os públicos".
     const customerAcq = String(campaign.customer_acquisition || "").toLowerCase();
-    if (customerAcq === "new_customers" && String(objective).toUpperCase() === "OUTCOME_SALES") {
+    const objUpper = String(objective).toUpperCase();
+    const supportsAcq = objUpper === "OUTCOME_SALES" || objUpper === "OUTCOME_LEADS";
+    let effectiveAcq = customerAcq;
+    if (!effectiveAcq && supportsAcq) {
+      const stages = [
+        String(campaign.funnel_stage || ""),
+        String(campaign.affected_funnel || ""),
+        ...adsetsList.map((a: any) => String(a?.funnel_stage || "")),
+      ].map((s) => s.toLowerCase());
+      const isCold = stages.some((s) =>
+        s.includes("tof") || s.includes("cold") || s.includes("frio") ||
+        s.includes("prosp") || s.includes("broad") || s.includes("topo"),
+      );
+      const isWarm = stages.some((s) =>
+        s.includes("mof") || s.includes("bof") || s.includes("remark") ||
+        s.includes("warm") || s.includes("quente") || s.includes("fundo") || s.includes("meio"),
+      );
+      if (isCold && !isWarm) effectiveAcq = "new_customers";
+    }
+    if (effectiveAcq === "new_customers" && supportsAcq) {
       campaignBody.is_new_customer_acquisition = true;
     }
+
     if (scheduling.start_time) campaignBody.start_time = scheduling.start_time;
 
     const campaignRes = await supabase.functions.invoke("meta-ads-campaigns", { body: campaignBody });
