@@ -550,31 +550,24 @@ Deno.serve(async (req) => {
       // Posicionamentos (Advantage+ ou lista manual)
       applyPlacements(targeting, adset);
 
-      // Exclusões de público (formato moderno + legado).
-      // REGRA CRÍTICA (v1.8.0): quando a campanha está com "Conquistar novos
-      // clientes" ativo e usa a audiência de clientes como referência de
-      // customer_acquisition_spec, NÃO podemos duplicar a mesma audiência como
-      // exclusão manual do conjunto. A Meta aceita a criação, mas silenciosamente
-      // não ativa is_new_customer_acquisition quando a mesma audiência aparece
-      // como referência de "clientes atuais" e como exclusão manual ao mesmo
-      // tempo (conflito interno). A exclusão de compradores continua aplicada
-      // pelo próprio mecanismo nativo de Lifecycle da Meta.
-      const lifecycleAudId = lifecycleAudienceUsed?.id ? String(lifecycleAudienceUsed.id) : null;
+      // Exclusões de público (v2.0.0): mantemos sempre a exclusão manual da
+      // audiência de Clientes. Esse é o caminho oficial da Meta para "todos os
+      // públicos com exclusão de clientes" — equivalente à intenção de campanha
+      // fria sem conflito com modo automático.
       const exclArrRaw = adset?.targeting?.excluded_custom_audiences
         || (Array.isArray(adset.excluded_audience_ids)
           ? adset.excluded_audience_ids.map((a: any) => (typeof a === "object" ? a : { id: a }))
           : []);
       if (Array.isArray(exclArrRaw) && exclArrRaw.length > 0) {
-        const dedup = exclArrRaw
-          .map((a: any) => ({ id: String(a.id || a) }))
-          .filter((a: any) => !lifecycleAudId || a.id !== lifecycleAudId);
-        if (dedup.length > 0) {
-          targeting.excluded_custom_audiences = dedup;
+        const seen = new Set<string>();
+        const normalized: Array<{ id: string }> = [];
+        for (const a of exclArrRaw) {
+          const id = String((a && (a.id || a)) || "").trim();
+          if (id && !seen.has(id)) { seen.add(id); normalized.push({ id }); }
         }
-        if (lifecycleAudId && dedup.length !== exclArrRaw.length) {
-          console.log(`[publish] Adset ${aIdx + 1}: removida exclusão duplicada da audiência de clientes ${lifecycleAudId} (já usada em customer_acquisition_spec).`);
-        }
+        if (normalized.length > 0) targeting.excluded_custom_audiences = normalized;
       }
+
 
       // Inclusão de público / Lookalikes — resolve nomes para IDs reais na conta
       const includeRefs = extractIncludedAudienceRefs(adset);
