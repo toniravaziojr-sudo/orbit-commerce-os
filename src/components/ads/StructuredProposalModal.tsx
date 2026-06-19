@@ -741,7 +741,20 @@ export function StructuredProposalModal({
               </div>
             )}
 
+            {readOnly ? (
+              <div className="flex items-center gap-2 w-full">
+                <Badge variant="outline" className="text-xs">Somente leitura</Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  Esta proposta já foi aprovada — visualização do que você aprovou.
+                </span>
+                <div className="flex-1" />
+                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-9">
+                  Fechar
+                </Button>
+              </div>
+            ) : (
             <div className="flex items-center gap-2 w-full">
+
               {isCampaignProposal ? (
                 <>
                   <Button
