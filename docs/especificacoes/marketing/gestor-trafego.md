@@ -4634,3 +4634,27 @@ Quando a proposta cita um público/lookalike por nome ("Lookalike 1% Compra 180D
 - Antes de criar a campanha, o publicador valida pixel para vendas/leads, orçamento CBO, vínculo de criativos a conjuntos e incompatibilidade de Advantage+ Público com idade mínima acima de 25. Falhas nessa etapa voltam para "Aguardando Ação" sem criar objeto na Meta.
 - Se qualquer etapa posterior falhar após criar campanha/conjunto, o publicador pausa a campanha e os conjuntos já criados antes de devolver a proposta para a fila, evitando campanha ativa vazia.
 - Memória: `mem://constraints/ads-publish-full-parity-meta`.
+
+## 17 — Onda H.5 — Ciclo de vida, UTMs e conferência pós-publicação (2026-06-19)
+
+### 17.1 — Estratégia de ciclo de vida do cliente (auto)
+- Toda campanha fria (TOF) de vendas (`OUTCOME_SALES`) ou leads (`OUTCOME_LEADS`) sobe com "Conquistar novos clientes" por padrão.
+- Remarketing/retenção (MOF/BOF/warm/hot) mantém "Todos os públicos".
+- Decisão é tomada na geração da proposta e revalidada no momento da publicação (segunda camada). Escolha manual do lojista sempre prevalece.
+
+### 17.2 — UTMs obrigatórias em todo anúncio
+- Padrão fixo aplicado antes de publicar: `utm_source=meta`, `utm_medium=social_paid`, `utm_campaign=<slug do nome da campanha>`, `utm_content=ad_<n>`, `utm_term=<slug do conjunto>`, `utm_audience=<slug do público>` quando disponível.
+- A UTM base do tenant (`identity.utm_base`) complementa (não sobrescreve) esses pares.
+- Os mesmos pares são gravados no campo nativo `url_tags` do AdCreative da Meta como segurança extra contra reescrita de URL.
+- Proibido publicar anúncio sem UTMs.
+
+### 17.3 — Conferência pós-publicação com a Meta
+- Após criar todos os anúncios, o publicador consulta `GET /<adset_id>/ads` para cada conjunto criado e confere se a quantidade de anúncios na Meta bate com o esperado.
+- Divergência → campanha/conjuntos pausados, proposta devolvida para "Aguardando Ação" com mensagem clara, `lifecycle.failure_code = "meta_parity_mismatch"`.
+- Só é declarado "publicado" depois que `parity_check.ran === true` e todos os conjuntos têm contagem ≥ esperada.
+
+### 17.4 — Histórico visual igual ao da aprovação
+- A aba "Ações da IA" renderiza Proposta de Campanha e Plano Estratégico usando o mesmo card visual e modal usado em "Aguardando Ação", em modo somente leitura.
+- Cada item exibe nome amigável (nome da campanha/título do plano), selo de status ("Publicada na Meta" quando lifecycle = `campaign_implemented`) e abre o passo a passo completo sem botões de aprovar/recusar/ajustar.
+- Proibido exibir JSON cru ("Dados da Ação") como detalhe padrão desses tipos. Detalhe técnico recolhido fica disponível só para diagnóstico.
+
