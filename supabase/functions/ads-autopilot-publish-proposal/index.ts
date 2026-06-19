@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.6.0-utm-paid-social-and-lifecycle-spec-with-audience";
+const VERSION = "v1.7.0-lifecycle-current-customer-source-of-truth";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +91,72 @@ function utmsToUrlTags(utms: Record<string, string>): string {
     .filter(([, v]) => v !== "" && v !== null && v !== undefined)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
+}
+
+type CustomerAudiencePick = { id: string; name: string; source: string };
+
+function normalizeAudienceId(input: any): string | null {
+  if (input === null || input === undefined) return null;
+  const s = String(typeof input === "object" ? (input.id || input.platform_audience_id || "") : input).trim();
+  return /^\d{6,}$/.test(s) ? s : null;
+}
+
+function pickCustomerAudienceFromProposal(propData: any, adsetsList: any[]): CustomerAudiencePick | null {
+  const candidates: Array<{ id: any; name?: any; source: string }> = [];
+  const push = (id: any, name: any, source: string) => candidates.push({ id, name, source });
+  const campaign = propData?.campaign || {};
+  const top = propData?.customer_audience_exclusion || propData?.audience_exclusions || campaign?.audience_exclusions || {};
+  push(campaign?.customer_audience_id, campaign?.customer_audience_name, "campaign.customer_audience_id");
+  push(top?.customer_audience_id || top?.meta_audience_id, top?.customer_audience_name || top?.audience_name, "proposal.customer_audience_exclusion");
+  for (let i = 0; i < adsetsList.length; i++) {
+    const adset = adsetsList[i] || {};
+    const ex = adset?.audience_exclusions || {};
+    push(ex?.customer_audience_id || ex?.meta_audience_id, ex?.customer_audience_name || ex?.audience_name, `adsets[${i}].audience_exclusions`);
+  }
+  for (const c of candidates) {
+    const id = normalizeAudienceId(c.id);
+    if (id) return { id, name: String(c.name || "Clientes"), source: c.source };
+  }
+  return null;
+}
+
+function rankCustomerAudienceName(name: string): number {
+  const n = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!n) return -100;
+  if (/\bclientes\b/.test(n) && !/(potenciais|leads?|newsletter|popup|formulario|site)/.test(n)) return 100;
+  if (/(compradores?|comprou|compra|purchase|buyers?|customers?)/.test(n) && !/(potenciais|leads?|newsletter|popup|formulario)/.test(n)) return 80;
+  if (/\bclientes\b/.test(n)) return 40;
+  return -100;
+}
+
+async function resolveExistingCustomerAudience(supabase: any, tenantId: string, adAccountId: string, propData: any, adsetsList: any[], accessToken: string): Promise<CustomerAudiencePick | null> {
+  const fromProposal = pickCustomerAudienceFromProposal(propData, adsetsList);
+  if (fromProposal) return fromProposal;
+
+  const { data: mappings } = await supabase
+    .from("audience_sync_mappings")
+    .select("platform_audience_id, audience_name, members_synced")
+    .eq("tenant_id", tenantId)
+    .eq("platform", "meta")
+    .eq("ad_account_id", adAccountId)
+    .eq("status", "active");
+
+  const mapped = (mappings || [])
+    .map((m: any) => ({
+      id: normalizeAudienceId(m.platform_audience_id),
+      name: String(m.audience_name || ""),
+      score: rankCustomerAudienceName(String(m.audience_name || "")) + Math.min(Number(m.members_synced || 0) / 100000, 1),
+    }))
+    .filter((m: any) => m.id && m.score >= 40)
+    .sort((a: any, b: any) => b.score - a.score)[0];
+  if (mapped?.id) return { id: mapped.id, name: mapped.name || "Clientes", source: "audience_sync_mappings" };
+
+  const catalog = await fetchAccountAudiences(adAccountId, accessToken);
+  const fromCatalog = catalog
+    .map((a: MetaAudience) => ({ ...a, score: rankCustomerAudienceName(a.name) }))
+    .filter((a: any) => normalizeAudienceId(a.id) && a.score >= 40)
+    .sort((a: any, b: any) => b.score - a.score)[0];
+  return fromCatalog ? { id: fromCatalog.id, name: fromCatalog.name, source: "meta_customaudiences" } : null;
 }
 
 
