@@ -69,6 +69,7 @@ function getActionLabel(action: AutopilotAction): string {
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
   executed: { label: "Executada", variant: "default", icon: CheckCircle2 },
+  published_meta: { label: "Publicada na Meta", variant: "default", icon: CheckCircle2 },
   validated: { label: "Validada", variant: "secondary", icon: Clock },
   pending: { label: "Pendente", variant: "outline", icon: Clock },
   pending_approval: { label: "Aguardando Aprovação", variant: "secondary", icon: Hourglass },
@@ -78,6 +79,16 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   expired: { label: "Expirada", variant: "outline", icon: Clock },
   rolled_back: { label: "Revertida", variant: "outline", icon: Undo2 },
 };
+
+/** Deriva selo de status mais informativo para o histórico. */
+function getStatusKey(action: AutopilotAction): string {
+  const lifecycle = (action.action_data as any)?.lifecycle;
+  if (action.status === "executed" && lifecycle?.status === "campaign_implemented") {
+    return "published_meta";
+  }
+  return action.status;
+}
+
 
 /** Get a readable entity name from action data */
 function getEntityName(action: AutopilotAction): string | null {
