@@ -30,7 +30,47 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.8.0-lifecycle-dedupe-customer-audience-from-exclusions";
+const VERSION = "v1.9.0-account-level-existing-customers-registration";
+
+// ---------------------------------------------------------------------------
+// Registro idempotente da lista de "clientes atuais" no NÍVEL DA CONTA de
+// anúncios da Meta. Pré-requisito documentado para que o campo de campanha
+// `is_new_customer_acquisition` engate. Sem isso, a Meta aceita o POST mas
+// ignora silenciosamente a flag (sintoma reproduzido em produção).
+// Doc: https://developers.facebook.com/docs/marketing-api/advantage-shopping-campaigns/#step-1
+// ---------------------------------------------------------------------------
+async function ensureAccountExistingCustomers(
+  accessToken: string,
+  adAccountIdRaw: string,
+  audienceId: string,
+): Promise<{ ok: boolean; alreadyPresent: boolean; previous: string[]; error?: string }> {
+  const accountId = String(adAccountIdRaw).replace(/^act_/, "");
+  try {
+    const getRes = await fetch(
+      `https://graph.facebook.com/v21.0/act_${accountId}?fields=existing_customers&access_token=${encodeURIComponent(accessToken)}`,
+    );
+    const getJson = await getRes.json();
+    const current: string[] = Array.isArray(getJson?.existing_customers)
+      ? getJson.existing_customers.map((x: any) => String(x)).filter(Boolean)
+      : [];
+    if (current.includes(String(audienceId))) {
+      return { ok: true, alreadyPresent: true, previous: current };
+    }
+    const merged = Array.from(new Set([...current, String(audienceId)]));
+    const postRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ existing_customers: merged, access_token: accessToken }),
+    });
+    const postJson = await postRes.json();
+    if (!postRes.ok || postJson?.error) {
+      return { ok: false, alreadyPresent: false, previous: current, error: postJson?.error?.message || `HTTP ${postRes.status}` };
+    }
+    return { ok: true, alreadyPresent: false, previous: current };
+  } catch (e: any) {
+    return { ok: false, alreadyPresent: false, previous: [], error: String(e?.message || e) };
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
