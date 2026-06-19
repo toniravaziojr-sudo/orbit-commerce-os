@@ -432,6 +432,10 @@ Deno.serve(async (req) => {
     }
 
     // ===== Step 1: Campaign =====
+    // ABO vs CBO: em ABO o orçamento e a estratégia de lance vivem no CONJUNTO.
+    // Enviar bid_strategy ou daily_budget no nível de campanha sem CBO ativo
+    // faz a Meta rejeitar com code=100 / subcode=4834011 ("Parâmetro inválido").
+    const isCBO = String(campaign.budget_mode || "CBO").toUpperCase() === "CBO";
     const campaignBody: any = {
       tenant_id,
       action: "create",
@@ -440,11 +444,13 @@ Deno.serve(async (req) => {
       objective,
       destination_type: "WEBSITE",
       status: scheduling.status,
-      daily_budget_cents: dailyBudgetCents,
       special_ad_categories: campaign.special_ad_categories || [],
-      bid_strategy: campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       buying_type: campaign.buying_type || "AUCTION",
     };
+    if (isCBO) {
+      campaignBody.daily_budget_cents = dailyBudgetCents;
+      campaignBody.bid_strategy = campaign.bid_strategy || "LOWEST_COST_WITHOUT_CAP";
+    }
     // Estratégia de aquisição de clientes (v2.0.0 — 2026-06-19):
     // A Meta tem duas opções no painel:
     //   (a) "Obter conversões de todos os públicos" → permite exclusão manual de
