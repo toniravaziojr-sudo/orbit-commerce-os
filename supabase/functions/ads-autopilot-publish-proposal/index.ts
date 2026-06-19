@@ -827,6 +827,8 @@ Deno.serve(async (req) => {
           failed_at: allOk ? null : nowIso,
           failure_code: allOk ? null : (parityMismatch ? "meta_parity_mismatch" : (successAds === 0 ? "all_ads_failed" : "partial_ads_failed")),
           parity_check: parityCheck,
+          lifecycle_notice_pt: lifecycleNotice,
+          lifecycle_audience_used: lifecycleAudienceUsed,
 
           failure_message_pt: allOk ? null : (failureDetail || "Falha ao publicar todos os anúncios na Meta."),
           meta_campaign_id: metaCampaignId,
