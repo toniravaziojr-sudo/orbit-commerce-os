@@ -480,10 +480,10 @@ Deno.serve(async (req) => {
       );
       return (isCold && !isWarm) ? "new_customers" : "all";
     })();
-    // Mantemos a intenção registrada apenas para fins de auditoria/UTM. Nunca
-    // viramos a flag is_new_customer_acquisition na Meta — usamos sempre (a)
-    // com exclusão manual de clientes.
-    const effectiveAcq = "all";
+    // Mantemos a intenção registrada apenas para fins de auditoria. Nunca
+    // viramos a flag is_new_customer_acquisition na Meta — usamos sempre o modo
+    // "todos os públicos" com exclusão manual de clientes.
+
     if (requestedAcq === "new_customers" && supportsAcq) {
       try {
         const buyerAud = await resolveExistingCustomerAudience(supabase, tenant_id, adAccountId, propData, adsetsList, metaConn.access_token);
