@@ -10,9 +10,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { StrategicPlanContent } from "./StrategicPlanContent";
+import { StructuredProposalModal } from "./StructuredProposalModal";
 import { getFunnelLabel, getCustomerExclusionLine } from "@/lib/ads/audienceLabels";
 
 import { formatDateTimeBR } from "@/lib/date-format";
+
 
 interface ActionDetailDialogProps {
   action: AutopilotAction | null;
