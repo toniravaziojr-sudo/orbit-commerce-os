@@ -887,32 +887,16 @@ Deno.serve(async (req) => {
           parityMismatch = `Não foi possível confirmar com a Meta os anúncios do conjunto ${adsetId}.`;
         }
       }
-      // Conferência do ciclo de vida do cliente: lê o campo de volta na Meta.
-      // Se a flag foi enviada mas a Meta retornou false (sem audiência base válida,
-      // por exemplo), registramos como aviso — sem reabrir a proposta, porque a
-      // campanha em si está válida; só essa otimização específica não engatou.
-      if (effectiveAcq === "new_customers" && supportsAcq) {
-        try {
-          const cr = await fetch(
-            `https://graph.facebook.com/v21.0/${metaCampaignId}?fields=is_new_customer_acquisition&access_token=${encodeURIComponent(metaConn.access_token)}`,
-          );
-          const cj = await cr.json();
-          const applied = cj?.is_new_customer_acquisition === true;
-          parityCheck.lifecycle = {
-            requested: "new_customers",
-            applied,
-            audience_used: lifecycleAudienceUsed,
-          };
-          if (!applied) {
-            lifecycleNotice =
-              lifecycleNotice || "A Meta aceitou a campanha mas não ativou \"Conquistar novos clientes\". A proposta voltou para revisão para evitar publicação com configuração parcial.";
-            parityMismatch = "Meta não confirmou a configuração \"Conquistar novos clientes\".";
-          }
-        } catch (e: any) {
-          parityCheck.lifecycle = { requested: "new_customers", error: e?.message || String(e) };
-          parityMismatch = "Não foi possível confirmar com a Meta a configuração \"Conquistar novos clientes\".";
-        }
-      }
+      // v2.0.0: não conferimos mais is_new_customer_acquisition na Meta.
+      // Sempre publicamos no modo "Obter conversões de todos os públicos"
+      // com exclusão manual da audiência de Clientes nos conjuntos — equivalente
+      // funcional, sem o conflito interno que fazia a Meta ignorar a flag.
+      parityCheck.lifecycle = {
+        strategy: "all_audiences_with_manual_customer_exclusion",
+        audience_excluded: lifecycleAudienceUsed,
+        notice: lifecycleNotice,
+      };
+
       if (parityMismatch) {
         allOk = false;
       }
