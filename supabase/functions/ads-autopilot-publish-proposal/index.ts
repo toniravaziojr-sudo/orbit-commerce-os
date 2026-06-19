@@ -240,6 +240,7 @@ Deno.serve(async (req) => {
     // - criativos prontos (fluxo antigo em lote via creative_jobs)
     // - falhas anteriores (retry)
     const PUBLISH_ALLOWED_LIFECYCLES = new Set([
+      "ready_for_review",
       "structure_approved_awaiting_creatives",
       "campaign_creatives_generating",
       "campaign_creatives_ready",
