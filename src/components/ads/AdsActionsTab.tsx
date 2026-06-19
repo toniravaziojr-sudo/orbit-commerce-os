@@ -81,16 +81,28 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 
 /** Get a readable entity name from action data */
 function getEntityName(action: AutopilotAction): string | null {
-  const data = action.action_data;
+  const data = action.action_data || {};
   if (!data) return null;
-  
+
+  // Proposta de Campanha: prioriza nome da campanha gravado pelo gerador.
+  if (action.action_type === "campaign_proposal") {
+    const camp = data.campaign || {};
+    const name = camp.name || data.campaign_name || data.name;
+    if (name) return String(name);
+  }
+  // Plano Estratégico: usa título resumido se houver.
+  if (action.action_type === "strategic_plan") {
+    if (data.title) return String(data.title);
+    if (data.plan_summary) return String(data.plan_summary).slice(0, 80);
+  }
   if (data.campaign_name) return data.campaign_name;
   if (data.adset_name) return data.adset_name;
-  
+
   const id = data.campaign_id || data.adset_id;
   if (id) return `ID: ${id}`;
   return null;
 }
+
 
 /** Get budget impact display from action data */
 function getBudgetImpact(action: AutopilotAction): string | null {
