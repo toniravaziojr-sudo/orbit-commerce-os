@@ -32,20 +32,30 @@ function ok(body: any) {
   });
 }
 
+function buildLearningTitle(base: string, feedback: string): string {
+  const snippet = (feedback || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (snippet) return `${base} — "${snippet}"`;
+  const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  return `${base} — ${stamp}`;
+}
+
 async function recordLearning(
   supabase: any,
   tenantId: string,
   actionId: string,
   userId: string,
-  category: "creative_image_feedback" | "creative_copy_feedback",
+  subtype: "creative_image_feedback" | "creative_copy_feedback",
   title: string,
   description: string,
   metadata: Record<string, unknown>,
 ) {
+  // Mapeia para as categorias oficiais da UI de Aprendizados.
+  const category = subtype === "creative_copy_feedback" ? "copy" : "criativo";
+  const finalTitle = buildLearningTitle(title, description);
   try {
-    await supabase.from("ads_ai_learnings").insert({
+    const { error } = await supabase.from("ads_ai_learnings").insert({
       tenant_id: tenantId,
-      title,
+      title: finalTitle,
       description,
       category,
       status: "active",
@@ -54,8 +64,31 @@ async function recordLearning(
       evidence_count: 1,
       confidence: 0.8,
       created_by: userId,
-      metadata,
+      metadata: { ...metadata, subtype, base_title: title },
     });
+    if (error) {
+      if ((error as any)?.code === "23505") {
+        const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+        const retry = await supabase.from("ads_ai_learnings").insert({
+          tenant_id: tenantId,
+          title: `${finalTitle} (${stamp})`,
+          description,
+          category,
+          status: "active",
+          source_type: "user_feedback",
+          source_action_id: actionId,
+          evidence_count: 1,
+          confidence: 0.8,
+          created_by: userId,
+          metadata: { ...metadata, subtype, base_title: title, dedup_retry: true },
+        });
+        if (retry.error) {
+          console.error("[ads-creative-revise] learning insert retry rejected:", retry.error);
+        }
+      } else {
+        console.error("[ads-creative-revise] learning insert rejected:", error);
+      }
+    }
   } catch (e) {
     console.warn("[ads-creative-revise] learning insert failed:", e);
   }
