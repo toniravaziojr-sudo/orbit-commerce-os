@@ -6,6 +6,12 @@ type: constraint
 
 A partir de 2026-06-18 (v1.3.0-h5-instagram-and-customer-acq), `ads-autopilot-publish-proposal` é o **transmissor fiel** da Proposta de Campanha para a Meta Ads API. Nenhum campo definido na proposta pode ser silenciosamente ignorado.
 
+## Regra ABO vs CBO no nível de campanha (2026-06-19)
+
+- **CBO** (`campaign.budget_mode = "CBO"`): publicador envia `daily_budget_cents` e `bid_strategy` no corpo da campanha. Conjuntos NÃO carregam orçamento próprio.
+- **ABO** (`campaign.budget_mode = "ABO"` ou ausente quando há `adset.daily_budget_cents`): publicador PROIBIDO de enviar `daily_budget_cents` e `bid_strategy` no corpo da campanha. Ambos vivem exclusivamente no conjunto. A Meta rejeita estratégia de lance de campanha sem CBO ativo com `code=100 / subcode=4834011` ("Parâmetro inválido"), erro genérico que não cita o campo culpado.
+- Validação: campanha ABO sempre cai no erro 4834011 se algum desses dois campos vazar para o nível de campanha. Caso histórico: proposta "Fast Upgrade" (3 conjuntos, R$ 15/dia cada) em 2026-06-19.
+
 ## Regras críticas adicionadas em 2026-06-18
 
 - **Instagram do anúncio:** PROIBIDO usar `object_story_spec.instagram_actor_id` quando o valor é IGBA (`17841…`). Meta v21 rejeita com "must be a valid Instagram account id". Usar `instagram_user_id`, que aceita IGBA diretamente. Manter `instagram_actor_id` apenas como fallback para integrações antigas que explicitamente forneçam o valor.
