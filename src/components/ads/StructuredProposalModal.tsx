@@ -274,8 +274,14 @@ export function StructuredProposalModal({
   titleOverride,
   approveLabelOverride,
   onAdjustRequest,
+  readOnly = false,
 }: Props) {
+  // No-op handlers garantem que o modal renderiza mesmo quando os callbacks
+  // não são passados (modo somente leitura na aba "Ações da IA").
+  const safeOnApprove = onApprove || (() => {});
+  const safeOnReject = onReject || (() => {});
   const data = action.action_data || {};
+
   const isTwoStep = isTwoStepAction(action);
   const twoStepStage = getTwoStepStage(action);
   const isStrategyStage = isTwoStep && twoStepStage === "strategy";
