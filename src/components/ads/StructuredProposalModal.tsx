@@ -828,7 +828,9 @@ export function StructuredProposalModal({
                 </>
               )}
             </div>
+            )}
           </div>
+
         </DialogContent>
       </Dialog>
 
