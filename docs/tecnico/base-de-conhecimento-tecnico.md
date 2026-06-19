@@ -1598,3 +1598,15 @@ o default seguro é mandar as duas.
 - Saneamento retroativo via migração SQL: tradução determinística das 3 propostas vigentes do tenant de homologação e limpeza do aprendizado poluído. Sem custo adicional de IA.
 
 **Anti-regressão.** Constraint memory `mem://constraints/ai-output-must-be-ptbr`. Toda nova superfície de IA que exiba texto livre ao lojista precisa: (a) reforçar PT-BR no prompt, (b) jamais concatenar raciocínio interno da IA com texto do usuário para alimentar o card de Aprendizado.
+
+### 9.4 Meta — "Conquistar novos clientes" silenciosamente ignorado (v2026-06-19)
+
+**Problema.** Campanha fria "Shampoo Calvície Zero" foi criada na Meta com `is_new_customer_acquisition=true` e `customer_acquisition_spec` apontando para a audiência "Clientes - Atualizado 14/06/2026". Meta retornou 200 OK, criou campanha, conjuntos e anúncios. Leitura de retorno (`GET /<campaign_id>?fields=is_new_customer_acquisition`) trouxe `applied=false`. Mecanismo fail-closed v1.7.0 pausou os objetos e devolveu a proposta para revisão.
+
+**Causa raiz.** A mesma audiência de Clientes estava sendo enviada simultaneamente como (a) referência de "clientes atuais" em `customer_acquisition_spec.custom_audiences` no nível da campanha, e (b) exclusão manual em `targeting.excluded_custom_audiences` no nível de cada conjunto. A Meta aceita o POST mas internamente trata o pedido como conflitante e silenciosamente não ativa o flag de novos clientes — não retorna erro nem warning na criação.
+
+**Solução (v1.8.0).** No publicador (`ads-autopilot-publish-proposal`), quando o flag está ativo e a audiência de clientes foi resolvida como referência, deduplicar essa mesma audiência da lista `excluded_custom_audiences` de cada conjunto antes do POST. A exclusão de compradores continua aplicada pelo mecanismo nativo de Lifecycle da Meta (que é justamente o efeito de "Conquistar novos clientes"). Outras exclusões (lookalikes, públicos não-clientes) são preservadas.
+
+**Regra derivada.** Sempre que uma audiência for usada como referência em `customer_acquisition_spec`, é proibido enviá-la também em `excluded_custom_audiences` no mesmo conjunto. Memória anti-regressão: `mem://constraints/ads-publish-full-parity-meta` (regra "Dedupe de audiência de clientes vs exclusões manuais").
+
+**Anti-regressão.** A validação fail-closed pós-publicação continua obrigatória: se a Meta não confirmar `is_new_customer_acquisition=true` após a correção, o sistema ainda pausa tudo e devolve a proposta para revisão — nenhuma campanha pode ser marcada como sucesso sem confirmação real.

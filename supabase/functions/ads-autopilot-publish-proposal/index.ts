@@ -30,7 +30,7 @@ import {
   type MetaAudience,
 } from "../_shared/meta-publish-mappers.ts";
 
-const VERSION = "v1.7.0-lifecycle-current-customer-source-of-truth";
+const VERSION = "v1.8.0-lifecycle-dedupe-customer-audience-from-exclusions";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -513,13 +513,30 @@ Deno.serve(async (req) => {
       // Posicionamentos (Advantage+ ou lista manual)
       applyPlacements(targeting, adset);
 
-      // Exclusões de público (formato moderno + legado)
+      // Exclusões de público (formato moderno + legado).
+      // REGRA CRÍTICA (v1.8.0): quando a campanha está com "Conquistar novos
+      // clientes" ativo e usa a audiência de clientes como referência de
+      // customer_acquisition_spec, NÃO podemos duplicar a mesma audiência como
+      // exclusão manual do conjunto. A Meta aceita a criação, mas silenciosamente
+      // não ativa is_new_customer_acquisition quando a mesma audiência aparece
+      // como referência de "clientes atuais" e como exclusão manual ao mesmo
+      // tempo (conflito interno). A exclusão de compradores continua aplicada
+      // pelo próprio mecanismo nativo de Lifecycle da Meta.
+      const lifecycleAudId = lifecycleAudienceUsed?.id ? String(lifecycleAudienceUsed.id) : null;
       const exclArrRaw = adset?.targeting?.excluded_custom_audiences
         || (Array.isArray(adset.excluded_audience_ids)
           ? adset.excluded_audience_ids.map((a: any) => (typeof a === "object" ? a : { id: a }))
           : []);
       if (Array.isArray(exclArrRaw) && exclArrRaw.length > 0) {
-        targeting.excluded_custom_audiences = exclArrRaw.map((a: any) => ({ id: a.id || a }));
+        const dedup = exclArrRaw
+          .map((a: any) => ({ id: String(a.id || a) }))
+          .filter((a: any) => !lifecycleAudId || a.id !== lifecycleAudId);
+        if (dedup.length > 0) {
+          targeting.excluded_custom_audiences = dedup;
+        }
+        if (lifecycleAudId && dedup.length !== exclArrRaw.length) {
+          console.log(`[publish] Adset ${aIdx + 1}: removida exclusão duplicada da audiência de clientes ${lifecycleAudId} (já usada em customer_acquisition_spec).`);
+        }
       }
 
       // Inclusão de público / Lookalikes — resolve nomes para IDs reais na conta
