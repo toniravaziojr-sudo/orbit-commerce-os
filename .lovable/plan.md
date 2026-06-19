@@ -1,31 +1,37 @@
 ## Status
 
-✅ Correção v1.8.0 aplicada e implantada em produção.
+✅ Correção v1.9.0 aplicada e implantada em produção (causa raiz real).
 
-## Causa raiz comprovada
+## Histórico de tentativas
 
-A campanha era criada com sucesso na Meta, mas a configuração "Conquistar novos clientes" não engatava. A mesma audiência de Clientes estava sendo enviada como referência de "clientes atuais" (no nível da campanha) e ao mesmo tempo como exclusão manual (no nível de cada conjunto). A Meta aceita o pedido mas, por conflito interno, silenciosamente ignora o flag — sem erro, sem warning.
+- v1.7.0: ativou flag + audiência de referência → ignorada silenciosamente pela Meta.
+- v1.8.0: removeu duplicidade da audiência nas exclusões → ainda ignorada.
+- **v1.9.0 (atual):** registra a lista de clientes no nível da CONTA de anúncios antes de criar a campanha — pré-requisito documentado pela Meta que estava faltando.
 
-## O que foi corrigido
+## Causa raiz comprovada (documentação oficial Meta)
 
-- Quando a campanha está com "Conquistar novos clientes" e usa a audiência de Clientes como referência, o sistema agora remove essa mesma audiência das exclusões manuais do conjunto antes de enviar para a Meta.
-- A exclusão de compradores continua acontecendo automaticamente pelo mecanismo nativo da Meta (que é justamente o objetivo do "Conquistar novos clientes").
-- Outras exclusões (lookalikes, públicos não-clientes) continuam preservadas.
-- Fail-closed continua ativo: se a Meta não confirmar o flag após a correção, o sistema pausa tudo e devolve a proposta para revisão.
+A configuração "Conquistar novos clientes" só engata se a lista de clientes atuais estiver cadastrada no nível da conta de anúncios na Meta. Sem esse cadastro, a Meta aceita o pedido na campanha, mas ignora a flag silenciosamente — não retorna erro nem aviso. Esse é o motivo de v1.7.0 e v1.8.0 não terem resolvido: atacavam o sintoma na camada de campanha, mas a falha estava na ausência do pré-requisito na camada de conta.
+
+## O que foi corrigido em v1.9.0
+
+- Antes de publicar qualquer campanha de "Conquistar novos clientes", o sistema garante que a lista de clientes resolvida esteja registrada no cadastro permanente da conta de anúncios na Meta.
+- Operação idempotente: lê primeiro o que já está lá; só escreve se faltar a lista. Em conta já configurada, é só uma leitura rápida (sem custo de processamento extra).
+- Falha no cadastro bloqueia a publicação antes de criar qualquer objeto na Meta, com mensagem PT-BR explicando o que aconteceu.
+- A dedupe de audiência (v1.8.0) continua ativa como camada adicional.
+- Fail-closed pós-publicação continua ativo: se a Meta não confirmar a flag, o sistema pausa tudo e devolve a proposta para revisão.
 
 ## O que não mudou
 
 - Nenhuma alteração de UI/UX.
-- Nenhuma alteração de regra de negócio (frio continua excluindo compradores).
-- Múltiplos conjuntos e múltiplos anúncios funcionam como antes.
-- UTMs padronizadas (`utm_medium=paid_social`) continuam aplicadas.
-- Remarketing, campanhas quentes e overrides do usuário não são afetados.
+- Nenhuma alteração de regra de negócio (frio continua mirando aquisição).
+- UTMs, remarketing, campanhas quentes e overrides do usuário continuam iguais.
+- A escolha da audiência de clientes continua seguindo a mesma ordem de prioridade.
 
 ## Próximo passo
 
-Republicar a proposta "Shampoo Calvície Zero" (já está em "Aguardando aprovação"). Após a publicação, o sistema vai ler de volta na Meta e confirmar se o flag engatou desta vez. Se sim, status final "Corrigido e validado". Se não, a proposta volta para revisão com mensagem clara.
+Republicar a proposta "Shampoo Calvície Zero" (já está em "Aguardando aprovação"). Após a publicação, o sistema vai ler de volta na Meta e confirmar se a flag engatou. Se sim, status final "Corrigido e validado". Se não, volta para revisão com mensagem clara — mas agora com o pré-requisito da Meta atendido, a expectativa é que engate de primeira.
 
 ## Documentação atualizada
 
-- Memória anti-regressão: regra "Dedupe de audiência de clientes vs exclusões manuais" registrada.
-- Base de conhecimento técnico: lição 9.4 documenta causa raiz, solução e regra derivada.
+- Memória anti-regressão: nova regra v1.9.0 sobre registro de `existing_customers` no nível da conta.
+- Base de conhecimento técnico: lição 9.5 documenta causa raiz real, solução e regra derivada.

@@ -1610,3 +1610,16 @@ o default seguro é mandar as duas.
 **Regra derivada.** Sempre que uma audiência for usada como referência em `customer_acquisition_spec`, é proibido enviá-la também em `excluded_custom_audiences` no mesmo conjunto. Memória anti-regressão: `mem://constraints/ads-publish-full-parity-meta` (regra "Dedupe de audiência de clientes vs exclusões manuais").
 
 **Anti-regressão.** A validação fail-closed pós-publicação continua obrigatória: se a Meta não confirmar `is_new_customer_acquisition=true` após a correção, o sistema ainda pausa tudo e devolve a proposta para revisão — nenhuma campanha pode ser marcada como sucesso sem confirmação real.
+
+### 9.5 Meta — Causa raiz real: lista de "clientes atuais" no nível da CONTA (v2026-06-19, v1.9.0)
+
+**Problema (continuação do 9.4).** Mesmo após v1.8.0 (dedupe de audiência de clientes vs exclusões), nova publicação da mesma campanha "Shampoo Calvície Zero" continuou retornando `is_new_customer_acquisition=false` na leitura pós-publish. Logs confirmaram que a dedupe rodou ("Adset 1/2: removida exclusão duplicada da audiência de clientes…"), a Meta criou campanha + 2 conjuntos + 2 anúncios sem erro, mas a flag ainda não engatou.
+
+**Causa raiz real (documentação oficial Meta).** A configuração "Conquistar novos clientes" exige que a lista de clientes atuais esteja registrada **no nível da conta de anúncios** (`POST /act_<id>` com `existing_customers=[audience_id]`), não apenas no nível da campanha via `customer_acquisition_spec`. Sem esse registro de conta, a Meta aceita o POST da campanha mas ignora silenciosamente o flag `is_new_customer_acquisition`. Doc: https://developers.facebook.com/docs/marketing-api/advantage-shopping-campaigns/#step-1 ("Step 1: Define your existing customers"). A regra de v1.8.0 (dedupe) continua válida e necessária, mas era uma camada parcial — o pré-requisito ausente era estrutural.
+
+**Solução (v1.9.0).** Adicionado helper `ensureAccountExistingCustomers` no publicador (`ads-autopilot-publish-proposal`). Antes de criar a campanha de aquisição: (1) faz `GET /act_<id>?fields=existing_customers`; (2) se a audiência resolvida já está na lista, segue; (3) se não está, faz `POST /act_<id>` com a lista mesclada (idempotente). Falha nessa etapa bloqueia a publicação antes de qualquer objeto ser criado na Meta, com mensagem PT-BR. Como é cadastro permanente da conta, executa efetivamente uma vez por par (conta, audiência) — chamadas subsequentes são apenas o GET de verificação.
+
+**Regra derivada.** Sempre que `is_new_customer_acquisition=true` for usado, o sistema garante o registro account-level de `existing_customers` antes do POST da campanha. Sem isso, o resto da configuração de aquisição é tecnicamente inútil. Memória anti-regressão: `mem://constraints/ads-publish-full-parity-meta` (regra v1.9.0).
+
+**Anti-regressão.** A validação fail-closed pós-publicação continua obrigatória mesmo com v1.9.0 — é a última linha de defesa para qualquer cenário em que a Meta mude o contrato silenciosamente. Tentativas anteriores (v1.7.0 sem dedupe, v1.8.0 sem registro account-level) provaram que assumir o sucesso pelo HTTP 200 é insuficiente: só `applied=true` na leitura de retorno confirma a publicação.
+
