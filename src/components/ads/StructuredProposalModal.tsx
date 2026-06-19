@@ -471,7 +471,7 @@ export function StructuredProposalModal({
       return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
-    else onApprove(action.id);
+    else safeOnApprove(action.id);
   };
   const confirmApprove = () => {
     setConfirmApproveOpen(false);
@@ -481,7 +481,7 @@ export function StructuredProposalModal({
       return;
     }
     if (isStrategyStage) approveStrategy.mutate(action.id);
-    else onApprove(action.id);
+    else safeOnApprove(action.id);
   };
 
 
@@ -777,7 +777,7 @@ export function StructuredProposalModal({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onReject(action.id)}
+                    onClick={() => safeOnReject(action.id)}
                     disabled={!!rejectingId || isApproving}
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
                   >
@@ -862,7 +862,7 @@ export function StructuredProposalModal({
             <AlertDialogAction
               onClick={() => {
                 setConfirmCancelOpen(false);
-                onReject(action.id);
+                safeOnReject(action.id);
                 toast.success("Campanha cancelada", {
                   description: "A proposta foi removida da fila.",
                 });
