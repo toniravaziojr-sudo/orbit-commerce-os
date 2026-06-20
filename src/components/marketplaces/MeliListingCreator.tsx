@@ -789,6 +789,7 @@ export function MeliListingCreator({
 
   // ====== Step navigation ======
   const goNext = async () => {
+    await flushPendingEdits();
     const idx = currentStepIndex;
     if (idx === 0) {
       // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
@@ -821,13 +822,62 @@ export function MeliListingCreator({
   };
 
   const minStepIndex = isConfigureMode ? 1 : 0;
-  const goBack = () => {
+  const goBack = async () => {
+    await flushPendingEdits();
     const idx = currentStepIndex;
     if (idx > minStepIndex) {
       setStep(STEPS[idx - 1].key);
     }
   };
 
+  // Auto-generate descriptions in configure mode when entering the step with empty ones
+  useEffect(() => {
+    if (!open) { autoGenDescDoneRef.current = false; return; }
+    if (step !== "descriptions") return;
+    if (!isConfigureMode) return;
+    if (autoGenDescDoneRef.current) return;
+    if (isProcessing) return;
+    const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
+    if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
+    autoGenDescDoneRef.current = true;
+    (async () => {
+      if (!currentTenant?.id) return;
+      setIsProcessing(true);
+      setProcessingProgress(0);
+      setProcessingLabel("Gerando descrições via IA...");
+      try {
+        let offset = 0;
+        const limit = 5;
+        let hasMore = true;
+        let totalProcessed = 0;
+        while (hasMore) {
+          const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+            body: { tenantId: currentTenant.id, action: "bulk_generate_descriptions", offset, limit, listingIds: emptyIds },
+          });
+          if (error || !data?.success) break;
+          hasMore = data.hasMore;
+          offset += limit;
+          totalProcessed += data.processed || 0;
+          setProcessingProgress(Math.round((totalProcessed / emptyIds.length) * 100));
+        }
+        const { data: updated } = await supabase
+          .from("meli_listings")
+          .select("id, description")
+          .in("id", emptyIds);
+        if (updated) {
+          setGeneratedItems(prev => prev.map(item => {
+            const u = updated.find(l => l.id === item.listingId);
+            return u?.description ? { ...item, description: u.description } : item;
+          }));
+        }
+      } catch (err) {
+        console.error("Auto-gen descriptions error:", err);
+      } finally {
+        setIsProcessing(false);
+        setProcessingProgress(100);
+      }
+    })();
+  }, [open, step, isConfigureMode, isProcessing, generatedItems, currentTenant?.id]);
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
@@ -839,8 +889,15 @@ export function MeliListingCreator({
     return false;
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (isProcessing) return;
+    if (!next) { void flushPendingEdits(); }
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={isProcessing ? undefined : onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
