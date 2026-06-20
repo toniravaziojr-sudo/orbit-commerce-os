@@ -1193,25 +1193,40 @@ export function MeliListingCreator({
 
                     return (
                       <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground truncate max-w-[70%]">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                             {item.productName}
                           </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRegenerateDescription(item)}
-                            disabled={regeneratingDescId === item.listingId}
-                            className="h-7 text-xs gap-1"
-                          >
-                            {regeneratingDescId === item.listingId ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3 w-3" />
+                          <div className="flex items-center gap-1 shrink-0">
+                            {generatedItems.length > 1 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleApplyDescriptionToAll(item.listingId)}
+                                disabled={!item.description?.trim()}
+                                className="h-7 text-xs"
+                                title="Usar esta descrição em todos os produtos da lista"
+                              >
+                                Aplicar a todos
+                              </Button>
                             )}
-                            {regeneratingDescId === item.listingId ? "Gerando..." : "Regenerar"}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerateDescription(item)}
+                              disabled={regeneratingDescId === item.listingId}
+                              className="h-7 text-xs gap-1"
+                            >
+                              {regeneratingDescId === item.listingId ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                              {regeneratingDescId === item.listingId ? "Gerando..." : "Regenerar"}
+                            </Button>
+                          </div>
                         </div>
+
 
                         {isExpanded ? (
                           <>
