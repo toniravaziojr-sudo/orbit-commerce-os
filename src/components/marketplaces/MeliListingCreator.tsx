@@ -749,24 +749,29 @@ export function MeliListingCreator({
 
           {/* Step indicators */}
           <div className="flex items-center gap-1.5 pt-2 flex-wrap">
-            {STEPS.map((s, i) => (
-              <div key={s.key} className="flex items-center gap-1.5">
-                {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
-                <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
-                  currentStepIndex === i ? "bg-primary text-primary-foreground" :
-                  i < currentStepIndex ? "bg-primary/20 text-primary" :
-                  "bg-muted text-muted-foreground"
-                }`}>
-                  {i < currentStepIndex ? (
-                    <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <span>{i + 1}</span>
-                  )}
-                  <span className="hidden sm:inline">{s.label}</span>
+            {STEPS.filter((_, i) => i >= minStepIndex).map((s) => {
+              const i = STEPS.findIndex(x => x.key === s.key);
+              const displayIndex = i - minStepIndex;
+              return (
+                <div key={s.key} className="flex items-center gap-1.5">
+                  {displayIndex > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                  <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
+                    currentStepIndex === i ? "bg-primary text-primary-foreground" :
+                    i < currentStepIndex ? "bg-primary/20 text-primary" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {i < currentStepIndex ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <span>{displayIndex + 1}</span>
+                    )}
+                    <span className="hidden sm:inline">{s.label}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
         </DialogHeader>
 
         {/* ===== STEP 1: Select Products ===== */}
