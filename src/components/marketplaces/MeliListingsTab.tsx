@@ -68,6 +68,8 @@ export function MeliListingsTab() {
   const [editingListing, setEditingListing] = useState<MeliListing | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkConfigure, setShowBulkConfigure] = useState(false);
+
 
   // Bulk operations state
   const [bulkAction, setBulkAction] = useState<string | null>(null);
