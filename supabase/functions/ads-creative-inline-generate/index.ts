@@ -902,15 +902,8 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       };
       await persist(patch, plannedPatch);
 
-      if (isRegen) {
-        await recordLearning(
-          supabase, tenantId, actionId, userId,
-          "creative_image_feedback",
-          `Imagem do anúncio #${adIndex + 1} regenerada`,
-          feedback,
-          { ad_index: adIndex, regen_job_id: jobId, product_id: productId },
-        );
-      }
+      // Aprendizado de imagem já foi gravado antes da chamada do gerador.
+
 
       return ok({ success: true, image_url: newUrl, job_id: jobId });
     }
