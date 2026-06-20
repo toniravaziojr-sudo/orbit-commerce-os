@@ -161,6 +161,7 @@ export function MeliListingCreator({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingLabel, setProcessingLabel] = useState("");
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Step 5, 6 & 7
   const [condition, setCondition] = useState("new");
