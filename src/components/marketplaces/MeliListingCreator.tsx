@@ -548,6 +548,39 @@ export function MeliListingCreator({
     await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listingId);
   };
 
+  // ====== Apply category from one item to all others ======
+  const handleApplyCategoryToAll = async (sourceListingId: string) => {
+    const source = generatedItems.find(i => i.listingId === sourceListingId);
+    if (!source?.categoryId) {
+      toast.error("Defina a categoria deste produto antes de aplicar a todos.");
+      return;
+    }
+    const targets = generatedItems.filter(i => i.listingId !== sourceListingId);
+    if (targets.length === 0) return;
+
+    setGeneratedItems(prev => prev.map(i =>
+      i.listingId === sourceListingId
+        ? i
+        : {
+            ...i,
+            categoryId: source.categoryId,
+            categoryName: source.categoryName,
+            categoryPath: source.categoryPath,
+          }
+    ));
+
+    try {
+      await supabase
+        .from("meli_listings")
+        .update({ category_id: source.categoryId })
+        .in("id", targets.map(t => t.listingId));
+      toast.success(`Categoria aplicada a ${targets.length} produto(s).`);
+    } catch (err) {
+      console.error("Apply category to all error:", err);
+      toast.error("Não foi possível aplicar a categoria a todos os produtos.");
+    }
+  };
+
   // ====== Save titles to DB when moving to next step ======
   const handleSaveTitles = async () => {
     for (const item of generatedItems) {
@@ -785,12 +818,28 @@ export function MeliListingCreator({
                           <AlertCircle className="h-3 w-3" /> Categoria não identificada
                         </p>
                       )}
-                      <MeliCategoryPicker
-                        value={item.categoryId}
-                        onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
-                        selectedName={item.categoryName}
-                        productName={item.productName}
-                      />
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <MeliCategoryPicker
+                            value={item.categoryId}
+                            onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
+                            selectedName={item.categoryName}
+                            productName={item.productName}
+                          />
+                        </div>
+                        {generatedItems.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!item.categoryId}
+                            onClick={() => handleApplyCategoryToAll(item.listingId)}
+                            title="Usar esta categoria em todos os produtos da lista"
+                          >
+                            Aplicar a todos
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
