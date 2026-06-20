@@ -548,6 +548,39 @@ export function MeliListingCreator({
     await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listingId);
   };
 
+  // ====== Apply category from one item to all others ======
+  const handleApplyCategoryToAll = async (sourceListingId: string) => {
+    const source = generatedItems.find(i => i.listingId === sourceListingId);
+    if (!source?.categoryId) {
+      toast.error("Defina a categoria deste produto antes de aplicar a todos.");
+      return;
+    }
+    const targets = generatedItems.filter(i => i.listingId !== sourceListingId);
+    if (targets.length === 0) return;
+
+    setGeneratedItems(prev => prev.map(i =>
+      i.listingId === sourceListingId
+        ? i
+        : {
+            ...i,
+            categoryId: source.categoryId,
+            categoryName: source.categoryName,
+            categoryPath: source.categoryPath,
+          }
+    ));
+
+    try {
+      await supabase
+        .from("meli_listings")
+        .update({ category_id: source.categoryId })
+        .in("id", targets.map(t => t.listingId));
+      toast.success(`Categoria aplicada a ${targets.length} produto(s).`);
+    } catch (err) {
+      console.error("Apply category to all error:", err);
+      toast.error("Não foi possível aplicar a categoria a todos os produtos.");
+    }
+  };
+
   // ====== Save titles to DB when moving to next step ======
   const handleSaveTitles = async () => {
     for (const item of generatedItems) {
