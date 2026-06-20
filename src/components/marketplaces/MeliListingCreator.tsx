@@ -850,30 +850,38 @@ export function MeliListingCreator({
     const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
     if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
     autoGenDescDoneRef.current = true;
+
+    let cancelled = false;
     (async () => {
       if (!currentTenant?.id) return;
       setIsProcessing(true);
-      setProcessingProgress(0);
-      setProcessingLabel("Gerando descrições via IA...");
+      // Start with a small visible progress so the bar doesn't look stuck at 0%
+      setProcessingProgress(2);
+      setProcessingLabel(`Gerando descrições via IA (0/${emptyIds.length})...`);
       try {
         let offset = 0;
         const limit = 5;
         let hasMore = true;
         let totalProcessed = 0;
-        while (hasMore) {
+        while (hasMore && !cancelled) {
           const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
             body: { tenantId: currentTenant.id, action: "bulk_generate_descriptions", offset, limit, listingIds: emptyIds },
           });
+          if (cancelled) return;
           if (error || !data?.success) break;
           hasMore = data.hasMore;
           offset += limit;
           totalProcessed += data.processed || 0;
-          setProcessingProgress(Math.round((totalProcessed / emptyIds.length) * 100));
+          const pct = Math.max(2, Math.min(99, Math.round((totalProcessed / emptyIds.length) * 100)));
+          setProcessingProgress(pct);
+          setProcessingLabel(`Gerando descrições via IA (${Math.min(totalProcessed, emptyIds.length)}/${emptyIds.length})...`);
         }
+        if (cancelled) return;
         const { data: updated } = await supabase
           .from("meli_listings")
           .select("id, description")
           .in("id", emptyIds);
+        if (cancelled) return;
         if (updated) {
           setGeneratedItems(prev => prev.map(item => {
             const u = updated.find(l => l.id === item.listingId);
@@ -883,11 +891,16 @@ export function MeliListingCreator({
       } catch (err) {
         console.error("Auto-gen descriptions error:", err);
       } finally {
-        setIsProcessing(false);
-        setProcessingProgress(100);
+        if (!cancelled) {
+          setIsProcessing(false);
+          setProcessingProgress(100);
+          setProcessingLabel("");
+        }
       }
     })();
-  }, [open, step, isConfigureMode, isProcessing, generatedItems, currentTenant?.id]);
+
+    return () => { cancelled = true; };
+  }, [open, step, isConfigureMode, currentTenant?.id]);
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
