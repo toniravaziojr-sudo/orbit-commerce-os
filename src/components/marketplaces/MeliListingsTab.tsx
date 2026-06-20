@@ -31,7 +31,7 @@ import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
 import { MeliListingWizard } from "@/components/marketplaces/MeliListingWizard";
 import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator";
-import { MeliBulkConfigureDialog } from "@/components/marketplaces/MeliBulkConfigureDialog";
+
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
