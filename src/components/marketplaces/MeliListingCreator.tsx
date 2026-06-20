@@ -171,6 +171,52 @@ export function MeliListingCreator({
   // Expanded descriptions
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
 
+  // Auto-gen guard for descriptions in configure mode
+  const autoGenDescDoneRef = useRef(false);
+
+  // Debounced persistence buffers for inline title/description edits
+  const pendingEditsRef = useRef<Map<string, { title?: string; description?: string }>>(new Map());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingEdits = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    const entries = Array.from(pendingEditsRef.current.entries());
+    pendingEditsRef.current.clear();
+    if (entries.length === 0) return;
+    try {
+      await Promise.all(entries.map(([id, patch]) =>
+        supabase.from("meli_listings").update(patch).eq("id", id)
+      ));
+    } catch (err) {
+      console.error("Flush pending edits error:", err);
+    }
+  }, []);
+
+  const scheduleEdit = useCallback((listingId: string, patch: { title?: string; description?: string }) => {
+    const prev = pendingEditsRef.current.get(listingId) || {};
+    pendingEditsRef.current.set(listingId, { ...prev, ...patch });
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => { void flushPendingEdits(); }, 800);
+  }, [flushPendingEdits]);
+
+  // Persist condition/listing_type/shipping immediately when there are drafts in DB
+  const persistBulkSettings = useCallback(async (patch: Record<string, any>) => {
+    if (listingIds.length === 0) return;
+    try {
+      await supabase
+        .from("meli_listings")
+        .update(patch)
+        .in("id", listingIds)
+        .eq("tenant_id", currentTenant?.id);
+    } catch (err) {
+      console.error("Persist bulk settings error:", err);
+    }
+  }, [listingIds, currentTenant?.id]);
+
+
   const availableProducts = useMemo(
     () => products.filter(p => p.status === "active"),
     [products]
