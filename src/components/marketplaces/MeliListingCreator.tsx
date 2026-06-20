@@ -818,12 +818,28 @@ export function MeliListingCreator({
                           <AlertCircle className="h-3 w-3" /> Categoria não identificada
                         </p>
                       )}
-                      <MeliCategoryPicker
-                        value={item.categoryId}
-                        onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
-                        selectedName={item.categoryName}
-                        productName={item.productName}
-                      />
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <MeliCategoryPicker
+                            value={item.categoryId}
+                            onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
+                            selectedName={item.categoryName}
+                            productName={item.productName}
+                          />
+                        </div>
+                        {generatedItems.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!item.categoryId}
+                            onClick={() => handleApplyCategoryToAll(item.listingId)}
+                            title="Usar esta categoria em todos os produtos da lista"
+                          >
+                            Aplicar a todos
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
