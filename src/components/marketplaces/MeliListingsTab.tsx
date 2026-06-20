@@ -25,15 +25,18 @@ import {
   FileText,
   Tags,
   PackagePlus,
+  Settings2,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
 import { MeliListingWizard } from "@/components/marketplaces/MeliListingWizard";
 import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator";
+import { MeliBulkConfigureDialog } from "@/components/marketplaces/MeliBulkConfigureDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
+
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
   draft: { label: "Rascunho", variant: "outline" },
@@ -65,6 +68,8 @@ export function MeliListingsTab() {
   const [editingListing, setEditingListing] = useState<MeliListing | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkConfigure, setShowBulkConfigure] = useState(false);
+
 
   // Bulk operations state
   const [bulkAction, setBulkAction] = useState<string | null>(null);
@@ -447,6 +452,24 @@ export function MeliListingsTab() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setShowBulkConfigure(true)}
+                          disabled={!!bulkAction}
+                          className="gap-1.5"
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Configurar Selecionados
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">Define categoria, marca, código de barras e garantia em lote</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={handleBulkSend}
                           disabled={!!bulkAction}
                           className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
@@ -711,7 +734,17 @@ export function MeliListingsTab() {
         mode="edit"
         initialData={editingListing}
       />
+      <MeliBulkConfigureDialog
+        open={showBulkConfigure}
+        onOpenChange={setShowBulkConfigure}
+        listings={listings.filter((l) => selectedIds.has(l.id))}
+        onSaved={() => {
+          refetch();
+          setSelectedIds(new Set());
+        }}
+      />
       {ConfirmDialog}
     </TooltipProvider>
+
   );
 }
