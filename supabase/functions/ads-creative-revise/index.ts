@@ -372,16 +372,11 @@ Reescreva mantendo a oferta e a clareza. Não invente desconto/garantia que não
         action_data: { ...propData, creative_overrides: overrides },
       }).eq("id", actionId);
 
-      await recordLearning(
-        supabase, tenantId, actionId, userId,
-        "creative_copy_feedback",
-        `Copy do anúncio #${creativeIndex + 1} regenerada`,
-        feedback,
-        { creative_index: creativeIndex, before: { headline: baseHeadline, copy: baseCopy, cta: baseCta }, after: { headline, copy, cta } },
-      );
+      // Aprendizado de copy já foi gravado antes da chamada da IA.
 
       return ok({ success: true, override: next });
     }
+
 
     return ok({ success: false, error_pt: "Ação não suportada." });
   } catch (e) {
