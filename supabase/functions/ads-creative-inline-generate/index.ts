@@ -788,6 +788,17 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       }
 
       if (!resolvedProductId || !productImageUrl) {
+        // Mesmo sem produto resolvido, se for regen com feedback, registramos
+        // o feedback como aprendizado para não perder a direção do lojista.
+        if (isRegen && feedback) {
+          await recordLearning(
+            supabase, tenantId, actionId, userId,
+            "creative_image_feedback",
+            `Feedback de Imagem — ${pName || productNameHint || "anúncio"}`,
+            feedback,
+            { ad_index: adIndex, product_name: pName || productNameHint || null, product_resolved: false },
+          );
+        }
         return ok({
           success: false,
           error_pt: !resolvedProductId
@@ -796,6 +807,19 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         });
       }
       const productId = resolvedProductId;
+
+      // Grava aprendizado de imagem ANTES de chamar o gerador — feedback é
+      // aprendizado mesmo se a geração demorar/falhar.
+      if (isRegen) {
+        await recordLearning(
+          supabase, tenantId, actionId, userId,
+          "creative_image_feedback",
+          `Feedback de Imagem — ${pName || "anúncio"}`,
+          feedback,
+          { ad_index: adIndex, product_id: productId, product_name: pName || null },
+        );
+      }
+
 
       const visualPrompt = plannedItem.visual_prompt || adItem.creative_prompt || "";
       const basePrompt = isRegen
