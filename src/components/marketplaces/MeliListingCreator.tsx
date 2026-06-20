@@ -1328,7 +1328,7 @@ export function MeliListingCreator({
                     name="listing_type"
                     value={opt.value}
                     checked={listingType === opt.value}
-                    onChange={(e) => setListingType(e.target.value)}
+                    onChange={(e) => { setListingType(e.target.value); void persistBulkSettings({ listing_type: e.target.value }); }}
                     className="sr-only"
                   />
                   <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
