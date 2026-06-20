@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-03-01 (v2.1.0: melhoria na geração de títulos IA — validação mínima 60%, modelo Pro, coverage relaxado)
+> **Última atualização:** 2026-06-20 (v2.3.0: ação "Configurar Selecionados" reaproveita o wizard completo para rascunhos existentes; etapa Títulos ganha botão "Manter nomes originais dos produtos")
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
