@@ -127,7 +127,7 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
 | 2 | Categorizar via ML API | Cria drafts no banco + `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
-| 3 | Gerar Títulos IA | `bulk_generate_titles` (com `category_id` já definido → usa `max_title_length` real da categoria) → preview editável (input, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
+| 3 | Gerar Títulos IA | `bulk_generate_titles` (com `category_id` já definido → usa `max_title_length` real da categoria) → preview editável (input, validação semântica anti-truncamento, botão Regenerar com loading spinner). Botão **"Manter nomes originais dos produtos"** substitui todos os títulos pelo nome cadastrado do produto (truncado a 60 chars), útil quando o lojista prefere o naming interno em vez do título gerado pela IA. |
 | 4 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
