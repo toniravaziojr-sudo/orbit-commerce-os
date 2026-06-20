@@ -292,8 +292,21 @@ Deno.serve(async (req) => {
         return ok({ success: false, error_pt: "Conte como você quer a copy diferente antes de regenerar." });
       }
 
+      const productName = String(planned.product_name || propData?.campaign?.product_name || "").trim();
+
+      // Grava o feedback como aprendizado ANTES da IA — não pode ser perdido
+      // se a IA vier vazia/falhar.
+      await recordLearning(
+        supabase, tenantId, actionId, userId,
+        "creative_copy_feedback",
+        `Feedback de Copy — ${productName || "anúncio"}`,
+        feedback,
+        { creative_index: creativeIndex, product_name: productName || null, field: "copy", field_label_pt: "copy" },
+      );
+
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) return ok({ success: false, error_pt: "Serviço de IA indisponível no momento." });
+
 
       const baseHeadline = current.headline || planned.headline || (propData.campaign?.name) || "";
       const baseCopy = current.copy || planned.copy || planned.primary_text || "";
