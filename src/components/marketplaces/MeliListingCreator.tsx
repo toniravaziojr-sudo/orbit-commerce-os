@@ -922,6 +922,22 @@ export function MeliListingCreator({
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="space-y-3 pr-3">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGeneratedItems(prev => prev.map(i => ({
+                          ...i,
+                          title: (i.productName || "").slice(0, 60),
+                        })));
+                        toast.success("Títulos atualizados com os nomes originais dos produtos");
+                      }}
+                      className="h-8 text-xs"
+                    >
+                      Manter nomes originais dos produtos
+                    </Button>
+                  </div>
                   {invalidTitleCount > 0 && (
                      <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                        {invalidTitleCount} título{invalidTitleCount > 1 ? "s" : ""} precisa{invalidTitleCount > 1 ? "m" : ""} de ajuste (remova final truncado/incompleto).
