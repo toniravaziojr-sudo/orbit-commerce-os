@@ -734,15 +734,32 @@ export function MeliListingsTab() {
         mode="edit"
         initialData={editingListing}
       />
-      <MeliBulkConfigureDialog
+      {/* Configure existing drafts — reuses the same 7-step wizard, starting at Categories */}
+      <MeliListingCreator
         open={showBulkConfigure}
-        onOpenChange={setShowBulkConfigure}
-        listings={listings.filter((l) => selectedIds.has(l.id))}
-        onSaved={() => {
+        onOpenChange={(o) => { if (!o) setShowBulkConfigure(false); }}
+        products={products}
+        productsLoading={productsLoading}
+        listedProductIds={listedProductIds}
+        onBulkCreate={async () => []}
+        isSubmitting={false}
+        onRefetch={() => {
           refetch();
           setSelectedIds(new Set());
         }}
+        existingDrafts={showBulkConfigure ? listings.filter((l) => selectedIds.has(l.id)).map((l) => ({
+          id: l.id,
+          product_id: l.product_id,
+          title: l.title,
+          description: l.description,
+          category_id: l.category_id,
+          condition: l.condition,
+          listing_type: l.listing_type,
+          shipping: l.shipping,
+          product: l.product ? { name: l.product.name } : null,
+        })) : undefined}
       />
+
       {ConfirmDialog}
     </TooltipProvider>
 
