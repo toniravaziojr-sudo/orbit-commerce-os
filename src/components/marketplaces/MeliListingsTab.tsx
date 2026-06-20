@@ -452,6 +452,24 @@ export function MeliListingsTab() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setShowBulkConfigure(true)}
+                          disabled={!!bulkAction}
+                          className="gap-1.5"
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Configurar Selecionados
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">Define categoria, marca, código de barras e garantia em lote</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={handleBulkSend}
                           disabled={!!bulkAction}
                           className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
