@@ -44,6 +44,18 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
+export interface ExistingDraft {
+  id: string;
+  product_id: string;
+  title: string | null;
+  description: string | null;
+  category_id: string | null;
+  condition?: string | null;
+  listing_type?: string | null;
+  shipping?: Record<string, any> | null;
+  product?: { name: string } | null;
+}
+
 interface MeliListingCreatorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +76,8 @@ interface MeliListingCreatorProps {
   }) => Promise<any>;
   isSubmitting: boolean;
   onRefetch: () => void;
+  /** When provided, dialog opens in "configure existing drafts" mode: skips product selection and draft creation, jumps to Categories step. */
+  existingDrafts?: ExistingDraft[];
 }
 
 type Step = "select" | "categories" | "titles" | "descriptions" | "condition" | "listing_type" | "shipping";
