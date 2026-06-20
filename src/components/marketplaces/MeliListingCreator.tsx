@@ -790,35 +790,44 @@ export function MeliListingCreator({
 
   // ====== Step navigation ======
   const goNext = async () => {
-    await flushPendingEdits();
-    const idx = currentStepIndex;
-    if (idx === 0) {
-      // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
-      setStep("categories");
-      if (!isConfigureMode) {
-        setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+    if (isNavigating) return;
+    setIsNavigating(true);
+    try {
+      await flushPendingEdits();
+      const idx = currentStepIndex;
+      // Clear stale progress label from previous step
+      setProcessingLabel("");
+      setProcessingProgress(0);
+      if (idx === 0) {
+        // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
+        setStep("categories");
+        if (!isConfigureMode) {
+          setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+        }
+      } else if (idx === 1) {
+        // Categories → Titles: generate titles only on first pass (creation mode)
+        setStep("titles");
+        if (!isConfigureMode) {
+          setTimeout(() => handleGenerateTitles(), 100);
+        }
+      } else if (idx === 2) {
+        // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
+        await handleSaveTitles();
+        setStep("descriptions");
+        if (!isConfigureMode) {
+          setTimeout(() => handleGenerateDescriptions(), 100);
+        }
+      } else if (idx === 3) {
+        // Descriptions → Condition
+        await handleSaveDescriptions();
+        setStep("condition");
+      } else if (idx === 4) {
+        setStep("listing_type");
+      } else if (idx === 5) {
+        setStep("shipping");
       }
-    } else if (idx === 1) {
-      // Categories → Titles: generate titles only on first pass (creation mode)
-      setStep("titles");
-      if (!isConfigureMode) {
-        setTimeout(() => handleGenerateTitles(), 100);
-      }
-    } else if (idx === 2) {
-      // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
-      await handleSaveTitles();
-      setStep("descriptions");
-      if (!isConfigureMode) {
-        setTimeout(() => handleGenerateDescriptions(), 100);
-      }
-    } else if (idx === 3) {
-      // Descriptions → Condition
-      await handleSaveDescriptions();
-      setStep("condition");
-    } else if (idx === 4) {
-      setStep("listing_type");
-    } else if (idx === 5) {
-      setStep("shipping");
+    } finally {
+      setIsNavigating(false);
     }
   };
 
