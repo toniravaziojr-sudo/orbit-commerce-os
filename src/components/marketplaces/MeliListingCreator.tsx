@@ -234,7 +234,46 @@ export function MeliListingCreator({
       setFreeShipping(!!first.shipping.free_shipping);
       setLocalPickup(!!first.shipping.local_pick_up);
     }
+
+    // Resolve friendly names for already-saved category IDs
+    (async () => {
+      const uniqueIds = Array.from(new Set(existingDrafts.map(d => d.category_id).filter(Boolean) as string[]));
+      if (uniqueIds.length === 0) return;
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const headers = {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        };
+        const results = await Promise.all(uniqueIds.map(async (cid) => {
+          try {
+            const res = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meli-search-categories?categoryId=${cid}`,
+              { headers }
+            );
+            if (!res.ok) return null;
+            const data = await res.json();
+            return {
+              id: cid,
+              name: data.name as string | undefined,
+              path: normalizeCategoryPath(data.path || data.path_from_root),
+            };
+          } catch { return null; }
+        }));
+        const byId = new Map(results.filter(Boolean).map(r => [r!.id, r!]));
+        setGeneratedItems(prev => prev.map(i => {
+          const info = i.categoryId ? byId.get(i.categoryId) : null;
+          if (!info) return i;
+          return {
+            ...i,
+            categoryName: info.name || i.categoryName,
+            categoryPath: info.path || i.categoryPath,
+          };
+        }));
+      } catch { /* skip */ }
+    })();
   }, [open, isConfigureMode, existingDrafts]);
+
 
 
   const toggleSelectAll = () => {
