@@ -210,6 +210,33 @@ export function MeliListingCreator({
     }
   }, [open]);
 
+  // Initialize for "configure existing drafts" mode
+  useEffect(() => {
+    if (!open || !isConfigureMode || !existingDrafts) return;
+    const items: GeneratedItem[] = existingDrafts.map(d => ({
+      listingId: d.id,
+      productId: d.product_id,
+      productName: d.product?.name || "Produto",
+      title: d.title || "",
+      description: d.description || "",
+      categoryId: d.category_id || "",
+      categoryName: d.category_id || "",
+      categoryPath: "",
+    }));
+    setGeneratedItems(items);
+    setListingIds(existingDrafts.map(d => d.id));
+    setStep("categories");
+    // Pre-fill condition/listing_type/shipping from first draft
+    const first = existingDrafts[0];
+    if (first.condition) setCondition(first.condition);
+    if (first.listing_type) setListingType(first.listing_type);
+    if (first.shipping) {
+      setFreeShipping(!!first.shipping.free_shipping);
+      setLocalPickup(!!first.shipping.local_pick_up);
+    }
+  }, [open, isConfigureMode, existingDrafts]);
+
+
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedProductIds(prev => {
