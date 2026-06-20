@@ -1,7 +1,7 @@
 ## Status
 
-Onda 1+2 aplicadas — pendente de validação pelo lojista.
-Onda 3 (paridade Meta por objetivo) próxima etapa.
+Onda 1+2 aplicadas + ambiente do tenant Respeite o Homem limpo para
+teste do zero (2026-06-20). Onda 3 (paridade Meta por objetivo) próxima.
 
 ## Contexto
 
