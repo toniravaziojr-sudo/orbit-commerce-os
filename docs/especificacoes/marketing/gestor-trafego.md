@@ -4602,8 +4602,22 @@ Conjunto de melhorias incrementais aplicadas ao motor de geração de copy inlin
 - `mem://constraints/ads-h48-copy-limits-layout-and-anti-repeat`
 - `mem://constraints/ads-h44-inline-creative-generation`
 
+### H.4.10 — Feedback é aprendizado antes da IA + tarja humana (2026-06-20)
+- Toda regeneração inline (copy e imagem) e a regeneração legada da Revisão Final gravam o feedback do lojista como aprendizado em `ads_ai_learnings` **antes** de chamar a IA / gerador. Falha ou saída vazia da IA não pode mais perder feedback silenciosamente.
+- Título canônico do aprendizado: `Feedback de {Título|Texto|Descrição|Copy} — {Produto}` (copy) ou `Feedback de Imagem — {Produto}`. Substitui os títulos técnicos antigos ("Campo headline do anúncio #1 regenerado").
+- Metadata obrigatória: `subtype` (`creative_copy_feedback` | `creative_image_feedback`), `product_name`, `field` + `field_label_pt` (para copy), `funnel_stage`, `before`. Inclui `product_resolved=false` quando a regeneração de imagem é cancelada por falta de produto/imagem — assim a direção do lojista é preservada.
+- UI Aprendizados (`AdsAILearningsTab`): card mostra **tarja colorida** no topo `Feedback de {Tipo} — {Produto}` para itens com `metadata.subtype` de feedback inline.
+- Edges afetadas: `ads-creative-inline-generate` (`regen_copy_field`, `regen_image`) e `ads-creative-revise` (`regenerate_copy`, `regenerate_image`). Gravação pós-sucesso foi removida (não duplica).
+- Memória: `mem://constraints/ads-h410-feedback-pre-ai-and-tarja`.
+
+### H.5.3 — ABO não envia bid_strategy nem daily_budget no nível da campanha (2026-06-19)
+- Causa do erro genérico Meta `code=100 / subcode=4834011` em campanhas ABO: o publicador enviava `bid_strategy` (default `LOWEST_COST_WITHOUT_CAP`) no corpo da campanha mesmo sem `daily_budget` de campanha (CBO). A Meta rejeita essa combinação.
+- Regra atual no `ads-autopilot-publish-proposal`: CBO continua enviando `daily_budget_cents` e `bid_strategy` no nível da campanha; **ABO omite os dois**, deixando-os exclusivamente no conjunto.
+- Memória: `mem://constraints/ads-publish-full-parity-meta` (regra explícita).
 
 ---
+
+
 
 ## H.5.2 — Paridade Total Proposta → Meta (2026-06-18, v1.2.0-h5-full-parity)
 
