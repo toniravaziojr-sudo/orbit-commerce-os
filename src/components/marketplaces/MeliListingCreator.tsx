@@ -626,19 +626,48 @@ export function MeliListingCreator({
     }
   }, [currentTenant?.id]);
 
-  // ====== Update title inline ======
+  // ====== Update title inline (persists with debounce) ======
   const handleTitleChange = (listingId: string, value: string) => {
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId ? { ...i, title: value } : i
     ));
+    scheduleEdit(listingId, { title: value });
   };
 
-  // ====== Update description inline ======
+  // ====== Update description inline (persists with debounce) ======
   const handleDescriptionChange = (listingId: string, value: string) => {
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId ? { ...i, description: value } : i
     ));
+    scheduleEdit(listingId, { description: value });
   };
+
+  // ====== Apply description from one item to all others ======
+  const handleApplyDescriptionToAll = async (sourceListingId: string) => {
+    const source = generatedItems.find(i => i.listingId === sourceListingId);
+    if (!source?.description?.trim()) {
+      toast.error("Defina a descrição deste produto antes de aplicar a todos.");
+      return;
+    }
+    const targets = generatedItems.filter(i => i.listingId !== sourceListingId);
+    if (targets.length === 0) return;
+
+    setGeneratedItems(prev => prev.map(i =>
+      i.listingId === sourceListingId ? i : { ...i, description: source.description }
+    ));
+
+    try {
+      await supabase
+        .from("meli_listings")
+        .update({ description: source.description })
+        .in("id", targets.map(t => t.listingId));
+      toast.success(`Descrição aplicada a ${targets.length} produto(s).`);
+    } catch (err) {
+      console.error("Apply description to all error:", err);
+      toast.error("Não foi possível aplicar a descrição a todos os produtos.");
+    }
+  };
+
 
   // ====== Change category manually ======
   const handleCategoryChange = async (listingId: string, categoryId: string, categoryName?: string) => {
