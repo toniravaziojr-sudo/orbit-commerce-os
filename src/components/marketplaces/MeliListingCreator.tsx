@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -170,6 +170,52 @@ export function MeliListingCreator({
 
   // Expanded descriptions
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
+
+  // Auto-gen guard for descriptions in configure mode
+  const autoGenDescDoneRef = useRef(false);
+
+  // Debounced persistence buffers for inline title/description edits
+  const pendingEditsRef = useRef<Map<string, { title?: string; description?: string }>>(new Map());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPendingEdits = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    const entries = Array.from(pendingEditsRef.current.entries());
+    pendingEditsRef.current.clear();
+    if (entries.length === 0) return;
+    try {
+      await Promise.all(entries.map(([id, patch]) =>
+        supabase.from("meli_listings").update(patch).eq("id", id)
+      ));
+    } catch (err) {
+      console.error("Flush pending edits error:", err);
+    }
+  }, []);
+
+  const scheduleEdit = useCallback((listingId: string, patch: { title?: string; description?: string }) => {
+    const prev = pendingEditsRef.current.get(listingId) || {};
+    pendingEditsRef.current.set(listingId, { ...prev, ...patch });
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => { void flushPendingEdits(); }, 800);
+  }, [flushPendingEdits]);
+
+  // Persist condition/listing_type/shipping immediately when there are drafts in DB
+  const persistBulkSettings = useCallback(async (patch: Record<string, any>) => {
+    if (listingIds.length === 0) return;
+    try {
+      await supabase
+        .from("meli_listings")
+        .update(patch)
+        .in("id", listingIds)
+        .eq("tenant_id", currentTenant?.id);
+    } catch (err) {
+      console.error("Persist bulk settings error:", err);
+    }
+  }, [listingIds, currentTenant?.id]);
+
 
   const availableProducts = useMemo(
     () => products.filter(p => p.status === "active"),
@@ -580,19 +626,48 @@ export function MeliListingCreator({
     }
   }, [currentTenant?.id]);
 
-  // ====== Update title inline ======
+  // ====== Update title inline (persists with debounce) ======
   const handleTitleChange = (listingId: string, value: string) => {
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId ? { ...i, title: value } : i
     ));
+    scheduleEdit(listingId, { title: value });
   };
 
-  // ====== Update description inline ======
+  // ====== Update description inline (persists with debounce) ======
   const handleDescriptionChange = (listingId: string, value: string) => {
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId ? { ...i, description: value } : i
     ));
+    scheduleEdit(listingId, { description: value });
   };
+
+  // ====== Apply description from one item to all others ======
+  const handleApplyDescriptionToAll = async (sourceListingId: string) => {
+    const source = generatedItems.find(i => i.listingId === sourceListingId);
+    if (!source?.description?.trim()) {
+      toast.error("Defina a descrição deste produto antes de aplicar a todos.");
+      return;
+    }
+    const targets = generatedItems.filter(i => i.listingId !== sourceListingId);
+    if (targets.length === 0) return;
+
+    setGeneratedItems(prev => prev.map(i =>
+      i.listingId === sourceListingId ? i : { ...i, description: source.description }
+    ));
+
+    try {
+      await supabase
+        .from("meli_listings")
+        .update({ description: source.description })
+        .in("id", targets.map(t => t.listingId));
+      toast.success(`Descrição aplicada a ${targets.length} produto(s).`);
+    } catch (err) {
+      console.error("Apply description to all error:", err);
+      toast.error("Não foi possível aplicar a descrição a todos os produtos.");
+    }
+  };
+
 
   // ====== Change category manually ======
   const handleCategoryChange = async (listingId: string, categoryId: string, categoryName?: string) => {
@@ -714,6 +789,7 @@ export function MeliListingCreator({
 
   // ====== Step navigation ======
   const goNext = async () => {
+    await flushPendingEdits();
     const idx = currentStepIndex;
     if (idx === 0) {
       // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
@@ -746,13 +822,62 @@ export function MeliListingCreator({
   };
 
   const minStepIndex = isConfigureMode ? 1 : 0;
-  const goBack = () => {
+  const goBack = async () => {
+    await flushPendingEdits();
     const idx = currentStepIndex;
     if (idx > minStepIndex) {
       setStep(STEPS[idx - 1].key);
     }
   };
 
+  // Auto-generate descriptions in configure mode when entering the step with empty ones
+  useEffect(() => {
+    if (!open) { autoGenDescDoneRef.current = false; return; }
+    if (step !== "descriptions") return;
+    if (!isConfigureMode) return;
+    if (autoGenDescDoneRef.current) return;
+    if (isProcessing) return;
+    const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
+    if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
+    autoGenDescDoneRef.current = true;
+    (async () => {
+      if (!currentTenant?.id) return;
+      setIsProcessing(true);
+      setProcessingProgress(0);
+      setProcessingLabel("Gerando descrições via IA...");
+      try {
+        let offset = 0;
+        const limit = 5;
+        let hasMore = true;
+        let totalProcessed = 0;
+        while (hasMore) {
+          const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+            body: { tenantId: currentTenant.id, action: "bulk_generate_descriptions", offset, limit, listingIds: emptyIds },
+          });
+          if (error || !data?.success) break;
+          hasMore = data.hasMore;
+          offset += limit;
+          totalProcessed += data.processed || 0;
+          setProcessingProgress(Math.round((totalProcessed / emptyIds.length) * 100));
+        }
+        const { data: updated } = await supabase
+          .from("meli_listings")
+          .select("id, description")
+          .in("id", emptyIds);
+        if (updated) {
+          setGeneratedItems(prev => prev.map(item => {
+            const u = updated.find(l => l.id === item.listingId);
+            return u?.description ? { ...item, description: u.description } : item;
+          }));
+        }
+      } catch (err) {
+        console.error("Auto-gen descriptions error:", err);
+      } finally {
+        setIsProcessing(false);
+        setProcessingProgress(100);
+      }
+    })();
+  }, [open, step, isConfigureMode, isProcessing, generatedItems, currentTenant?.id]);
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
@@ -764,8 +889,15 @@ export function MeliListingCreator({
     return false;
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (isProcessing) return;
+    if (!next) { void flushPendingEdits(); }
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={isProcessing ? undefined : onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
@@ -1061,25 +1193,40 @@ export function MeliListingCreator({
 
                     return (
                       <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground truncate max-w-[70%]">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                             {item.productName}
                           </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRegenerateDescription(item)}
-                            disabled={regeneratingDescId === item.listingId}
-                            className="h-7 text-xs gap-1"
-                          >
-                            {regeneratingDescId === item.listingId ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3 w-3" />
+                          <div className="flex items-center gap-1 shrink-0">
+                            {generatedItems.length > 1 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleApplyDescriptionToAll(item.listingId)}
+                                disabled={!item.description?.trim()}
+                                className="h-7 text-xs"
+                                title="Usar esta descrição em todos os produtos da lista"
+                              >
+                                Aplicar a todos
+                              </Button>
                             )}
-                            {regeneratingDescId === item.listingId ? "Gerando..." : "Regenerar"}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerateDescription(item)}
+                              disabled={regeneratingDescId === item.listingId}
+                              className="h-7 text-xs gap-1"
+                            >
+                              {regeneratingDescId === item.listingId ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                              {regeneratingDescId === item.listingId ? "Gerando..." : "Regenerar"}
+                            </Button>
+                          </div>
                         </div>
+
 
                         {isExpanded ? (
                           <>
@@ -1150,7 +1297,7 @@ export function MeliListingCreator({
                     name="condition"
                     value={opt.value}
                     checked={condition === opt.value}
-                    onChange={(e) => setCondition(e.target.value)}
+                    onChange={(e) => { setCondition(e.target.value); void persistBulkSettings({ condition: e.target.value }); }}
                     className="sr-only"
                   />
                   <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -1196,7 +1343,7 @@ export function MeliListingCreator({
                     name="listing_type"
                     value={opt.value}
                     checked={listingType === opt.value}
-                    onChange={(e) => setListingType(e.target.value)}
+                    onChange={(e) => { setListingType(e.target.value); void persistBulkSettings({ listing_type: e.target.value }); }}
                     className="sr-only"
                   />
                   <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -1238,7 +1385,7 @@ export function MeliListingCreator({
                     <p className="text-xs text-muted-foreground">O vendedor assume o custo do frete</p>
                   </div>
                 </div>
-                <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
+                <Switch checked={freeShipping} onCheckedChange={(v) => { setFreeShipping(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: v, local_pick_up: localPickup } }); }} />
               </div>
 
               <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
@@ -1255,7 +1402,7 @@ export function MeliListingCreator({
                     <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
                   </div>
                 </div>
-                <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
+                <Switch checked={localPickup} onCheckedChange={(v) => { setLocalPickup(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: freeShipping, local_pick_up: v } }); }} />
               </div>
             </div>
           </div>

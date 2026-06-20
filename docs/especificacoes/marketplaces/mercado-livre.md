@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-20 (v2.3.0: ação "Configurar Selecionados" reaproveita o wizard completo para rascunhos existentes; etapa Títulos ganha botão "Manter nomes originais dos produtos")
+> **Última atualização:** 2026-06-20 (v2.3.1: "Configurar Selecionados" — persistência por etapa (debounce em títulos/descrições, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar); geração automática de descrições para rascunhos vazios ao entrar na etapa; botão "Aplicar a todos" também na etapa de Descrições)
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
