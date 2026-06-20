@@ -1437,12 +1437,12 @@ export function MeliListingCreator({
               Salvar {generatedItems.length} Anúncio{generatedItems.length > 1 ? "s" : ""}
             </Button>
           ) : (
-            <Button onClick={goNext} disabled={!canGoNext() || isSubmitting}>
-              {isSubmitting ? (
+            <Button onClick={goNext} disabled={!canGoNext() || isSubmitting || isNavigating}>
+              {(isSubmitting || isNavigating) ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
-              Continuar
-              <ArrowRight className="h-4 w-4 ml-2" />
+              {isNavigating ? "Salvando..." : "Continuar"}
+              {!isNavigating && <ArrowRight className="h-4 w-4 ml-2" />}
             </Button>
           )}
         </DialogFooter>
