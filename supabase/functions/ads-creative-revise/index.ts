@@ -195,8 +195,26 @@ Deno.serve(async (req) => {
       }
 
       if (!productId || !productImageUrl) {
+        // Mesmo sem produto resolvido, registra o feedback como aprendizado.
+        await recordLearning(
+          supabase, tenantId, actionId, userId,
+          "creative_image_feedback",
+          `Feedback de Imagem — ${productName || "anúncio"}`,
+          feedback,
+          { creative_index: creativeIndex, product_name: productName || null, product_resolved: false },
+        );
         return ok({ success: false, error_pt: "Produto da campanha não encontrado para regenerar a imagem." });
       }
+
+      // Grava aprendizado ANTES de chamar o gerador — feedback não pode
+      // ser perdido se a geração demorar/falhar.
+      await recordLearning(
+        supabase, tenantId, actionId, userId,
+        "creative_image_feedback",
+        `Feedback de Imagem — ${productName || "anúncio"}`,
+        feedback,
+        { creative_index: creativeIndex, product_id: productId, product_name: productName || null },
+      );
 
       const promptHint = `Ajustes pedidos pelo usuário: ${feedback}`.slice(0, 1200);
 
