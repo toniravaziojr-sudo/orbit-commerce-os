@@ -1,10 +1,10 @@
 ---
-name: Ads H.4.9 — Feedback é aprendizado antes da IA + tarja humana
+name: Ads H.4.10 — Feedback é aprendizado antes da IA + tarja humana
 description: Gravação de aprendizado a partir de feedback inline (copy/imagem) acontece SEMPRE antes da chamada de IA, com title humano e metadata padronizada. UI mostra tarja "Feedback de Título/Texto/Descrição/Copy/Imagem — Produto".
 type: constraint
 ---
 
-# Regra (Onda H.4.9 — 2026-06-20)
+# Regra (Onda H.4.10 — 2026-06-20)
 
 Complementa H.4.6 sem revogar. Foco: garantir que NENHUM feedback do
 lojista seja perdido por falha/timeout/saída vazia da IA, e que o card
