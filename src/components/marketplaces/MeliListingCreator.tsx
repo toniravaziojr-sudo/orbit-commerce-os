@@ -677,18 +677,24 @@ export function MeliListingCreator({
   const goNext = async () => {
     const idx = currentStepIndex;
     if (idx === 0) {
-      // Select → Categories: create drafts + auto-categorize
+      // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
       setStep("categories");
-      setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+      }
     } else if (idx === 1) {
-      // Categories → Titles: generate titles (category already set, max_title_length respected)
+      // Categories → Titles: generate titles only on first pass (creation mode)
       setStep("titles");
-      setTimeout(() => handleGenerateTitles(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleGenerateTitles(), 100);
+      }
     } else if (idx === 2) {
-      // Titles → Descriptions: save titles, then generate descriptions
+      // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
       await handleSaveTitles();
       setStep("descriptions");
-      setTimeout(() => handleGenerateDescriptions(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleGenerateDescriptions(), 100);
+      }
     } else if (idx === 3) {
       // Descriptions → Condition
       await handleSaveDescriptions();
@@ -700,12 +706,14 @@ export function MeliListingCreator({
     }
   };
 
+  const minStepIndex = isConfigureMode ? 1 : 0;
   const goBack = () => {
     const idx = currentStepIndex;
-    if (idx > 0) {
+    if (idx > minStepIndex) {
       setStep(STEPS[idx - 1].key);
     }
   };
+
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
