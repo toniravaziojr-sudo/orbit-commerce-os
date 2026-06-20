@@ -1370,7 +1370,7 @@ export function MeliListingCreator({
                     <p className="text-xs text-muted-foreground">O vendedor assume o custo do frete</p>
                   </div>
                 </div>
-                <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
+                <Switch checked={freeShipping} onCheckedChange={(v) => { setFreeShipping(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: v, local_pick_up: localPickup } }); }} />
               </div>
 
               <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
