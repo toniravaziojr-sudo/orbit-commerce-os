@@ -734,7 +734,17 @@ export function MeliListingsTab() {
         mode="edit"
         initialData={editingListing}
       />
+      <MeliBulkConfigureDialog
+        open={showBulkConfigure}
+        onOpenChange={setShowBulkConfigure}
+        listings={listings.filter((l) => selectedIds.has(l.id))}
+        onSaved={() => {
+          refetch();
+          setSelectedIds(new Set());
+        }}
+      />
       {ConfirmDialog}
     </TooltipProvider>
+
   );
 }
