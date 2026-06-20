@@ -743,20 +743,18 @@ export function MeliListingCreator({
 
   // ====== Save titles to DB when moving to next step ======
   const handleSaveTitles = async () => {
-    for (const item of generatedItems) {
-      if (item.title) {
-        await supabase.from("meli_listings").update({ title: item.title }).eq("id", item.listingId);
-      }
-    }
+    const ops = generatedItems
+      .filter(item => item.title)
+      .map(item => supabase.from("meli_listings").update({ title: item.title }).eq("id", item.listingId));
+    if (ops.length) await Promise.all(ops);
   };
 
   // ====== Save descriptions to DB ======
   const handleSaveDescriptions = async () => {
-    for (const item of generatedItems) {
-      if (item.description) {
-        await supabase.from("meli_listings").update({ description: item.description }).eq("id", item.listingId);
-      }
-    }
+    const ops = generatedItems
+      .filter(item => item.description)
+      .map(item => supabase.from("meli_listings").update({ description: item.description }).eq("id", item.listingId));
+    if (ops.length) await Promise.all(ops);
   };
 
   // ====== Final save: condition + listing_type + shipping ======
