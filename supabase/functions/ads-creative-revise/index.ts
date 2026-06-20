@@ -279,13 +279,8 @@ Deno.serve(async (req) => {
         action_data: { ...propData, creative_overrides: overrides },
       }).eq("id", actionId);
 
-      await recordLearning(
-        supabase, tenantId, actionId, userId,
-        "creative_image_feedback",
-        `Imagem do anúncio #${creativeIndex + 1} regenerada`,
-        feedback,
-        { creative_index: creativeIndex, regen_job_id: jobId, product_id: productId },
-      );
+      // Aprendizado de imagem já foi gravado antes da chamada do gerador.
+
 
       return ok({ success: true, override: next });
     }
