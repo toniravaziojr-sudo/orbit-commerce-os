@@ -194,10 +194,34 @@ export function AdsAILearningsTab() {
               </p>
             )}
 
-            {filtered.map((l) => (
+            {filtered.map((l) => {
+              // Tarja humana para feedbacks de copy/imagem: "Feedback de Título — Produto".
+              const meta = (l.metadata || {}) as Record<string, any>;
+              const subtype = String(meta.subtype || "");
+              const product = String(meta.product_name || "").trim();
+              let feedbackTag: string | null = null;
+              if (subtype === "creative_copy_feedback") {
+                const labelMap: Record<string, string> = {
+                  headline: "Título",
+                  primary_text: "Texto",
+                  description: "Descrição",
+                  copy: "Copy",
+                };
+                const lbl = labelMap[String(meta.field || "")] || (meta.field_label_pt ? String(meta.field_label_pt) : "Copy");
+                const pretty = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+                feedbackTag = `Feedback de ${pretty}${product ? ` — ${product}` : ""}`;
+              } else if (subtype === "creative_image_feedback") {
+                feedbackTag = `Feedback de Imagem${product ? ` — ${product}` : ""}`;
+              }
+              return (
               <div key={l.id} className="border rounded-md p-3 flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
+                    {feedbackTag && (
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {feedbackTag}
+                      </Badge>
+                    )}
                     <Badge variant={STATUS_VARIANT[l.status]}>{LEARNING_STATUS_LABELS[l.status]}</Badge>
                     <Badge variant="outline">{LEARNING_CATEGORY_LABELS[l.category] || l.category}</Badge>
                     <span className="text-xs text-muted-foreground">
