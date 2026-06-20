@@ -1282,7 +1282,7 @@ export function MeliListingCreator({
                     name="condition"
                     value={opt.value}
                     checked={condition === opt.value}
-                    onChange={(e) => setCondition(e.target.value)}
+                    onChange={(e) => { setCondition(e.target.value); void persistBulkSettings({ condition: e.target.value }); }}
                     className="sr-only"
                   />
                   <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
