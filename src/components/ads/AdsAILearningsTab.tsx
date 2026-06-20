@@ -264,7 +264,8 @@ export function AdsAILearningsTab() {
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </TabsContent>
         </Tabs>
       </CardContent>
