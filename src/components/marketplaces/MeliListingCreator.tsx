@@ -143,8 +143,10 @@ export function MeliListingCreator({
   onBulkCreate,
   isSubmitting,
   onRefetch,
+  existingDrafts,
 }: MeliListingCreatorProps) {
   const { currentTenant } = useAuth();
+  const isConfigureMode = !!existingDrafts && existingDrafts.length > 0;
 
   // Step 1: Selection
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
