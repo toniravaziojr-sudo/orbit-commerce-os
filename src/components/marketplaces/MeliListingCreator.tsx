@@ -44,6 +44,18 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
+export interface ExistingDraft {
+  id: string;
+  product_id: string;
+  title: string | null;
+  description: string | null;
+  category_id: string | null;
+  condition?: string | null;
+  listing_type?: string | null;
+  shipping?: Record<string, any> | null;
+  product?: { name: string } | null;
+}
+
 interface MeliListingCreatorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +76,8 @@ interface MeliListingCreatorProps {
   }) => Promise<any>;
   isSubmitting: boolean;
   onRefetch: () => void;
+  /** When provided, dialog opens in "configure existing drafts" mode: skips product selection and draft creation, jumps to Categories step. */
+  existingDrafts?: ExistingDraft[];
 }
 
 type Step = "select" | "categories" | "titles" | "descriptions" | "condition" | "listing_type" | "shipping";
@@ -129,8 +143,10 @@ export function MeliListingCreator({
   onBulkCreate,
   isSubmitting,
   onRefetch,
+  existingDrafts,
 }: MeliListingCreatorProps) {
   const { currentTenant } = useAuth();
+  const isConfigureMode = !!existingDrafts && existingDrafts.length > 0;
 
   // Step 1: Selection
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
@@ -193,6 +209,33 @@ export function MeliListingCreator({
       setExpandedDescs(new Set());
     }
   }, [open]);
+
+  // Initialize for "configure existing drafts" mode
+  useEffect(() => {
+    if (!open || !isConfigureMode || !existingDrafts) return;
+    const items: GeneratedItem[] = existingDrafts.map(d => ({
+      listingId: d.id,
+      productId: d.product_id,
+      productName: d.product?.name || "Produto",
+      title: d.title || "",
+      description: d.description || "",
+      categoryId: d.category_id || "",
+      categoryName: d.category_id || "",
+      categoryPath: "",
+    }));
+    setGeneratedItems(items);
+    setListingIds(existingDrafts.map(d => d.id));
+    setStep("categories");
+    // Pre-fill condition/listing_type/shipping from first draft
+    const first = existingDrafts[0];
+    if (first.condition) setCondition(first.condition);
+    if (first.listing_type) setListingType(first.listing_type);
+    if (first.shipping) {
+      setFreeShipping(!!first.shipping.free_shipping);
+      setLocalPickup(!!first.shipping.local_pick_up);
+    }
+  }, [open, isConfigureMode, existingDrafts]);
+
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
@@ -634,18 +677,24 @@ export function MeliListingCreator({
   const goNext = async () => {
     const idx = currentStepIndex;
     if (idx === 0) {
-      // Select → Categories: create drafts + auto-categorize
+      // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
       setStep("categories");
-      setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+      }
     } else if (idx === 1) {
-      // Categories → Titles: generate titles (category already set, max_title_length respected)
+      // Categories → Titles: generate titles only on first pass (creation mode)
       setStep("titles");
-      setTimeout(() => handleGenerateTitles(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleGenerateTitles(), 100);
+      }
     } else if (idx === 2) {
-      // Titles → Descriptions: save titles, then generate descriptions
+      // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
       await handleSaveTitles();
       setStep("descriptions");
-      setTimeout(() => handleGenerateDescriptions(), 100);
+      if (!isConfigureMode) {
+        setTimeout(() => handleGenerateDescriptions(), 100);
+      }
     } else if (idx === 3) {
       // Descriptions → Condition
       await handleSaveDescriptions();
@@ -657,12 +706,14 @@ export function MeliListingCreator({
     }
   };
 
+  const minStepIndex = isConfigureMode ? 1 : 0;
   const goBack = () => {
     const idx = currentStepIndex;
-    if (idx > 0) {
+    if (idx > minStepIndex) {
       setStep(STEPS[idx - 1].key);
     }
   };
+
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
@@ -698,24 +749,29 @@ export function MeliListingCreator({
 
           {/* Step indicators */}
           <div className="flex items-center gap-1.5 pt-2 flex-wrap">
-            {STEPS.map((s, i) => (
-              <div key={s.key} className="flex items-center gap-1.5">
-                {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
-                <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
-                  currentStepIndex === i ? "bg-primary text-primary-foreground" :
-                  i < currentStepIndex ? "bg-primary/20 text-primary" :
-                  "bg-muted text-muted-foreground"
-                }`}>
-                  {i < currentStepIndex ? (
-                    <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <span>{i + 1}</span>
-                  )}
-                  <span className="hidden sm:inline">{s.label}</span>
+            {STEPS.filter((_, i) => i >= minStepIndex).map((s) => {
+              const i = STEPS.findIndex(x => x.key === s.key);
+              const displayIndex = i - minStepIndex;
+              return (
+                <div key={s.key} className="flex items-center gap-1.5">
+                  {displayIndex > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                  <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
+                    currentStepIndex === i ? "bg-primary text-primary-foreground" :
+                    i < currentStepIndex ? "bg-primary/20 text-primary" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {i < currentStepIndex ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <span>{displayIndex + 1}</span>
+                    )}
+                    <span className="hidden sm:inline">{s.label}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
         </DialogHeader>
 
         {/* ===== STEP 1: Select Products ===== */}
@@ -1152,7 +1208,7 @@ export function MeliListingCreator({
 
         {/* Footer */}
         <DialogFooter className="gap-2 pt-4 border-t shrink-0">
-          {currentStepIndex > 0 && !isProcessing && (
+          {currentStepIndex > minStepIndex && !isProcessing && (
             <Button variant="outline" onClick={goBack}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
