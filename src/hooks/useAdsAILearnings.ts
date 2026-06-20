@@ -26,6 +26,7 @@ export interface AdsAILearning {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  metadata?: Record<string, any> | null;
 }
 
 export const LEARNING_CATEGORY_LABELS: Record<LearningCategory, string> = {

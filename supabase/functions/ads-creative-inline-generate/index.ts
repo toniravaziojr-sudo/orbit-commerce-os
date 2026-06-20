@@ -654,6 +654,25 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       }
 
       // regen single field
+      // Grava o aprendizado ANTES de processar a saída da IA — o feedback do
+      // lojista é aprendizado mesmo que a IA venha vazia/truncada/falhe.
+      const fieldLabelPt = field === "headline" ? "título" : field === "primary_text" ? "texto" : "descrição";
+      const fieldLabelTitle = fieldLabelPt.charAt(0).toUpperCase() + fieldLabelPt.slice(1);
+      await recordLearning(
+        supabase, tenantId, actionId, userId,
+        "creative_copy_feedback",
+        `Feedback de ${fieldLabelTitle} — ${briefing.productName || "anúncio"}`,
+        feedback,
+        {
+          ad_index: adIndex,
+          field,
+          field_label_pt: fieldLabelPt,
+          funnel_stage: briefing.stage,
+          product_name: briefing.productName,
+          before: { headline: currHeadline, primary_text: currPrimary, description: currDesc },
+        },
+      );
+
       const value = String(parsed?.[field] || "").trim();
       const limit = COPY_LIMITS[field as keyof typeof COPY_LIMITS];
       const sliced = smartTrim(value, limit);
@@ -666,21 +685,6 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         : { [field]: sliced, copy_source: "ai_inline" };
 
       await persist(patch, plannedPatch);
-
-      await recordLearning(
-        supabase, tenantId, actionId, userId,
-        "creative_copy_feedback",
-        `Campo ${field} do anúncio #${adIndex + 1} regenerado`,
-        feedback,
-        {
-          ad_index: adIndex,
-          field,
-          funnel_stage: briefing.stage,
-          product_name: briefing.productName,
-          before: { headline: currHeadline, primary_text: currPrimary, description: currDesc },
-          after: { [field]: sliced },
-        },
-      );
 
       return ok({ success: true, [field]: sliced });
     }
@@ -784,6 +788,17 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       }
 
       if (!resolvedProductId || !productImageUrl) {
+        // Mesmo sem produto resolvido, se for regen com feedback, registramos
+        // o feedback como aprendizado para não perder a direção do lojista.
+        if (isRegen && feedback) {
+          await recordLearning(
+            supabase, tenantId, actionId, userId,
+            "creative_image_feedback",
+            `Feedback de Imagem — ${pName || productNameHint || "anúncio"}`,
+            feedback,
+            { ad_index: adIndex, product_name: pName || productNameHint || null, product_resolved: false },
+          );
+        }
         return ok({
           success: false,
           error_pt: !resolvedProductId
@@ -792,6 +807,19 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
         });
       }
       const productId = resolvedProductId;
+
+      // Grava aprendizado de imagem ANTES de chamar o gerador — feedback é
+      // aprendizado mesmo se a geração demorar/falhar.
+      if (isRegen) {
+        await recordLearning(
+          supabase, tenantId, actionId, userId,
+          "creative_image_feedback",
+          `Feedback de Imagem — ${pName || "anúncio"}`,
+          feedback,
+          { ad_index: adIndex, product_id: productId, product_name: pName || null },
+        );
+      }
+
 
       const visualPrompt = plannedItem.visual_prompt || adItem.creative_prompt || "";
       const basePrompt = isRegen
@@ -874,15 +902,8 @@ Gere uma versão NOVA APENAS do ${labelPt}, radicalmente diferente da versão at
       };
       await persist(patch, plannedPatch);
 
-      if (isRegen) {
-        await recordLearning(
-          supabase, tenantId, actionId, userId,
-          "creative_image_feedback",
-          `Imagem do anúncio #${adIndex + 1} regenerada`,
-          feedback,
-          { ad_index: adIndex, regen_job_id: jobId, product_id: productId },
-        );
-      }
+      // Aprendizado de imagem já foi gravado antes da chamada do gerador.
+
 
       return ok({ success: true, image_url: newUrl, job_id: jobId });
     }

@@ -195,8 +195,26 @@ Deno.serve(async (req) => {
       }
 
       if (!productId || !productImageUrl) {
+        // Mesmo sem produto resolvido, registra o feedback como aprendizado.
+        await recordLearning(
+          supabase, tenantId, actionId, userId,
+          "creative_image_feedback",
+          `Feedback de Imagem — ${productName || "anúncio"}`,
+          feedback,
+          { creative_index: creativeIndex, product_name: productName || null, product_resolved: false },
+        );
         return ok({ success: false, error_pt: "Produto da campanha não encontrado para regenerar a imagem." });
       }
+
+      // Grava aprendizado ANTES de chamar o gerador — feedback não pode
+      // ser perdido se a geração demorar/falhar.
+      await recordLearning(
+        supabase, tenantId, actionId, userId,
+        "creative_image_feedback",
+        `Feedback de Imagem — ${productName || "anúncio"}`,
+        feedback,
+        { creative_index: creativeIndex, product_id: productId, product_name: productName || null },
+      );
 
       const promptHint = `Ajustes pedidos pelo usuário: ${feedback}`.slice(0, 1200);
 
@@ -261,13 +279,8 @@ Deno.serve(async (req) => {
         action_data: { ...propData, creative_overrides: overrides },
       }).eq("id", actionId);
 
-      await recordLearning(
-        supabase, tenantId, actionId, userId,
-        "creative_image_feedback",
-        `Imagem do anúncio #${creativeIndex + 1} regenerada`,
-        feedback,
-        { creative_index: creativeIndex, regen_job_id: jobId, product_id: productId },
-      );
+      // Aprendizado de imagem já foi gravado antes da chamada do gerador.
+
 
       return ok({ success: true, override: next });
     }
@@ -279,8 +292,21 @@ Deno.serve(async (req) => {
         return ok({ success: false, error_pt: "Conte como você quer a copy diferente antes de regenerar." });
       }
 
+      const productName = String(planned.product_name || propData?.campaign?.product_name || "").trim();
+
+      // Grava o feedback como aprendizado ANTES da IA — não pode ser perdido
+      // se a IA vier vazia/falhar.
+      await recordLearning(
+        supabase, tenantId, actionId, userId,
+        "creative_copy_feedback",
+        `Feedback de Copy — ${productName || "anúncio"}`,
+        feedback,
+        { creative_index: creativeIndex, product_name: productName || null, field: "copy", field_label_pt: "copy" },
+      );
+
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) return ok({ success: false, error_pt: "Serviço de IA indisponível no momento." });
+
 
       const baseHeadline = current.headline || planned.headline || (propData.campaign?.name) || "";
       const baseCopy = current.copy || planned.copy || planned.primary_text || "";
@@ -346,16 +372,11 @@ Reescreva mantendo a oferta e a clareza. Não invente desconto/garantia que não
         action_data: { ...propData, creative_overrides: overrides },
       }).eq("id", actionId);
 
-      await recordLearning(
-        supabase, tenantId, actionId, userId,
-        "creative_copy_feedback",
-        `Copy do anúncio #${creativeIndex + 1} regenerada`,
-        feedback,
-        { creative_index: creativeIndex, before: { headline: baseHeadline, copy: baseCopy, cta: baseCta }, after: { headline, copy, cta } },
-      );
+      // Aprendizado de copy já foi gravado antes da chamada da IA.
 
       return ok({ success: true, override: next });
     }
+
 
     return ok({ success: false, error_pt: "Ação não suportada." });
   } catch (e) {
