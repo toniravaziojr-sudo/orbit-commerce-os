@@ -249,6 +249,8 @@ export function MeliListingCreator({
       setListingIds([]);
       setIsProcessing(false);
       setProcessingProgress(0);
+      setProcessingLabel("");
+      setIsNavigating(false);
       setCondition("new");
       setListingType("gold_special");
       setFreeShipping(false);
