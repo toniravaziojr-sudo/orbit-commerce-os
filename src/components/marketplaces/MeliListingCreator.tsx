@@ -1208,7 +1208,7 @@ export function MeliListingCreator({
 
         {/* Footer */}
         <DialogFooter className="gap-2 pt-4 border-t shrink-0">
-          {currentStepIndex > 0 && !isProcessing && (
+          {currentStepIndex > minStepIndex && !isProcessing && (
             <Button variant="outline" onClick={goBack}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
