@@ -1387,7 +1387,7 @@ export function MeliListingCreator({
                     <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
                   </div>
                 </div>
-                <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
+                <Switch checked={localPickup} onCheckedChange={(v) => { setLocalPickup(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: freeShipping, local_pick_up: v } }); }} />
               </div>
             </div>
           </div>
