@@ -161,6 +161,7 @@ export function MeliListingCreator({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingLabel, setProcessingLabel] = useState("");
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Step 5, 6 & 7
   const [condition, setCondition] = useState("new");
@@ -248,6 +249,8 @@ export function MeliListingCreator({
       setListingIds([]);
       setIsProcessing(false);
       setProcessingProgress(0);
+      setProcessingLabel("");
+      setIsNavigating(false);
       setCondition("new");
       setListingType("gold_special");
       setFreeShipping(false);
@@ -740,20 +743,18 @@ export function MeliListingCreator({
 
   // ====== Save titles to DB when moving to next step ======
   const handleSaveTitles = async () => {
-    for (const item of generatedItems) {
-      if (item.title) {
-        await supabase.from("meli_listings").update({ title: item.title }).eq("id", item.listingId);
-      }
-    }
+    const ops = generatedItems
+      .filter(item => item.title)
+      .map(item => supabase.from("meli_listings").update({ title: item.title }).eq("id", item.listingId));
+    if (ops.length) await Promise.all(ops);
   };
 
   // ====== Save descriptions to DB ======
   const handleSaveDescriptions = async () => {
-    for (const item of generatedItems) {
-      if (item.description) {
-        await supabase.from("meli_listings").update({ description: item.description }).eq("id", item.listingId);
-      }
-    }
+    const ops = generatedItems
+      .filter(item => item.description)
+      .map(item => supabase.from("meli_listings").update({ description: item.description }).eq("id", item.listingId));
+    if (ops.length) await Promise.all(ops);
   };
 
   // ====== Final save: condition + listing_type + shipping ======
@@ -789,35 +790,44 @@ export function MeliListingCreator({
 
   // ====== Step navigation ======
   const goNext = async () => {
-    await flushPendingEdits();
-    const idx = currentStepIndex;
-    if (idx === 0) {
-      // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
-      setStep("categories");
-      if (!isConfigureMode) {
-        setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+    if (isNavigating) return;
+    setIsNavigating(true);
+    try {
+      await flushPendingEdits();
+      const idx = currentStepIndex;
+      // Clear stale progress label from previous step
+      setProcessingLabel("");
+      setProcessingProgress(0);
+      if (idx === 0) {
+        // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
+        setStep("categories");
+        if (!isConfigureMode) {
+          setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+        }
+      } else if (idx === 1) {
+        // Categories → Titles: generate titles only on first pass (creation mode)
+        setStep("titles");
+        if (!isConfigureMode) {
+          setTimeout(() => handleGenerateTitles(), 100);
+        }
+      } else if (idx === 2) {
+        // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
+        await handleSaveTitles();
+        setStep("descriptions");
+        if (!isConfigureMode) {
+          setTimeout(() => handleGenerateDescriptions(), 100);
+        }
+      } else if (idx === 3) {
+        // Descriptions → Condition
+        await handleSaveDescriptions();
+        setStep("condition");
+      } else if (idx === 4) {
+        setStep("listing_type");
+      } else if (idx === 5) {
+        setStep("shipping");
       }
-    } else if (idx === 1) {
-      // Categories → Titles: generate titles only on first pass (creation mode)
-      setStep("titles");
-      if (!isConfigureMode) {
-        setTimeout(() => handleGenerateTitles(), 100);
-      }
-    } else if (idx === 2) {
-      // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
-      await handleSaveTitles();
-      setStep("descriptions");
-      if (!isConfigureMode) {
-        setTimeout(() => handleGenerateDescriptions(), 100);
-      }
-    } else if (idx === 3) {
-      // Descriptions → Condition
-      await handleSaveDescriptions();
-      setStep("condition");
-    } else if (idx === 4) {
-      setStep("listing_type");
-    } else if (idx === 5) {
-      setStep("shipping");
+    } finally {
+      setIsNavigating(false);
     }
   };
 
@@ -840,30 +850,38 @@ export function MeliListingCreator({
     const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
     if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
     autoGenDescDoneRef.current = true;
+
+    let cancelled = false;
     (async () => {
       if (!currentTenant?.id) return;
       setIsProcessing(true);
-      setProcessingProgress(0);
-      setProcessingLabel("Gerando descrições via IA...");
+      // Start with a small visible progress so the bar doesn't look stuck at 0%
+      setProcessingProgress(2);
+      setProcessingLabel(`Gerando descrições via IA (0/${emptyIds.length})...`);
       try {
         let offset = 0;
         const limit = 5;
         let hasMore = true;
         let totalProcessed = 0;
-        while (hasMore) {
+        while (hasMore && !cancelled) {
           const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
             body: { tenantId: currentTenant.id, action: "bulk_generate_descriptions", offset, limit, listingIds: emptyIds },
           });
+          if (cancelled) return;
           if (error || !data?.success) break;
           hasMore = data.hasMore;
           offset += limit;
           totalProcessed += data.processed || 0;
-          setProcessingProgress(Math.round((totalProcessed / emptyIds.length) * 100));
+          const pct = Math.max(2, Math.min(99, Math.round((totalProcessed / emptyIds.length) * 100)));
+          setProcessingProgress(pct);
+          setProcessingLabel(`Gerando descrições via IA (${Math.min(totalProcessed, emptyIds.length)}/${emptyIds.length})...`);
         }
+        if (cancelled) return;
         const { data: updated } = await supabase
           .from("meli_listings")
           .select("id, description")
           .in("id", emptyIds);
+        if (cancelled) return;
         if (updated) {
           setGeneratedItems(prev => prev.map(item => {
             const u = updated.find(l => l.id === item.listingId);
@@ -873,11 +891,16 @@ export function MeliListingCreator({
       } catch (err) {
         console.error("Auto-gen descriptions error:", err);
       } finally {
-        setIsProcessing(false);
-        setProcessingProgress(100);
+        if (!cancelled) {
+          setIsProcessing(false);
+          setProcessingProgress(100);
+          setProcessingLabel("");
+        }
       }
     })();
-  }, [open, step, isConfigureMode, isProcessing, generatedItems, currentTenant?.id]);
+
+    return () => { cancelled = true; };
+  }, [open, step, isConfigureMode, currentTenant?.id]);
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
@@ -1427,12 +1450,12 @@ export function MeliListingCreator({
               Salvar {generatedItems.length} Anúncio{generatedItems.length > 1 ? "s" : ""}
             </Button>
           ) : (
-            <Button onClick={goNext} disabled={!canGoNext() || isSubmitting}>
-              {isSubmitting ? (
+            <Button onClick={goNext} disabled={!canGoNext() || isSubmitting || isNavigating}>
+              {(isSubmitting || isNavigating) ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
-              Continuar
-              <ArrowRight className="h-4 w-4 ml-2" />
+              {isNavigating ? "Salvando..." : "Continuar"}
+              {!isNavigating && <ArrowRight className="h-4 w-4 ml-2" />}
             </Button>
           )}
         </DialogFooter>
