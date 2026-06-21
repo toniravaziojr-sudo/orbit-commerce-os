@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
         id, name, sku, description, short_description, price, weight, width, height, length,
         brand, gtin, condition, warranty, warranty_months, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
-        ai_product_type, ai_main_function
+        ai_product_type, ai_main_function,
+        dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
+        fragrance_name, recommended_hair_types, treatment_types, expected_effects
       `)
       .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
     if (pErr || !product) return json({ success: false, error: "Produto não encontrado" });
