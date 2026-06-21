@@ -788,5 +788,13 @@ IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fa
 ### UI (Etapa 5B — em andamento)
 Painel "Atributos para o anúncio" dentro do dialog de novo/editar anúncio do ML, abaixo do seletor de categoria. Três blocos visuais (preenchido / revisar / faltando) e botão de publicação desabilitado enquanto houver faltando.
 
+### Atributos cosméticos no cadastro (Etapa 5.5 — concluída 2026-06-21)
+Quando o regime regulatório do produto é **ANVISA Cosmético**, o cadastro exibe um cartão extra **"Atributos Cosméticos"** com 9 campos: Dermatologicamente testado, Hipoalergênico, Livre de crueldade, Vegano, Com fragrância (todos tri-state Sim/Não/Não se aplica), Nome da fragrância (texto), Tipos de cabelo recomendados (multi-tag), Tipos de tratamento (multi-tag) e Efeitos esperados (texto).
+
+Esses campos são consumidos diretamente pelo motor de atributos do Mercado Livre e mapeados para os IDs `DERMATOLOGICALLY_TESTED`, `HYPOALLERGENIC`, `CRUELTY_FREE`, `IS_VEGAN`, `WITH_FRAGRANCE`, `FRAGRANCE`, `HAIR_TYPES`, `HAIR_TREATMENT_TYPE` e `EFFECTS` com status ✅ Preenchido (sem precisar de IA).
+
+**Aplicar atributos em lote:** botão na lista de produtos abre dialog que permite selecionar N produtos cosméticos, marcar quais atributos propagar e aplicar em 1 clique — mesmo padrão de "Aplicar a todos" usado em título/descrição.
+
 ### Aprendizado por tenant
 Correção manual feita pelo lojista vira aprendizado escopado por tenant (a ser conectado em fase seguinte).
+
