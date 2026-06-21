@@ -134,6 +134,9 @@ Deno.serve(async (req) => {
     if (action === "update") {
       return await updateListing(accessToken, listing, productImages, supabase);
     }
+    if (action === "delete") {
+      return await deleteListingOnMeli(accessToken, listing, supabase);
+    }
 
     // Default: publish new listing
     if (listing.status !== "approved" && listing.status !== "error") {
@@ -514,4 +517,45 @@ async function updateListing(accessToken: string, listing: any, productImages: a
 
   await supabase.from("meli_listings").update({ meli_response: data }).eq("id", listing.id);
   return jsonResponse({ success: true, message: "Anúncio atualizado no Mercado Livre" });
+}
+
+async function deleteListingOnMeli(accessToken: string, listing: any, supabase: any) {
+  // If never published, just delete locally
+  if (!listing.meli_item_id) {
+    const { error: delErr } = await supabase.from("meli_listings").delete().eq("id", listing.id);
+    if (delErr) return jsonResponse({ success: false, error: "Falha ao remover anúncio local" });
+    return jsonResponse({ success: true, message: "Anúncio removido" });
+  }
+
+  // Mercado Livre flow: pause (if active) → close. Closed is definitive.
+  try {
+    // Best-effort pause first (ignore failures — closing from active is allowed in many categories,
+    // but pausing first avoids edge cases like "cannot close active item with open orders" type errors).
+    if (listing.status === "published") {
+      await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "paused" }),
+      });
+    }
+
+    const closeRes = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "closed" }),
+    });
+    const closeData = await closeRes.json().catch(() => ({}));
+    if (!closeRes.ok) {
+      const msg = closeData?.message || "Erro ao encerrar anúncio no Mercado Livre";
+      return jsonResponse({ success: false, error: msg, details: closeData });
+    }
+  } catch (err: any) {
+    return jsonResponse({ success: false, error: err?.message || "Erro de rede ao encerrar no ML" });
+  }
+
+  // Delete local record
+  const { error: delErr } = await supabase.from("meli_listings").delete().eq("id", listing.id);
+  if (delErr) return jsonResponse({ success: false, error: "Anúncio encerrado no ML, mas falhou remover localmente" });
+
+  return jsonResponse({ success: true, message: "Anúncio encerrado no Mercado Livre e removido" });
 }

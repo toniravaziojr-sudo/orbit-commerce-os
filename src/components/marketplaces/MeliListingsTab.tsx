@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   Package,
@@ -21,11 +21,8 @@ import {
   Pause,
   Play,
   RefreshCw,
-  Sparkles,
-  FileText,
-  Tags,
-  PackagePlus,
   Settings2,
+  AlertCircle,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
@@ -35,7 +32,6 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { showErrorToast } from '@/lib/error-toast';
 
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
@@ -70,21 +66,31 @@ export function MeliListingsTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfigure, setShowBulkConfigure] = useState(false);
 
-
-  // Bulk operations state
-  const [bulkAction, setBulkAction] = useState<string | null>(null);
-  const [bulkProgress, setBulkProgress] = useState({ processed: 0, total: 0, label: "" });
+  // Tabs: drafts (default) | published | pending
+  type TabKey = 'drafts' | 'published' | 'pending';
+  const [activeTab, setActiveTab] = useState<TabKey>('drafts');
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
 
-  const allSelected = listings.length > 0 && selectedIds.size === listings.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < listings.length;
+  const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
+  const publishedCount = listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status)).length;
+  const pendingCount = listings.filter(l => l.status === 'error').length;
+
+  const filteredListings = useMemo(() => {
+    if (activeTab === 'drafts') return listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status));
+    if (activeTab === 'published') return listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status));
+    return listings.filter(l => l.status === 'error');
+  }, [listings, activeTab]);
+
+  // Selection scoped to currently visible tab
+  const allSelected = filteredListings.length > 0 && filteredListings.every(l => selectedIds.has(l.id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
 
   const toggleSelectAll = () => {
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(listings.map(l => l.id)));
+      setSelectedIds(new Set(filteredListings.map(l => l.id)));
     }
   };
 
@@ -194,176 +200,42 @@ export function MeliListingsTab() {
   };
 
   const handleDelete = async (id: string) => {
+    const listing = listings.find(l => l.id === id);
+    const isPublishedOnML = !!listing?.meli_item_id && ['published', 'paused', 'publishing'].includes(listing?.status || '');
+    const description = isPublishedOnML
+      ? "Este anúncio será encerrado no Mercado Livre de forma definitiva (sai do ar, o link público para de funcionar) e removido do sistema. Não há como reverter."
+      : "Tem certeza que deseja remover este anúncio? Esta ação não pode ser desfeita.";
     const ok = await confirmAction({
-      title: "Remover anúncio",
-      description: "Tem certeza que deseja remover este anúncio? Esta ação não pode ser desfeita.",
-      confirmLabel: "Remover",
+      title: isPublishedOnML ? "Encerrar e remover anúncio" : "Remover anúncio",
+      description,
+      confirmLabel: isPublishedOnML ? "Encerrar no ML e remover" : "Remover",
       variant: "destructive",
     });
     if (ok) deleteListing.mutate(id);
   };
 
   const handleBulkDelete = async () => {
-    const deletableIds = Array.from(selectedIds).filter(id => {
-      const listing = listings.find(l => l.id === id);
-      return listing && !['published', 'publishing'].includes(listing.status);
-    });
-    if (deletableIds.length === 0) {
-      toast.error("Nenhum anúncio selecionado pode ser excluído (apenas rascunhos/aprovados/erros).");
-      return;
-    }
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const items = ids.map(id => listings.find(l => l.id === id)).filter(Boolean) as MeliListing[];
+    const publishedCount = items.filter(l => l.meli_item_id && ['published', 'paused', 'publishing'].includes(l.status)).length;
+    const description = publishedCount > 0
+      ? `Você está prestes a remover ${ids.length} anúncio${ids.length > 1 ? "s" : ""}. ${publishedCount} ${publishedCount > 1 ? "estão publicados" : "está publicado"} no Mercado Livre e ${publishedCount > 1 ? "serão encerrados de forma definitiva" : "será encerrado de forma definitivo"} (sai do ar, link público para de funcionar). Não há como reverter.`
+      : `Excluir ${ids.length} anúncio${ids.length > 1 ? "s" : ""}? Esta ação não pode ser desfeita.`;
     const ok = await confirmAction({
-      title: "Excluir anúncios",
-      description: `Excluir ${deletableIds.length} anúncio${deletableIds.length > 1 ? "s" : ""}? Esta ação não pode ser desfeita.`,
-      confirmLabel: "Excluir",
+      title: publishedCount > 0 ? "Encerrar e remover anúncios" : "Excluir anúncios",
+      description,
+      confirmLabel: publishedCount > 0 ? "Encerrar no ML e remover" : "Excluir",
       variant: "destructive",
     });
     if (!ok) return;
-    bulkDeleteListings.mutate(deletableIds);
+    bulkDeleteListings.mutate(ids);
     setSelectedIds(new Set());
   };
 
   const handleApprove = (id: string) => approveListing.mutate(id);
 
-  const handleBulkSend = async () => {
-    // Sendable: draft, ready, approved, error (exclude published/publishing/paused)
-    const sendableIds = Array.from(selectedIds).filter(id => {
-      const listing = listings.find(l => l.id === id);
-      return listing && ['draft', 'ready', 'approved', 'error'].includes(listing.status);
-    });
-    if (sendableIds.length === 0) {
-      toast.error("Nenhum anúncio selecionado pode ser enviado.");
-      return;
-    }
-    const draftsToApprove = sendableIds.filter(id => {
-      const listing = listings.find(l => l.id === id);
-      return listing && ['draft', 'ready'].includes(listing.status);
-    });
-    const description = draftsToApprove.length > 0
-      ? `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre? (${draftsToApprove.length} rascunho${draftsToApprove.length > 1 ? "s" : ""} será${draftsToApprove.length > 1 ? "ão" : ""} aprovado${draftsToApprove.length > 1 ? "s" : ""} automaticamente)`
-      : `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre?`;
-    const ok = await confirmAction({
-      title: "Enviar anúncios",
-      description,
-      confirmLabel: "Enviar",
-      variant: "default",
-    });
-    if (!ok) return;
-    setBulkAction("bulk_send");
-    const total = sendableIds.length;
-    setBulkProgress({ processed: 0, total, label: "Enviando anúncios..." });
-
-    // Batch-approve drafts silently (single DB call, no individual toasts)
-    if (draftsToApprove.length > 0) {
-      try {
-        await supabase
-          .from('meli_listings')
-          .update({ status: 'approved' as const })
-          .in('id', draftsToApprove);
-      } catch { /* continue */ }
-    }
-
-    // Publish sequentially (edge function calls) - track results for summary toast
-    let successCount = 0;
-    let errorCount = 0;
-    for (const id of sendableIds) {
-      try {
-        const { data, error } = await supabase.functions.invoke('meli-publish-listing', {
-          body: {
-            tenantId: currentTenant?.id,
-            listingId: id,
-          },
-        });
-        if (error || !data?.success) {
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      } catch {
-        errorCount++;
-      }
-      setBulkProgress({ processed: successCount + errorCount, total, label: "Enviando anúncios..." });
-    }
-
-    // Single summary toast
-    if (successCount > 0) {
-      toast.success(`${successCount} anúncio${successCount > 1 ? "s" : ""} enviado${successCount > 1 ? "s" : ""} para publicação!`);
-    }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} anúncio${errorCount > 1 ? "s" : ""} com erro ao publicar`);
-    }
-    setSelectedIds(new Set());
-    setBulkAction(null);
-    setBulkProgress({ processed: 0, total: 0, label: "" });
-    refetch();
-  };
-
   const isActionLoading = (id: string) => actionLoadingId === id && publishListing.isPending;
-
-  // Bulk operation runner
-  const runBulkOperation = async (action: string, label: string) => {
-    if (!currentTenant?.id) return;
-    const selectedCount = selectedIds.size;
-    const confirmMsg = selectedCount > 0
-      ? `Executar "${label}" nos ${selectedCount} anúncios selecionados?`
-      : `Executar "${label}" em todos os anúncios? Isso pode levar alguns minutos.`;
-    const ok = await confirmAction({
-      title: label,
-      description: confirmMsg,
-      confirmLabel: "Executar",
-      variant: "warning",
-    });
-    if (!ok) return;
-
-    const listingIds = selectedCount > 0 ? Array.from(selectedIds) : undefined;
-
-    setBulkAction(action);
-    setBulkProgress({ processed: 0, total: 0, label });
-    let offset = 0;
-    const limit = 5;
-    let totalProcessed = 0;
-    let totalUpdated = 0;
-    let allErrors: string[] = [];
-
-    try {
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action, offset, limit, listingIds },
-        });
-        if (error || !data?.success) {
-          showErrorToast(error, { module: 'mercado livre', action: 'processar' });
-          break;
-        }
-        totalProcessed += data.processed || 0;
-        totalUpdated += (data.updated || data.created || 0);
-        allErrors = [...allErrors, ...(data.errors || [])];
-        hasMore = data.hasMore;
-        offset += limit;
-        setBulkProgress({ processed: totalProcessed, total: data.totalProducts || totalProcessed, label });
-      }
-
-      if (allErrors.length > 0) {
-        toast.warning(`${label}: ${totalUpdated} processados, ${allErrors.length} erros`);
-      } else {
-        toast.success(`${label}: ${totalUpdated} processados com sucesso!`);
-      }
-      refetch();
-      setSelectedIds(new Set());
-    } catch {
-      toast.error("Erro ao executar operação em massa");
-    } finally {
-      setBulkAction(null);
-      setBulkProgress({ processed: 0, total: 0, label: "" });
-    }
-  };
-
-  const bulkActions = [
-    { key: "bulk_create", label: "Enviar Todos", desc: "Cria rascunhos para todos os produtos sem anúncio", icon: PackagePlus },
-    { key: "bulk_generate_titles", label: "Gerar Títulos", desc: "IA gera títulos otimizados para o ML", icon: Sparkles },
-    { key: "bulk_generate_descriptions", label: "Gerar Descrições", desc: "IA converte descrições para texto plano", icon: FileText },
-    { key: "bulk_auto_categories", label: "Auto-Categorizar", desc: "Identifica categorias automaticamente", icon: Tags },
-  ];
 
   const [isSyncing, setIsSyncing] = useState(false);
   const handleSyncAll = async () => {
@@ -392,7 +264,7 @@ export function MeliListingsTab() {
             <div className="flex gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing || !!bulkAction}>
+                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing}>
                     {isSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Sincronizar
                   </Button>
@@ -406,114 +278,56 @@ export function MeliListingsTab() {
             </div>
           </div>
 
-          {/* Bulk Actions Bar */}
-          {listings.length > 0 && (
-            <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-muted-foreground">AÇÕES EM MASSA</p>
-                {selectedIds.size > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {bulkActions.map((ba) => {
-                  const Icon = ba.icon;
-                  const isRunning = bulkAction === ba.key;
-                  return (
-                    <Tooltip key={ba.key}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => runBulkOperation(ba.key, ba.label)}
-                          disabled={!!bulkAction}
-                          className="gap-1.5"
-                        >
-                          {isRunning ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Icon className="h-3.5 w-3.5" />
-                          )}
-                          {ba.label}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">{ba.desc}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-                {selectedIds.size > 0 && (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowBulkConfigure(true)}
-                          disabled={!!bulkAction}
-                          className="gap-1.5"
-                        >
-                          <Settings2 className="h-3.5 w-3.5" />
-                          Configurar Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Define categoria, marca, código de barras e garantia em lote</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
+          {/* Tabs */}
+          <div className="mt-4">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabKey); setSelectedIds(new Set()); }}>
+              <TabsList>
+                <TabsTrigger value="drafts" className="gap-2">
+                  Rascunhos
+                  {draftsCount > 0 && <Badge variant="secondary" className="text-xs">{draftsCount}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="published" className="gap-2">
+                  Publicados
+                  {publishedCount > 0 && <Badge variant="secondary" className="text-xs">{publishedCount}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="gap-2">
+                  Pendências
+                  {pendingCount > 0 && <Badge variant="destructive" className="text-xs">{pendingCount}</Badge>}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleBulkSend}
-                          disabled={!!bulkAction}
-                          className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          Enviar Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Aprova e publica os anúncios selecionados no Mercado Livre</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleBulkDelete}
-                          disabled={!!bulkAction}
-                          className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Excluir Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Remove os anúncios selecionados (exceto publicados)</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
+          {/* Bulk actions bar — only when something is selected */}
+          {selectedIds.size > 0 && (
+            <div className="mt-3 p-3 rounded-lg bg-muted/50 border flex items-center justify-between gap-2 flex-wrap">
+              <Badge variant="secondary" className="text-xs">
+                {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
+              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => setShowBulkConfigure(true)} className="gap-1.5">
+                      <Settings2 className="h-3.5 w-3.5" />
+                      Editar em Lote
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Reabre o assistente com os anúncios selecionados. Na última etapa, atualiza os anúncios já publicados no Mercado Livre.</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={handleBulkDelete} className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir Selecionados
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Remove os selecionados. Publicados são encerrados no Mercado Livre de forma definitiva.</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              {bulkAction && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>{bulkProgress.label}</span>
-                    <span>{bulkProgress.processed} / {bulkProgress.total || "?"}</span>
-                  </div>
-                  <Progress
-                    value={bulkProgress.total > 0 ? (bulkProgress.processed / bulkProgress.total) * 100 : 30}
-                    className="h-1.5"
-                  />
-                </div>
-              )}
             </div>
           )}
         </CardHeader>
@@ -523,27 +337,37 @@ export function MeliListingsTab() {
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
-          ) : listings.length === 0 ? (
+          ) : filteredListings.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4 opacity-40" />
-              <p className="font-medium">Nenhum anúncio preparado</p>
-              <p className="text-sm mt-1 max-w-sm mx-auto">
-                Selecione um produto e a IA preencherá título, descrição e categoria automaticamente.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center mt-4">
-                <Button onClick={() => setShowCreator(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Anúncio
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => runBulkOperation("bulk_create", "Enviar Todos")}
-                  disabled={!!bulkAction}
-                >
-                  <PackagePlus className="h-4 w-4 mr-2" />
-                  Enviar Todos os Produtos
-                </Button>
-              </div>
+              {activeTab === 'drafts' && (
+                <>
+                  <Package className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhum rascunho em andamento</p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Crie um novo anúncio. A IA preenche título, descrição e categoria automaticamente.
+                  </p>
+                  <div className="flex justify-center mt-4">
+                    <Button onClick={() => setShowCreator(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Anúncio
+                    </Button>
+                  </div>
+                </>
+              )}
+              {activeTab === 'published' && (
+                <>
+                  <Eye className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhum anúncio publicado</p>
+                  <p className="text-sm mt-1">Os anúncios ativos no Mercado Livre aparecem aqui.</p>
+                </>
+              )}
+              {activeTab === 'pending' && (
+                <>
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhuma pendência</p>
+                  <p className="text-sm mt-1">Anúncios com erro ou que precisam de revisão aparecem aqui.</p>
+                </>
+              )}
             </div>
           ) : (
             <Table>
@@ -567,7 +391,7 @@ export function MeliListingsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {listings.map((listing) => {
+                {filteredListings.map((listing) => {
                   const statusInfo = STATUS_MAP[listing.status] || STATUS_MAP.draft;
                   const loading = isActionLoading(listing.id);
                   return (
@@ -763,6 +587,8 @@ export function MeliListingsTab() {
           listing_type: l.listing_type,
           shipping: l.shipping,
           product: l.product ? { name: l.product.name } : null,
+          status: l.status,
+          meli_item_id: l.meli_item_id,
         })) : undefined}
       />
 
