@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.2.0"; // Add title to updateListing payload for post-publication editing
+const VERSION = "3.3.0"; // Auto-fill required category attributes (BRAND/LINE/MODEL/etc.) from product data
 // ===================
 
 const corsHeaders = {
@@ -216,12 +216,15 @@ Deno.serve(async (req) => {
     
     if (!attrIds.has("BRAND") && listing.product?.brand) {
       attributes.push({ id: "BRAND", value_name: listing.product.brand });
+      attrIds.add("BRAND");
     }
     if (!attrIds.has("GTIN") && listing.product?.gtin) {
       attributes.push({ id: "GTIN", value_name: listing.product.gtin });
+      attrIds.add("GTIN");
     }
     if (!attrIds.has("SELLER_SKU") && listing.product?.sku) {
       attributes.push({ id: "SELLER_SKU", value_name: listing.product.sku });
+      attrIds.add("SELLER_SKU");
     }
     
     // Note: PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH are NOT modifiable via attributes on ML
@@ -232,10 +235,71 @@ Deno.serve(async (req) => {
       if (!attrIds.has("WARRANTY_TYPE")) {
         const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantía del vendedor' : 'Garantía de fábrica';
         attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
+        attrIds.add("WARRANTY_TYPE");
       }
       if (!attrIds.has("WARRANTY_TIME") && listing.product.warranty_duration) {
         attributes.push({ id: "WARRANTY_TIME", value_name: listing.product.warranty_duration });
+        attrIds.add("WARRANTY_TIME");
       }
+    }
+
+    // ===== Auto-fill required category attributes =====
+    // Fetch category attribute specs and complete what's missing using sensible fallbacks.
+    const missingRequired: string[] = [];
+    try {
+      const attrSpecRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}/attributes`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      if (attrSpecRes.ok) {
+        const attrSpecs: any[] = await attrSpecRes.json();
+        const brandValue = listing.product?.brand || null;
+
+        for (const spec of attrSpecs) {
+          const isRequired = Array.isArray(spec.tags)
+            ? spec.tags.includes("required")
+            : spec?.tags?.required === true;
+          if (!isRequired) continue;
+          if (attrIds.has(spec.id)) continue;
+
+          // Try to autofill known attrs with sensible defaults
+          let autoValue: string | null = null;
+          switch (spec.id) {
+            case "BRAND":
+              autoValue = brandValue;
+              break;
+            case "LINE":
+            case "MODEL":
+              // Use brand as fallback line/model when no specific value exists
+              autoValue = brandValue;
+              break;
+            case "ITEM_CONDITION":
+              autoValue = listing.condition === "used" ? "Usado" : "Novo";
+              break;
+            case "GTIN":
+            case "EAN":
+              autoValue = listing.product?.gtin || null;
+              break;
+            default:
+              autoValue = null;
+          }
+
+          if (autoValue) {
+            attributes.push({ id: spec.id, value_name: String(autoValue) });
+            attrIds.add(spec.id);
+            console.log(`[meli-publish-listing] Auto-filled required attr ${spec.id} = ${autoValue}`);
+          } else {
+            missingRequired.push(spec.name || spec.id);
+          }
+        }
+      }
+    } catch (specErr) {
+      console.log(`[meli-publish-listing] Category attribute spec fetch skipped:`, specErr);
+    }
+
+    if (missingRequired.length > 0) {
+      const errMsg = `Esta categoria do Mercado Livre exige os seguintes campos obrigatórios que não estão no cadastro do produto: ${missingRequired.join(", ")}. Preencha-os no cadastro do produto e tente novamente.`;
+      await supabase.from("meli_listings").update({ status: "error", error_message: errMsg }).eq("id", listingId);
+      return jsonResponse({ success: false, error: errMsg, code: "missing_required_attributes", missing: missingRequired });
     }
 
     if (attributes.length > 0) {
