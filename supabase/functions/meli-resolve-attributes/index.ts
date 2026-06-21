@@ -277,6 +277,17 @@ Deno.serve(async (req) => {
         publico: product.gender_audience, regime: regulatoryRegime,
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
+        cosmetico: {
+          dermatologicamente_testado: product.dermatologically_tested,
+          hipoalergenico: product.hypoallergenic,
+          cruelty_free: product.cruelty_free,
+          vegano: product.vegan,
+          com_fragrancia: product.has_fragrance,
+          fragrancia: product.fragrance_name,
+          tipos_cabelo: product.recommended_hair_types,
+          tratamentos: product.treatment_types,
+          efeitos: product.expected_effects,
+        },
       };
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.
