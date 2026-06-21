@@ -17512,6 +17512,7 @@ export type Database = {
           external_reference: string | null
           free_shipping: boolean
           free_shipping_method: string | null
+          gender_audience: string | null
           gtin: string | null
           has_variants: boolean | null
           height: number | null
@@ -17523,6 +17524,8 @@ export type Database = {
           meta_retailer_id: string | null
           name: string
           ncm: string | null
+          net_content_unit: string | null
+          net_content_value: number | null
           no_additional_restrictions_confirmed: boolean
           origin_code: string | null
           price: number
@@ -17535,6 +17538,7 @@ export type Database = {
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
           regulatory_info: Json | null
+          regulatory_regime: string | null
           requires_shipping: boolean | null
           review_count: number | null
           seo_description: string | null
@@ -17549,6 +17553,7 @@ export type Database = {
           tax_code: string | null
           taxable: boolean | null
           tenant_id: string
+          universal_category_id: string | null
           uom: string | null
           updated_at: string
           vendor: string | null
@@ -17575,6 +17580,7 @@ export type Database = {
           external_reference?: string | null
           free_shipping?: boolean
           free_shipping_method?: string | null
+          gender_audience?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -17586,6 +17592,8 @@ export type Database = {
           meta_retailer_id?: string | null
           name: string
           ncm?: string | null
+          net_content_unit?: string | null
+          net_content_value?: number | null
           no_additional_restrictions_confirmed?: boolean
           origin_code?: string | null
           price: number
@@ -17598,6 +17606,7 @@ export type Database = {
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
           regulatory_info?: Json | null
+          regulatory_regime?: string | null
           requires_shipping?: boolean | null
           review_count?: number | null
           seo_description?: string | null
@@ -17612,6 +17621,7 @@ export type Database = {
           tax_code?: string | null
           taxable?: boolean | null
           tenant_id: string
+          universal_category_id?: string | null
           uom?: string | null
           updated_at?: string
           vendor?: string | null
@@ -17638,6 +17648,7 @@ export type Database = {
           external_reference?: string | null
           free_shipping?: boolean
           free_shipping_method?: string | null
+          gender_audience?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -17649,6 +17660,8 @@ export type Database = {
           meta_retailer_id?: string | null
           name?: string
           ncm?: string | null
+          net_content_unit?: string | null
+          net_content_value?: number | null
           no_additional_restrictions_confirmed?: boolean
           origin_code?: string | null
           price?: number
@@ -17661,6 +17674,7 @@ export type Database = {
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
           regulatory_info?: Json | null
+          regulatory_regime?: string | null
           requires_shipping?: boolean | null
           review_count?: number | null
           seo_description?: string | null
@@ -17675,6 +17689,7 @@ export type Database = {
           tax_code?: string | null
           taxable?: boolean | null
           tenant_id?: string
+          universal_category_id?: string | null
           uom?: string | null
           updated_at?: string
           vendor?: string | null
@@ -17689,6 +17704,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_universal_category_id_fkey"
+            columns: ["universal_category_id"]
+            isOneToOne: false
+            referencedRelation: "system_universal_categories"
             referencedColumns: ["id"]
           },
         ]

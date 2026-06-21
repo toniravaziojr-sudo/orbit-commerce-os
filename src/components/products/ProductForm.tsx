@@ -47,6 +47,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
 import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
+import { useUniversalCategories } from '@/hooks/useUniversalCategories';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
@@ -126,6 +127,16 @@ const productSchema = z.object({
   ai_product_type: z.string().max(120).nullable().optional(),
   ai_main_function: z.string().max(200).nullable().optional(),
 
+  // === CLASSIFICAÇÃO UNIVERSAL (marketplaces / IA de envio) ===
+  universal_category_id: z.string().uuid().nullable().optional().or(z.literal('')),
+  regulatory_regime: z.enum([
+    'none','anvisa_cosmetic','anvisa_health','anvisa_supplement','anvisa_medicine',
+    'inmetro','anatel','mapa','denatran','exercito','ibama','iss_servico','outros',''
+  ]).nullable().optional(),
+  net_content_value: z.coerce.number().positive().nullable().optional(),
+  net_content_unit: z.enum(['ml','l','g','kg','un','m','cm','m2','m3','']).nullable().optional(),
+  gender_audience: z.enum(['masculino','feminino','unissex','infantil','nao_aplicavel','']).nullable().optional(),
+
   // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
@@ -152,6 +163,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
   const { methods: availableShippingMethods } = useAvailableShippingMethods();
+  const { data: universalCategories = [] } = useUniversalCategories();
   const { toast } = useToast();
   const { currentTenant, user } = useAuth();
   const isEditing = !!product;
@@ -325,6 +337,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       // Contexto da IA
       ai_product_type: (product as any)?.ai_product_type ?? '',
       ai_main_function: (product as any)?.ai_main_function ?? '',
+
+      // Classificação universal
+      universal_category_id: (product as any)?.universal_category_id ?? '',
+      regulatory_regime: (product as any)?.regulatory_regime ?? '',
+      net_content_value: (product as any)?.net_content_value ?? null,
+      net_content_unit: (product as any)?.net_content_unit ?? '',
+      gender_audience: (product as any)?.gender_audience ?? '',
 
       // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
@@ -562,9 +581,20 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ai_product_type: apt, ai_main_function: amf, ...restData } = data;
-        await updateProduct.mutateAsync({ 
-          id: product.id, 
+        const {
+          regulatory_anvisa, regulatory_afe, regulatory_conama,
+          warranty_type: wt, warranty_duration: wd,
+          regulatory_category: rc,
+          commercial_restrictions: cr,
+          no_additional_restrictions_confirmed: nrc,
+          ai_product_type: apt, ai_main_function: amf,
+          universal_category_id: uci, regulatory_regime: rr,
+          net_content_value: ncv, net_content_unit: ncu,
+          gender_audience: ga,
+          ...restData
+        } = data;
+        await updateProduct.mutateAsync({
+          id: product.id,
           ...restData,
           regulatory_info: {
             anvisa: regulatory_anvisa || null,
@@ -578,6 +608,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           no_additional_restrictions_confirmed: nrc ?? false,
           ai_product_type: apt || null,
           ai_main_function: amf || null,
+          universal_category_id: uci || null,
+          regulatory_regime: rr || null,
+          net_content_value: ncv ?? null,
+          net_content_unit: ncu || null,
+          gender_audience: ga || null,
         } as any);
         
         // Update related products and variants
@@ -632,6 +667,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
           ai_product_type: data.ai_product_type || null,
           ai_main_function: data.ai_main_function || null,
+          universal_category_id: data.universal_category_id || null,
+          regulatory_regime: data.regulatory_regime || null,
+          net_content_value: data.net_content_value ?? null,
+          net_content_unit: data.net_content_unit || null,
+          gender_audience: data.gender_audience || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
@@ -1839,6 +1879,187 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormDescription>
                             Para que serve, qual problema resolve.
                           </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Classificação Universal</CardTitle>
+                  <CardDescription>
+                    Define como o produto será enquadrado em qualquer marketplace (Mercado Livre,
+                    Shopee, TikTok Shop). A IA usa esses dados para preencher automaticamente os
+                    atributos exigidos por cada canal no momento do envio.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="universal_category_id"
+                      render={({ field }) => {
+                        const tree = universalCategories;
+                        const macros = tree.filter((c: any) => c.level === 1);
+                        const subBy = (parentSlug: string) =>
+                          tree.filter((c: any) => c.parent_slug === parentSlug);
+                        return (
+                          <FormItem>
+                            <FormLabel>Categoria universal</FormLabel>
+                            <Select
+                              value={field.value || ''}
+                              onValueChange={(val) => {
+                                field.onChange(val);
+                                const selected = tree.find((c: any) => c.id === val) as any;
+                                const currentRegime = form.getValues('regulatory_regime');
+                                if (selected?.regulatory_regime && !currentRegime) {
+                                  form.setValue('regulatory_regime', selected.regulatory_regime as any, { shouldDirty: true });
+                                }
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione a categoria" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-80">
+                                {macros.map((macro: any) => (
+                                  <div key={macro.id}>
+                                    <SelectItem value={macro.id} className="font-semibold">
+                                      {macro.name}
+                                    </SelectItem>
+                                    {subBy(macro.slug).map((sub: any) => (
+                                      <SelectItem key={sub.id} value={sub.id} className="pl-8 text-sm">
+                                        — {sub.name}
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Usada pelos marketplaces e pela IA para mapear o produto.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="regulatory_regime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Regime regulatório</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o regime" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum (não regulado)</SelectItem>
+                              <SelectItem value="anvisa_cosmetic">ANVISA — Cosmético</SelectItem>
+                              <SelectItem value="anvisa_health">ANVISA — Saúde</SelectItem>
+                              <SelectItem value="anvisa_supplement">ANVISA — Suplemento</SelectItem>
+                              <SelectItem value="anvisa_medicine">ANVISA — Medicamento</SelectItem>
+                              <SelectItem value="inmetro">INMETRO</SelectItem>
+                              <SelectItem value="anatel">ANATEL</SelectItem>
+                              <SelectItem value="mapa">MAPA (alimentos / pet)</SelectItem>
+                              <SelectItem value="denatran">DENATRAN</SelectItem>
+                              <SelectItem value="exercito">Exército</SelectItem>
+                              <SelectItem value="ibama">IBAMA</SelectItem>
+                              <SelectItem value="iss_servico">ISS (serviço)</SelectItem>
+                              <SelectItem value="outros">Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Define quais campos regulatórios são exigidos no envio.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="net_content_value"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Conteúdo líquido</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
+                              placeholder="Ex: 250"
+                            />
+                          </FormControl>
+                          <FormDescription>Valor do conteúdo líquido da embalagem.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="net_content_unit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Unidade</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="ml">ml — mililitros</SelectItem>
+                              <SelectItem value="l">l — litros</SelectItem>
+                              <SelectItem value="g">g — gramas</SelectItem>
+                              <SelectItem value="kg">kg — quilos</SelectItem>
+                              <SelectItem value="un">un — unidades</SelectItem>
+                              <SelectItem value="m">m — metros</SelectItem>
+                              <SelectItem value="cm">cm — centímetros</SelectItem>
+                              <SelectItem value="m2">m² — metros quadrados</SelectItem>
+                              <SelectItem value="m3">m³ — metros cúbicos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Unidade do conteúdo líquido.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="gender_audience"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Público / gênero</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="masculino">Masculino</SelectItem>
+                              <SelectItem value="feminino">Feminino</SelectItem>
+                              <SelectItem value="unissex">Unissex</SelectItem>
+                              <SelectItem value="infantil">Infantil</SelectItem>
+                              <SelectItem value="nao_aplicavel">Não se aplica</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Público-alvo principal do produto.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
