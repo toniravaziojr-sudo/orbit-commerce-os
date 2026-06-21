@@ -1,93 +1,49 @@
-# Plano — Classificação Inteligente para Marketplaces (Cadastro + Envio)
+## Como funciona hoje
+A tela de Anúncios do Mercado Livre lista tudo junto (rascunho, publicado, pausado, erro) e tem uma barra de "Ações em Massa" com 7 botões — vários duplicam etapas que já existem dentro do dialog de criação. A publicação no ML hoje é uma ação separada depois de criar o rascunho. Excluir apaga só do nosso sistema, não encerra o anúncio no Mercado Livre. Pausar e reativar já sincronizam.
 
-## Status
-Aprovado em 2026-06-21.
-- ✅ Etapa 1 — Taxonomia Universal (37 categorias) entregue 2026-06-21.
-- ✅ Etapa 2 — Dicionário Universal de Atributos (50 atributos mapeados para Mercado Livre) entregue 2026-06-21.
-- ✅ Etapa 3 — Ajustes no cadastro (categoria universal, regime regulatório expandido, conteúdo líquido, público) entregue 2026-06-21.
-- ✅ Etapa 4 — Derivações Automáticas (lib pura `productDerivations`) entregue 2026-06-21.
-- ✅ Etapa 5 — IA no dialog ML (motor `meli-resolve-attributes` + painel "Atributos para o anúncio" no wizard) entregue 2026-06-21.
+## O que muda
 
-## Achados da revisão prévia
-O cadastro de produto **já tem** infraestrutura parcial: `regulatory_category`
-(enum com 3 valores), `ai_product_type`, `ai_main_function` e `regulatory_info`
-(jsonb). Vamos **reaproveitar e expandir**, não duplicar.
+### 1. Três abas de organização
+Topo da lista:
+- **Rascunhos** (aba padrão) — anúncios ainda não enviados ao ML (rascunho, pronto, aprovado). Quando vazia, mostra estado limpo com chamada para criar novo anúncio.
+- **Publicados** — anúncios ativos no ML (publicado e pausado).
+- **Pendências** — anúncios com erro ou em revisão. Badge com contador quando houver itens, para sinalizar atenção.
 
-## Motor de IA
-Gemini 2.5 Flash nativo (principal) via roteador padrão do sistema
-(`_shared/ai-router.ts`), com fallback automático já existente. Sem chamadas
-diretas ao gateway.
+Mesma tabela, muda só o filtro. Contador visível em cada aba.
 
-## Etapas
+### 2. Barra de ações em massa simplificada
+**Removidos da tela principal:** Enviar Todos, Gerar Títulos, Gerar Descrições, Auto-Categorizar, Enviar Selecionados. Essas funções continuam disponíveis dentro do dialog de criação/edição em lote — é o lugar natural delas.
 
-### Etapa 1 — Taxonomia Universal de Categorias (base)
-Árvore única do sistema baseada em ML + Shopee + TikTok. 15 grupos macro.
-Cada nó traz regime regulatório aplicável e mapeamento para marketplaces.
-Sem UI. Pura base de dados, seed do sistema.
+**Mantidos na tela principal**, aparecendo só quando houver seleção:
+- **Editar em Lote** (novo) — reabre o mesmo wizard de 7 etapas (categoria, marca, código de barras, garantia, frete, tipo, IA de título/descrição, revisão), já preenchido com os anúncios selecionados. Na **última etapa**, em vez de "Publicar", o botão final passa a ser **"Atualizar anúncios"** — atualiza no nosso sistema e propaga as alterações para os anúncios já vinculados no Mercado Livre.
+- **Excluir Selecionados** — mantém.
 
-### Etapa 2 — Dicionário Universal de Mapeamento (base)
-Tabela única ligando cada atributo universal nosso ao código de cada
-marketplace (ML, Shopee, TikTok). Seed inicial cobre os atributos
-recorrentes em beleza, cosméticos, eletrônicos, moda, alimentos.
+Ações individuais por linha continuam iguais (editar, publicar, pausar, reativar, ver no ML, sincronizar, excluir).
 
-### Etapa 3 — Ajustes mínimos no Cadastro
-- Expandir `regulatory_category` (incluir INMETRO, ANATEL, MAPA, não regulado, etc.).
-- Adicionar **Categoria Universal** (seletor com busca, ligada à taxonomia da Etapa 1).
-- Adicionar **Volume / Conteúdo líquido** com unidade.
-- Adicionar **Gênero do público** quando aplicável.
-- Reutilizar `ai_product_type` / `ai_main_function` já existentes.
-- Botão "Classificar com IA" no topo do cadastro (sob demanda).
+### 3. Publicação movida para o final do dialog de criação
+A última etapa do dialog "Novo Anúncio" passa a ter dois botões:
+- **Salvar como rascunho** — comportamento atual.
+- **Salvar e Publicar no Mercado Livre** — salva e já dispara a publicação.
 
-### Etapa 4 — Derivações Automáticas
-Cálculos prontos a partir do cadastro: é kit (composição), unidades por
-embalagem (soma da composição), peso líquido, condição, garantia, regime
-regulatório a partir da Categoria Universal.
+Com isso, some qualquer botão de "enviar" da tela principal.
 
-### Etapa 5 — IA no Dialog de Envio do Mercado Livre (núcleo)
-A IA roda automaticamente assim que o lojista escolhe categoria do ML:
-busca atributos exigidos em tempo real, cruza com dados do produto e
-inferências, e mostra painel "Atributos para o anúncio" em 3 blocos:
-preenchido / revisar / faltando. Bloqueia publicação só por obrigatório
-real. Cada correção vira aprendizado por tenant.
+### 4. Sincronização real em todas as ações
+- **Excluir (individual e em lote)** — para anúncios publicados ou pausados, **encerra no Mercado Livre de forma definitiva** (o anúncio sai do ar, o link público deixa de funcionar) e depois remove do nosso sistema. Para anúncios que nunca foram publicados, exclui só local. Aviso de confirmação deixa claro que é irreversível.
+- **Pausar / Reativar** — já sincronizam, mantém.
+- **Editar publicado (individual)** — já sincroniza, mantém.
+- **Editar em Lote** — ao atualizar anúncios já publicados, envia as alterações para o ML automaticamente.
+- **Sincronizar** — mantém.
 
-### Etapa 6 — Validação com os 8 kits que falharam
-Reprocessar os 8 kits travados pelo novo fluxo para confirmar qualidade 100%.
+Toda ação em lote mostra resumo final: sucessos, parciais (com quais falharam) e erros.
 
-### Etapa 7 — Extensão para Shopee e TikTok Shop
-Mesmo dialog e motor; só muda o dicionário de mapeamento da Etapa 2.
+## Resultado final
+- Tela abre em **Rascunhos**, limpa quando não há nada pendente.
+- **Pendências** mostra rapidamente o que precisa de ajuste.
+- **Publicados** concentra a operação do dia a dia.
+- Barra de ações enxuta: só **Editar em Lote** e **Excluir Selecionados**.
+- Publicar é a última etapa natural do dialog de criação.
+- Editar em lote reabre o mesmo wizard e, na última etapa, atualiza os anúncios vinculados (em vez de publicar novos).
+- Excluir, pausar, reativar e editar refletem automaticamente no Mercado Livre — exclusão é definitiva.
 
-### Etapa 8 — Documentação
-Atualizar `mercado-livre.md`, `_padrao-canonico-marketplaces.md` e
-`mapa-ui.md` a cada etapa relevante.
-
-## Ordem de execução
-1. Etapas 1 + 2 (base, sem UI). ← em andamento
-2. Etapa 3 (cadastro).
-3. Etapa 4 (derivações).
-4. Etapa 5 (IA no dialog ML).
-5. Etapa 6 (validar os 8 kits).
-6. Etapa 7 (Shopee + TikTok).
-7. Etapa 8 (doc) ao final de cada etapa relevante.
-
-## Governança
-- Mudanças de UI/UX ou de regra de negócio passam por aprovação do usuário.
-- Decisões técnicas e de fluxo de trabalho ficam com a IA, sempre privilegiando
-  solidez, eficiência, segurança e baixo custo de processamento.
-- Toda entrega encerra com bloco de documentação ou justificativa formal.
-
-## ✅ Etapa 5.5 — Atributos cosméticos no cadastro (concluída em 21/06/2026)
-Novos campos no cadastro de produto (visíveis só quando regime = ANVISA Cosmético):
-- Dermatologicamente testado / Hipoalergênico / Cruelty free / Vegano / Com fragrância (Sim/Não/N-A)
-- Nome da fragrância (texto livre)
-- Tipos de cabelo recomendados (multi-tag)
-- Tipos de tratamento (multi-tag)
-- Efeitos esperados (texto curto)
-
-Dialog "Aplicar atributos em lote" na lista de produtos: seleciona
-N produtos cosméticos, marca o que aplicar, propaga em 1 clique.
-
-Motor `meli-resolve-attributes` foi atualizado para reconhecer os IDs
-DERMATOLOGICALLY_TESTED, HYPOALLERGENIC, CRUELTY_FREE, IS_VEGAN,
-WITH_FRAGRANCE, FRAGRANCE, HAIR_TYPES, HAIR_TREATMENT_TYPE e EFFECTS,
-preenchendo direto a partir do cadastro (status ✅ filled) e enviando
-esses campos como contexto para a IA cobrir variações de nomenclatura.
+## Documentação ao final
+Atualizar `docs/especificacoes/marketplaces/mercado-livre.md` (nova organização da tela, novo fluxo de publicação, edição em lote, exclusão definitiva) e `docs/especificacoes/transversais/mapa-ui.md` (abas e ações da tela de Anúncios do ML).
