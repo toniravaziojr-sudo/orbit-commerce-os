@@ -391,7 +391,7 @@ export function MeliListingsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {listings.map((listing) => {
+                {filteredListings.map((listing) => {
                   const statusInfo = STATUS_MAP[listing.status] || STATUS_MAP.draft;
                   const loading = isActionLoading(listing.id);
                   return (
