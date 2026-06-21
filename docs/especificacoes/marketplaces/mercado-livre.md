@@ -1,7 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-21 (v2.4.0: tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.)
+> **Última atualização:** 2026-06-21 (v2.4.1: anúncios em `publishing` movidos para a aba **Pendências** (junto com `error`), pois ainda aguardam aprovação do ML. Aba **Publicados** passa a conter apenas `published` e `paused`. Botão de excluir agora aparece em todos os status, exibe spinner "Excluindo…" durante a operação, e o encerramento no ML detecta automaticamente anúncios nunca aprovados (pula a chamada de close e remove apenas localmente).)
+> **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
@@ -107,8 +108,8 @@ A tela de Anúncios é dividida em **três abas**, com filtro automático por st
 | Aba | Conteúdo | Quando aparece vazia |
 |-----|----------|----------------------|
 | **Rascunhos** (padrão) | Anúncios em `draft`, `ready`, `approved` | Mostra estado limpo com botão "Novo Anúncio" |
-| **Publicados** | Anúncios em `published`, `paused`, `publishing` | Mensagem indicando ausência de anúncios ativos no ML |
-| **Pendências** | Anúncios em `error` (revisão necessária) | Mensagem de "Nenhuma pendência" |
+| **Publicados** | Anúncios em `published`, `paused` | Mensagem indicando ausência de anúncios ativos no ML |
+| **Pendências** | Anúncios em `error` (revisão necessária) e `publishing` (em envio / em revisão pelo Mercado Livre) | Mensagem de "Nenhuma pendência" |
 
 Cada aba exibe um contador (badge) quando há itens; **Pendências** usa badge destrutivo para chamar atenção. A seleção de itens é escopada à aba ativa (trocar de aba limpa a seleção).
 
@@ -353,7 +354,7 @@ Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um c
 | `draft` | Rascunho | Rascunhos | Editar, Aprovar, Excluir (local) |
 | `ready` | Pronto para aprovação | Rascunhos | Editar, Aprovar, Excluir (local) |
 | `approved` | Aprovado, aguardando publicação | Rascunhos | Editar, Publicar, Excluir (local) |
-| `publishing` | Em processo de envio ao ML | Publicados | — |
+| `publishing` | Em processo de envio ao ML / em revisão pelo ML | Pendências | Aguardar (sem ações até confirmação do ML) |
 | `published` | Publicado no ML | Publicados | Ver no ML, Sincronizar, Pausar, Editar (sync ML), Excluir (encerra no ML) |
 | `paused` | Pausado no ML | Publicados | Reativar, Editar (sync ML), Excluir (encerra no ML) |
 | `error` | Erro na publicação | Pendências | Editar, Retentar publicação, Excluir |
