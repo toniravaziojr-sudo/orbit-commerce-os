@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.2.0"; // Add title to updateListing payload for post-publication editing
+const VERSION = "3.3.0"; // Auto-fill required category attributes (BRAND/LINE/MODEL/etc.) from product data
 // ===================
 
 const corsHeaders = {
