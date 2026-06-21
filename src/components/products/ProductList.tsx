@@ -54,6 +54,7 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [bulkAttrOpen, setBulkAttrOpen] = useState(false);
 
   // Load primary images for all products
   useEffect(() => {
