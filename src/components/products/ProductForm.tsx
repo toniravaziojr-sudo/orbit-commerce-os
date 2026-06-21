@@ -163,6 +163,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
   const { methods: availableShippingMethods } = useAvailableShippingMethods();
+  const { data: universalCategories = [] } = useUniversalCategories();
   const { toast } = useToast();
   const { currentTenant, user } = useAuth();
   const isEditing = !!product;
