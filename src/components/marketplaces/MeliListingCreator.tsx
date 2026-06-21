@@ -1572,14 +1572,29 @@ export function MeliListingCreator({
           )}
           <div className="flex-1" />
           {step === "shipping" ? (
-            <Button onClick={handleFinalSave} disabled={isProcessing}>
-              {isProcessing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              Salvar {generatedItems.length} Anúncio{generatedItems.length > 1 ? "s" : ""}
-            </Button>
+            (() => {
+              const allPublished = isConfigureMode && (existingDrafts || []).every(d => !!d.meli_item_id);
+              if (allPublished) {
+                return (
+                  <Button onClick={() => handleFinalSave('publish')} disabled={isProcessing}>
+                    {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Atualizar {generatedItems.length} anúncio{generatedItems.length > 1 ? "s" : ""} no Mercado Livre
+                  </Button>
+                );
+              }
+              return (
+                <>
+                  <Button variant="outline" onClick={() => handleFinalSave('draft')} disabled={isProcessing}>
+                    {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Salvar como rascunho
+                  </Button>
+                  <Button onClick={() => handleFinalSave('publish')} disabled={isProcessing}>
+                    {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                    Salvar e publicar no Mercado Livre
+                  </Button>
+                </>
+              );
+            })()
           ) : (
             <Button onClick={goNext} disabled={!canGoNext() || isSubmitting || isNavigating}>
               {(isSubmitting || isNavigating) ? (
