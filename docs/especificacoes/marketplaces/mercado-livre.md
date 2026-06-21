@@ -1,8 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-21 (v2.3.3: "Configurar Selecionados" — ao reabrir um rascunho, o sistema relê o estado oficial do banco antes de mostrar a etapa, evitando regerar descrições já existentes; auto-geração só dispara para itens realmente sem descrição; botão "Continuar" exibe estado "Salvando..." com spinner durante a transição; barra de progresso de geração mostra contador X/Y e zera ao trocar de etapa, eliminando o bug da tarja azul fora de contexto; gravação paralela de títulos/descrições para acelerar lotes grandes)
-> **Histórico:** 2026-06-20 (v2.3.1: persistência por etapa com debounce em títulos/descrições, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar; auto-geração de descrições para rascunhos vazios; botão "Aplicar a todos" também na etapa de Descrições)
+> **Última atualização:** 2026-06-21 (v2.3.4: "Configurar Selecionados" — corrigido bug em que o dialog voltava para a etapa 1 ao trocar de aba do navegador e retornar; agora a inicialização da etapa acontece apenas uma vez por abertura do dialog, ignorando recargas automáticas dos dados em segundo plano)
+> **Histórico:** 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração de descrições, spinner no Continuar, contador X/Y na barra de progresso, gravação paralela). 2026-06-20 (v2.3.1: persistência por etapa com debounce, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar; auto-geração de descrições; botão "Aplicar a todos" também em Descrições)
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
