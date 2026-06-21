@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { MeliCategoryPicker } from "@/components/marketplaces/MeliCategoryPicker";
+import { MeliAttributesPanel, type MeliAttributesPanelValue } from "@/components/marketplaces/MeliAttributesPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -92,6 +93,9 @@ export function MeliListingWizard({
   const [autoProgress, setAutoProgress] = useState(0);
   const [autoStatus, setAutoStatus] = useState("");
   const [autoSteps, setAutoSteps] = useState<{ label: string; done: boolean; error?: boolean }[]>([]);
+
+  // Attributes panel state (Etapa 5B)
+  const [attrPanel, setAttrPanel] = useState<MeliAttributesPanelValue>({ attributes: [], canPublish: true });
 
   // Initialize edit mode
   useEffect(() => {
