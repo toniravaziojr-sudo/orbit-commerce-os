@@ -66,15 +66,25 @@ export function MeliListingsTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfigure, setShowBulkConfigure] = useState(false);
 
-
-  // Bulk operations state
-  const [bulkAction, setBulkAction] = useState<string | null>(null);
-  const [bulkProgress, setBulkProgress] = useState({ processed: 0, total: 0, label: "" });
+  // Tabs: drafts (default) | published | pending
+  type TabKey = 'drafts' | 'published' | 'pending';
+  const [activeTab, setActiveTab] = useState<TabKey>('drafts');
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
 
-  const allSelected = listings.length > 0 && selectedIds.size === listings.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < listings.length;
+  const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
+  const publishedCount = listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status)).length;
+  const pendingCount = listings.filter(l => l.status === 'error').length;
+
+  const filteredListings = useMemo(() => {
+    if (activeTab === 'drafts') return listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status));
+    if (activeTab === 'published') return listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status));
+    return listings.filter(l => l.status === 'error');
+  }, [listings, activeTab]);
+
+  // Selection scoped to currently visible tab
+  const allSelected = filteredListings.length > 0 && filteredListings.every(l => selectedIds.has(l.id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
 
   const toggleSelectAll = () => {
     if (allSelected) {
