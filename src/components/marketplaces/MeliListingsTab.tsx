@@ -512,16 +512,18 @@ export function MeliListingsTab() {
                               <TooltipContent>Reativar</TooltipContent>
                             </Tooltip>
                           )}
-                          {!['published', 'publishing'].includes(listing.status) && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(listing.id)}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => handleDelete(listing.id)} disabled={deleteListing.isPending && deleteListing.variables === listing.id}>
+                                {deleteListing.isPending && deleteListing.variables === listing.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
                                   <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Remover</TooltipContent>
-                            </Tooltip>
-                          )}
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{['published', 'paused', 'publishing'].includes(listing.status) ? 'Encerrar no ML e remover' : 'Remover'}</TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
