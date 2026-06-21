@@ -1887,6 +1887,187 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 </CardContent>
               </Card>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle>Classificação Universal</CardTitle>
+                  <CardDescription>
+                    Define como o produto será enquadrado em qualquer marketplace (Mercado Livre,
+                    Shopee, TikTok Shop). A IA usa esses dados para preencher automaticamente os
+                    atributos exigidos por cada canal no momento do envio.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="universal_category_id"
+                      render={({ field }) => {
+                        const tree = universalCategories;
+                        const macros = tree.filter((c: any) => c.level === 1);
+                        const subBy = (parentSlug: string) =>
+                          tree.filter((c: any) => c.parent_slug === parentSlug);
+                        return (
+                          <FormItem>
+                            <FormLabel>Categoria universal</FormLabel>
+                            <Select
+                              value={field.value || ''}
+                              onValueChange={(val) => {
+                                field.onChange(val);
+                                const selected = tree.find((c: any) => c.id === val) as any;
+                                const currentRegime = form.getValues('regulatory_regime');
+                                if (selected?.regulatory_regime && !currentRegime) {
+                                  form.setValue('regulatory_regime', selected.regulatory_regime as any, { shouldDirty: true });
+                                }
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione a categoria" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-80">
+                                {macros.map((macro: any) => (
+                                  <div key={macro.id}>
+                                    <SelectItem value={macro.id} className="font-semibold">
+                                      {macro.name}
+                                    </SelectItem>
+                                    {subBy(macro.slug).map((sub: any) => (
+                                      <SelectItem key={sub.id} value={sub.id} className="pl-8 text-sm">
+                                        — {sub.name}
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Usada pelos marketplaces e pela IA para mapear o produto.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="regulatory_regime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Regime regulatório</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o regime" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum (não regulado)</SelectItem>
+                              <SelectItem value="anvisa_cosmetic">ANVISA — Cosmético</SelectItem>
+                              <SelectItem value="anvisa_health">ANVISA — Saúde</SelectItem>
+                              <SelectItem value="anvisa_supplement">ANVISA — Suplemento</SelectItem>
+                              <SelectItem value="anvisa_medicine">ANVISA — Medicamento</SelectItem>
+                              <SelectItem value="inmetro">INMETRO</SelectItem>
+                              <SelectItem value="anatel">ANATEL</SelectItem>
+                              <SelectItem value="mapa">MAPA (alimentos / pet)</SelectItem>
+                              <SelectItem value="denatran">DENATRAN</SelectItem>
+                              <SelectItem value="exercito">Exército</SelectItem>
+                              <SelectItem value="ibama">IBAMA</SelectItem>
+                              <SelectItem value="iss_servico">ISS (serviço)</SelectItem>
+                              <SelectItem value="outros">Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Define quais campos regulatórios são exigidos no envio.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="net_content_value"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Conteúdo líquido</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
+                              placeholder="Ex: 250"
+                            />
+                          </FormControl>
+                          <FormDescription>Valor do conteúdo líquido da embalagem.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="net_content_unit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Unidade</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="ml">ml — mililitros</SelectItem>
+                              <SelectItem value="l">l — litros</SelectItem>
+                              <SelectItem value="g">g — gramas</SelectItem>
+                              <SelectItem value="kg">kg — quilos</SelectItem>
+                              <SelectItem value="un">un — unidades</SelectItem>
+                              <SelectItem value="m">m — metros</SelectItem>
+                              <SelectItem value="cm">cm — centímetros</SelectItem>
+                              <SelectItem value="m2">m² — metros quadrados</SelectItem>
+                              <SelectItem value="m3">m³ — metros cúbicos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Unidade do conteúdo líquido.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="gender_audience"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Público / gênero</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="masculino">Masculino</SelectItem>
+                              <SelectItem value="feminino">Feminino</SelectItem>
+                              <SelectItem value="unissex">Unissex</SelectItem>
+                              <SelectItem value="infantil">Infantil</SelectItem>
+                              <SelectItem value="nao_aplicavel">Não se aplica</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Público-alvo principal do produto.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
 
               <Card>
                 <CardHeader>
