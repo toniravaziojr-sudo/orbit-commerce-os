@@ -881,13 +881,41 @@ export function MeliListingCreator({
     if (!isConfigureMode) return;
     if (autoGenDescDoneRef.current) return;
     if (isProcessing) return;
-    const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
-    if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
+    const candidateIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
+    if (candidateIds.length === 0) { autoGenDescDoneRef.current = true; return; }
     autoGenDescDoneRef.current = true;
 
     let cancelled = false;
     (async () => {
       if (!currentTenant?.id) return;
+      // Double-check in DB to avoid regenerating descriptions that already exist
+      // (parent's React Query cache can be stale after a previous session of this dialog).
+      let emptyIds = candidateIds;
+      try {
+        const { data: fresh } = await supabase
+          .from("meli_listings")
+          .select("id, description")
+          .in("id", candidateIds);
+        if (fresh) {
+          const filled = new Map(fresh.map((r: any) => [r.id, (r.description || "").trim()]));
+          emptyIds = candidateIds.filter(id => !(filled.get(id) || "").length);
+          // Hydrate items that already have descriptions in DB
+          const hydrated = fresh.filter((r: any) => (r.description || "").trim().length > 0);
+          if (hydrated.length > 0) {
+            setGeneratedItems(prev => prev.map(item => {
+              const r: any = hydrated.find((h: any) => h.id === item.listingId);
+              return r ? { ...item, description: r.description } : item;
+            }));
+          }
+        }
+      } catch { /* fall through */ }
+      if (cancelled) return;
+      if (emptyIds.length === 0) {
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        setProcessingLabel("");
+        return;
+      }
       setIsProcessing(true);
       // Start with a small visible progress so the bar doesn't look stuck at 0%
       setProcessingProgress(2);
