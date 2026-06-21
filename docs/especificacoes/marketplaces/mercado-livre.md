@@ -1,8 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-21 (v2.3.4: "Configurar Selecionados" — corrigido bug em que o dialog voltava para a etapa 1 ao trocar de aba do navegador e retornar; agora a inicialização da etapa acontece apenas uma vez por abertura do dialog, ignorando recargas automáticas dos dados em segundo plano)
-> **Histórico:** 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração de descrições, spinner no Continuar, contador X/Y na barra de progresso, gravação paralela). 2026-06-20 (v2.3.1: persistência por etapa com debounce, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar; auto-geração de descrições; botão "Aplicar a todos" também em Descrições)
+> **Última atualização:** 2026-06-21 (v2.4.0: tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.)
+> **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
