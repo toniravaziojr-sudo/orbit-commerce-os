@@ -521,7 +521,6 @@ async function updateListing(accessToken: string, listing: any, productImages: a
 }
 
 async function deleteListingOnMeli(accessToken: string, listing: any, supabase: any) {
-  // If never published, just delete locally
   if (!listing.meli_item_id) {
     const { error: delErr } = await supabase.from("meli_listings").delete().eq("id", listing.id);
     if (delErr) return jsonResponse({ success: false, error: "Falha ao remover anúncio local" });
@@ -529,10 +528,10 @@ async function deleteListingOnMeli(accessToken: string, listing: any, supabase: 
   }
 
   let mlClosed = false;
+  let mlDeletedIncomplete = false;
   let mlSkippedReason: string | null = null;
 
   try {
-    // Best-effort pause first to allow closing from active
     if (listing.status === "published") {
       await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
         method: "PUT",
@@ -552,18 +551,32 @@ async function deleteListingOnMeli(accessToken: string, listing: any, supabase: 
       mlClosed = true;
     } else {
       const msg = String(closeData?.message || "").toLowerCase();
-      // Items under review / never approved cannot be closed via PUT status=closed.
-      // ML returns "Anúncio deve estar aprovado para publicar" or similar.
-      // In these cases the listing never went live — safe to drop locally.
       const isUnapproved =
         msg.includes("aprovado") ||
         msg.includes("approved") ||
         msg.includes("must be active") ||
         msg.includes("under_review") ||
-        msg.includes("under review");
+        msg.includes("under review") ||
+        msg.includes("inactive");
 
       if (isUnapproved) {
-        mlSkippedReason = "Anúncio não estava ativo no Mercado Livre (em revisão/não aprovado). Removido apenas localmente.";
+        // Tenta excluir o item incompleto/em revisão para sumir do painel do ML também.
+        try {
+          const delRes = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          });
+          if (delRes.ok || delRes.status === 204) {
+            mlDeletedIncomplete = true;
+          } else {
+            const delData = await delRes.json().catch(() => ({}));
+            console.log(`[meli-publish-listing] DELETE incomplete failed: ${delRes.status}`, delData);
+            mlSkippedReason = "Removido aqui, mas o anúncio pode continuar como incompleto no painel do Mercado Livre. Se necessário, exclua manualmente lá.";
+          }
+        } catch (delErr) {
+          console.log(`[meli-publish-listing] DELETE incomplete threw:`, delErr);
+          mlSkippedReason = "Removido aqui, mas o anúncio pode continuar como incompleto no painel do Mercado Livre. Se necessário, exclua manualmente lá.";
+        }
       } else {
         return jsonResponse({
           success: false,
@@ -580,18 +593,23 @@ async function deleteListingOnMeli(accessToken: string, listing: any, supabase: 
   if (delErr) {
     return jsonResponse({
       success: false,
-      error: mlClosed
-        ? "Anúncio encerrado no ML, mas falhou remover localmente"
+      error: (mlClosed || mlDeletedIncomplete)
+        ? "Anúncio removido no ML, mas falhou remover localmente"
         : "Falha ao remover anúncio local",
     });
   }
 
+  const finalMsg = mlClosed
+    ? "Anúncio encerrado no Mercado Livre e removido"
+    : mlDeletedIncomplete
+    ? "Anúncio incompleto excluído do Mercado Livre e removido"
+    : mlSkippedReason || "Anúncio removido";
+
   return jsonResponse({
     success: true,
-    message: mlClosed
-      ? "Anúncio encerrado no Mercado Livre e removido"
-      : mlSkippedReason || "Anúncio removido",
+    message: finalMsg,
     ml_closed: mlClosed,
+    ml_deleted_incomplete: mlDeletedIncomplete,
     ml_skipped_reason: mlSkippedReason,
   });
 }
