@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -247,6 +250,26 @@ export function MeliListingsTab() {
     }
   };
 
+  // Indicador de frescor + sincronização leve ao abrir a aba.
+  const { connection, refetch: refetchConnection } = useMeliConnection();
+  const lastSyncAt = connection?.lastSyncAt ? new Date(connection.lastSyncAt) : null;
+  const lastSyncLabel = lastSyncAt
+    ? `Sincronizado ${formatDistanceToNow(lastSyncAt, { addSuffix: true, locale: ptBR })}`
+    : "Ainda não sincronizado";
+
+  const autoSyncDoneRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncDoneRef.current) return;
+    if (!currentTenant?.id) return;
+    // Dispara sync silencioso só se passou mais de 10 min do último (ou nunca sincronizou).
+    const stale = !lastSyncAt || (Date.now() - lastSyncAt.getTime()) > 10 * 60 * 1000;
+    if (!stale) return;
+    autoSyncDoneRef.current = true;
+    syncListings.mutateAsync(undefined).then(() => refetchConnection()).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant?.id, lastSyncAt?.getTime()]);
+
+
   return (
     <TooltipProvider>
       <Card>
@@ -260,11 +283,12 @@ export function MeliListingsTab() {
               <CardDescription className="mt-1">
                 Prepare, revise e publique seus produtos no ML
               </CardDescription>
+              <div className="mt-1 text-xs text-muted-foreground">{lastSyncLabel}</div>
             </div>
             <div className="flex gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing}>
+                  <Button variant="outline" onClick={async () => { await handleSyncAll(); await refetchConnection(); }} disabled={isSyncing}>
                     {isSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Sincronizar
                   </Button>

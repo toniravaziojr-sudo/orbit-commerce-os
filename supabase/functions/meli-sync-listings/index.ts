@@ -175,13 +175,13 @@ async function syncTenantListings(
     }
   }
 
-  // Get published/paused listings to sync
+  // Sync listings already pushed to ML (any state ML may report on).
   let query = supabase
     .from("meli_listings")
     .select("id, meli_item_id, status, title")
     .eq("tenant_id", tenantId)
     .not("meli_item_id", "is", null)
-    .in("status", ["published", "paused", "publishing"]);
+    .in("status", ["published", "paused", "publishing", "error"]);
 
   if (listingIds && listingIds.length > 0) {
     query = query.in("id", listingIds);
