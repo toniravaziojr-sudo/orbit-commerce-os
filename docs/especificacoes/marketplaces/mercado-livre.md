@@ -1,7 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-20 (v2.3.1: "Configurar Selecionados" — persistência por etapa (debounce em títulos/descrições, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar); geração automática de descrições para rascunhos vazios ao entrar na etapa; botão "Aplicar a todos" também na etapa de Descrições)
+> **Última atualização:** 2026-06-21 (v2.3.3: "Configurar Selecionados" — ao reabrir um rascunho, o sistema relê o estado oficial do banco antes de mostrar a etapa, evitando regerar descrições já existentes; auto-geração só dispara para itens realmente sem descrição; botão "Continuar" exibe estado "Salvando..." com spinner durante a transição; barra de progresso de geração mostra contador X/Y e zera ao trocar de etapa, eliminando o bug da tarja azul fora de contexto; gravação paralela de títulos/descrições para acelerar lotes grandes)
+> **Histórico:** 2026-06-20 (v2.3.1: persistência por etapa com debounce em títulos/descrições, gravação imediata de categoria/condição/tipo/frete, flush ao voltar/fechar; auto-geração de descrições para rascunhos vazios; botão "Aplicar a todos" também na etapa de Descrições)
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
@@ -150,6 +151,13 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 3. Etapa 4 chama `bulk_generate_descriptions` com mesmos `listingIds`
 4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
+
+**Reabertura de rascunhos (modo "Configurar Selecionados"):**
+- Ao abrir o dialog para rascunhos já existentes, o sistema **relê o estado oficial do banco** (título, descrição, categoria, condição, tipo e frete) antes de exibir qualquer etapa, ignorando cache desatualizado da listagem.
+- Auto-geração de descrições só dispara para itens que **realmente** estão sem descrição no banco no momento da entrada na etapa (dupla checagem). Itens com descrição já salva são exibidos diretamente — proibido regerar conteúdo já produzido.
+- Botão "Continuar" mostra estado **"Salvando..." com spinner** durante a transição entre etapas (garante feedback visual e evita duplo clique).
+- Barra de progresso de geração em massa exibe contador `X/Y` em tempo real e é **resetada ao trocar de etapa**, eliminando o bug visual da tarja azul aparecendo numa etapa diferente da atual.
+- Gravação de títulos e descrições é feita em **paralelo** (batch), acelerando lotes grandes.
 
 **Sincronização com o Mercado Livre:**
 - **Títulos:** Prompt IA gera com tipo de produto primeiro, limite dinâmico por categoria (`max_title_length` da API ML), sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
