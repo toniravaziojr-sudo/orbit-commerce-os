@@ -19,7 +19,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye, Upload, Link2 } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye, Upload, Link2, Sparkles } from 'lucide-react';
+import { BulkCosmeticAttributesDialog } from './BulkCosmeticAttributesDialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QueryErrorState } from '@/components/ui/query-error-state';
@@ -53,6 +54,7 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [bulkAttrOpen, setBulkAttrOpen] = useState(false);
 
   // Load primary images for all products
   useEffect(() => {
@@ -216,7 +218,11 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
             className="pl-10"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setBulkAttrOpen(true)}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Aplicar atributos em lote
+          </Button>
           {onImport && (
             <Button variant="outline" onClick={onImport}>
               <Upload className="mr-2 h-4 w-4" />
@@ -229,6 +235,13 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
           </Button>
         </div>
       </div>
+
+      <BulkCosmeticAttributesDialog
+        open={bulkAttrOpen}
+        onOpenChange={setBulkAttrOpen}
+        products={products}
+        onApplied={refetch}
+      />
 
       {filteredProducts.length === 0 ? (
         <EmptyState

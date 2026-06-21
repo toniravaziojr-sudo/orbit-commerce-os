@@ -137,6 +137,17 @@ const productSchema = z.object({
   net_content_unit: z.enum(['ml','l','g','kg','un','m','cm','m2','m3','']).nullable().optional(),
   gender_audience: z.enum(['masculino','feminino','unissex','infantil','nao_aplicavel','']).nullable().optional(),
 
+  // === ATRIBUTOS COSMÉTICOS (visível só quando regulatory_regime = anvisa_cosmetic) ===
+  dermatologically_tested: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  hypoallergenic: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  cruelty_free: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  vegan: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  has_fragrance: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  fragrance_name: z.string().max(120).nullable().optional(),
+  recommended_hair_types: z.array(z.string()).optional(),
+  treatment_types: z.array(z.string()).optional(),
+  expected_effects: z.string().max(500).nullable().optional(),
+
   // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
@@ -344,6 +355,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       net_content_value: (product as any)?.net_content_value ?? null,
       net_content_unit: (product as any)?.net_content_unit ?? '',
       gender_audience: (product as any)?.gender_audience ?? '',
+
+      // Atributos cosméticos
+      dermatologically_tested: (product as any)?.dermatologically_tested ?? '',
+      hypoallergenic: (product as any)?.hypoallergenic ?? '',
+      cruelty_free: (product as any)?.cruelty_free ?? '',
+      vegan: (product as any)?.vegan ?? '',
+      has_fragrance: (product as any)?.has_fragrance ?? '',
+      fragrance_name: (product as any)?.fragrance_name ?? '',
+      recommended_hair_types: (product as any)?.recommended_hair_types ?? [],
+      treatment_types: (product as any)?.treatment_types ?? [],
+      expected_effects: (product as any)?.expected_effects ?? '',
 
       // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
@@ -613,6 +635,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           net_content_value: ncv ?? null,
           net_content_unit: ncu || null,
           gender_audience: ga || null,
+          dermatologically_tested: (data as any).dermatologically_tested || null,
+          hypoallergenic: (data as any).hypoallergenic || null,
+          cruelty_free: (data as any).cruelty_free || null,
+          vegan: (data as any).vegan || null,
+          has_fragrance: (data as any).has_fragrance || null,
+          fragrance_name: (data as any).fragrance_name || null,
+          recommended_hair_types: (data as any).recommended_hair_types ?? [],
+          treatment_types: (data as any).treatment_types ?? [],
+          expected_effects: (data as any).expected_effects || null,
         } as any);
         
         // Update related products and variants
@@ -672,6 +703,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           net_content_value: data.net_content_value ?? null,
           net_content_unit: data.net_content_unit || null,
           gender_audience: data.gender_audience || null,
+          dermatologically_tested: (data as any).dermatologically_tested || null,
+          hypoallergenic: (data as any).hypoallergenic || null,
+          cruelty_free: (data as any).cruelty_free || null,
+          vegan: (data as any).vegan || null,
+          has_fragrance: (data as any).has_fragrance || null,
+          fragrance_name: (data as any).fragrance_name || null,
+          recommended_hair_types: (data as any).recommended_hair_types ?? [],
+          treatment_types: (data as any).treatment_types ?? [],
+          expected_effects: (data as any).expected_effects || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
@@ -2067,6 +2107,167 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   </div>
                 </CardContent>
               </Card>
+
+              {/* === ATRIBUTOS COSMÉTICOS — só aparece para regime ANVISA Cosmético === */}
+              {form.watch('regulatory_regime') === 'anvisa_cosmetic' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Atributos Cosméticos</CardTitle>
+                    <FormDescription>
+                      Preencha 1 vez aqui e o sistema envia automaticamente para Mercado Livre, Shopee e TikTok — sem precisar reescrever em cada anúncio.
+                    </FormDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {([
+                        ['dermatologically_tested', 'Dermatologicamente testado'],
+                        ['hypoallergenic', 'Hipoalergênico'],
+                        ['cruelty_free', 'Livre de crueldade (cruelty free)'],
+                        ['vegan', 'Vegano'],
+                        ['has_fragrance', 'Com fragrância'],
+                      ] as const).map(([name, label]) => (
+                        <FormField
+                          key={name}
+                          control={form.control}
+                          name={name as any}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{label}</FormLabel>
+                              <Select onValueChange={field.onChange} value={(field.value as string) || ''}>
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="yes">Sim</SelectItem>
+                                  <SelectItem value="no">Não</SelectItem>
+                                  <SelectItem value="not_applicable">Não se aplica</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name={'fragrance_name' as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome da fragrância</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={(field.value as string) ?? ''} placeholder="Ex: Madeira amadeirada, Cítrico, Lavanda" />
+                          </FormControl>
+                          <FormDescription>Deixe em branco se não tiver fragrância.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'recommended_hair_types' as any}
+                      render={({ field }) => {
+                        const value: string[] = (field.value as string[]) ?? [];
+                        const options = [
+                          { v: 'oleoso', l: 'Oleoso' },
+                          { v: 'seco', l: 'Seco' },
+                          { v: 'misto', l: 'Misto' },
+                          { v: 'normal', l: 'Normal' },
+                          { v: 'cacheado', l: 'Cacheado' },
+                          { v: 'liso', l: 'Liso' },
+                          { v: 'todos', l: 'Todos os tipos' },
+                        ];
+                        const toggle = (v: string) => {
+                          field.onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
+                        };
+                        return (
+                          <FormItem>
+                            <FormLabel>Tipos de cabelo recomendados</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {options.map(o => (
+                                <button
+                                  type="button"
+                                  key={o.v}
+                                  onClick={() => toggle(o.v)}
+                                  className={`px-3 py-1 rounded-full text-sm border transition ${value.includes(o.v) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted border-border'}`}
+                                >
+                                  {o.l}
+                                </button>
+                              ))}
+                            </div>
+                            <FormDescription>Selecione um ou mais. Deixe em branco se não for produto para cabelo.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'treatment_types' as any}
+                      render={({ field }) => {
+                        const value: string[] = (field.value as string[]) ?? [];
+                        const options = [
+                          { v: 'antiqueda', l: 'Antiqueda' },
+                          { v: 'crescimento', l: 'Crescimento' },
+                          { v: 'hidratacao', l: 'Hidratação' },
+                          { v: 'anticaspa', l: 'Anticaspa' },
+                          { v: 'antioleosidade', l: 'Antioleosidade' },
+                          { v: 'reconstrucao', l: 'Reconstrução' },
+                          { v: 'fortalecimento', l: 'Fortalecimento' },
+                          { v: 'limpeza', l: 'Limpeza' },
+                          { v: 'pos_banho', l: 'Pós-banho' },
+                        ];
+                        const toggle = (v: string) => {
+                          field.onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
+                        };
+                        return (
+                          <FormItem>
+                            <FormLabel>Tipos de tratamento</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {options.map(o => (
+                                <button
+                                  type="button"
+                                  key={o.v}
+                                  onClick={() => toggle(o.v)}
+                                  className={`px-3 py-1 rounded-full text-sm border transition ${value.includes(o.v) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted border-border'}`}
+                                >
+                                  {o.l}
+                                </button>
+                              ))}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'expected_effects' as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Efeitos esperados</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              value={(field.value as string) ?? ''}
+                              placeholder="Ex: Fortalece a raiz, reduz queda, estimula o crescimento"
+                              rows={2}
+                            />
+                          </FormControl>
+                          <FormDescription>Texto curto que descreve o resultado do produto.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+
 
 
               <Card>

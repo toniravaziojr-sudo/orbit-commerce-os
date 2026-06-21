@@ -17506,16 +17506,22 @@ export type Database = {
           compare_at_price: number | null
           cost_price: number | null
           created_at: string
+          cruelty_free: string | null
           deleted_at: string | null
           depth: number | null
+          dermatologically_tested: string | null
           description: string | null
+          expected_effects: string | null
           external_reference: string | null
+          fragrance_name: string | null
           free_shipping: boolean
           free_shipping_method: string | null
           gender_audience: string | null
           gtin: string | null
+          has_fragrance: string | null
           has_variants: boolean | null
           height: number | null
+          hypoallergenic: string | null
           id: string
           is_featured: boolean | null
           low_stock_threshold: number | null
@@ -17534,6 +17540,7 @@ export type Database = {
           promotion_end_date: string | null
           promotion_start_date: string | null
           published_at: string | null
+          recommended_hair_types: string[] | null
           regulatory_category:
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
@@ -17553,9 +17560,11 @@ export type Database = {
           tax_code: string | null
           taxable: boolean | null
           tenant_id: string
+          treatment_types: string[] | null
           universal_category_id: string | null
           uom: string | null
           updated_at: string
+          vegan: string | null
           vendor: string | null
           warranty_duration: string | null
           warranty_type: string | null
@@ -17574,16 +17583,22 @@ export type Database = {
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          cruelty_free?: string | null
           deleted_at?: string | null
           depth?: number | null
+          dermatologically_tested?: string | null
           description?: string | null
+          expected_effects?: string | null
           external_reference?: string | null
+          fragrance_name?: string | null
           free_shipping?: boolean
           free_shipping_method?: string | null
           gender_audience?: string | null
           gtin?: string | null
+          has_fragrance?: string | null
           has_variants?: boolean | null
           height?: number | null
+          hypoallergenic?: string | null
           id?: string
           is_featured?: boolean | null
           low_stock_threshold?: number | null
@@ -17602,6 +17617,7 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          recommended_hair_types?: string[] | null
           regulatory_category?:
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
@@ -17621,9 +17637,11 @@ export type Database = {
           tax_code?: string | null
           taxable?: boolean | null
           tenant_id: string
+          treatment_types?: string[] | null
           universal_category_id?: string | null
           uom?: string | null
           updated_at?: string
+          vegan?: string | null
           vendor?: string | null
           warranty_duration?: string | null
           warranty_type?: string | null
@@ -17642,16 +17660,22 @@ export type Database = {
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          cruelty_free?: string | null
           deleted_at?: string | null
           depth?: number | null
+          dermatologically_tested?: string | null
           description?: string | null
+          expected_effects?: string | null
           external_reference?: string | null
+          fragrance_name?: string | null
           free_shipping?: boolean
           free_shipping_method?: string | null
           gender_audience?: string | null
           gtin?: string | null
+          has_fragrance?: string | null
           has_variants?: boolean | null
           height?: number | null
+          hypoallergenic?: string | null
           id?: string
           is_featured?: boolean | null
           low_stock_threshold?: number | null
@@ -17670,6 +17694,7 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          recommended_hair_types?: string[] | null
           regulatory_category?:
             | Database["public"]["Enums"]["product_regulatory_category"]
             | null
@@ -17689,9 +17714,11 @@ export type Database = {
           tax_code?: string | null
           taxable?: boolean | null
           tenant_id?: string
+          treatment_types?: string[] | null
           universal_category_id?: string | null
           uom?: string | null
           updated_at?: string
+          vegan?: string | null
           vendor?: string | null
           warranty_duration?: string | null
           warranty_type?: string | null

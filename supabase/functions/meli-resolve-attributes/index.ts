@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
         id, name, sku, description, short_description, price, weight, width, height, length,
         brand, gtin, condition, warranty, warranty_months, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
-        ai_product_type, ai_main_function
+        ai_product_type, ai_main_function,
+        dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
+        fragrance_name, recommended_hair_types, treatment_types, expected_effects
       `)
       .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
     if (pErr || !product) return json({ success: false, error: "Produto não encontrado" });
@@ -194,6 +196,50 @@ Deno.serve(async (req) => {
           value_name = String(unitsPerPackage); source = "derivation";
         }
         else if (id === "WEIGHT" && netWeightG) { value_name = String(netWeightG); source = "derivation"; }
+        // --- Atributos cosméticos (tri-state Sim/Não/Não se aplica) ---
+        else if (id === "DERMATOLOGICALLY_TESTED" && product.dermatologically_tested) {
+          value_name = product.dermatologically_tested === "yes" ? "Sim" : product.dermatologically_tested === "no" ? "Não" : "Não se aplica";
+          source = "product";
+        }
+        else if (id === "HYPOALLERGENIC" && product.hypoallergenic) {
+          value_name = product.hypoallergenic === "yes" ? "Sim" : product.hypoallergenic === "no" ? "Não" : "Não se aplica";
+          source = "product";
+        }
+        else if ((id === "IS_CRUELTY_FREE" || id === "CRUELTY_FREE") && product.cruelty_free) {
+          value_name = product.cruelty_free === "yes" ? "Sim" : product.cruelty_free === "no" ? "Não" : "Não se aplica";
+          source = "product";
+        }
+        else if ((id === "IS_VEGAN" || id === "VEGAN") && product.vegan) {
+          value_name = product.vegan === "yes" ? "Sim" : product.vegan === "no" ? "Não" : "Não se aplica";
+          source = "product";
+        }
+        else if ((id === "WITH_FRAGRANCE" || id === "HAS_FRAGRANCE") && product.has_fragrance) {
+          value_name = product.has_fragrance === "yes" ? "Sim" : product.has_fragrance === "no" ? "Não" : "Não se aplica";
+          source = "product";
+        }
+        else if (id === "FRAGRANCE" && product.fragrance_name) {
+          value_name = product.fragrance_name; source = "product";
+        }
+        else if ((id === "HAIR_TYPES" || id === "HAIR_TYPE") && Array.isArray(product.recommended_hair_types) && product.recommended_hair_types.length > 0) {
+          const hairMap: Record<string, string> = {
+            oleoso: "Oleoso", seco: "Seco", misto: "Misto", normal: "Normal",
+            cacheado: "Cacheado", liso: "Liso", todos: "Todos os tipos",
+          };
+          value_name = product.recommended_hair_types.map((h: string) => hairMap[h] || h).join(", ");
+          source = "product";
+        }
+        else if ((id === "HAIR_TREATMENT_TYPE" || id === "TREATMENT_TYPE" || id === "TREATMENT_FORMAT") && Array.isArray(product.treatment_types) && product.treatment_types.length > 0) {
+          const trtMap: Record<string, string> = {
+            antiqueda: "Antiqueda", crescimento: "Crescimento", hidratacao: "Hidratação",
+            anticaspa: "Anticaspa", antioleosidade: "Antioleosidade", reconstrucao: "Reconstrução",
+            fortalecimento: "Fortalecimento", limpeza: "Limpeza", pos_banho: "Pós-banho",
+          };
+          value_name = product.treatment_types.map((t: string) => trtMap[t] || t).join(", ");
+          source = "product";
+        }
+        else if (id === "EFFECTS" && product.expected_effects) {
+          value_name = product.expected_effects; source = "product";
+        }
       }
 
       // Match valor contra lista oficial do ML quando aplicável
@@ -231,6 +277,17 @@ Deno.serve(async (req) => {
         publico: product.gender_audience, regime: regulatoryRegime,
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
+        cosmetico: {
+          dermatologicamente_testado: product.dermatologically_tested,
+          hipoalergenico: product.hypoallergenic,
+          cruelty_free: product.cruelty_free,
+          vegano: product.vegan,
+          com_fragrancia: product.has_fragrance,
+          fragrancia: product.fragrance_name,
+          tipos_cabelo: product.recommended_hair_types,
+          tratamentos: product.treatment_types,
+          efeitos: product.expected_effects,
+        },
       };
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.

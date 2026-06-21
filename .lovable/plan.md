@@ -74,3 +74,20 @@ Atualizar `mercado-livre.md`, `_padrao-canonico-marketplaces.md` e
 - Decisões técnicas e de fluxo de trabalho ficam com a IA, sempre privilegiando
   solidez, eficiência, segurança e baixo custo de processamento.
 - Toda entrega encerra com bloco de documentação ou justificativa formal.
+
+## ✅ Etapa 5.5 — Atributos cosméticos no cadastro (concluída em 21/06/2026)
+Novos campos no cadastro de produto (visíveis só quando regime = ANVISA Cosmético):
+- Dermatologicamente testado / Hipoalergênico / Cruelty free / Vegano / Com fragrância (Sim/Não/N-A)
+- Nome da fragrância (texto livre)
+- Tipos de cabelo recomendados (multi-tag)
+- Tipos de tratamento (multi-tag)
+- Efeitos esperados (texto curto)
+
+Dialog "Aplicar atributos em lote" na lista de produtos: seleciona
+N produtos cosméticos, marca o que aplicar, propaga em 1 clique.
+
+Motor `meli-resolve-attributes` foi atualizado para reconhecer os IDs
+DERMATOLOGICALLY_TESTED, HYPOALLERGENIC, CRUELTY_FREE, IS_VEGAN,
+WITH_FRAGRANCE, FRAGRANCE, HAIR_TYPES, HAIR_TREATMENT_TYPE e EFFECTS,
+preenchendo direto a partir do cadastro (status ✅ filled) e enviando
+esses campos como contexto para a IA cobrir variações de nomenclatura.
