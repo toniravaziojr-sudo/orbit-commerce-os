@@ -6,6 +6,7 @@ Aprovado em 2026-06-21.
 - ✅ Etapa 2 — Dicionário Universal de Atributos (50 atributos mapeados para Mercado Livre) entregue 2026-06-21.
 - ✅ Etapa 3 — Ajustes no cadastro (categoria universal, regime regulatório expandido, conteúdo líquido, público) entregue 2026-06-21.
 - ✅ Etapa 4 — Derivações Automáticas (lib pura `productDerivations`) entregue 2026-06-21.
+- ⏳ Etapa 5A — Motor backend de atributos ML (`meli-resolve-attributes`) entregue 2026-06-21. UI (5B) pendente.
 
 ## Achados da revisão prévia
 O cadastro de produto **já tem** infraestrutura parcial: `regulatory_category`

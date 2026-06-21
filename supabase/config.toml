@@ -448,6 +448,11 @@ verify_jwt = false
 [functions.meli-answer-question]
 verify_jwt = true
 
+[functions.meli-resolve-attributes]
+verify_jwt = true
+
+
+
 [functions.meta-oauth-start]
 verify_jwt = true
 
