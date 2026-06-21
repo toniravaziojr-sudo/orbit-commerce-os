@@ -90,7 +90,7 @@ export function MeliListingsTab() {
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(listings.map(l => l.id)));
+      setSelectedIds(new Set(filteredListings.map(l => l.id)));
     }
   };
 
