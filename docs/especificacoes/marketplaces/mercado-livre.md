@@ -1,7 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-21 (v2.4.0: tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.)
+> **Última atualização:** 2026-06-21 (v2.4.1: anúncios em `publishing` movidos para a aba **Pendências** (junto com `error`), pois ainda aguardam aprovação do ML. Aba **Publicados** passa a conter apenas `published` e `paused`. Botão de excluir agora aparece em todos os status, exibe spinner "Excluindo…" durante a operação, e o encerramento no ML detecta automaticamente anúncios nunca aprovados (pula a chamada de close e remove apenas localmente).)
+> **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
