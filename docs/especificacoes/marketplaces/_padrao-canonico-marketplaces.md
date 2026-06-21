@@ -103,6 +103,20 @@ Antes de declarar um marketplace "pronto para produção":
 
 ---
 
+## Classificação Universal (base v2026-06-21)
+
+Toda integração com marketplace usa, como contrato comum:
+
+1. **Taxonomia Universal de Categorias** (`system_universal_categories`) — árvore única do sistema com 15 grupos macro (Beleza/Cosméticos, Saúde, Alimentos, Moda, Eletrônicos, Eletrodomésticos, Casa, Infantil, Ferramentas, Automotivo, Pet, Esporte, Livros, Industrial, Outros). Cada categoria declara seu regime regulatório (ANVISA cosmético, ANVISA saúde, MAPA, INMETRO, ANATEL ou não regulado) e os atributos típicos que os marketplaces pedem.
+
+2. **Dicionário Universal de Atributos** (`system_marketplace_attribute_dictionary`) — tabela que liga cada atributo nosso (marca, linha, modelo, fragrância, volume, gênero, etc.) ao código equivalente em cada marketplace (ML, Shopee, TikTok). Marketplace novo entra como nova coluna no dicionário, sem mexer no cadastro do produto.
+
+3. **IA Classificadora** (Gemini 2.5 Flash via roteador padrão `_shared/ai-router.ts`) — cruza dados do cadastro + derivações automáticas + dicionário + atributos exigidos pela categoria do marketplace e devolve valores com confiança. Atua no dialog de envio (automaticamente) e no cadastro (sob demanda).
+
+Ambas as tabelas são **system-wide** (sem `tenant_id`), leitura pública para autenticados, escrita só pelo sistema. Seed inicial em 2026-06-21: 37 categorias, 50 atributos.
+
+---
+
 ## Docs relacionados
 - `docs/especificacoes/marketplaces/mercado-livre.md` — referência viva
 - `docs/especificacoes/marketplaces/shopee.md` — pendente de alinhamento pleno (ver checklist)
@@ -113,3 +127,4 @@ Antes de declarar um marketplace "pronto para produção":
 - `.lovable/memory/features/command-center/dashboard-by-channel-standard.md`
 - `.lovable/memory/features/logistics/gateway-vs-local-shipping-routing.md`
 - `.lovable/memory/features/customers/profile-enrichment-policy-standard.md`
+
