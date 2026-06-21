@@ -100,22 +100,60 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 ## Fluxo de Anúncios (Listings)
 
-### Pipeline: Criar em Massa (7 Etapas) → Aprovar → Publicar
+### Organização da Tela (Abas)
+
+A tela de Anúncios é dividida em **três abas**, com filtro automático por status:
+
+| Aba | Conteúdo | Quando aparece vazia |
+|-----|----------|----------------------|
+| **Rascunhos** (padrão) | Anúncios em `draft`, `ready`, `approved` | Mostra estado limpo com botão "Novo Anúncio" |
+| **Publicados** | Anúncios em `published`, `paused`, `publishing` | Mensagem indicando ausência de anúncios ativos no ML |
+| **Pendências** | Anúncios em `error` (revisão necessária) | Mensagem de "Nenhuma pendência" |
+
+Cada aba exibe um contador (badge) quando há itens; **Pendências** usa badge destrutivo para chamar atenção. A seleção de itens é escopada à aba ativa (trocar de aba limpa a seleção).
+
+### Ações em Massa (apenas com seleção)
+
+A barra de ações aparece somente quando há itens marcados e contém **dois botões**:
+
+- **Editar em Lote** — reabre o assistente de 7 etapas com os itens selecionados pré-carregados. Na última etapa:
+  - Se **todos** os selecionados já estão publicados no ML (têm `meli_item_id`), o único botão é **"Atualizar anúncios no Mercado Livre"**, que dispara `meli-publish-listing` com `action: "update"` para cada item.
+  - Caso contrário, exibe **"Salvar como rascunho"** e **"Salvar e publicar no Mercado Livre"** (este último publica os novos e atualiza os já publicados, conforme o caso).
+- **Excluir Selecionados** — para itens nunca publicados, remove apenas localmente. Para itens publicados/pausados, **encerra definitivamente no Mercado Livre** (status `closed` — sai do ar, link público para de funcionar) antes de remover. Confirmação explícita de irreversibilidade.
+
+> **Removido da tela principal (v2.4.0):** "Enviar Todos", "Gerar Títulos", "Gerar Descrições", "Auto-Categorizar" e "Enviar Selecionados". Essas funções continuam disponíveis **dentro** do dialog de criação/edição em lote, onde são naturais ao fluxo. A edge function `meli-bulk-operations` permanece ativa porque é consumida pelo dialog.
+
+### Pipeline: Criar → Publicar (no mesmo dialog)
 
 ```
 1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 7 etapas)
-2. Creator Etapa 1 — Selecionar Produtos: checkboxes com busca, selecionar todos
-3. Creator Etapa 2 — Categorizar via ML API: cria drafts no banco + chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
-4. Creator Etapa 3 — Gerar Títulos IA: chama bulk_generate_titles (já com category_id definido, respeitando max_title_length da categoria), exibe preview editável (input + contador chars + botão Regenerar)
-5. Creator Etapa 4 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
-6. Creator Etapa 5 — Condição: cards visuais radio-style (Novo / Usado / Não especificado)
-7. Creator Etapa 6 — Tipo de Anúncio: cards visuais (Clássico / Premium / Grátis)
-8. Creator Etapa 7 — Frete: switches para Frete Grátis e Retirada no Local + botão Salvar
-9. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
-10. Lojista revisa e clica "Aprovar" → status 'approved'
-11. Lojista clica "Publicar" (individual) ou "Publicar Selecionados" (em massa) → edge function meli-publish-listing → API do ML → status 'published'
-12. Após publicação: pode pausar, reativar, sincronizar preço/estoque
+2. Etapa 1 — Selecionar Produtos
+3. Etapa 2 — Categorizar via ML API (cria drafts no banco)
+4. Etapa 3 — Gerar Títulos IA (respeitando max_title_length da categoria)
+5. Etapa 4 — Gerar Descrições IA
+6. Etapa 5 — Condição
+7. Etapa 6 — Tipo de Anúncio
+8. Etapa 7 — Frete + escolha final:
+     • "Salvar como rascunho" (fica em Rascunhos para revisão posterior)
+     • "Salvar e publicar no Mercado Livre" (publica todos os itens em sequência)
+9. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
 ```
+
+### Sincronização ML em todas as ações
+
+| Ação na UI | Comportamento no ML |
+|------------|---------------------|
+| Pausar | `PUT /items/{id}` com `status: paused` |
+| Reativar | `PUT /items/{id}` com `status: active` |
+| Editar publicado (individual) | Salva local + `meli-publish-listing` com `action: "update"` |
+| Editar em Lote (publicados) | Salva local em batch + `action: "update"` por item |
+| Excluir publicado | `PUT /items/{id}` com `status: paused` (best-effort) → `status: closed` (definitivo) → DELETE local |
+| Excluir rascunho/erro nunca publicado | DELETE local apenas |
+| Sincronizar | `meli-sync-listings` (detecta closed/paused/active no ML) |
+
+> **Mercado Livre não suporta exclusão real** — apenas encerramento (`closed`), que é irreversível. A UI comunica isso explicitamente antes da confirmação.
+
+
 
 ### Creator Multi-Produto (MeliListingCreator) — 7 Etapas
 
