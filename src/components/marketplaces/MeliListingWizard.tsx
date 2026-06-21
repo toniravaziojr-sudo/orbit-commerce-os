@@ -715,7 +715,13 @@ export function MeliListingWizard({
             </Button>
           )}
           {step === "review" && (
-            <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+              {!attrPanel.canPublish && (
+                <p className="text-xs text-destructive flex items-center gap-1 mr-auto">
+                  <AlertCircle className="h-3 w-3" />
+                  Preencha os atributos obrigatórios do painel para publicar.
+                </p>
+              )}
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
@@ -731,7 +737,7 @@ export function MeliListingWizard({
                   <>Preparar Anúncio <ArrowRight className="h-4 w-4 ml-1" /></>
                 )}
               </Button>
-            </>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>
