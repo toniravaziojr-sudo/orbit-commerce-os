@@ -257,9 +257,17 @@ export function MeliListingWizard({
   };
 
   const handleSubmit = () => {
-    const attrs: any[] = [];
-    if (brand) attrs.push({ id: "BRAND", value_name: brand });
-    if (gtin) attrs.push({ id: "GTIN", value_name: gtin });
+    // Merge brand/gtin manuais com atributos resolvidos pelo motor (Etapa 5B)
+    const merged = new Map<string, any>();
+    if (brand) merged.set("BRAND", { id: "BRAND", value_name: brand });
+    if (gtin) merged.set("GTIN", { id: "GTIN", value_name: gtin });
+    for (const a of attrPanel.attributes) {
+      if (a.status === "missing" || !a.value_name) continue;
+      merged.set(a.id, a.value_id
+        ? { id: a.id, value_id: a.value_id }
+        : { id: a.id, value_name: a.value_name });
+    }
+    const attrs = Array.from(merged.values());
 
     const data: any = {
       title,
@@ -284,7 +292,6 @@ export function MeliListingWizard({
 
     if (mode === "edit" && initialData?.id) {
       data.id = initialData.id;
-      // For published/paused listings, flag as update action
       if (isPostPublication) {
         data.action = "update";
       }
@@ -293,7 +300,8 @@ export function MeliListingWizard({
     onSubmit(data);
   };
 
-  const isValid = !!title && !!price && parseFloat(price) > 0 && !!categoryId;
+  const productIdForPanel = selectedProduct?.id || initialData?.product_id || null;
+  const isValid = !!title && !!price && parseFloat(price) > 0 && !!categoryId && attrPanel.canPublish;
 
   const stepNumber = STEP_INFO[step].number;
   const totalSteps = mode === "edit" ? 1 : 3;
