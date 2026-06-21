@@ -278,114 +278,56 @@ export function MeliListingsTab() {
             </div>
           </div>
 
-          {/* Bulk Actions Bar */}
-          {listings.length > 0 && (
-            <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-muted-foreground">AÇÕES EM MASSA</p>
-                {selectedIds.size > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {bulkActions.map((ba) => {
-                  const Icon = ba.icon;
-                  const isRunning = bulkAction === ba.key;
-                  return (
-                    <Tooltip key={ba.key}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => runBulkOperation(ba.key, ba.label)}
-                          disabled={!!bulkAction}
-                          className="gap-1.5"
-                        >
-                          {isRunning ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Icon className="h-3.5 w-3.5" />
-                          )}
-                          {ba.label}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">{ba.desc}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-                {selectedIds.size > 0 && (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowBulkConfigure(true)}
-                          disabled={!!bulkAction}
-                          className="gap-1.5"
-                        >
-                          <Settings2 className="h-3.5 w-3.5" />
-                          Configurar Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Define categoria, marca, código de barras e garantia em lote</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
+          {/* Tabs */}
+          <div className="mt-4">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabKey); setSelectedIds(new Set()); }}>
+              <TabsList>
+                <TabsTrigger value="drafts" className="gap-2">
+                  Rascunhos
+                  {draftsCount > 0 && <Badge variant="secondary" className="text-xs">{draftsCount}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="published" className="gap-2">
+                  Publicados
+                  {publishedCount > 0 && <Badge variant="secondary" className="text-xs">{publishedCount}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="gap-2">
+                  Pendências
+                  {pendingCount > 0 && <Badge variant="destructive" className="text-xs">{pendingCount}</Badge>}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleBulkSend}
-                          disabled={!!bulkAction}
-                          className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          Enviar Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Aprova e publica os anúncios selecionados no Mercado Livre</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleBulkDelete}
-                          disabled={!!bulkAction}
-                          className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Excluir Selecionados
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">Remove os anúncios selecionados (exceto publicados)</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
+          {/* Bulk actions bar — only when something is selected */}
+          {selectedIds.size > 0 && (
+            <div className="mt-3 p-3 rounded-lg bg-muted/50 border flex items-center justify-between gap-2 flex-wrap">
+              <Badge variant="secondary" className="text-xs">
+                {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
+              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => setShowBulkConfigure(true)} className="gap-1.5">
+                      <Settings2 className="h-3.5 w-3.5" />
+                      Editar em Lote
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Reabre o assistente com os anúncios selecionados. Na última etapa, atualiza os anúncios já publicados no Mercado Livre.</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={handleBulkDelete} className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir Selecionados
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Remove os selecionados. Publicados são encerrados no Mercado Livre de forma definitiva.</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              {bulkAction && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>{bulkProgress.label}</span>
-                    <span>{bulkProgress.processed} / {bulkProgress.total || "?"}</span>
-                  </div>
-                  <Progress
-                    value={bulkProgress.total > 0 ? (bulkProgress.processed / bulkProgress.total) * 100 : 30}
-                    className="h-1.5"
-                  />
-                </div>
-              )}
             </div>
           )}
         </CardHeader>
