@@ -318,9 +318,9 @@ export function MeliListingsTab() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={handleBulkDelete} className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Excluir Selecionados
+                    <Button variant="outline" size="sm" onClick={handleBulkDelete} disabled={bulkDeleteListings.isPending} className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                      {bulkDeleteListings.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      {bulkDeleteListings.isPending ? "Excluindo..." : "Excluir Selecionados"}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
