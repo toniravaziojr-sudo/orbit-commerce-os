@@ -348,15 +348,15 @@ Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um c
 
 ### Status do Anúncio
 
-| Status | Descrição | Ações Disponíveis |
-|--------|-----------|-------------------|
-| `draft` | Rascunho | Editar, Aprovar, Excluir |
-| `ready` | Pronto para aprovação | Editar, Aprovar, Excluir |
-| `approved` | Aprovado, aguardando publicação | Editar, Publicar, Excluir |
-| `publishing` | Em processo de envio ao ML | — |
-| `published` | Publicado no ML | Ver no ML, Sincronizar preço/estoque, Pausar |
-| `paused` | Pausado no ML | Reativar |
-| `error` | Erro na publicação | Editar, Retentar publicação, Excluir |
+| Status | Descrição | Aba | Ações Disponíveis |
+|--------|-----------|-----|-------------------|
+| `draft` | Rascunho | Rascunhos | Editar, Aprovar, Excluir (local) |
+| `ready` | Pronto para aprovação | Rascunhos | Editar, Aprovar, Excluir (local) |
+| `approved` | Aprovado, aguardando publicação | Rascunhos | Editar, Publicar, Excluir (local) |
+| `publishing` | Em processo de envio ao ML | Publicados | — |
+| `published` | Publicado no ML | Publicados | Ver no ML, Sincronizar, Pausar, Editar (sync ML), Excluir (encerra no ML) |
+| `paused` | Pausado no ML | Publicados | Reativar, Editar (sync ML), Excluir (encerra no ML) |
+| `error` | Erro na publicação | Pendências | Editar, Retentar publicação, Excluir |
 
 ### Regra: Edição de Anúncios (OBRIGATÓRIO)
 
