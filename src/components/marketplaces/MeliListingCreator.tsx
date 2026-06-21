@@ -156,6 +156,11 @@ export function MeliListingCreator({
   const [step, setStep] = useState<Step>("select");
   const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
   const [listingIds, setListingIds] = useState<string[]>([]);
+  // Guard: ensure configure-mode initialization runs ONLY once per dialog opening.
+  // Without this, a parent React Query refetch (e.g. when the user switches browser
+  // tabs and returns) produces a new `existingDrafts` reference and re-triggers the
+  // init effect, which would reset the wizard back to step 1.
+  const configureInitRef = useRef<string | null>(null);
 
   // Processing states
   const [isProcessing, setIsProcessing] = useState(false);
