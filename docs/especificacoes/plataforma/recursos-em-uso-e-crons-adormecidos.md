@@ -67,7 +67,7 @@ Sincronizações periódicas de painéis de terceiros (anúncios, marketplaces) 
 
 | Cron | Frequência | Módulo(s) |
 |---|---|---|
-| `meli-sync-listings-auto` | grade fixa 00/06/09/12/15/18/21 | Mercado Livre |
+| `meli-sync-listings-auto` | 1×/dia às 05:00 BRT (08:00 UTC) — exceção à grade fixa | Mercado Livre |
 | `check-whatsapp-templates-hourly` | 2 h | WhatsApp Meta |
 | `whatsapp-orphan-watcher-15min` | 1 h | WhatsApp Meta |
 | `meta-whatsapp-monitor-hourly` | 2 h | WhatsApp Meta |
