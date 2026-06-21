@@ -587,6 +587,8 @@ export function MeliListingsTab() {
           listing_type: l.listing_type,
           shipping: l.shipping,
           product: l.product ? { name: l.product.name } : null,
+          status: l.status,
+          meli_item_id: l.meli_item_id,
         })) : undefined}
       />
 
