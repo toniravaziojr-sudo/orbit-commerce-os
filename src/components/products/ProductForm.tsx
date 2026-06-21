@@ -356,6 +356,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       net_content_unit: (product as any)?.net_content_unit ?? '',
       gender_audience: (product as any)?.gender_audience ?? '',
 
+      // Atributos cosméticos
+      dermatologically_tested: (product as any)?.dermatologically_tested ?? '',
+      hypoallergenic: (product as any)?.hypoallergenic ?? '',
+      cruelty_free: (product as any)?.cruelty_free ?? '',
+      vegan: (product as any)?.vegan ?? '',
+      has_fragrance: (product as any)?.has_fragrance ?? '',
+      fragrance_name: (product as any)?.fragrance_name ?? '',
+      recommended_hair_types: (product as any)?.recommended_hair_types ?? [],
+      treatment_types: (product as any)?.treatment_types ?? [],
+      expected_effects: (product as any)?.expected_effects ?? '',
+
       // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
       commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
