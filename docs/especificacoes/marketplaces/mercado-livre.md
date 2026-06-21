@@ -292,6 +292,20 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `WARRANTY_TYPE` | `products.warranty_type` (vendor → "Garantía del vendedor", factory → "Garantía de fábrica") |
 | `WARRANTY_TIME` | `products.warranty_duration` (ex: "6 meses") |
 
+### Auto-preenchimento de Atributos Obrigatórios por Categoria (v3.3.0)
+
+Antes de publicar, a edge function consulta `GET /categories/{id}/attributes` e identifica os atributos marcados como `required` pela categoria escolhida. Para cada obrigatório que ainda não tenha valor, o sistema tenta preencher automaticamente:
+
+| Atributo obrigatório | Fallback automático |
+|----------------------|---------------------|
+| `BRAND` | `products.brand` |
+| `LINE` (Linha) | `products.brand` (mesmo valor da marca, quando não há linha específica) |
+| `MODEL` (Modelo) | `products.brand` |
+| `ITEM_CONDITION` | "Novo" (ou "Usado" se `listing.condition = used`) |
+| `GTIN` / `EAN` | `products.gtin` |
+
+Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um campo que não temos no cadastro), a publicação é bloqueada e o anúncio fica com erro descrevendo exatamente quais campos preencher no cadastro do produto. Sem essa camada, categorias como kits capilares (`MLB32130`) falhavam com `Atributos faltantes: BRAND, LINE`.
+
 > **⚠️ Removidos na v3.1.0:** `PACKAGE_WEIGHT`, `PACKAGE_WIDTH`, `PACKAGE_HEIGHT` e `PACKAGE_LENGTH` **NÃO são enviados** como atributos na publicação. Esses campos não são modificáveis via API de itens do ML e causavam erros/warnings. Dimensões de frete devem ser configuradas via painel do ML ou API de shipping separada.
 
 ### Status do Anúncio
