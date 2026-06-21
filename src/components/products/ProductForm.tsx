@@ -665,6 +665,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           no_additional_restrictions_confirmed: data.no_additional_restrictions_confirmed ?? false,
           ai_product_type: data.ai_product_type || null,
           ai_main_function: data.ai_main_function || null,
+          universal_category_id: data.universal_category_id || null,
+          regulatory_regime: data.regulatory_regime || null,
+          net_content_value: data.net_content_value ?? null,
+          net_content_unit: data.net_content_unit || null,
+          gender_audience: data.gender_audience || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
