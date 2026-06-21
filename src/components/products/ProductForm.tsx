@@ -2108,6 +2108,167 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 </CardContent>
               </Card>
 
+              {/* === ATRIBUTOS COSMÉTICOS — só aparece para regime ANVISA Cosmético === */}
+              {form.watch('regulatory_regime') === 'anvisa_cosmetic' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Atributos Cosméticos</CardTitle>
+                    <FormDescription>
+                      Preencha 1 vez aqui e o sistema envia automaticamente para Mercado Livre, Shopee e TikTok — sem precisar reescrever em cada anúncio.
+                    </FormDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {([
+                        ['dermatologically_tested', 'Dermatologicamente testado'],
+                        ['hypoallergenic', 'Hipoalergênico'],
+                        ['cruelty_free', 'Livre de crueldade (cruelty free)'],
+                        ['vegan', 'Vegano'],
+                        ['has_fragrance', 'Com fragrância'],
+                      ] as const).map(([name, label]) => (
+                        <FormField
+                          key={name}
+                          control={form.control}
+                          name={name as any}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{label}</FormLabel>
+                              <Select onValueChange={field.onChange} value={(field.value as string) || ''}>
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="yes">Sim</SelectItem>
+                                  <SelectItem value="no">Não</SelectItem>
+                                  <SelectItem value="not_applicable">Não se aplica</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name={'fragrance_name' as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome da fragrância</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={(field.value as string) ?? ''} placeholder="Ex: Madeira amadeirada, Cítrico, Lavanda" />
+                          </FormControl>
+                          <FormDescription>Deixe em branco se não tiver fragrância.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'recommended_hair_types' as any}
+                      render={({ field }) => {
+                        const value: string[] = (field.value as string[]) ?? [];
+                        const options = [
+                          { v: 'oleoso', l: 'Oleoso' },
+                          { v: 'seco', l: 'Seco' },
+                          { v: 'misto', l: 'Misto' },
+                          { v: 'normal', l: 'Normal' },
+                          { v: 'cacheado', l: 'Cacheado' },
+                          { v: 'liso', l: 'Liso' },
+                          { v: 'todos', l: 'Todos os tipos' },
+                        ];
+                        const toggle = (v: string) => {
+                          field.onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
+                        };
+                        return (
+                          <FormItem>
+                            <FormLabel>Tipos de cabelo recomendados</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {options.map(o => (
+                                <button
+                                  type="button"
+                                  key={o.v}
+                                  onClick={() => toggle(o.v)}
+                                  className={`px-3 py-1 rounded-full text-sm border transition ${value.includes(o.v) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted border-border'}`}
+                                >
+                                  {o.l}
+                                </button>
+                              ))}
+                            </div>
+                            <FormDescription>Selecione um ou mais. Deixe em branco se não for produto para cabelo.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'treatment_types' as any}
+                      render={({ field }) => {
+                        const value: string[] = (field.value as string[]) ?? [];
+                        const options = [
+                          { v: 'antiqueda', l: 'Antiqueda' },
+                          { v: 'crescimento', l: 'Crescimento' },
+                          { v: 'hidratacao', l: 'Hidratação' },
+                          { v: 'anticaspa', l: 'Anticaspa' },
+                          { v: 'antioleosidade', l: 'Antioleosidade' },
+                          { v: 'reconstrucao', l: 'Reconstrução' },
+                          { v: 'fortalecimento', l: 'Fortalecimento' },
+                          { v: 'limpeza', l: 'Limpeza' },
+                          { v: 'pos_banho', l: 'Pós-banho' },
+                        ];
+                        const toggle = (v: string) => {
+                          field.onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
+                        };
+                        return (
+                          <FormItem>
+                            <FormLabel>Tipos de tratamento</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {options.map(o => (
+                                <button
+                                  type="button"
+                                  key={o.v}
+                                  onClick={() => toggle(o.v)}
+                                  className={`px-3 py-1 rounded-full text-sm border transition ${value.includes(o.v) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted border-border'}`}
+                                >
+                                  {o.l}
+                                </button>
+                              ))}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={'expected_effects' as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Efeitos esperados</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              value={(field.value as string) ?? ''}
+                              placeholder="Ex: Fortalece a raiz, reduz queda, estimula o crescimento"
+                              rows={2}
+                            />
+                          </FormControl>
+                          <FormDescription>Texto curto que descreve o resultado do produto.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+
+
 
               <Card>
                 <CardHeader>
