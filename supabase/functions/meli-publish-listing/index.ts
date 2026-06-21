@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { tenantId, listingId, action } = body;
+    console.log(`[meli-publish-listing] action=${action} listingId=${listingId}`);
 
     if (!tenantId || !listingId) {
       return jsonResponse({ success: false, error: "tenantId e listingId são obrigatórios" });
