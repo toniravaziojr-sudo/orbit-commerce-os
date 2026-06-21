@@ -579,9 +579,20 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, regulatory_category: rc, commercial_restrictions: cr, no_additional_restrictions_confirmed: nrc, ai_product_type: apt, ai_main_function: amf, ...restData } = data;
-        await updateProduct.mutateAsync({ 
-          id: product.id, 
+        const {
+          regulatory_anvisa, regulatory_afe, regulatory_conama,
+          warranty_type: wt, warranty_duration: wd,
+          regulatory_category: rc,
+          commercial_restrictions: cr,
+          no_additional_restrictions_confirmed: nrc,
+          ai_product_type: apt, ai_main_function: amf,
+          universal_category_id: uci, regulatory_regime: rr,
+          net_content_value: ncv, net_content_unit: ncu,
+          gender_audience: ga,
+          ...restData
+        } = data;
+        await updateProduct.mutateAsync({
+          id: product.id,
           ...restData,
           regulatory_info: {
             anvisa: regulatory_anvisa || null,
@@ -595,6 +606,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           no_additional_restrictions_confirmed: nrc ?? false,
           ai_product_type: apt || null,
           ai_main_function: amf || null,
+          universal_category_id: uci || null,
+          regulatory_regime: rr || null,
+          net_content_value: ncv ?? null,
+          net_content_unit: ncu || null,
+          gender_audience: ga || null,
         } as any);
         
         // Update related products and variants
