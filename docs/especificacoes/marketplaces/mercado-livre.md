@@ -762,3 +762,31 @@ O mapeamento ML→sistema usa `approved/pending/declined/refunded/cancelled` (al
 
 ### Roteamento de Transporte
 Pedidos com `marketplace_source = 'mercadolivre'` retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — não entram em `shipping_draft_queue` (envio é responsabilidade do ML/Mercado Envios).
+
+## Motor de Atributos por Categoria (v3.4 — Onda Classificação Universal, 2026-06-21)
+
+### Visão de negócio
+Quando o lojista escolhe a categoria do anúncio, o sistema resolve **sozinho** quais atributos o Mercado Livre exige naquela categoria e tenta preencher cada um cruzando 4 fontes nesta ordem: (1) cadastro do produto, (2) derivações automáticas (kit, peso somado, unidades, garantia, regime regulatório), (3) dicionário universal de atributos, (4) IA Gemini cruzando nome/descrição/tipo/função.
+
+Cada atributo volta com um status:
+- **Preenchido** — valor confiável vindo do cadastro, derivação ou dicionário.
+- **Revisar** — sugestão da IA, exige confirmação humana antes de publicar.
+- **Faltando** — obrigatório do ML sem dado confiável. Publicação fica bloqueada até resolver (preencher no cadastro do produto OU diretamente no painel do anúncio).
+
+### Backend
+Edge function `meli-resolve-attributes` (verify_jwt=true), payload `{ tenantId, productId, categoryId }`. Retorna:
+```
+{
+  success: true,
+  attributes: [{ id, name, value_name, value_id?, status, source, required, message? }],
+  summary: { filled, review, missing },
+  can_publish: boolean
+}
+```
+IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. Só pergunta à IA os atributos obrigatórios que sobraram após as 3 camadas determinísticas — economiza tokens.
+
+### UI (Etapa 5B — em andamento)
+Painel "Atributos para o anúncio" dentro do dialog de novo/editar anúncio do ML, abaixo do seletor de categoria. Três blocos visuais (preenchido / revisar / faltando) e botão de publicação desabilitado enquanto houver faltando.
+
+### Aprendizado por tenant
+Correção manual feita pelo lojista vira aprendizado escopado por tenant (a ser conectado em fase seguinte).

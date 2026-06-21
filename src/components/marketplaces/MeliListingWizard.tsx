@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { MeliCategoryPicker } from "@/components/marketplaces/MeliCategoryPicker";
+import { MeliAttributesPanel, type MeliAttributesPanelValue } from "@/components/marketplaces/MeliAttributesPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -92,6 +93,9 @@ export function MeliListingWizard({
   const [autoProgress, setAutoProgress] = useState(0);
   const [autoStatus, setAutoStatus] = useState("");
   const [autoSteps, setAutoSteps] = useState<{ label: string; done: boolean; error?: boolean }[]>([]);
+
+  // Attributes panel state (Etapa 5B)
+  const [attrPanel, setAttrPanel] = useState<MeliAttributesPanelValue>({ attributes: [], canPublish: true });
 
   // Initialize edit mode
   useEffect(() => {
@@ -253,9 +257,17 @@ export function MeliListingWizard({
   };
 
   const handleSubmit = () => {
-    const attrs: any[] = [];
-    if (brand) attrs.push({ id: "BRAND", value_name: brand });
-    if (gtin) attrs.push({ id: "GTIN", value_name: gtin });
+    // Merge brand/gtin manuais com atributos resolvidos pelo motor (Etapa 5B)
+    const merged = new Map<string, any>();
+    if (brand) merged.set("BRAND", { id: "BRAND", value_name: brand });
+    if (gtin) merged.set("GTIN", { id: "GTIN", value_name: gtin });
+    for (const a of attrPanel.attributes) {
+      if (a.status === "missing" || !a.value_name) continue;
+      merged.set(a.id, a.value_id
+        ? { id: a.id, value_id: a.value_id }
+        : { id: a.id, value_name: a.value_name });
+    }
+    const attrs = Array.from(merged.values());
 
     const data: any = {
       title,
@@ -280,7 +292,6 @@ export function MeliListingWizard({
 
     if (mode === "edit" && initialData?.id) {
       data.id = initialData.id;
-      // For published/paused listings, flag as update action
       if (isPostPublication) {
         data.action = "update";
       }
@@ -289,7 +300,8 @@ export function MeliListingWizard({
     onSubmit(data);
   };
 
-  const isValid = !!title && !!price && parseFloat(price) > 0 && !!categoryId;
+  const productIdForPanel = selectedProduct?.id || initialData?.product_id || null;
+  const isValid = !!title && !!price && parseFloat(price) > 0 && !!categoryId && attrPanel.canPublish;
 
   const stepNumber = STEP_INFO[step].number;
   const totalSteps = mode === "edit" ? 1 : 3;
@@ -645,6 +657,17 @@ export function MeliListingWizard({
               )}
             </div>
 
+            {/* Painel IA de Atributos (Etapa 5B) */}
+            {categoryId && productIdForPanel && currentTenant?.id && (
+              <MeliAttributesPanel
+                tenantId={currentTenant.id}
+                productId={productIdForPanel}
+                categoryId={categoryId}
+                onChange={setAttrPanel}
+              />
+            )}
+
+
             {/* Brand + GTIN */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -692,7 +715,13 @@ export function MeliListingWizard({
             </Button>
           )}
           {step === "review" && (
-            <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+              {!attrPanel.canPublish && (
+                <p className="text-xs text-destructive flex items-center gap-1 mr-auto">
+                  <AlertCircle className="h-3 w-3" />
+                  Preencha os atributos obrigatórios do painel para publicar.
+                </p>
+              )}
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
@@ -708,7 +737,7 @@ export function MeliListingWizard({
                   <>Preparar Anúncio <ArrowRight className="h-4 w-4 ml-1" /></>
                 )}
               </Button>
-            </>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>
