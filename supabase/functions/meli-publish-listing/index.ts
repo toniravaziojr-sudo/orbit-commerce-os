@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.3.0"; // Auto-fill required category attributes (BRAND/LINE/MODEL/etc.) from product data
+const VERSION = "3.4.0"; // Delete action: close on ML (with skip for unapproved) + local remove
 // ===================
 
 const corsHeaders = {
@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { tenantId, listingId, action } = body;
+    console.log(`[meli-publish-listing] action=${action} listingId=${listingId}`);
 
     if (!tenantId || !listingId) {
       return jsonResponse({ success: false, error: "tenantId e listingId são obrigatórios" });
