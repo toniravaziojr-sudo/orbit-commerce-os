@@ -107,8 +107,8 @@ A tela de Anúncios é dividida em **três abas**, com filtro automático por st
 | Aba | Conteúdo | Quando aparece vazia |
 |-----|----------|----------------------|
 | **Rascunhos** (padrão) | Anúncios em `draft`, `ready`, `approved` | Mostra estado limpo com botão "Novo Anúncio" |
-| **Publicados** | Anúncios em `published`, `paused`, `publishing` | Mensagem indicando ausência de anúncios ativos no ML |
-| **Pendências** | Anúncios em `error` (revisão necessária) | Mensagem de "Nenhuma pendência" |
+| **Publicados** | Anúncios em `published`, `paused` | Mensagem indicando ausência de anúncios ativos no ML |
+| **Pendências** | Anúncios em `error` (revisão necessária) e `publishing` (em envio / em revisão pelo Mercado Livre) | Mensagem de "Nenhuma pendência" |
 
 Cada aba exibe um contador (badge) quando há itens; **Pendências** usa badge destrutivo para chamar atenção. A seleção de itens é escopada à aba ativa (trocar de aba limpa a seleção).
 
