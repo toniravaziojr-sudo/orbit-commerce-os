@@ -137,35 +137,74 @@ export function useMeliListings() {
     },
   });
 
+  // Delete: closes on ML (definitive) for published/paused, then removes local. Local-only otherwise.
   const deleteListing = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('meli_listings')
-        .delete()
-        .eq('id', id);
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+      const listing = (listingsQuery.data || []).find(l => l.id === id);
+      const needsMeliClose = listing?.meli_item_id && ['published', 'paused', 'publishing'].includes(listing.status);
+
+      if (needsMeliClose) {
+        const { data, error } = await supabase.functions.invoke('meli-publish-listing', {
+          body: { tenantId: currentTenant.id, listingId: id, action: 'delete' },
+        });
+        if (error) throw new Error(error.message || 'Erro ao encerrar no Mercado Livre');
+        if (!data?.success) throw new Error(data?.error || 'Erro ao encerrar no Mercado Livre');
+        return;
+      }
+
+      const { error } = await supabase.from('meli_listings').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
       toast.success('Anúncio removido');
     },
-    onError: () => {
-      toast.error('Erro ao remover anúncio');
+    onError: (err: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      showErrorToast(err, { module: 'mercado livre', action: 'excluir' });
     },
   });
 
   const bulkDeleteListings = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase
-        .from('meli_listings')
-        .delete()
-        .in('id', ids);
-      if (error) throw error;
-      return ids.length;
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+      const all = listingsQuery.data || [];
+      const items = ids.map(id => all.find(l => l.id === id)).filter(Boolean) as MeliListing[];
+
+      const needsMeliClose = items.filter(l => l.meli_item_id && ['published', 'paused', 'publishing'].includes(l.status));
+      const localOnly = items.filter(l => !needsMeliClose.includes(l)).map(l => l.id);
+
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const l of needsMeliClose) {
+        try {
+          const { data, error } = await supabase.functions.invoke('meli-publish-listing', {
+            body: { tenantId: currentTenant.id, listingId: l.id, action: 'delete' },
+          });
+          if (error || !data?.success) {
+            errors.push(`${l.title}: ${data?.error || error?.message || 'erro ao encerrar'}`);
+          } else {
+            successCount++;
+          }
+        } catch (e: any) {
+          errors.push(`${l.title}: ${e?.message || 'erro'}`);
+        }
+      }
+
+      if (localOnly.length > 0) {
+        const { error } = await supabase.from('meli_listings').delete().in('id', localOnly);
+        if (error) errors.push(`Erro ao remover ${localOnly.length} rascunho(s) localmente`);
+        else successCount += localOnly.length;
+      }
+
+      return { successCount, errors };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ successCount, errors }) => {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
-      toast.success(`${count} anúncio${count > 1 ? 's' : ''} removido${count > 1 ? 's' : ''}`);
+      if (successCount > 0) toast.success(`${successCount} anúncio${successCount > 1 ? 's' : ''} removido${successCount > 1 ? 's' : ''}`);
+      if (errors.length > 0) toast.error(`${errors.length} falha(s) ao remover: ${errors.slice(0, 3).join(' | ')}`);
     },
     onError: () => {
       toast.error('Erro ao remover anúncios');
