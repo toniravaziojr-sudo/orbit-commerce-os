@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   Package,
@@ -21,11 +21,8 @@ import {
   Pause,
   Play,
   RefreshCw,
-  Sparkles,
-  FileText,
-  Tags,
-  PackagePlus,
   Settings2,
+  AlertCircle,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
@@ -35,7 +32,6 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { showErrorToast } from '@/lib/error-toast';
 
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
