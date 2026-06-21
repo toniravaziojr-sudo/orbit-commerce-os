@@ -1,8 +1,10 @@
 # Plano — Classificação Inteligente para Marketplaces (Cadastro + Envio)
 
 ## Status
-Aprovado em 2026-06-21. Início pela Etapa 1 + Etapa 4 (base de dados, sem
-impacto de UI).
+Aprovado em 2026-06-21.
+- ✅ Etapa 1 — Taxonomia Universal (37 categorias) entregue 2026-06-21.
+- ✅ Etapa 2 — Dicionário Universal de Atributos (50 atributos mapeados para Mercado Livre) entregue 2026-06-21.
+- ⏸ Etapa 3 — Ajustes no cadastro (UI/UX) — aguardando aprovação para iniciar.
 
 ## Achados da revisão prévia
 O cadastro de produto **já tem** infraestrutura parcial: `regulatory_category`
