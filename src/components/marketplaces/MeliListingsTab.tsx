@@ -264,7 +264,7 @@ export function MeliListingsTab() {
             <div className="flex gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing || !!bulkAction}>
+                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing}>
                     {isSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Sincronizar
                   </Button>
