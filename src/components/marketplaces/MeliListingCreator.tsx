@@ -284,6 +284,40 @@ export function MeliListingCreator({
       setLocalPickup(!!first.shipping.local_pick_up);
     }
 
+    // ALWAYS refresh from DB to avoid stale parent cache. Titles/descriptions/categories
+    // generated/saved in a previous session of this dialog might not be reflected in the
+    // parent's React Query cached list, which would cause re-generation on reopen.
+    (async () => {
+      const ids = existingDrafts.map(d => d.id);
+      if (ids.length === 0) return;
+      try {
+        const { data: fresh } = await supabase
+          .from("meli_listings")
+          .select("id, title, description, category_id, condition, listing_type, shipping")
+          .in("id", ids);
+        if (!fresh) return;
+        const byId = new Map(fresh.map((r: any) => [r.id, r]));
+        setGeneratedItems(prev => prev.map(i => {
+          const r: any = byId.get(i.listingId);
+          if (!r) return i;
+          return {
+            ...i,
+            title: r.title || i.title,
+            description: r.description || i.description,
+            categoryId: r.category_id || i.categoryId,
+            categoryName: r.category_id || i.categoryName,
+          };
+        }));
+        const f: any = fresh[0];
+        if (f?.condition) setCondition(f.condition);
+        if (f?.listing_type) setListingType(f.listing_type);
+        if (f?.shipping) {
+          setFreeShipping(!!f.shipping.free_shipping);
+          setLocalPickup(!!f.shipping.local_pick_up);
+        }
+      } catch { /* skip */ }
+    })();
+
     // Resolve friendly names for already-saved category IDs
     (async () => {
       const uniqueIds = Array.from(new Set(existingDrafts.map(d => d.category_id).filter(Boolean) as string[]));
