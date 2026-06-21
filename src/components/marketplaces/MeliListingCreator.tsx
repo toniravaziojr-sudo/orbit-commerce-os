@@ -284,6 +284,40 @@ export function MeliListingCreator({
       setLocalPickup(!!first.shipping.local_pick_up);
     }
 
+    // ALWAYS refresh from DB to avoid stale parent cache. Titles/descriptions/categories
+    // generated/saved in a previous session of this dialog might not be reflected in the
+    // parent's React Query cached list, which would cause re-generation on reopen.
+    (async () => {
+      const ids = existingDrafts.map(d => d.id);
+      if (ids.length === 0) return;
+      try {
+        const { data: fresh } = await supabase
+          .from("meli_listings")
+          .select("id, title, description, category_id, condition, listing_type, shipping")
+          .in("id", ids);
+        if (!fresh) return;
+        const byId = new Map(fresh.map((r: any) => [r.id, r]));
+        setGeneratedItems(prev => prev.map(i => {
+          const r: any = byId.get(i.listingId);
+          if (!r) return i;
+          return {
+            ...i,
+            title: r.title || i.title,
+            description: r.description || i.description,
+            categoryId: r.category_id || i.categoryId,
+            categoryName: r.category_id || i.categoryName,
+          };
+        }));
+        const f: any = fresh[0];
+        if (f?.condition) setCondition(f.condition);
+        if (f?.listing_type) setListingType(f.listing_type);
+        if (f?.shipping) {
+          setFreeShipping(!!f.shipping.free_shipping);
+          setLocalPickup(!!f.shipping.local_pick_up);
+        }
+      } catch { /* skip */ }
+    })();
+
     // Resolve friendly names for already-saved category IDs
     (async () => {
       const uniqueIds = Array.from(new Set(existingDrafts.map(d => d.category_id).filter(Boolean) as string[]));
@@ -847,13 +881,41 @@ export function MeliListingCreator({
     if (!isConfigureMode) return;
     if (autoGenDescDoneRef.current) return;
     if (isProcessing) return;
-    const emptyIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
-    if (emptyIds.length === 0) { autoGenDescDoneRef.current = true; return; }
+    const candidateIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
+    if (candidateIds.length === 0) { autoGenDescDoneRef.current = true; return; }
     autoGenDescDoneRef.current = true;
 
     let cancelled = false;
     (async () => {
       if (!currentTenant?.id) return;
+      // Double-check in DB to avoid regenerating descriptions that already exist
+      // (parent's React Query cache can be stale after a previous session of this dialog).
+      let emptyIds = candidateIds;
+      try {
+        const { data: fresh } = await supabase
+          .from("meli_listings")
+          .select("id, description")
+          .in("id", candidateIds);
+        if (fresh) {
+          const filled = new Map(fresh.map((r: any) => [r.id, (r.description || "").trim()]));
+          emptyIds = candidateIds.filter(id => !(filled.get(id) || "").length);
+          // Hydrate items that already have descriptions in DB
+          const hydrated = fresh.filter((r: any) => (r.description || "").trim().length > 0);
+          if (hydrated.length > 0) {
+            setGeneratedItems(prev => prev.map(item => {
+              const r: any = hydrated.find((h: any) => h.id === item.listingId);
+              return r ? { ...item, description: r.description } : item;
+            }));
+          }
+        }
+      } catch { /* fall through */ }
+      if (cancelled) return;
+      if (emptyIds.length === 0) {
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        setProcessingLabel("");
+        return;
+      }
       setIsProcessing(true);
       // Start with a small visible progress so the bar doesn't look stuck at 0%
       setProcessingProgress(2);
