@@ -803,9 +803,12 @@ export function MeliListingCreator({
   };
 
   // ====== Final save: condition + listing_type + shipping ======
-  const handleFinalSave = async () => {
+  // mode: 'draft' just saves locally; 'publish' also pushes to ML (publish new for unpublished, update for existing meli_item_id)
+  const handleFinalSave = async (mode: 'draft' | 'publish' = 'draft') => {
     if (listingIds.length === 0) return;
     setIsProcessing(true);
+    setProcessingProgress(0);
+    setProcessingLabel(mode === 'publish' ? 'Salvando e publicando no Mercado Livre...' : 'Salvando anúncios...');
     try {
       const { error } = await supabase
         .from("meli_listings")
@@ -823,13 +826,68 @@ export function MeliListingCreator({
 
       if (error) throw error;
 
-      toast.success(`${listingIds.length} anúncio${listingIds.length > 1 ? "s" : ""} salvo${listingIds.length > 1 ? "s" : ""} com sucesso!`);
+      if (mode === 'draft') {
+        toast.success(`${listingIds.length} anúncio${listingIds.length > 1 ? "s" : ""} salvo${listingIds.length > 1 ? "s" : ""} com sucesso!`);
+        onRefetch();
+        onOpenChange(false);
+        return;
+      }
+
+      // mode === 'publish' — push each listing to ML
+      // Auto-approve drafts before publishing
+      const draftsToApprove = (existingDrafts || []).length > 0
+        ? existingDrafts!.filter(d => ['draft', 'ready'].includes(d.status || '')).map(d => d.id)
+        : listingIds; // creation flow → all are drafts
+      if (draftsToApprove.length > 0) {
+        try {
+          await supabase
+            .from('meli_listings')
+            .update({ status: 'approved' as const })
+            .in('id', draftsToApprove);
+        } catch { /* continue */ }
+      }
+
+      // Determine which need "update" (already published) vs publish-new
+      const idToExisting = new Map((existingDrafts || []).map(d => [d.id, d]));
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+      let processed = 0;
+      for (const id of listingIds) {
+        const existing = idToExisting.get(id);
+        const action = existing?.meli_item_id ? 'update' : undefined;
+        try {
+          const { data, error: invErr } = await supabase.functions.invoke('meli-publish-listing', {
+            body: { tenantId: currentTenant?.id, listingId: id, action },
+          });
+          if (invErr || !data?.success) {
+            errorCount++;
+            errors.push(data?.error || invErr?.message || 'erro');
+          } else {
+            successCount++;
+          }
+        } catch (e: any) {
+          errorCount++;
+          errors.push(e?.message || 'erro');
+        }
+        processed++;
+        setProcessingProgress(Math.round((processed / listingIds.length) * 100));
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} anúncio${successCount > 1 ? 's' : ''} ${idToExisting.size > 0 ? 'atualizado' : 'publicado'}${successCount > 1 ? 's' : ''} no Mercado Livre!`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} com erro: ${errors.slice(0, 2).join(' | ')}`);
+      }
       onRefetch();
       onOpenChange(false);
     } catch {
       toast.error("Erro ao salvar anúncios");
     } finally {
       setIsProcessing(false);
+      setProcessingProgress(0);
+      setProcessingLabel("");
     }
   };
 
