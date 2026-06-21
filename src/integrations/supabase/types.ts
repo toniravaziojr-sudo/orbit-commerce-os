@@ -20963,6 +20963,60 @@ export type Database = {
           },
         ]
       }
+      system_marketplace_attribute_dictionary: {
+        Row: {
+          applies_to_categories: string[]
+          created_at: string
+          derivable_from: string | null
+          description_pt: string | null
+          enum_values: Json | null
+          id: string
+          is_active: boolean
+          is_common: boolean
+          label_pt: string
+          ml_attribute_id: string | null
+          shopee_attribute_id: string | null
+          tiktok_attribute_id: string | null
+          universal_key: string
+          updated_at: string
+          value_type: string
+        }
+        Insert: {
+          applies_to_categories?: string[]
+          created_at?: string
+          derivable_from?: string | null
+          description_pt?: string | null
+          enum_values?: Json | null
+          id?: string
+          is_active?: boolean
+          is_common?: boolean
+          label_pt: string
+          ml_attribute_id?: string | null
+          shopee_attribute_id?: string | null
+          tiktok_attribute_id?: string | null
+          universal_key: string
+          updated_at?: string
+          value_type?: string
+        }
+        Update: {
+          applies_to_categories?: string[]
+          created_at?: string
+          derivable_from?: string | null
+          description_pt?: string | null
+          enum_values?: Json | null
+          id?: string
+          is_active?: boolean
+          is_common?: boolean
+          label_pt?: string
+          ml_attribute_id?: string | null
+          shopee_attribute_id?: string | null
+          tiktok_attribute_id?: string | null
+          universal_key?: string
+          updated_at?: string
+          value_type?: string
+        }
+        Relationships: []
+      }
       system_performance_snapshots: {
         Row: {
           active_connections: number | null
@@ -21138,6 +21192,59 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      system_universal_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          level: number
+          marketplace_hints: Json
+          name: string
+          parent_slug: string | null
+          regulatory_regime: string
+          slug: string
+          sort_order: number
+          typical_attributes: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          level?: number
+          marketplace_hints?: Json
+          name: string
+          parent_slug?: string | null
+          regulatory_regime?: string
+          slug: string
+          sort_order?: number
+          typical_attributes?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          level?: number
+          marketplace_hints?: Json
+          name?: string
+          parent_slug?: string | null
+          regulatory_regime?: string
+          slug?: string
+          sort_order?: number
+          typical_attributes?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_universal_categories_parent_slug_fkey"
+            columns: ["parent_slug"]
+            isOneToOne: false
+            referencedRelation: "system_universal_categories"
+            referencedColumns: ["slug"]
+          },
+        ]
       }
       tenant_addons: {
         Row: {

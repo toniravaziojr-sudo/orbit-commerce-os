@@ -1,60 +1,74 @@
+# Plano — Classificação Inteligente para Marketplaces (Cadastro + Envio)
+
 ## Status
+Aprovado em 2026-06-21.
+- ✅ Etapa 1 — Taxonomia Universal (37 categorias) entregue 2026-06-21.
+- ✅ Etapa 2 — Dicionário Universal de Atributos (50 atributos mapeados para Mercado Livre) entregue 2026-06-21.
+- ⏸ Etapa 3 — Ajustes no cadastro (UI/UX) — aguardando aprovação para iniciar.
 
-Onda 1+2 aplicadas + ambiente do tenant Respeite o Homem limpo para
-teste do zero (2026-06-20). Onda 3 (paridade Meta por objetivo) próxima.
+## Achados da revisão prévia
+O cadastro de produto **já tem** infraestrutura parcial: `regulatory_category`
+(enum com 3 valores), `ai_product_type`, `ai_main_function` e `regulatory_info`
+(jsonb). Vamos **reaproveitar e expandir**, não duplicar.
 
-## Contexto
+## Motor de IA
+Gemini 2.5 Flash nativo (principal) via roteador padrão do sistema
+(`_shared/ai-router.ts`), com fallback automático já existente. Sem chamadas
+diretas ao gateway.
 
-1) Publicação da proposta "Fast Upgrade" (ABO) falhava com erro genérico
-   da Meta (code 100 / subcode 4834011) porque o publicador enviava
-   `bid_strategy` no nível da campanha mesmo sem orçamento de campanha
-   (CBO). Corrigido em 2026-06-19: ABO não envia bid_strategy nem
-   daily_budget no nível da campanha; CBO mantém comportamento.
+## Etapas
 
-2) Feedbacks dados no wizard (título/texto/descrição/imagem) nem sempre
-   apareciam como aprendizados na UI. Causa: gravação acontecia DEPOIS
-   da chamada de IA; se a IA falhava ou vinha vazia/truncada, o
-   aprendizado era perdido silenciosamente.
+### Etapa 1 — Taxonomia Universal de Categorias (base)
+Árvore única do sistema baseada em ML + Shopee + TikTok. 15 grupos macro.
+Cada nó traz regime regulatório aplicável e mapeamento para marketplaces.
+Sem UI. Pura base de dados, seed do sistema.
 
-3) Cards de aprendizado mostravam texto técnico ("Campo headline do
-   anúncio #1 regenerado") em vez de tarja humana legível.
+### Etapa 2 — Dicionário Universal de Mapeamento (base)
+Tabela única ligando cada atributo universal nosso ao código de cada
+marketplace (ML, Shopee, TikTok). Seed inicial cobre os atributos
+recorrentes em beleza, cosméticos, eletrônicos, moda, alimentos.
 
-## Correções aplicadas (onda 1+2)
+### Etapa 3 — Ajustes mínimos no Cadastro
+- Expandir `regulatory_category` (incluir INMETRO, ANATEL, MAPA, não regulado, etc.).
+- Adicionar **Categoria Universal** (seletor com busca, ligada à taxonomia da Etapa 1).
+- Adicionar **Volume / Conteúdo líquido** com unidade.
+- Adicionar **Gênero do público** quando aplicável.
+- Reutilizar `ai_product_type` / `ai_main_function` já existentes.
+- Botão "Classificar com IA" no topo do cadastro (sob demanda).
 
-- Edge `ads-creative-inline-generate`: `regen_copy_field` agora grava
-  aprendizado ANTES da chamada da IA, com título humano
-  ("Feedback de Título — Shampoo Calvície Zero") e metadata
-  (subtype, field, field_label_pt, product_name, funnel_stage).
-- Edge `ads-creative-inline-generate`: `regen_image` idem — grava antes
-  do gerador (e também em caso de produto não resolvido, com flag
-  `product_resolved=false`). Removido duplicate pós-sucesso.
-- Edge `ads-creative-revise` (revisão final legada): mesmo padrão para
-  `regenerate_image` e `regenerate_copy`. Title humano + product_name no
-  metadata.
-- UI `AdsAILearningsTab`: nova tarja colorida no topo do card
-  ("Feedback de Título/Texto/Descrição/Copy/Imagem — Produto") quando o
-  aprendizado vem de feedback inline. Não muda fluxo, só apresentação.
-- Hook `useAdsAILearnings`: expõe `metadata` na tipagem.
+### Etapa 4 — Derivações Automáticas
+Cálculos prontos a partir do cadastro: é kit (composição), unidades por
+embalagem (soma da composição), peso líquido, condição, garantia, regime
+regulatório a partir da Categoria Universal.
 
-## Próxima etapa — Onda 3: auditoria de paridade Meta por objetivo
+### Etapa 5 — IA no Dialog de Envio do Mercado Livre (núcleo)
+A IA roda automaticamente assim que o lojista escolhe categoria do ML:
+busca atributos exigidos em tempo real, cruza com dados do produto e
+inferências, e mostra painel "Atributos para o anúncio" em 3 blocos:
+preenchido / revisar / faltando. Bloqueia publicação só por obrigatório
+real. Cada correção vira aprendizado por tenant.
 
-Escopo enxuto (sem teste real de publicação por objetivo, para não
-gastar processamento desnecessário):
-- Campanha: special_ad_categories, ABO vs CBO (já ok).
-- Conjunto: optimization_goal × billing_event × destination_type
-  coerentes com objective; promoted_object obrigatório por objetivo.
-- Anúncio: call_to_action e link/page_welcome_message/lead_gen_form_id
-  compatíveis.
-- Cobertura: Vendas, Conversões, Tráfego, Engajamento, Leads,
-  Reconhecimento, Mensagens, Vídeo.
-- Saída: correções pontuais no tradutor proposta→Meta; objetivos sem
-  cobertura segura ficam sinalizados como pendência (não arriscamos
-  publicação silenciosa).
+### Etapa 6 — Validação com os 8 kits que falharam
+Reprocessar os 8 kits travados pelo novo fluxo para confirmar qualidade 100%.
 
-## Validação pendente do usuário
+### Etapa 7 — Extensão para Shopee e TikTok Shop
+Mesmo dialog e motor; só muda o dicionário de mapeamento da Etapa 2.
 
-1. Dar 1 feedback de título e 1 de imagem no wizard de qualquer
-   campanha → confirmar que aparecem na aba Aprendizados com a tarja
-   "Feedback de … — [Produto]".
-2. Republicar "Fast Upgrade" (já corrigida) — confirmar criação ABO sem
-   erro de parâmetro inválido.
+### Etapa 8 — Documentação
+Atualizar `mercado-livre.md`, `_padrao-canonico-marketplaces.md` e
+`mapa-ui.md` a cada etapa relevante.
+
+## Ordem de execução
+1. Etapas 1 + 2 (base, sem UI). ← em andamento
+2. Etapa 3 (cadastro).
+3. Etapa 4 (derivações).
+4. Etapa 5 (IA no dialog ML).
+5. Etapa 6 (validar os 8 kits).
+6. Etapa 7 (Shopee + TikTok).
+7. Etapa 8 (doc) ao final de cada etapa relevante.
+
+## Governança
+- Mudanças de UI/UX ou de regra de negócio passam por aprovação do usuário.
+- Decisões técnicas e de fluxo de trabalho ficam com a IA, sempre privilegiando
+  solidez, eficiência, segurança e baixo custo de processamento.
+- Toda entrega encerra com bloco de documentação ou justificativa formal.
