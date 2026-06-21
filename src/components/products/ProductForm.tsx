@@ -47,6 +47,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
 import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
+import { useUniversalCategories } from '@/hooks/useUniversalCategories';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
