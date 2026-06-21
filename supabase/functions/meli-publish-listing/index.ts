@@ -527,10 +527,11 @@ async function deleteListingOnMeli(accessToken: string, listing: any, supabase: 
     return jsonResponse({ success: true, message: "Anúncio removido" });
   }
 
-  // Mercado Livre flow: pause (if active) → close. Closed is definitive.
+  let mlClosed = false;
+  let mlSkippedReason: string | null = null;
+
   try {
-    // Best-effort pause first (ignore failures — closing from active is allowed in many categories,
-    // but pausing first avoids edge cases like "cannot close active item with open orders" type errors).
+    // Best-effort pause first to allow closing from active
     if (listing.status === "published") {
       await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
         method: "PUT",
@@ -545,17 +546,51 @@ async function deleteListingOnMeli(accessToken: string, listing: any, supabase: 
       body: JSON.stringify({ status: "closed" }),
     });
     const closeData = await closeRes.json().catch(() => ({}));
-    if (!closeRes.ok) {
-      const msg = closeData?.message || "Erro ao encerrar anúncio no Mercado Livre";
-      return jsonResponse({ success: false, error: msg, details: closeData });
+
+    if (closeRes.ok) {
+      mlClosed = true;
+    } else {
+      const msg = String(closeData?.message || "").toLowerCase();
+      // Items under review / never approved cannot be closed via PUT status=closed.
+      // ML returns "Anúncio deve estar aprovado para publicar" or similar.
+      // In these cases the listing never went live — safe to drop locally.
+      const isUnapproved =
+        msg.includes("aprovado") ||
+        msg.includes("approved") ||
+        msg.includes("must be active") ||
+        msg.includes("under_review") ||
+        msg.includes("under review");
+
+      if (isUnapproved) {
+        mlSkippedReason = "Anúncio não estava ativo no Mercado Livre (em revisão/não aprovado). Removido apenas localmente.";
+      } else {
+        return jsonResponse({
+          success: false,
+          error: closeData?.message || "Erro ao encerrar anúncio no Mercado Livre",
+          details: closeData,
+        });
+      }
     }
   } catch (err: any) {
     return jsonResponse({ success: false, error: err?.message || "Erro de rede ao encerrar no ML" });
   }
 
-  // Delete local record
   const { error: delErr } = await supabase.from("meli_listings").delete().eq("id", listing.id);
-  if (delErr) return jsonResponse({ success: false, error: "Anúncio encerrado no ML, mas falhou remover localmente" });
+  if (delErr) {
+    return jsonResponse({
+      success: false,
+      error: mlClosed
+        ? "Anúncio encerrado no ML, mas falhou remover localmente"
+        : "Falha ao remover anúncio local",
+    });
+  }
 
-  return jsonResponse({ success: true, message: "Anúncio encerrado no Mercado Livre e removido" });
+  return jsonResponse({
+    success: true,
+    message: mlClosed
+      ? "Anúncio encerrado no Mercado Livre e removido"
+      : mlSkippedReason || "Anúncio removido",
+    ml_closed: mlClosed,
+    ml_skipped_reason: mlSkippedReason,
+  });
 }
