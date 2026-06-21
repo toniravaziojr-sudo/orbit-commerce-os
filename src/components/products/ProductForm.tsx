@@ -126,6 +126,16 @@ const productSchema = z.object({
   ai_product_type: z.string().max(120).nullable().optional(),
   ai_main_function: z.string().max(200).nullable().optional(),
 
+  // === CLASSIFICAÇÃO UNIVERSAL (marketplaces / IA de envio) ===
+  universal_category_id: z.string().uuid().nullable().optional().or(z.literal('')),
+  regulatory_regime: z.enum([
+    'none','anvisa_cosmetic','anvisa_health','anvisa_supplement','anvisa_medicine',
+    'inmetro','anatel','mapa','denatran','exercito','ibama','iss_servico','outros',''
+  ]).nullable().optional(),
+  net_content_value: z.coerce.number().positive().nullable().optional(),
+  net_content_unit: z.enum(['ml','l','g','kg','un','m','cm','m2','m3','']).nullable().optional(),
+  gender_audience: z.enum(['masculino','feminino','unissex','infantil','nao_aplicavel','']).nullable().optional(),
+
   // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
