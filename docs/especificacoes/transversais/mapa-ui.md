@@ -281,7 +281,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 
 **Marketplaces:**
 - `/marketplaces` — Hub de marketplaces
-- `/marketplaces/mercadolivre` — Mercado Livre (FeatureGated)
+- `/marketplaces/mercadolivre` — Mercado Livre (FeatureGated). **Wizard de anúncio (rev 2026-06-21):** após escolher a categoria do ML, aparece o painel "Atributos para o anúncio" com 3 blocos (Preenchido / Revisar / Faltando). O motor de IA `meli-resolve-attributes` cruza cadastro + derivações + dicionário universal + Gemini e devolve os valores; publicação bloqueada enquanto houver atributos obrigatórios faltando.
 - `/marketplaces/shopee` — Shopee (FeatureGated)
 - `/marketplaces/tiktokshop` — TikTok Shop (FeatureGated)
 
