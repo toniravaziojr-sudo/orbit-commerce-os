@@ -218,7 +218,11 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
             className="pl-10"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setBulkAttrOpen(true)}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Aplicar atributos em lote
+          </Button>
           {onImport && (
             <Button variant="outline" onClick={onImport}>
               <Upload className="mr-2 h-4 w-4" />
@@ -231,6 +235,13 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
           </Button>
         </div>
       </div>
+
+      <BulkCosmeticAttributesDialog
+        open={bulkAttrOpen}
+        onOpenChange={setBulkAttrOpen}
+        products={products}
+        onApplied={refetch}
+      />
 
       {filteredProducts.length === 0 ? (
         <EmptyState
