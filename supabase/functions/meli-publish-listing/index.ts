@@ -134,6 +134,9 @@ Deno.serve(async (req) => {
     if (action === "update") {
       return await updateListing(accessToken, listing, productImages, supabase);
     }
+    if (action === "delete") {
+      return await deleteListingOnMeli(accessToken, listing, supabase);
+    }
 
     // Default: publish new listing
     if (listing.status !== "approved" && listing.status !== "error") {
