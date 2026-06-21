@@ -337,27 +337,37 @@ export function MeliListingsTab() {
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
-          ) : listings.length === 0 ? (
+          ) : filteredListings.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4 opacity-40" />
-              <p className="font-medium">Nenhum anúncio preparado</p>
-              <p className="text-sm mt-1 max-w-sm mx-auto">
-                Selecione um produto e a IA preencherá título, descrição e categoria automaticamente.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center mt-4">
-                <Button onClick={() => setShowCreator(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Anúncio
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => runBulkOperation("bulk_create", "Enviar Todos")}
-                  disabled={!!bulkAction}
-                >
-                  <PackagePlus className="h-4 w-4 mr-2" />
-                  Enviar Todos os Produtos
-                </Button>
-              </div>
+              {activeTab === 'drafts' && (
+                <>
+                  <Package className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhum rascunho em andamento</p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Crie um novo anúncio. A IA preenche título, descrição e categoria automaticamente.
+                  </p>
+                  <div className="flex justify-center mt-4">
+                    <Button onClick={() => setShowCreator(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Anúncio
+                    </Button>
+                  </div>
+                </>
+              )}
+              {activeTab === 'published' && (
+                <>
+                  <Eye className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhum anúncio publicado</p>
+                  <p className="text-sm mt-1">Os anúncios ativos no Mercado Livre aparecem aqui.</p>
+                </>
+              )}
+              {activeTab === 'pending' && (
+                <>
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhuma pendência</p>
+                  <p className="text-sm mt-1">Anúncios com erro ou que precisam de revisão aparecem aqui.</p>
+                </>
+              )}
             </div>
           ) : (
             <Table>
