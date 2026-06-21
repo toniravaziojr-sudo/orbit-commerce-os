@@ -604,11 +604,17 @@ export function MeliListingsTab() {
                         <Badge variant={statusInfo.variant} className={statusInfo.color || ""}>
                           {statusInfo.label}
                         </Badge>
-                        {listing.error_message && (
-                          <p className="text-xs text-destructive mt-1 max-w-[180px] truncate" title={listing.error_message}>
-                            {listing.error_message}
-                          </p>
-                        )}
+                        {listing.error_message && (() => {
+                          const raw = String(listing.error_message);
+                          const friendly = /address_pending|unable_to_list/i.test(raw)
+                            ? "Cadastre um endereço de retirada na sua conta do Mercado Livre (Minha conta → Endereços) e tente novamente."
+                            : raw;
+                          return (
+                            <p className="text-xs text-destructive mt-1 max-w-[220px]" title={raw}>
+                              {friendly}
+                            </p>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
