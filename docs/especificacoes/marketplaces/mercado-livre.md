@@ -152,6 +152,13 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
+**Reabertura de rascunhos (modo "Configurar Selecionados"):**
+- Ao abrir o dialog para rascunhos já existentes, o sistema **relê o estado oficial do banco** (título, descrição, categoria, condição, tipo e frete) antes de exibir qualquer etapa, ignorando cache desatualizado da listagem.
+- Auto-geração de descrições só dispara para itens que **realmente** estão sem descrição no banco no momento da entrada na etapa (dupla checagem). Itens com descrição já salva são exibidos diretamente — proibido regerar conteúdo já produzido.
+- Botão "Continuar" mostra estado **"Salvando..." com spinner** durante a transição entre etapas (garante feedback visual e evita duplo clique).
+- Barra de progresso de geração em massa exibe contador `X/Y` em tempo real e é **resetada ao trocar de etapa**, eliminando o bug visual da tarja azul aparecendo numa etapa diferente da atual.
+- Gravação de títulos e descrições é feita em **paralelo** (batch), acelerando lotes grandes.
+
 **Sincronização com o Mercado Livre:**
 - **Títulos:** Prompt IA gera com tipo de produto primeiro, limite dinâmico por categoria (`max_title_length` da API ML), sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
 - **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars
