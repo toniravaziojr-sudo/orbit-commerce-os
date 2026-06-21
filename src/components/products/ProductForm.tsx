@@ -137,6 +137,17 @@ const productSchema = z.object({
   net_content_unit: z.enum(['ml','l','g','kg','un','m','cm','m2','m3','']).nullable().optional(),
   gender_audience: z.enum(['masculino','feminino','unissex','infantil','nao_aplicavel','']).nullable().optional(),
 
+  // === ATRIBUTOS COSMÉTICOS (visível só quando regulatory_regime = anvisa_cosmetic) ===
+  dermatologically_tested: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  hypoallergenic: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  cruelty_free: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  vegan: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  has_fragrance: z.enum(['yes','no','not_applicable','']).nullable().optional(),
+  fragrance_name: z.string().max(120).nullable().optional(),
+  recommended_hair_types: z.array(z.string()).optional(),
+  treatment_types: z.array(z.string()).optional(),
+  expected_effects: z.string().max(500).nullable().optional(),
+
   // Compatibilidade — campos antigos mantidos no schema mas não exigidos
   regulatory_category: z.enum(['cosmetic_hair', 'supplement', 'other', '']).nullable().optional(),
   commercial_restrictions: z.string().max(2000).nullable().optional(),
