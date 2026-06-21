@@ -353,7 +353,7 @@ Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um c
 | `draft` | Rascunho | Rascunhos | Editar, Aprovar, Excluir (local) |
 | `ready` | Pronto para aprovação | Rascunhos | Editar, Aprovar, Excluir (local) |
 | `approved` | Aprovado, aguardando publicação | Rascunhos | Editar, Publicar, Excluir (local) |
-| `publishing` | Em processo de envio ao ML | Publicados | — |
+| `publishing` | Em processo de envio ao ML / em revisão pelo ML | Pendências | Aguardar (sem ações até confirmação do ML) |
 | `published` | Publicado no ML | Publicados | Ver no ML, Sincronizar, Pausar, Editar (sync ML), Excluir (encerra no ML) |
 | `paused` | Pausado no ML | Publicados | Reativar, Editar (sync ML), Excluir (encerra no ML) |
 | `error` | Erro na publicação | Pendências | Editar, Retentar publicação, Excluir |
