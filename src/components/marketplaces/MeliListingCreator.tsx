@@ -261,12 +261,16 @@ export function MeliListingCreator({
       setFreeShipping(false);
       setLocalPickup(false);
       setExpandedDescs(new Set());
+      configureInitRef.current = null;
     }
   }, [open]);
 
-  // Initialize for "configure existing drafts" mode
+  // Initialize for "configure existing drafts" mode — runs ONCE per opening.
   useEffect(() => {
     if (!open || !isConfigureMode || !existingDrafts) return;
+    const signature = existingDrafts.map(d => d.id).sort().join(",");
+    if (configureInitRef.current === signature) return; // already initialized for this set
+    configureInitRef.current = signature;
     const items: GeneratedItem[] = existingDrafts.map(d => ({
       listingId: d.id,
       productId: d.product_id,
