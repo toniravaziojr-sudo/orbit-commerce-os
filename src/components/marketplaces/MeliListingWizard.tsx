@@ -657,6 +657,17 @@ export function MeliListingWizard({
               )}
             </div>
 
+            {/* Painel IA de Atributos (Etapa 5B) */}
+            {categoryId && productIdForPanel && currentTenant?.id && (
+              <MeliAttributesPanel
+                tenantId={currentTenant.id}
+                productId={productIdForPanel}
+                categoryId={categoryId}
+                onChange={setAttrPanel}
+              />
+            )}
+
+
             {/* Brand + GTIN */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
