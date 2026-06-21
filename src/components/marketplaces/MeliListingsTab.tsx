@@ -73,13 +73,13 @@ export function MeliListingsTab() {
   const listedProductIds = new Set(listings.map(l => l.product_id));
 
   const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
-  const publishedCount = listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status)).length;
-  const pendingCount = listings.filter(l => l.status === 'error').length;
+  const publishedCount = listings.filter(l => ['published', 'paused'].includes(l.status)).length;
+  const pendingCount = listings.filter(l => ['error', 'publishing'].includes(l.status)).length;
 
   const filteredListings = useMemo(() => {
     if (activeTab === 'drafts') return listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status));
-    if (activeTab === 'published') return listings.filter(l => ['published', 'paused', 'publishing'].includes(l.status));
-    return listings.filter(l => l.status === 'error');
+    if (activeTab === 'published') return listings.filter(l => ['published', 'paused'].includes(l.status));
+    return listings.filter(l => ['error', 'publishing'].includes(l.status));
   }, [listings, activeTab]);
 
   // Selection scoped to currently visible tab
