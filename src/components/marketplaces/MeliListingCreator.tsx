@@ -54,6 +54,8 @@ export interface ExistingDraft {
   listing_type?: string | null;
   shipping?: Record<string, any> | null;
   product?: { name: string } | null;
+  status?: string | null;
+  meli_item_id?: string | null;
 }
 
 interface MeliListingCreatorProps {
