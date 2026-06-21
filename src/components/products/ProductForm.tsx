@@ -635,6 +635,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           net_content_value: ncv ?? null,
           net_content_unit: ncu || null,
           gender_audience: ga || null,
+          dermatologically_tested: (data as any).dermatologically_tested || null,
+          hypoallergenic: (data as any).hypoallergenic || null,
+          cruelty_free: (data as any).cruelty_free || null,
+          vegan: (data as any).vegan || null,
+          has_fragrance: (data as any).has_fragrance || null,
+          fragrance_name: (data as any).fragrance_name || null,
+          recommended_hair_types: (data as any).recommended_hair_types ?? [],
+          treatment_types: (data as any).treatment_types ?? [],
+          expected_effects: (data as any).expected_effects || null,
         } as any);
         
         // Update related products and variants
