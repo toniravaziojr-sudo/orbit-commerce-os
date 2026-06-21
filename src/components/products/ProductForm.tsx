@@ -336,6 +336,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       ai_product_type: (product as any)?.ai_product_type ?? '',
       ai_main_function: (product as any)?.ai_main_function ?? '',
 
+      // Classificação universal
+      universal_category_id: (product as any)?.universal_category_id ?? '',
+      regulatory_regime: (product as any)?.regulatory_regime ?? '',
+      net_content_value: (product as any)?.net_content_value ?? null,
+      net_content_unit: (product as any)?.net_content_unit ?? '',
+      gender_audience: (product as any)?.gender_audience ?? '',
+
       // Compatibilidade
       regulatory_category: (product as any)?.regulatory_category ?? '',
       commercial_restrictions: (product as any)?.commercial_restrictions ?? '',
