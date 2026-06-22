@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-22 (v2.4.2: reabertura de rascunhos em lote passa a ser somente leitura quanto à IA — nunca gera descrições automaticamente ao entrar na etapa; categorias salvas são reidratadas da fonte oficial antes de resolver o nome amigável, evitando exibição/reset visual inconsistente.)
+> **Última atualização:** 2026-06-22 (v2.4.3: OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.)
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
 
@@ -48,11 +48,11 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ```
 1. Usuário acessa Integrações → aba Marketplaces
 2. Clica "Conectar" no card do Mercado Livre (inicia OAuth direto, sem redirecionar)
-3. meli-oauth-start → URL de autorização
+3. meli-oauth-start → URL de autorização com PKCE quando exigido pelo app ML
 4. Popup abre para ML
 5. ML redireciona para /integrations/meli/callback (MeliOAuthCallback.tsx)
 6. MeliOAuthCallback captura code/state e chama edge function meli-oauth-callback via POST (JSON)
-7. meli-oauth-callback (edge function) → Troca code por tokens e salva no banco → retorna JSON
+7. meli-oauth-callback (edge function) → valida state, envia code_verifier, troca code por tokens e salva no banco → retorna JSON
 8. MeliOAuthCallback envia window.opener.postMessage({ type: 'meli_connected' }) para janela principal
 9. MeliOAuthCallback fecha o popup automaticamente (window.close())
 10. Janela principal recebe postMessage e invalida queries de status
@@ -80,6 +80,8 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 > - **GET (fallback):** Quando popup falha, redireciona para `/integrations?tab=marketplaces` com query params `meli_connected=true` ou `meli_error=...`
 >
 > **Prevenção de `invalid_grant`:** O code do ML só pode ser trocado **uma vez**. O `hasProcessedRef` garante que a chamada POST aconteça apenas uma vez, mesmo com StrictMode/re-renders.
+>
+> **PKCE obrigatório quando habilitado no app ML:** se o aplicativo do Mercado Livre estiver com PKCE ativo, o início do OAuth deve enviar `code_challenge` + `code_challenge_method=S256`, e o callback deve enviar o `code_verifier` correspondente. O `state` não carrega mais dados de tenant em base64; ele aponta para uma tentativa segura salva temporariamente no backend. Sem isso, o Mercado Livre retorna `code_verifier is a required parameter` e a UI mostra `token_exchange_failed`.
 
 ### Regra: Desconectar/Reconectar (OBRIGATÓRIO)
 
