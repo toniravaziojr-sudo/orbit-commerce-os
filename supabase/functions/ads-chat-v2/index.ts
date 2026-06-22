@@ -1668,6 +1668,7 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   update_budget: "Ajustando orçamento",
   toggle_entity_status: "Alterando status",
   duplicate_campaign: "Duplicando campanha",
+  update_autopilot_config: "Atualizando configurações da IA",
   delete_meta_entity: "Excluindo no Meta",
   bulk_toggle_entities: "Aplicando alteração em lote",
   create_custom_audience: "Criando público",
