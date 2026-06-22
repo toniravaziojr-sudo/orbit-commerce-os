@@ -837,3 +837,30 @@ Esses campos são consumidos diretamente pelo motor de atributos do Mercado Livr
 ### Aprendizado por tenant
 Correção manual feita pelo lojista vira aprendizado escopado por tenant (a ser conectado em fase seguinte).
 
+
+## Atalho "Abrir cadastro do produto" na aba Pendências (v3.5 — 2026-06-22)
+
+Quando um anúncio fica em **Pendências** porque a publicação no Mercado Livre exigiu dado que precisa vir do cadastro do produto (marca, GTIN, atributo obrigatório de categoria), a aba mostra um botão **"Abrir cadastro"** ao lado das demais ações da linha.
+
+Critério de exibição: a mensagem de erro do anúncio contém qualquer um destes sinais: `cadastro do produto`, `missing_required_attributes`, `marca`, `brand`, `gtin`, `ean`.
+
+Comportamento:
+- O botão abre `/products?edit=<productId>` em **nova aba**, direto no formulário de edição do produto.
+- Quando o lojista volta para a aba Pendências, o sistema **revalida automaticamente** a lista de anúncios e o catálogo (listener de `focus` + `visibilitychange`). Custo zero — só reaproveita o React Query.
+- A tela de Produtos passa a aceitar o deep link `?edit=<productId>` (uso interno do atalho).
+
+## Etapa "Características" no assistente em lote (v3.5 — 2026-06-22)
+
+O assistente de criação/edição em lote de anúncios passa de 7 para **8 etapas**, com a nova etapa **"Características"** posicionada entre "Descrições" e "Condição":
+
+1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → 8. Frete.
+
+Comportamento da etapa:
+- Para cada anúncio em preparação, chama o motor `meli-resolve-attributes` (já existente, sem alteração) e renderiza o painel **"Atributos para o anúncio"** com os blocos Preenchido / Revisar / Faltando.
+- Mostra contador "X faltando" e atalho "Abrir cadastro" por anúncio, abrindo o produto correspondente em nova aba.
+- Botão **"Continuar"** fica desabilitado enquanto houver atributos obrigatórios faltando em qualquer anúncio.
+- Ao avançar, persiste para cada anúncio o array `attributes` em `meli_listings` no formato `[{ id, value_name?, value_id? }, ...]` — só os com status diferente de `missing`.
+
+A função de publicação (`meli-publish-listing`) já consome esse array e faz merge sem sobrescrever: agora o anúncio nasce com pontuação alta no Mercado Livre porque vai com **todos** os atributos relevantes (obrigatórios + recomendados), não só os básicos.
+
+Vale tanto na criação em lote (modo "Selecionar produtos") quanto na reabertura de rascunhos ("Editar em lote").
