@@ -1521,24 +1521,105 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         return JSON.stringify({ total: data?.length || 0, warnings: data || [] });
       }
       case "get_ad_accounts": {
-        const ch = args.channel && args.channel !== "all" ? [args.channel] : ["meta", "google", "tiktok"];
-        const { data: conns } = await supabase
-          .from("marketplace_connections")
-          .select("channel, account_name, metadata, status")
-          .eq("tenant_id", tenantId)
-          .in("channel", ch);
+        const wantAll = !args.channel || args.channel === "all";
+        const wantMeta = wantAll || args.channel === "meta";
+        const wantGoogle = wantAll || args.channel === "google";
+        const wantTiktok = wantAll || args.channel === "tiktok";
         const accounts: any[] = [];
-        for (const c of (conns || [])) {
-          const list = c?.metadata?.assets?.ad_accounts || [];
-          for (const a of list) {
+
+        if (wantMeta) {
+          // 1. Canonical: tenant_meta_auth_grants.discovered_assets
+          const { data: grants } = await supabase
+            .from("tenant_meta_auth_grants")
+            .select("status, meta_user_name, discovered_assets")
+            .eq("tenant_id", tenantId)
+            .eq("status", "active");
+          const seen = new Set<string>();
+          for (const g of (grants || [])) {
+            const list = g?.discovered_assets?.ad_accounts || [];
+            for (const a of list) {
+              const id = typeof a === "string" ? a : (a?.id || a?.account_id);
+              if (!id || seen.has(id)) continue;
+              seen.add(id);
+              accounts.push({
+                channel: "meta",
+                id,
+                name: typeof a === "string" ? null : (a?.name || a?.account_name || null),
+                connection_status: "active",
+                source: "auth_grant",
+              });
+            }
+          }
+          // 2. Fallback: derive from real campaign data
+          const { data: campAccts } = await supabase
+            .from("meta_ad_campaigns")
+            .select("ad_account_id")
+            .eq("tenant_id", tenantId)
+            .not("ad_account_id", "is", null);
+          for (const r of (campAccts || [])) {
+            const id = r.ad_account_id;
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            accounts.push({ channel: "meta", id, name: null, connection_status: "active", source: "campaigns" });
+          }
+          // 3. Enrich with autopilot config (AI on/off)
+          const { data: cfgs } = await supabase
+            .from("ads_autopilot_account_configs")
+            .select("ad_account_id, is_ai_enabled, strategy_mode, target_roi")
+            .eq("tenant_id", tenantId)
+            .eq("channel", "meta");
+          const cfgMap: Record<string, any> = {};
+          for (const c of (cfgs || [])) cfgMap[c.ad_account_id] = c;
+          for (const acc of accounts) {
+            if (acc.channel === "meta" && cfgMap[acc.id]) {
+              acc.ai_enabled = cfgMap[acc.id].is_ai_enabled;
+              acc.strategy_mode = cfgMap[acc.id].strategy_mode;
+              acc.target_roi = cfgMap[acc.id].target_roi;
+            }
+          }
+        }
+
+        if (wantGoogle) {
+          const { data: gconns } = await supabase
+            .from("google_connections")
+            .select("google_email, display_name, connection_status, is_active, assets")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true);
+          for (const c of (gconns || [])) {
+            const list = c?.assets?.ad_accounts || [];
+            if (list.length === 0) {
+              accounts.push({ channel: "google", id: null, name: c.display_name || c.google_email, connection_status: c.connection_status, source: "connection_no_assets" });
+            } else {
+              for (const a of list) {
+                accounts.push({
+                  channel: "google",
+                  id: typeof a === "string" ? a : (a?.id || a?.customer_id),
+                  name: typeof a === "string" ? null : (a?.name || a?.descriptive_name || null),
+                  connection_status: c.connection_status,
+                  source: "connection",
+                });
+              }
+            }
+          }
+        }
+
+        if (wantTiktok) {
+          const { data: tconns } = await supabase
+            .from("tiktok_ads_connections")
+            .select("advertiser_id, advertiser_name, connection_status, is_active")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true);
+          for (const c of (tconns || [])) {
             accounts.push({
-              channel: c.channel,
-              id: typeof a === "string" ? a : a.id,
-              name: typeof a === "string" ? null : (a.name || a.account_name || null),
-              connection_status: c.status,
+              channel: "tiktok",
+              id: c.advertiser_id,
+              name: c.advertiser_name,
+              connection_status: c.connection_status,
+              source: "connection",
             });
           }
         }
+
         return JSON.stringify({ total: accounts.length, accounts });
       }
       case "get_strategic_plan": {
