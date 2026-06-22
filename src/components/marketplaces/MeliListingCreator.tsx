@@ -922,12 +922,16 @@ export function MeliListingCreator({
           setTimeout(() => handleGenerateDescriptions(), 100);
         }
       } else if (idx === 3) {
-        // Descriptions → Condition
+        // Descriptions → Attributes
         await handleSaveDescriptions();
-        setStep("condition");
+        setStep("attributes");
       } else if (idx === 4) {
-        setStep("listing_type");
+        // Attributes → Condition (salva os atributos resolvidos por anúncio)
+        await handleSaveAttributes();
+        setStep("condition");
       } else if (idx === 5) {
+        setStep("listing_type");
+      } else if (idx === 6) {
         setStep("shipping");
       }
     } finally {
