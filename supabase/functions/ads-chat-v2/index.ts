@@ -79,12 +79,16 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   } else if (/este\s+mês|últimos?\s+30/i.test(msg)) {
     entities.period = "last_30d";
   }
-  // ---- EARLY: account/governance/queue listing (must beat composite-signal capture) ----
-  // "Quais contas tenho", "contas conectadas", "lista propostas pendentes", "tem aviso aberto?", etc.
-  if (/\b(quais|liste|listar|mostr[ae]|tenho|tem)\b.*\b(conta[s]?\s+de\s+an[uú]ncios?|conta[s]?\s+conectada[s]?|conta[s]?\s+ativa[s]?|propostas?\s+pendente|aguardando\s+aç[ãa]o|avisos?\s+aberto|configura[çc][ãa]o\s+da\s+ia|experiment[oa]s?)/i.test(msg)
-    || /\b(conta[s]?\s+conectada[s]?|propostas?\s+pendente[s]?|configura[çc][ãa]o(es)?\s+da\s+ia)\b/i.test(msg)) {
-    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
+  // ---- EARLY: governança / fila / experimentos / contas (Ondas 2A/3/4) ----
+  // Precisa vir ANTES de performance e composite-signal para não ser capturado por "roi/conta/configuração".
+  const onda234Topic = /\b(meta\s+de\s+roi|target\s+roi|prompt\s+estratégico|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|configuraç(ão|ões)\s+da\s+ia|configur(ar|ações?)\s+(a\s+)?ia|fila\s+de\s+aprovaç|aguardando\s+aç(ão|ões)|propostas?\s+pendente[s]?|experiment[oa]s?|hipótese|teste[s]?\s+a\/?b|conta[s]?\s+conectada[s]?|conta[s]?\s+de\s+an[uú]ncios?|avisos?\s+aberto[s]?)\b/i;
+  const onda234EditVerb = /\b(ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|aument[ae]r?|diminu[ie]r?|baix[ae]r?|sub[ie]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|encerr[ae]r?|cancel[ae]r?|ativ[ae]r?|desativ[ae]r?|liga[er]?|deslig[ae]r?|criar?|colocar?|defin[ie]r?)\b/i;
+  const onda234ListVerb = /\b(quais|liste|listar|mostr[ae]|tenho|tem|ver|consult[ae]r?|lista)\b/i;
+  if (onda234Topic.test(msg) && (onda234EditVerb.test(msg) || onda234ListVerb.test(msg))) {
+    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
+
+
 
 
   // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
