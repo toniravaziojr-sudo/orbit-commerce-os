@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
-const VERSION = "v2.0.0"; // JSON mode + redirect fix to integrations
+const VERSION = "v2.1.0"; // JSON mode + PKCE + redirect fix to integrations
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,15 +101,30 @@ Deno.serve(async (req) => {
       return respondError("missing_params");
     }
 
-    let stateData: { tenant_id: string; user_id: string; timestamp: number };
-    try {
-      stateData = JSON.parse(atob(state));
-    } catch {
-      console.error("[meli-oauth-callback] State inválido");
+    const { data: stateData, error: stateError } = await supabase
+      .from("oauth_state_store")
+      .select("tenant_id,user_id,payload,expires_at")
+      .eq("state_key", state)
+      .eq("provider", "mercadolivre")
+      .maybeSingle();
+
+    if (stateError || !stateData) {
+      console.error("[meli-oauth-callback] State inválido ou expirado", stateError);
+      return respondError("invalid_state");
+    }
+
+    if (new Date(stateData.expires_at) < new Date()) {
+      await supabase.from("oauth_state_store").delete().eq("state_key", state);
+      console.error("[meli-oauth-callback] State expirado");
       return respondError("invalid_state");
     }
 
     const { tenant_id, user_id } = stateData;
+    const codeVerifier = (stateData.payload as { code_verifier?: string } | null)?.code_verifier;
+    if (!codeVerifier) {
+      console.error("[meli-oauth-callback] Code verifier ausente");
+      return respondError("invalid_state");
+    }
     console.log(`[meli-oauth-callback] Processando para tenant ${tenant_id}`);
 
     const clientId = await getCredential(supabaseUrl, supabaseServiceKey, "MELI_APP_ID");
@@ -134,8 +149,11 @@ Deno.serve(async (req) => {
         client_secret: clientSecret,
         code,
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       }),
     });
+
+    await supabase.from("oauth_state_store").delete().eq("state_key", state);
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
