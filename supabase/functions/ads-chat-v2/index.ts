@@ -148,8 +148,8 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
 
-  // WRITE - META (direct execution requests — pause, activate, budget changes)
-  if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
+  // WRITE - META (direct execution requests — pause, activate, budget changes, delete, bulk)
+  if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)|exclu[ie]r?\s+(campanha|conjunto|anúncio)|delet[ae]r?\s+(campanha|conjunto|anúncio)|apag[ae]r?\s+(campanha|conjunto|anúncio)|remov[ae]r?\s+(campanha|conjunto|anúncio)|desativ[ae]r?\s+(em\s+lote|tod[ao]s|várias|múltiplas)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
     return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
   }
