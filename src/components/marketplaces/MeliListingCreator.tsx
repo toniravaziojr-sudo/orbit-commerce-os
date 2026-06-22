@@ -316,7 +316,7 @@ export function MeliListingCreator({
             title: r.title || i.title,
             description: r.description || i.description,
             categoryId: r.category_id || i.categoryId,
-            categoryName: r.category_id || i.categoryName,
+            categoryName: r.category_id ? i.categoryName : "",
           };
         }));
         const f: any = fresh[0];
@@ -329,9 +329,9 @@ export function MeliListingCreator({
       } catch { /* skip */ }
     })();
 
-    // Resolve friendly names for already-saved category IDs
+    // Resolve friendly names for already-saved category IDs using the currently hydrated state.
     (async () => {
-      const uniqueIds = Array.from(new Set(existingDrafts.map(d => d.category_id).filter(Boolean) as string[]));
+      const uniqueIds = Array.from(new Set(items.map(d => d.categoryId).filter(Boolean) as string[]));
       if (uniqueIds.length === 0) return;
       try {
         const session = (await supabase.auth.getSession()).data.session;
