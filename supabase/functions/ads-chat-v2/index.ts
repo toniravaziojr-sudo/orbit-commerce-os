@@ -1263,6 +1263,38 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         const { data } = await supabase.from("ads_autopilot_sessions").select("id, channel, trigger_type, motor_type, actions_planned, actions_executed, actions_rejected, cost_credits, duration_ms, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(args.limit || 10);
         return JSON.stringify({ total: data?.length || 0, sessions: data || [] });
       }
+      case "get_ads_warnings": {
+        const q = supabase.from("ads_ai_warnings")
+          .select("id, channel, ad_account_id, campaign_ref, title, description, severity, trend, status, signal_count, last_signal_at, first_signal_at")
+          .eq("tenant_id", tenantId)
+          .order("last_signal_at", { ascending: false })
+          .limit(args.limit || 25);
+        if (args.severity) q.eq("severity", args.severity);
+        q.eq("status", args.status || "open");
+        const { data } = await q;
+        return JSON.stringify({ total: data?.length || 0, warnings: data || [] });
+      }
+      case "get_ad_accounts": {
+        const ch = args.channel && args.channel !== "all" ? [args.channel] : ["meta", "google", "tiktok"];
+        const { data: conns } = await supabase
+          .from("marketplace_connections")
+          .select("channel, account_name, metadata, status")
+          .eq("tenant_id", tenantId)
+          .in("channel", ch);
+        const accounts: any[] = [];
+        for (const c of (conns || [])) {
+          const list = c?.metadata?.assets?.ad_accounts || [];
+          for (const a of list) {
+            accounts.push({
+              channel: c.channel,
+              id: typeof a === "string" ? a : a.id,
+              name: typeof a === "string" ? null : (a.name || a.account_name || null),
+              connection_status: c.status,
+            });
+          }
+        }
+        return JSON.stringify({ total: accounts.length, accounts });
+      }
       case "get_strategic_plan": {
         let q = supabase.from("ads_autopilot_actions").select("*").eq("tenant_id", tenantId).eq("action_type", "strategic_plan").order("created_at", { ascending: false }).limit(1);
         if (args.status) q = q.eq("status", args.status);
