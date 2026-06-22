@@ -1,7 +1,7 @@
 # Gestor de Tráfego IA — Especificação Completa
 
 > **Status:** ✅ Ativo  
-> **Versão:** 7.4.0 (Ondas 2A, 2B e 3 — Chat IA como agente único do Gestor de Tráfego)
+> **Versão:** 7.5.0 (Ondas 2A, 2B, 3 e 4 — Chat IA como agente único do Gestor de Tráfego)
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Rota:** `/ads`  
 > **Extraído de:** `docs/especificacoes/marketing/marketing-integracoes.md` (Seção 5)  
@@ -28,6 +28,11 @@ O Chat IA passa a fazer, em linguagem natural, tudo o que as abas do Gestor de T
 
 - O chat lê e altera configurações da IA por conta: prompt estratégico (instruções do lojista), meta de ROI, orçamento, modo de estratégia (conservador / equilibrado / agressivo), aprovação humana (auto / high_impact), ligar/desligar IA, overrides de chat.
 - Toda alteração é sensível: a IA precisa identificar a conta-alvo, mostrar o campo, valor atual → novo valor, e SÓ executar após confirmação explícita do lojista. Sem confirmação, o servidor bloqueia.
+
+**Onda 4 — Experimentos e fila no chat**
+
+- Experimentos A/B: o chat abre experimento (hipótese, variável testada, conta, orçamento, duração, critérios de sucesso) e encerra (completed/cancelled, variante vencedora, notas). Em ambos os casos a IA precisa mostrar o resumo antes e obter confirmação explícita do lojista.
+- Fila "Aguardando ação": o chat lista propostas pendentes, mostra o que será publicado e pode aprovar (publica pelo mesmo pipeline canônico — inclusive o fluxo de 2 etapas do plano estratégico) ou rejeitar (com motivo registrado). Sempre com confirmação explícita.
 
 **Regras invariantes**
 

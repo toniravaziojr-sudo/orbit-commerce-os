@@ -176,9 +176,9 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "creative", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
-  // AUTOPILOT (leitura E governança/edição de configs por conta)
-  if (/configuraç(ão|ões)|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment|prompt\s+estratégico|meta\s+de\s+roi|target\s+roi|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|ajustar?\s+(a\s+)?ia|alterar?\s+(a\s+)?ia|configurar?\s+(a\s+)?ia|mudar?\s+(a\s+)?ia/i.test(msg)) {
-    const wantsEdit = /ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|ativ[ae]r?|desativ[ae]r?/i.test(msg);
+  // AUTOPILOT (leitura, governança, fila e experimentos)
+  if (/configuraç(ão|ões)|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment|hipótese|prompt\s+estratégico|meta\s+de\s+roi|target\s+roi|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|ajustar?\s+(a\s+)?ia|alterar?\s+(a\s+)?ia|configurar?\s+(a\s+)?ia|mudar?\s+(a\s+)?ia|fila\s+de\s+aprovaç|aguardando\s+aç(ão|ões)|proposta[s]?\s+pendente|aprov[ae]r?\s+(a\s+)?(proposta|plano|campanha|estratégia)|rejeit[ae]r?\s+(a\s+)?(proposta|plano|campanha)|encerrar?\s+(o\s+)?experiment|abrir?\s+(um\s+)?experiment/i.test(msg)) {
+    const wantsEdit = /ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|ativ[ae]r?|desativ[ae]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|criar?|encerr[ae]r?|cancel[ae]r?/i.test(msg);
     return { category: "autopilot", mode: wantsEdit ? "conversational" : "factual", isFactual: !wantsEdit, isHybrid: false, entities, confidence: 0.8 };
   }
 
@@ -354,7 +354,35 @@ function _getToolSubset(category: IntentCategory): any[] {
           },
           user_confirmed: { type: "boolean", description: "Obrigatório true — só após confirmação explícita do lojista na conversa." },
         }, ["ad_account_id", "channel", "updates", "user_confirmed"]),
+        toolDef("approve_pending_action", "Aprova uma proposta da fila 'Aguardando ação' (estratégia, campanha, ajuste). SENSÍVEL: só chame após confirmação explícita do lojista (user_confirmed=true). Sempre mostre antes: tipo da ação, conta, resumo do que vai ser publicado.", {
+          action_id: { type: "string", description: "ID da proposta a aprovar" },
+          user_confirmed: { type: "boolean" },
+        }, ["action_id", "user_confirmed"]),
+        toolDef("reject_pending_action", "Rejeita uma proposta da fila. SENSÍVEL: só chame após confirmação explícita.", {
+          action_id: { type: "string" },
+          reason: { type: "string", description: "Motivo da rejeição (curto, em PT-BR)" },
+          user_confirmed: { type: "boolean" },
+        }, ["action_id", "reason", "user_confirmed"]),
+        toolDef("create_experiment", "Cria um experimento A/B (status inicial 'planned'). SENSÍVEL: só chame após confirmação explícita. Mostre hipótese, variável testada, conta, orçamento, duração antes de confirmar.", {
+          channel: { type: "string", enum: ["meta", "google", "tiktok"] },
+          ad_account_id: { type: "string" },
+          hypothesis: { type: "string", description: "Hipótese de negócio (PT-BR, 1-2 frases)" },
+          variable_type: { type: "string", description: "O que está sendo testado (ex: criativo, público, oferta, copy)" },
+          duration_days: { type: "number", description: "Duração em dias (default 7)" },
+          budget_brl: { type: "number", description: "Orçamento total em R$ do experimento" },
+          min_conversions: { type: "number" },
+          success_criteria: { type: "object", description: "Critérios objetivos de sucesso (ex: {roas_min: 2.5})" },
+          user_confirmed: { type: "boolean" },
+        }, ["channel", "hypothesis", "variable_type", "user_confirmed"]),
+        toolDef("end_experiment", "Encerra um experimento em andamento (status 'completed' ou 'cancelled'). SENSÍVEL: só chame após confirmação explícita.", {
+          experiment_id: { type: "string" },
+          outcome: { type: "string", enum: ["completed", "cancelled"], description: "completed = encerrou com resultado; cancelled = abortou antes do prazo" },
+          winner_variant_id: { type: "string", description: "ID da variante vencedora, se houver" },
+          notes: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["experiment_id", "outcome", "user_confirmed"]),
       ];
+
 
     // STRATEGIC: AI gets read tools + context tools to gather info, plus the strategic plan creation tool
     case "strategic":
@@ -1060,9 +1088,11 @@ Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios indivi
   - Excluir campanha, conjunto ou anúncio (delete_meta_entity)
   - Desativar mais de 3 entidades em lote (bulk_toggle_entities com PAUSED e mais de 3 IDs)
   - **Alterar configurações da IA por conta** (update_autopilot_config): prompt estratégico, meta de ROI, orçamento, modo, aprovação humana, ligar/desligar IA, instruções do lojista.
+  - **Aprovar/rejeitar proposta da fila** (approve_pending_action / reject_pending_action): SEMPRE leia get_autopilot_actions(status='pending_approval') antes, mostre tipo da ação, conta, resumo do que será publicado e peça confirmação. Aprovar publica de verdade.
+  - **Abrir/encerrar experimento A/B** (create_experiment / end_experiment): mostre hipótese, variável, conta, orçamento e duração antes de criar; mostre resultado/contexto antes de encerrar.
 - Padrão para destrutivas/sensíveis: descreva o que será feito ("Vou alterar a meta de ROI da conta X de 2.5 para 3.0. Confirma?") e SÓ chame a ferramenta depois que o lojista responder algo como "sim", "confirmo", "pode mudar". Ao chamar, passe user_confirmed=true.
 - Para update_autopilot_config: SEMPRE leia get_autopilot_config antes para saber o valor atual, mostre "valor atual → novo valor" e a conta-alvo, então peça confirmação.
-- Se o lojista pedir alteração sem dizer qual conta, e houver mais de uma, liste e pergunte.
+- Se o lojista pedir alteração/aprovação sem dizer qual conta/proposta, e houver mais de uma opção, liste e pergunte.
 
 ## REGRA: SEQUÊNCIA PARA CAMPANHAS
 - NUNCA chame generate_creative_image e create_meta_campaign na mesma rodada.
@@ -1248,13 +1278,182 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     return await handleStrategicProposal(supabase, tenantId, args, chatSessionId, strategyRunId, channel || "meta");
   }
 
-  // Governance gate: sensitive config edits require explicit user confirmation
-  if (toolName === "update_autopilot_config" && !args?.user_confirmed) {
+  // Governance gate: sensitive operations require explicit user confirmation
+  const SENSITIVE_TOOLS = new Set([
+    "update_autopilot_config",
+    "approve_pending_action",
+    "reject_pending_action",
+    "create_experiment",
+    "end_experiment",
+  ]);
+  if (SENSITIVE_TOOLS.has(toolName) && !args?.user_confirmed) {
     return JSON.stringify({
       error: "confirmation_required",
-      message: "Alteração de configuração da IA exige confirmação explícita do lojista. Descreva a mudança (conta, campo, valor atual → novo) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.",
+      message: `Operação sensível (${toolName}) exige confirmação explícita do lojista. Descreva o que será feito (conta, alvo, valores) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.`,
     });
   }
+
+  // Onda 4 — tools handled locally (not delegated to legacy ads-chat)
+  if (toolName === "approve_pending_action" || toolName === "reject_pending_action" || toolName === "create_experiment" || toolName === "end_experiment") {
+    return await executeOnda4Tool(supabase, tenantId, toolName, args);
+  }
+
+
+// ----------------------------------------------------------------------
+// Onda 4 — Local handlers: queue approval/rejection + experiments lifecycle
+// ----------------------------------------------------------------------
+async function executeOnda4Tool(supabase: any, tenantId: string, toolName: string, args: any): Promise<string> {
+  try {
+    const nowIso = new Date().toISOString();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    if (toolName === "approve_pending_action") {
+      const { data: action, error: fetchErr } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id, tenant_id, status, action_type, action_data, policy_check_result")
+        .eq("id", args.action_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (fetchErr || !action) return JSON.stringify({ error: "Proposta não encontrada nesta conta." });
+      if (action.status !== "pending_approval") {
+        return JSON.stringify({ error: `Proposta não está aguardando aprovação (status atual: ${action.status}).` });
+      }
+      // Detect 2-step strategic plan flow
+      const isStrategic = action.action_type === "strategic_plan" || action.action_type === "create_campaign";
+      if (action.action_type === "strategic_plan") {
+        // Delegate to canonical strategy-approval edge function
+        const resp = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-approve-strategy`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: tenantId, action_id: args.action_id }),
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || !body?.success) {
+          return JSON.stringify({ error: body?.error || "Falha ao aprovar plano estratégico." });
+        }
+        return JSON.stringify({ success: true, message: "Plano estratégico aprovado. Geração de criativos iniciada — siga o andamento na fila." });
+      }
+      // Standard single-step approval
+      const expiresIso = new Date(Date.now() + 48 * 3600_000).toISOString();
+      const humanAudit = {
+        approval_source: "human_approval_via_chat",
+        human_approved: true,
+        approved_by_user: true,
+        auto_executed: false,
+        executed_by: "user_chat",
+        at: nowIso,
+      };
+      const { error: upErr } = await supabase
+        .from("ads_autopilot_actions")
+        .update({
+          status: "approved",
+          approved_at: nowIso,
+          approval_expires_at: expiresIso,
+          auto_executed: false,
+          policy_check_result: { ...(action.policy_check_result || {}), autoexec_audit: humanAudit },
+        })
+        .eq("id", args.action_id);
+      if (upErr) return JSON.stringify({ error: upErr.message });
+
+      // Trigger execution (non-blocking)
+      fetch(`${supabaseUrl}/functions/v1/ads-autopilot-execute-approved`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, action_id: args.action_id }),
+      }).catch(() => {});
+
+      return JSON.stringify({ success: true, message: "Proposta aprovada e enviada para publicação." });
+    }
+
+    if (toolName === "reject_pending_action") {
+      const { data: action } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id, status, policy_check_result")
+        .eq("id", args.action_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (!action) return JSON.stringify({ error: "Proposta não encontrada." });
+      if (action.status !== "pending_approval") {
+        return JSON.stringify({ error: `Proposta não está aguardando aprovação (status atual: ${action.status}).` });
+      }
+      const rejectAudit = {
+        approval_source: "rejected_via_chat",
+        human_approved: false,
+        rejection_reason: args.reason,
+        at: nowIso,
+      };
+      const { error } = await supabase
+        .from("ads_autopilot_actions")
+        .update({
+          status: "rejected",
+          rejection_reason: args.reason,
+          policy_check_result: { ...(action.policy_check_result || {}), autoexec_audit: rejectAudit },
+        })
+        .eq("id", args.action_id);
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ success: true, message: `Proposta rejeitada. Motivo registrado: ${args.reason}` });
+    }
+
+    if (toolName === "create_experiment") {
+      const budgetCents = args.budget_brl ? Math.round(Number(args.budget_brl) * 100) : 0;
+      const { data, error } = await supabase
+        .from("ads_autopilot_experiments")
+        .insert({
+          tenant_id: tenantId,
+          channel: args.channel,
+          ad_account_id: args.ad_account_id || null,
+          hypothesis: args.hypothesis,
+          variable_type: args.variable_type,
+          duration_days: args.duration_days || 7,
+          budget_cents: budgetCents,
+          min_conversions: args.min_conversions || 0,
+          success_criteria: args.success_criteria || {},
+          status: "planned",
+          plan: { source: "chat", created_via: "chat-v2" },
+        })
+        .select("id, hypothesis, variable_type, channel, status, duration_days, budget_cents")
+        .single();
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({
+        success: true,
+        message: `Experimento criado em rascunho (status 'planned'). O motor de experimentos vai iniciá-lo no próximo ciclo. Hipótese: "${data.hypothesis}".`,
+        experiment: data,
+      });
+    }
+
+    if (toolName === "end_experiment") {
+      const { data: exp } = await supabase
+        .from("ads_autopilot_experiments")
+        .select("id, status, results")
+        .eq("id", args.experiment_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (!exp) return JSON.stringify({ error: "Experimento não encontrado." });
+      if (!["planned", "running"].includes(exp.status)) {
+        return JSON.stringify({ error: `Experimento já está em status terminal: ${exp.status}.` });
+      }
+      const updates: any = {
+        status: args.outcome,
+        end_at: nowIso,
+        winner_variant_id: args.winner_variant_id || null,
+      };
+      if (args.notes) {
+        updates.results = { ...(exp.results || {}), notes: args.notes, closed_via: "chat", closed_at: nowIso };
+      }
+      const { error } = await supabase
+        .from("ads_autopilot_experiments")
+        .update(updates)
+        .eq("id", args.experiment_id);
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ success: true, message: `Experimento encerrado como '${args.outcome}'.` });
+    }
+
+    return JSON.stringify({ error: "Ferramenta Onda 4 desconhecida." });
+  } catch (err: any) {
+    return JSON.stringify({ error: err?.message || "Erro ao processar ação Onda 4." });
+  }
+}
 
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1669,6 +1868,10 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   toggle_entity_status: "Alterando status",
   duplicate_campaign: "Duplicando campanha",
   update_autopilot_config: "Atualizando configurações da IA",
+  approve_pending_action: "Aprovando proposta",
+  reject_pending_action: "Rejeitando proposta",
+  create_experiment: "Criando experimento A/B",
+  end_experiment: "Encerrando experimento",
   delete_meta_entity: "Excluindo no Meta",
   bulk_toggle_entities: "Aplicando alteração em lote",
   create_custom_audience: "Criando público",
