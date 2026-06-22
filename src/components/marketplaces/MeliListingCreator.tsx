@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ProductWithImage } from "@/hooks/useProducts";
 import { MeliCategoryPicker } from "./MeliCategoryPicker";
+import { MeliAttributesPanel, type MeliAttributesPanelValue } from "./MeliAttributesPanel";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
