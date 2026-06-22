@@ -1297,6 +1297,161 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
   }
 
 
+// ----------------------------------------------------------------------
+// Onda 4 — Local handlers: queue approval/rejection + experiments lifecycle
+// ----------------------------------------------------------------------
+async function executeOnda4Tool(supabase: any, tenantId: string, toolName: string, args: any): Promise<string> {
+  try {
+    const nowIso = new Date().toISOString();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    if (toolName === "approve_pending_action") {
+      const { data: action, error: fetchErr } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id, tenant_id, status, action_type, action_data, policy_check_result")
+        .eq("id", args.action_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (fetchErr || !action) return JSON.stringify({ error: "Proposta não encontrada nesta conta." });
+      if (action.status !== "pending_approval") {
+        return JSON.stringify({ error: `Proposta não está aguardando aprovação (status atual: ${action.status}).` });
+      }
+      // Detect 2-step strategic plan flow
+      const isStrategic = action.action_type === "strategic_plan" || action.action_type === "create_campaign";
+      if (action.action_type === "strategic_plan") {
+        // Delegate to canonical strategy-approval edge function
+        const resp = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-approve-strategy`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: tenantId, action_id: args.action_id }),
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || !body?.success) {
+          return JSON.stringify({ error: body?.error || "Falha ao aprovar plano estratégico." });
+        }
+        return JSON.stringify({ success: true, message: "Plano estratégico aprovado. Geração de criativos iniciada — siga o andamento na fila." });
+      }
+      // Standard single-step approval
+      const expiresIso = new Date(Date.now() + 48 * 3600_000).toISOString();
+      const humanAudit = {
+        approval_source: "human_approval_via_chat",
+        human_approved: true,
+        approved_by_user: true,
+        auto_executed: false,
+        executed_by: "user_chat",
+        at: nowIso,
+      };
+      const { error: upErr } = await supabase
+        .from("ads_autopilot_actions")
+        .update({
+          status: "approved",
+          approved_at: nowIso,
+          approval_expires_at: expiresIso,
+          auto_executed: false,
+          policy_check_result: { ...(action.policy_check_result || {}), autoexec_audit: humanAudit },
+        })
+        .eq("id", args.action_id);
+      if (upErr) return JSON.stringify({ error: upErr.message });
+
+      // Trigger execution (non-blocking)
+      fetch(`${supabaseUrl}/functions/v1/ads-autopilot-execute-approved`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, action_id: args.action_id }),
+      }).catch(() => {});
+
+      return JSON.stringify({ success: true, message: "Proposta aprovada e enviada para publicação." });
+    }
+
+    if (toolName === "reject_pending_action") {
+      const { data: action } = await supabase
+        .from("ads_autopilot_actions")
+        .select("id, status, policy_check_result")
+        .eq("id", args.action_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (!action) return JSON.stringify({ error: "Proposta não encontrada." });
+      if (action.status !== "pending_approval") {
+        return JSON.stringify({ error: `Proposta não está aguardando aprovação (status atual: ${action.status}).` });
+      }
+      const rejectAudit = {
+        approval_source: "rejected_via_chat",
+        human_approved: false,
+        rejection_reason: args.reason,
+        at: nowIso,
+      };
+      const { error } = await supabase
+        .from("ads_autopilot_actions")
+        .update({
+          status: "rejected",
+          rejection_reason: args.reason,
+          policy_check_result: { ...(action.policy_check_result || {}), autoexec_audit: rejectAudit },
+        })
+        .eq("id", args.action_id);
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ success: true, message: `Proposta rejeitada. Motivo registrado: ${args.reason}` });
+    }
+
+    if (toolName === "create_experiment") {
+      const budgetCents = args.budget_brl ? Math.round(Number(args.budget_brl) * 100) : 0;
+      const { data, error } = await supabase
+        .from("ads_autopilot_experiments")
+        .insert({
+          tenant_id: tenantId,
+          channel: args.channel,
+          ad_account_id: args.ad_account_id || null,
+          hypothesis: args.hypothesis,
+          variable_type: args.variable_type,
+          duration_days: args.duration_days || 7,
+          budget_cents: budgetCents,
+          min_conversions: args.min_conversions || 0,
+          success_criteria: args.success_criteria || {},
+          status: "planned",
+          plan: { source: "chat", created_via: "chat-v2" },
+        })
+        .select("id, hypothesis, variable_type, channel, status, duration_days, budget_cents")
+        .single();
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({
+        success: true,
+        message: `Experimento criado em rascunho (status 'planned'). O motor de experimentos vai iniciá-lo no próximo ciclo. Hipótese: "${data.hypothesis}".`,
+        experiment: data,
+      });
+    }
+
+    if (toolName === "end_experiment") {
+      const { data: exp } = await supabase
+        .from("ads_autopilot_experiments")
+        .select("id, status, results")
+        .eq("id", args.experiment_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (!exp) return JSON.stringify({ error: "Experimento não encontrado." });
+      if (!["planned", "running"].includes(exp.status)) {
+        return JSON.stringify({ error: `Experimento já está em status terminal: ${exp.status}.` });
+      }
+      const updates: any = {
+        status: args.outcome,
+        end_at: nowIso,
+        winner_variant_id: args.winner_variant_id || null,
+      };
+      if (args.notes) {
+        updates.results = { ...(exp.results || {}), notes: args.notes, closed_via: "chat", closed_at: nowIso };
+      }
+      const { error } = await supabase
+        .from("ads_autopilot_experiments")
+        .update(updates)
+        .eq("id", args.experiment_id);
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ success: true, message: `Experimento encerrado como '${args.outcome}'.` });
+    }
+
+    return JSON.stringify({ error: "Ferramenta Onda 4 desconhecida." });
+  } catch (err: any) {
+    return JSON.stringify({ error: err?.message || "Erro ao processar ação Onda 4." });
+  }
+}
 
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
