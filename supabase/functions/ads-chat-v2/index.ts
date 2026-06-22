@@ -79,6 +79,13 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   } else if (/este\s+mês|últimos?\s+30/i.test(msg)) {
     entities.period = "last_30d";
   }
+  // ---- EARLY: account/governance/queue listing (must beat composite-signal capture) ----
+  // "Quais contas tenho", "contas conectadas", "lista propostas pendentes", "tem aviso aberto?", etc.
+  if (/\b(quais|liste|listar|mostr[ae]|tenho|tem)\b.*\b(conta[s]?\s+de\s+an[uú]ncios?|conta[s]?\s+conectada[s]?|conta[s]?\s+ativa[s]?|propostas?\s+pendente|aguardando\s+aç[ãa]o|avisos?\s+aberto|configura[çc][ãa]o\s+da\s+ia|experiment[oa]s?)/i.test(msg)
+    || /\b(conta[s]?\s+conectada[s]?|propostas?\s+pendente[s]?|configura[çc][ãa]o(es)?\s+da\s+ia)\b/i.test(msg)) {
+    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
+  }
+
 
   // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
   // These are requests where the user wants the AI to PLAN, PROPOSE, or DESIGN
