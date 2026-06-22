@@ -1381,7 +1381,67 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 5: Condition ===== */}
+        {/* ===== STEP 5: Attributes (Características) ===== */}
+        {step === "attributes" && (
+          <div className="flex-1 flex flex-col gap-3 min-h-0">
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              Para cada anúncio, o sistema cruza o cadastro do produto, a categoria escolhida e o dicionário do Mercado Livre, e completa o que falta com a IA. Itens em vermelho precisam ser preenchidos no cadastro do produto antes de continuar — use o atalho ao lado do nome.
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-3 pr-3">
+                {generatedItems.map(item => {
+                  const value = attrValuesByListing[item.listingId];
+                  const missingCount = value?.attributes?.filter(a => a.status === "missing").length ?? 0;
+                  return (
+                    <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.productName}</p>
+                          {item.categoryName && (
+                            <p className="text-[11px] text-muted-foreground truncate">{item.categoryPath || item.categoryName}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {missingCount > 0 && (
+                            <Badge variant="outline" className="border-destructive/50 text-destructive text-[10px]">
+                              {missingCount} faltando
+                            </Badge>
+                          )}
+                          {item.productId && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => window.open(`/products?edit=${item.productId}`, '_blank', 'noopener')}
+                              title="Abrir o cadastro deste produto em nova aba"
+                            >
+                              <ArrowRight className="h-3 w-3" />
+                              Abrir cadastro
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {item.categoryId && currentTenant?.id ? (
+                        <MeliAttributesPanel
+                          tenantId={currentTenant.id}
+                          productId={item.productId}
+                          categoryId={item.categoryId}
+                          onChange={(v) => setAttrValuesByListing(prev => ({ ...prev, [item.listingId]: v }))}
+                        />
+                      ) : (
+                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Defina a categoria antes de carregar as características.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== STEP 6: Condition ===== */}
         {step === "condition" && (
           <div className="flex-1 flex flex-col gap-4 py-4">
             <p className="text-sm text-muted-foreground">
