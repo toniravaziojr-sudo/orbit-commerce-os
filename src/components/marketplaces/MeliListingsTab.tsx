@@ -94,6 +94,26 @@ export function MeliListingsTab() {
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
 
+  const queryClient = useQueryClient();
+
+  // Revalidação automática quando o lojista volta para esta aba do navegador
+  // (ex.: depois de corrigir o cadastro de um produto em outra aba via atalho
+  // "Abrir cadastro do produto"). Custo zero: só reaproveita o cache do React
+  // Query e dispara um refetch local.
+  useEffect(() => {
+    const handleRevalidate = () => {
+      if (document.visibilityState !== 'visible') return;
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
+    };
+    window.addEventListener('focus', handleRevalidate);
+    document.addEventListener('visibilitychange', handleRevalidate);
+    return () => {
+      window.removeEventListener('focus', handleRevalidate);
+      document.removeEventListener('visibilitychange', handleRevalidate);
+    };
+  }, [queryClient, currentTenant?.id]);
+
   const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
   const publishedCount = listings.filter(l => ['published', 'paused'].includes(l.status)).length;
   const pendingCount = listings.filter(l => ['error', 'publishing'].includes(l.status)).length;
