@@ -4650,10 +4650,25 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               }
             }
 
+            // Onda 1 — marca origem "chat" quando a estratégia veio do Chat IA,
+            // para a fila de Aguardando ação exibir o selo "via chat".
+            const isFromChat = body?.source === "chat";
+            const chatBrief = body?.chat_brief || null;
             actionRecord.action_data = {
               ...canonicalPlanPayload,
               ad_account_id: config.ad_account_id,
               campaign_name: campaignName,
+              ...(isFromChat
+                ? {
+                    origin_source: "chat",
+                    chat_brief: chatBrief,
+                    metadata: {
+                      ...(canonicalPlanPayload?.metadata || {}),
+                      origin_source: "chat",
+                      chat_session_id: chatBrief?.chat_session_id || null,
+                    },
+                  }
+                : {}),
             };
             actionRecord.status = canonicalStatus;
           }
