@@ -1276,13 +1276,27 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     return await handleStrategicProposal(supabase, tenantId, args, chatSessionId, strategyRunId, channel || "meta");
   }
 
-  // Governance gate: sensitive config edits require explicit user confirmation
-  if (toolName === "update_autopilot_config" && !args?.user_confirmed) {
+  // Governance gate: sensitive operations require explicit user confirmation
+  const SENSITIVE_TOOLS = new Set([
+    "update_autopilot_config",
+    "approve_pending_action",
+    "reject_pending_action",
+    "create_experiment",
+    "end_experiment",
+  ]);
+  if (SENSITIVE_TOOLS.has(toolName) && !args?.user_confirmed) {
     return JSON.stringify({
       error: "confirmation_required",
-      message: "Alteração de configuração da IA exige confirmação explícita do lojista. Descreva a mudança (conta, campo, valor atual → novo) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.",
+      message: `Operação sensível (${toolName}) exige confirmação explícita do lojista. Descreva o que será feito (conta, alvo, valores) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.`,
     });
   }
+
+  // Onda 4 — tools handled locally (not delegated to legacy ads-chat)
+  if (toolName === "approve_pending_action" || toolName === "reject_pending_action" || toolName === "create_experiment" || toolName === "end_experiment") {
+    return await executeOnda4Tool(supabase, tenantId, toolName, args);
+  }
+
+
 
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
