@@ -697,6 +697,43 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "delete_meta_entity",
+      description: "AÇÃO DESTRUTIVA: Exclui permanentemente uma campanha, conjunto de anúncios ou anúncio no Meta. Só execute APÓS confirmação explícita do lojista (ex: 'sim, pode excluir', 'confirmo a exclusão'). Recomende sempre pausar antes de excluir.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_id: { type: "string", description: "ID da entidade na Meta" },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean", description: "DEVE ser true. Só passe true após o lojista confirmar explicitamente a exclusão na conversa." },
+        },
+        required: ["entity_type", "entity_id", "user_confirmed"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_toggle_entities",
+      description: "AÇÃO EM LOTE: Pausa ou reativa várias entidades Meta de uma vez. Quando new_status='PAUSED' e há mais de 3 entidades, é destrutivo e exige confirmação explícita do lojista.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs (máx 50)" },
+          new_status: { type: "string", enum: ["ACTIVE", "PAUSED"] },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean", description: "Obrigatório true quando new_status='PAUSED' e mais de 3 entidades." },
+        },
+        required: ["entity_type", "entity_ids", "new_status"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "update_adset_targeting",
       description: "Atualiza a segmentação (targeting) de um conjunto de anúncios existente no Meta. Pode alterar faixa etária, gênero, localização e interesses.",
       parameters: {
