@@ -1669,6 +1669,12 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                   Plano incompleto
                 </Badge>
               )}
+              {(((action.action_data as any)?.origin_source === "chat") ||
+                ((action.action_data as any)?.metadata?.origin_source === "chat")) && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-violet-500/10 text-violet-700 border-violet-500/20">
+                  via chat
+                </Badge>
+              )}
             </div>
 
             {/* Headline */}
