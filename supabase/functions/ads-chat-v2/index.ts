@@ -421,6 +421,19 @@ function _getToolSubset(category: IntentCategory): any[] {
           source_campaign_id: { type: "string" }, new_name: { type: "string" },
           new_daily_budget_cents: { type: "number" }, ad_account_id: { type: "string" },
         }, ["source_campaign_id"]),
+        toolDef("delete_meta_entity", "DESTRUTIVA: exclui campanha/conjunto/anúncio Meta. SÓ chame após o lojista confirmar explicitamente na conversa (passar user_confirmed=true).", {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_id: { type: "string" },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["entity_type", "entity_id", "user_confirmed"]),
+        toolDef("bulk_toggle_entities", "Pausa/reativa várias entidades de uma vez. Pausar mais de 3 exige user_confirmed=true após confirmação na conversa.", {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_ids: { type: "array", items: { type: "string" } },
+          new_status: { type: "string", enum: ["ACTIVE", "PAUSED"] },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["entity_type", "entity_ids", "new_status"]),
         toolDef("update_adset_targeting", "Atualiza segmentação de adset.", {
           adset_id: { type: "string" }, age_min: { type: "number" }, age_max: { type: "number" },
           genders: { type: "array", items: { type: "number" } },
