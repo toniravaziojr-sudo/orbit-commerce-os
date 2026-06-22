@@ -1036,79 +1036,132 @@ async function handleStrategicProposal(
       return JSON.stringify({ error: "Proposta vazia. Inclua pelo menos uma ação planejada." });
     }
 
-    // Caminho legado do chat v2: nunca pode mais salvar plano aprovável fora do contrato canônico.
-    const planAction = {
-      tenant_id: tenantId,
-      session_id: chatSessionId,
-      channel: channel || "meta",
-      action_type: "strategic_plan",
-      status: "incomplete",
-      reasoning: diagnosis?.substring(0, 5000) || "Proposta gerada via Chat Estratégico",
-      expected_impact: strategy_summary?.substring(0, 2000) || "",
-      confidence: "medium",
-      action_data: {
-        source: "ads_chat_v2_strategic",
-        strategy_run_id: strategyRunId,
-        approval_status: "incomplete",
-        contract: {
-          ok: false,
-          version: "chat-v2-legacy-blocked",
-          blockers_count: 1,
-          warnings_count: 0,
-          errors: [{
-            code: "legacy_chat_v2_strategic_plan_requires_canonical_guard",
-            severity: "blocker",
-            message: "Plano gerado por caminho legado do chat. Rode uma nova análise pelo fluxo canônico para tornar o plano aprovável.",
-          }],
-        },
-        diagnosis: diagnosis?.substring(0, 10000),
-        planned_actions: planned_actions.map((action: any) => ({
-          action_type: action.action_type,
-          campaign_name: action.campaign_name,
-          objective: action.objective,
-          funnel_stage: action.funnel_stage,
-          daily_budget_brl: action.daily_budget_brl,
-          reasoning: action.reasoning,
-          expected_impact: action.expected_impact,
-          confidence: action.confidence || "medium",
-          product_name: action.product_name,
-          creative_direction: action.creative_direction,
-          adsets: (action.adsets || []).map((adset: any) => ({
-            adset_name: adset.adset_name,
-            audience_type: adset.audience_type,
-            audience_description: adset.audience_description,
-            budget_brl: adset.budget_brl,
-            ads_count: adset.ads_count || 1,
-          })),
+    // Onda 1 — Convergência do chat com o pipeline canônico de aprovação.
+    // O chat NÃO persiste mais propostas estratégicas direto. Ele resolve a conta
+    // alvo e delega ao estrategista canônico (ads-autopilot-strategist) em modo
+    // "start" assíncrono, passando o brief construído na conversa. O resultado
+    // é uma proposta padrão em "Aguardando ação", marcada com origem "chat".
+    const targetChannel = channel || "meta";
+
+    const { data: configs, error: cfgErr } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("ad_account_id, channel, is_ai_enabled, kill_switch")
+      .eq("tenant_id", tenantId)
+      .eq("channel", targetChannel)
+      .eq("is_ai_enabled", true)
+      .is("kill_switch", false);
+
+    if (cfgErr) {
+      console.error(`[ads-chat-v2][${VERSION}] account lookup failed:`, cfgErr);
+      return JSON.stringify({
+        error: "Não consegui localizar contas de anúncios ativas para gerar a proposta.",
+      });
+    }
+
+    const activeAccounts = (configs || []).filter((c: any) => !!c.ad_account_id);
+    if (activeAccounts.length === 0) {
+      return JSON.stringify({
+        error: `Nenhuma conta de anúncios do canal "${targetChannel}" está conectada e ativa. Conecte ou ative uma conta antes de pedir uma proposta.`,
+      });
+    }
+    if (activeAccounts.length > 1) {
+      return JSON.stringify({
+        error: `Existem ${activeAccounts.length} contas de anúncios ativas no canal "${targetChannel}". Diga em qual conta a estratégia deve rodar antes de submeter a proposta.`,
+        accounts: activeAccounts.map((a: any) => a.ad_account_id),
+      });
+    }
+    const targetAccountId = activeAccounts[0].ad_account_id;
+
+    // Brief estruturado da conversa, que o estrategista canônico recebe como
+    // diretriz na próxima análise. O estrategista valida, normaliza e publica
+    // a proposta na fila padrão de "Aguardando ação".
+    const chatBrief = {
+      origin: "ads_chat_v2",
+      chat_session_id: chatSessionId,
+      strategy_run_id: strategyRunId,
+      channel: targetChannel,
+      diagnosis: typeof diagnosis === "string" ? diagnosis.substring(0, 10000) : null,
+      strategy_summary: typeof strategy_summary === "string" ? strategy_summary.substring(0, 4000) : null,
+      total_daily_budget_brl: total_daily_budget_brl || null,
+      risks: Array.isArray(risks) ? risks.slice(0, 20) : [],
+      planned_actions: planned_actions.slice(0, 12).map((action: any) => ({
+        action_type: action.action_type,
+        campaign_name: action.campaign_name,
+        objective: action.objective,
+        funnel_stage: action.funnel_stage,
+        daily_budget_brl: action.daily_budget_brl,
+        reasoning: action.reasoning,
+        expected_impact: action.expected_impact,
+        confidence: action.confidence || "medium",
+        product_name: action.product_name,
+        creative_direction: action.creative_direction,
+        adsets: (action.adsets || []).slice(0, 6).map((adset: any) => ({
+          adset_name: adset.adset_name,
+          audience_type: adset.audience_type,
+          audience_description: adset.audience_description,
+          budget_brl: adset.budget_brl,
+          ads_count: adset.ads_count || 1,
         })),
-        total_daily_budget_brl: total_daily_budget_brl,
-        risks: risks || [],
-      },
+      })),
     };
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from("ads_autopilot_actions")
-      .insert(planAction as any)
+    // Cria run de análise para o estrategista atualizar com diagnóstico/estratégia.
+    const { data: runRow, error: runErr } = await supabase
+      .from("ads_ai_analysis_runs")
+      .insert({
+        tenant_id: tenantId,
+        ad_account_id: targetAccountId,
+        channel: targetChannel,
+        trigger: "start",
+        status: "running",
+        source: "chat",
+      })
       .select("id")
       .single();
 
-    if (insertErr) {
-      console.error(`[ads-chat-v2][${VERSION}] Failed to insert strategic proposal:`, insertErr);
-      return JSON.stringify({ error: `Erro ao salvar proposta: ${insertErr.message}` });
+    if (runErr) {
+      console.error(`[ads-chat-v2][${VERSION}] analysis_run insert failed:`, runErr);
+      // Segue mesmo sem run row; estrategista lida sem analysis_run_id.
     }
+    const analysisRunId = runRow?.id || null;
 
-    // Update session with planned actions count
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Dispara o estrategista canônico em background. A resposta é imediata
+    // (accepted) — a proposta aparecerá em "Aguardando ação" assim que o
+    // estrategista terminar (geralmente 1–3 min).
+    fetch(`${supabaseUrl}/functions/v1/ads-autopilot-strategist`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        trigger: "start",
+        target_account_id: targetAccountId,
+        run_async: true,
+        analysis_run_id: analysisRunId,
+        bypass_cadence_policy: true,
+        source: "chat",
+        chat_brief: chatBrief,
+      }),
+    }).catch((err) => {
+      console.error(`[ads-chat-v2][${VERSION}] strategist dispatch failed:`, err?.message || err);
+    });
+
     await supabase.from("ads_autopilot_sessions")
       .update({ actions_planned: planned_actions.length })
       .eq("id", chatSessionId);
 
     return JSON.stringify({
       success: true,
-      proposal_id: inserted.id,
-      status: "incomplete",
-      actions_count: planned_actions.length,
-      total_daily_budget_brl,
-      message: `Proposta estratégica salva como incompleta. Ela fica visível para revisão, mas não pode ser aprovada até ser regenerada pelo fluxo canônico.`,
+      status: "queued_for_canonical_approval",
+      analysis_run_id: analysisRunId,
+      target_account_id: targetAccountId,
+      message:
+        "Recebi sua estratégia. Estou levando ela pelo planejamento canônico do Gestor de Tráfego. Em alguns minutos a proposta aparece em 'Aguardando ação', marcada como 'via chat', pronta para você aprovar ou ajustar antes de publicar na Meta.",
     });
   } catch (err: any) {
     console.error(`[ads-chat-v2][${VERSION}] Strategic proposal error:`, err);
