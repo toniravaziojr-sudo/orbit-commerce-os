@@ -1,13 +1,20 @@
 /**
  * nfe-shipment-link.ts
- * 
+ *
  * Helper para vincular NF-e autorizada ao rascunho logístico existente.
  * Chamado por: fiscal-submit, fiscal-emit, fiscal-webhook, fiscal-check-status
- * 
+ *
  * Responsabilidades:
  * 1. Preencher shipments.nfe_key e shipments.invoice_id no draft existente
  * 2. Se auto_create_shipment = true, chamar shipping-create-shipment
- * 3. Atualizar order.status para 'processing' (nunca 'shipped' — shipped vem do rastreio)
+ * 3. Promover orders.status para 'invoice_authorized' (canônico) APENAS quando
+ *    o pedido ainda está em estágio pré-NF. Nunca rebaixa pedidos já em
+ *    invoice_issued/dispatched/shipped/in_transit/delivered/completed/cancelled/etc.
+ *    NUNCA mais grava o legado 'processing' aqui — isso mascarava o pedido
+ *    como "Pronto para emitir NF" mesmo após emissão.
+ *
+ * NÃO TOCA em orders.payment_status nem orders.shipping_status — esses três
+ * status são independentes (pagamento, lifecycle, rastreio).
  */
 
 interface LinkNFeToShipmentParams {
@@ -100,12 +107,39 @@ export async function linkNFeToShipment({
     }
   }
 
-  // 3. Atualizar pedido para 'processing' (aguardando despacho manual)
-  // NUNCA mudar para 'shipped' aqui — shipped vem da primeira movimentação do rastreio
-  await supabaseClient
+  // 3. Promover orders.status para 'invoice_authorized' (canônico) — somente
+  //    se o pedido ainda está em estágio pré-NF. Não regride pedidos que já
+  //    avançaram (invoice_issued, dispatched, shipped, delivered, completed,
+  //    cancelled, chargeback_*, returning, returned, payment_expired).
+  const { data: currentOrder } = await supabaseClient
     .from('orders')
-    .update({ status: 'processing' })
-    .eq('id', orderId);
+    .select('status')
+    .eq('id', orderId)
+    .maybeSingle();
 
-  console.log(`${prefix} Order ${orderId} status set to 'processing'`);
+  const preNfStatuses = new Set([
+    'pending', 'awaiting_payment', 'awaiting_confirmation',
+    'paid', 'processing', 'ready_to_invoice',
+    'invoice_pending_sefaz', 'invoice_rejected',
+  ]);
+  const currentStatus = (currentOrder as any)?.status as string | undefined;
+
+  if (currentStatus && preNfStatuses.has(currentStatus)) {
+    await supabaseClient
+      .from('orders')
+      .update({ status: 'invoice_authorized' })
+      .eq('id', orderId);
+
+    await supabaseClient.from('order_history').insert({
+      order_id: orderId,
+      action: 'status_change',
+      description: `NF-e autorizada — status do pedido promovido para "NF Autorizada"`,
+      old_value: { status: currentStatus },
+      new_value: { status: 'invoice_authorized', invoice_id: invoiceId, nfe_key: chaveAcesso },
+    });
+
+    console.log(`${prefix} Order ${orderId} status: ${currentStatus} -> invoice_authorized`);
+  } else {
+    console.log(`${prefix} Order ${orderId} status preserved (current=${currentStatus}, not pre-NF)`);
+  }
 }

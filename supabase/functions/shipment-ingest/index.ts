@@ -362,19 +362,22 @@ Deno.serve(async (req) => {
       shipping_carrier: normalizedCarrier,
     };
 
-    // Mapear delivery_status para shipping_status do pedido
+    // Mapear delivery_status do shipment para shipping_status canônico do pedido.
+    // Vocabulário oficial (orders.shipping_status):
+    //   awaiting_shipment, label_generated, shipped, in_transit, arriving,
+    //   awaiting_pickup, delivered, problem, returning, returned.
     const shippingStatusMap: Record<string, string> = {
-      'label_created': 'processing',
+      'label_created': 'label_generated',
       'posted': 'shipped',
       'in_transit': 'in_transit',
-      'out_for_delivery': 'out_for_delivery',
+      'out_for_delivery': 'arriving',
       'delivered': 'delivered',
-      'failed': 'failed',
+      'failed': 'problem',
       'returned': 'returned',
-      'unknown': 'processing', // Unknown with tracking code = at least processing
+      'unknown': 'label_generated',
     };
 
-    const newShippingStatus = shippingStatusMap[deliveryStatus] || 'processing';
+    const newShippingStatus = shippingStatusMap[deliveryStatus] || 'label_generated';
     orderUpdate.shipping_status = newShippingStatus;
 
     if (deliveryStatus === 'posted' || deliveryStatus === 'in_transit') {
@@ -387,12 +390,15 @@ Deno.serve(async (req) => {
 
     // Emissão da etiqueta = pedido vai para "Despachado". Só promove quando o
     // pedido ainda está em estado pré-despacho — não regride pedidos já enviados/
-    // entregues/cancelados.
+    // entregues/cancelados. invoice_authorized e invoice_issued precisam estar
+    // aqui — sem isso, pedido com NF emitida ficava travado em "NF Autorizada"
+    // mesmo após a etiqueta sair.
     const dispatchTriggerStatuses = new Set([
       'label_created', 'posted', 'in_transit', 'out_for_delivery', 'delivered'
     ]);
     const preDispatchOrderStatuses = new Set([
-      'paid', 'processing', 'ready_to_invoice', 'pending', 'awaiting_shipment'
+      'paid', 'processing', 'ready_to_invoice', 'pending', 'awaiting_shipment',
+      'invoice_pending_sefaz', 'invoice_authorized', 'invoice_issued', 'fulfilled',
     ]);
     if (dispatchTriggerStatuses.has(deliveryStatus)
         && preDispatchOrderStatuses.has((order as any).status as string)) {

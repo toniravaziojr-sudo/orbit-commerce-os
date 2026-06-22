@@ -318,6 +318,23 @@ stateDiagram-v2
     invoice_rejected --> ready_to_invoice: Reemissão
 ```
 
+> **Anti-regressão (2026-06-22) — Independência dos 3 status.**
+> `orders.status` (ciclo de vida), `orders.payment_status` (pagamento) e
+> `orders.shipping_status` (rastreio) são **independentes**. Cada motor escreve
+> apenas no campo que lhe pertence:
+>
+> - **Autorização da NF** (`nfe-shipment-link`): grava `status='invoice_authorized'`
+>   somente se o pedido ainda estiver em estágio pré-NF. **NUNCA** grava o legado
+>   `processing` — isso fazia o pedido aparecer como "Pronto para emitir NF" mesmo
+>   após a emissão (incidente #637/#638 do tenant Respeite o Homem). Não toca em
+>   `payment_status` nem `shipping_status`.
+> - **Etiqueta gerada/posta** (`shipment-ingest`): promove `status='dispatched'`
+>   quando vem do conjunto pré-despacho (`paid, processing, ready_to_invoice,
+>   invoice_pending_sefaz, invoice_authorized, invoice_issued, awaiting_shipment,
+>   pending, fulfilled`). Atualiza `shipping_status` com vocabulário canônico
+>   (`label_generated, shipped, in_transit, arriving, delivered, problem, returned`).
+> - **Pagamento**: somente os webhooks de gateway gravam `payment_status`.
+
 ### 4.2 Transições de Pagamento
 
 | De | Para | Válido | Descrição |
