@@ -1,13 +1,20 @@
 /**
  * nfe-shipment-link.ts
- * 
+ *
  * Helper para vincular NF-e autorizada ao rascunho logístico existente.
  * Chamado por: fiscal-submit, fiscal-emit, fiscal-webhook, fiscal-check-status
- * 
+ *
  * Responsabilidades:
  * 1. Preencher shipments.nfe_key e shipments.invoice_id no draft existente
  * 2. Se auto_create_shipment = true, chamar shipping-create-shipment
- * 3. Atualizar order.status para 'processing' (nunca 'shipped' — shipped vem do rastreio)
+ * 3. Promover orders.status para 'invoice_authorized' (canônico) APENAS quando
+ *    o pedido ainda está em estágio pré-NF. Nunca rebaixa pedidos já em
+ *    invoice_issued/dispatched/shipped/in_transit/delivered/completed/cancelled/etc.
+ *    NUNCA mais grava o legado 'processing' aqui — isso mascarava o pedido
+ *    como "Pronto para emitir NF" mesmo após emissão.
+ *
+ * NÃO TOCA em orders.payment_status nem orders.shipping_status — esses três
+ * status são independentes (pagamento, lifecycle, rastreio).
  */
 
 interface LinkNFeToShipmentParams {
