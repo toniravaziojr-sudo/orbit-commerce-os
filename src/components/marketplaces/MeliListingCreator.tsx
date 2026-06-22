@@ -269,6 +269,7 @@ export function MeliListingCreator({
       setFreeShipping(false);
       setLocalPickup(false);
       setExpandedDescs(new Set());
+      setAttrValuesByListing({});
       configureInitRef.current = null;
     }
   }, [open]);
