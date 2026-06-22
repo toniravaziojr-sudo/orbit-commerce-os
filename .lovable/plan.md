@@ -1,56 +1,89 @@
 ## Objetivo
-Resolver os 3 pontos abertos no Mercado Livre:
-1. Atalho na aba **Pendências** para abrir o cadastro do produto.
-2. Preencher marca "Respeite o Homem" nos 8 SKUs do Kit Banho Calvície Zero que estão sem marca.
-3. Fazer o assistente de anúncios enviar **TODOS** os atributos pedidos pelo Mercado Livre, não só os básicos.
+Sincronização 100% bidirecional entre o sistema e o Mercado Livre, feita com arquitetura sólida, UI/UX clara, testes de validação e documentação oficial 100% alinhada ao comportamento final.
 
-Resumo da investigação:
-- O Mercado Livre dá pontuação ao anúncio com base em quantos atributos relevantes (obrigatórios + recomendados) vão preenchidos. Hoje o sistema só envia os básicos (marca, GTIN, SKU, garantia, condição) + auto-preenchimento de obrigatórios. Os recomendados, que sobem o score, nunca vão.
-- Existe um motor pronto que resolve atributos por categoria (cadastro + derivações de kit/peso/conteúdo + dicionário universal + IA). Esse motor já é usado na tela de edição individual, mas **não** no assistente de criação em lote — por isso a pontuação fica baixa.
+## Diagnóstico
+- **Sistema → ML:** funciona. Excluir aqui um anúncio publicado manda o comando de finalizar no ML e remove daqui. Só o texto do aviso atual está confuso.
+- **ML → Sistema:** hoje só roda 1×/dia (cron das 5h). Se o lojista mexer direto no painel do ML, o sistema demora até 24h para refletir. **Esse é o gap.**
+- **Causa raiz:** o sistema já recebe notificações em tempo real do ML, mas só usa para perguntas dos compradores. Não escuta as notificações de mudança de anúncio.
 
 ## O que vai ser feito
 
-### 1) Atalho na aba Pendências
-Em cada linha de pendência cuja causa seja "dado faltando no cadastro do produto" (ex.: marca vazia), adicionar botão **"Abrir cadastro do produto"**. O botão abre **em nova aba**, direto na tela de edição do produto. O lojista corrige, salva e fecha a aba.
+### 1) Escuta em tempo real do ML para anúncios
+Passar a ouvir as notificações de mudança de anúncio. Toda vez que o ML avisar que algo mudou, o sistema reflete aqui em segundos, sem esperar o cron.
 
-**Sincronização após o ajuste:** quando o lojista voltar para a aba Pendências, o sistema detecta o retorno de foco e **revalida automaticamente** a lista de pendências e os anúncios — sem cron e sem assinatura em tempo real (zero custo de cloud). Se por algum motivo a revalidação automática não couber em alguma tela, mostro um aviso discreto "Os dados podem ter mudado em outra aba — atualizar agora" com botão de refresh.
+Regras de reflexo automático:
+- **Ativado no ML** → fica como **Ativo** aqui.
+- **Pausado no ML** (lojista ou ML) → fica como **Pausado** aqui.
+- **Excluído no ML** (anúncio que ainda não tinha sido publicado — rascunho/incompleto apagado de fato) → **removido daqui** automaticamente.
+- **Desativado/Finalizado no ML** (já estava publicado e foi encerrado — caminho normal) → fica como **Inativo** aqui, vai para a nova aba "Inativos".
+- **Preço/estoque alterado no ML** → atualizado aqui.
 
-### 2) Marca dos 8 SKUs (Respeite o Homem)
-Preencher marca = "Respeite o Homem" nos 8 produtos abaixo (são 8, não 7 como falei antes — apareceu mais um "Noite"):
-- 0050 Kit Banho Calvície Zero Noite
-- 0051 Kit Banho Calvície Zero (FLEX) Noite
-- 0052 Kit Banho Calvície Zero (2x) Noite
-- 0053 Kit Banho Calvície Zero (3x) Noite
-- 0060 Kit Banho Calvície Zero (FLEX)
-- 0061 Kit Banho Calvície Zero
-- 0062 Kit Banho Calvície Zero (2x)
-- 0063 Kit Banho Calvície Zero (3x)
+O cron diário das 5h continua, agora como rede de segurança caso alguma notificação se perca.
 
-### 3) Envio completo de atributos ao Mercado Livre
-**Nova etapa "Características" no assistente**, posicionada **entre "Descrições" e "Condição"** (conforme você aprovou). Para cada anúncio em preparação, essa etapa:
-- Busca os atributos exigidos e recomendados pelo Mercado Livre para a categoria escolhida.
-- Auto-preenche o máximo a partir do cadastro do produto, derivações (kit, peso, unidades por embalagem, conteúdo líquido, regime regulatório) e do dicionário universal; o que sobrar de obrigatório é sugerido pela IA para o lojista revisar.
-- Mostra resumo por produto: "X preenchidos, Y para revisar, Z faltando", com o mesmo atalho "Abrir cadastro do produto" quando faltar algo que precisa vir do cadastro.
-- Salva tudo no rascunho antes de avançar para "Condição".
+### 2) Nova aba "Inativos" na tela de Anúncios
+Hoje a tela tem **Rascunhos, Publicados, Pendências**. Adiciono **"Inativos"** — anúncios finalizados no ML, preservados para consulta. Cada item mostra: motivo do encerramento (finalizado pelo lojista, expirado, encerrado pelo ML), data, link permanente do ML e botão "Ver no Mercado Livre".
 
-A publicação passa a enviar tudo o que foi resolvido — sem mudar nada na lógica de publicação além de garantir que ela não sobrescreva o que o lojista revisou.
+### 3) Aviso correto ao excluir daqui
+Substituo o texto atual pelo aprovado:
+> "Este anúncio será desativado (finalizado) no Mercado Livre — sai do ar e o link público para de funcionar. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; ele fica apenas no histórico interno do ML. Aqui no sistema o anúncio será removido. Deseja continuar?"
 
-Vale tanto na criação em lote quanto na reabertura de rascunhos.
+Aplica à exclusão individual e em massa.
 
-**Reenvio para os 14 já publicados:** conforme você decidiu, **não entra neste plano**. Você refaz o processo do zero depois que os ajustes estiverem prontos.
+### 4) UI/UX de sincronização clara
+- **Cabeçalho da aba Anúncios:** selo **"Sincronizado em tempo real com o Mercado Livre"** com bolinha verde + horário do último sinal recebido. Se ficar mais de 1h sem receber sinal, bolinha vira âmbar com tooltip "Sem sinal recente — usando reconciliação diária às 5h".
+- **Cada anúncio:** ícone discreto indicando a **origem da última mudança** — "alterado aqui", "alterado no painel do ML pelo lojista" ou "alterado automaticamente pelo Mercado Livre". Tooltip ao passar o mouse, com data/hora em BRT.
+- **Status `Inativo`:** badge cinza, distinto dos badges de Publicado/Pausado/Rascunho/Erro.
+- **Transições:** quando a notificação chegar com a aba aberta, o item atualiza no ato (sem refresh manual), com micro-animação de destaque por 2s para o lojista perceber.
 
-## Resultado final
-- Aba Pendências com atalho de 1 clique para o cadastro, abrindo em nova aba e atualizando sozinha quando o lojista volta.
-- 8 SKUs com marca preenchida, prontos para publicar sem erro.
-- Toda criação nova de anúncio nasce com **todos** os atributos relevantes preenchidos e score alto no Mercado Livre.
+### 5) Pré-requisito do app no Mercado Livre
+Para a escuta em tempo real funcionar, o app que conecta ao ML precisa estar assinando os tópicos de anúncio (hoje só assina perguntas). É configuração one-time da plataforma, feita por mim na entrega. Sem custo para o lojista.
+
+## Validações que serão executadas antes do fechamento
+
+### Validação técnica (executada pela IA)
+- **Banco:** verificar que o novo status "Inativo" e a coluna de origem da última mudança foram criados sem quebrar registros existentes; verificar grants e RLS.
+- **Webhook:** simular cada tipo de notificação do ML (ativo, pausado, fechado com sub_status `deleted`, fechado normal, preço, estoque) e conferir o estado final do anúncio aqui.
+- **Cron de fallback:** rodar o cron manualmente após dessincronizar de propósito um anúncio no banco; conferir que reconcilia.
+- **Edge function de exclusão:** disparar exclusão local em anúncios em cada estado (rascunho, publicado, pausado, incompleto) e validar a resposta do ML.
+- **Logs:** garantir que toda transição de status fica registrada com origem.
+
+### Validação lógica (testes automatizados)
+- Mapeamento ML→sistema cobrindo todos os pares de `status` × `sub_status` documentados.
+- Regra de decisão "remover daqui vs marcar como Inativo" baseada no histórico de status local.
+- Idempotência do webhook (mesma notificação chegando 2x não duplica nada e não regride status).
+- Ordem de eventos fora de sequência (notificação antiga chegando depois da nova) é descartada pela data do evento.
+
+### Validação funcional (no tenant `respeiteohomem`)
+- Publicar 1 anúncio de teste, pausar pelo painel do ML → ver virar Pausado aqui em segundos.
+- Reativar pelo painel do ML → ver voltar para Ativo aqui.
+- Finalizar pelo painel do ML → ver ir para aba Inativos aqui.
+- Criar rascunho diretamente no ML e excluí-lo lá → ver sumir daqui.
+- Excluir aqui um anúncio publicado → confirmar texto novo do aviso e final em "Finalizado" no ML.
+- Alterar preço no painel do ML → ver atualizar aqui.
 
 ## Documentação que será atualizada na mesma entrega
-- Especificação do Mercado Livre — nova etapa "Características" e atalho na aba Pendências.
-- Mapa de UI — nova etapa no assistente e novo botão na aba Pendências.
+- **Especificação do Mercado Livre** (`docs/especificacoes/marketplaces/mercado-livre.md`): nova escuta em tempo real, nova aba Inativos, tabela de mapeamento de status atualizada, regra "excluído vs desativado", novo aviso de exclusão, indicador de origem da mudança, cron como fallback.
+- **Mapa de UI** (`docs/especificacoes/transversais/mapa-ui.md`): nova aba Inativos, novo selo de sincronização em tempo real, novo ícone de origem da mudança, novo texto de exclusão.
+- **Regras do Sistema** (`docs/REGRAS-DO-SISTEMA.md`): incluir o princípio "ML é fonte de verdade do estado público do anúncio; sistema reflete em tempo real respeitando as limitações da API ML".
+- **Base de conhecimento técnico** (`docs/tecnico/base-de-conhecimento-tecnico.md`): registrar a decisão "webhook + cron como fallback" e a regra de idempotência por data do evento.
+- **Memória** (`mem://features/marketplaces/meli-listings-bidirectional-sync`): atualizar para refletir o novo modelo (tempo real + fallback diário + status Inativo + origem da mudança).
+
+## Resultado final
+- Mudou no ML → reflete aqui em segundos, sem o lojista atualizar a página.
+- Mudou aqui → reflete no ML imediatamente, como já é hoje.
+- O lojista enxerga o status real, a origem da última mudança e o histórico dos finalizados.
+- O aviso de exclusão deixa claro o que o ML permite e o que não permite.
+- Tudo validado tecnicamente, logicamente e funcionalmente antes de eu declarar concluído.
+- Docs oficiais 100% alinhados ao comportamento final.
 
 ## Bloco técnico (opcional)
-- `MeliListingsTab.tsx`: novo botão "Abrir cadastro do produto" (alvo `_blank`, rota `/products` em modo edição). Hook de revalidação automática via `visibilitychange` + `focus` na aba Pendências (invalida apenas as queries de listings e products do tenant — custo zero).
-- `MeliListingCreator.tsx`: nova etapa `"attributes"` no array `STEPS`, posicionada após `"descriptions"`. A etapa chama `meli-resolve-attributes` (já existe, sem alteração) por listing, mostra o painel `MeliAttributesPanel` em modo "linha por produto" com resumo e atalhos, e persiste o array `attributes` em `meli_listings` antes do avanço.
-- `meli-publish-listing`: nenhuma mudança estrutural; só garantir merge sem sobrescrever atributos já salvos pelo lojista.
-- Página de Produtos (`/products`): suportar deep link `?edit={productId}` se ainda não suportar (verifico no início da implementação e, se faltar, adiciono).
-- Correção dos 8 SKUs: feita via tela de Produtos (não via migração), respeitando trilhas de auditoria do cadastro.
+- **`meli-webhook`** passa a tratar os topics `items` e `items_prices`: ao receber, busca o item no ML e aplica o mesmo mapeamento de status já existente em `meli-sync-listings` (`active→published`, `paused→paused`, `under_review→publishing`, `inactive→paused`, `closed→inactive`/`delete` conforme histórico do registro).
+- **Regra de `closed`:** se `meli_listings` local nunca atingiu `published`/`paused` (histórico só passou por `draft`/`publishing`/`error`) → `DELETE` da linha. Caso contrário → novo status local `inactive` preservando `sub_status` e motivo em `error_message`. Adicionar `inactive` ao enum local, à UI e às policies.
+- **Origem da última mudança:** nova coluna `last_status_change_source` em `meli_listings` (`local_user` / `meli_user` / `meli_auto`) + `last_status_change_at`. Mutations locais gravam `local_user`; webhook grava `meli_user` ou `meli_auto` conforme o topic/payload.
+- **Idempotência:** webhook descarta payload com `sent` anterior ao `last_status_change_at` salvo (proteção contra eventos fora de ordem). Deduplicação por `(resource, sent)`.
+- **Selo de tempo real:** novo campo `last_webhook_at` em `marketplace_connections` atualizado pelo webhook a cada evento aceito. Header consome `max(last_webhook_at, last_sync_at)`.
+- **Realtime UI:** subscription em `meli_listings` filtrada por `tenant_id` apenas enquanto a aba está visível (cleanup no unmount; pausa em `visibilitychange=hidden`) para não vazar canais nem gerar custo ocioso.
+- **App do ML:** adicionar topics `items` e `items_prices` no DevCenter (callback já configurada). Validar no fechamento com log do primeiro evento de cada topic recebido no tenant `respeiteohomem`.
+- **Cron 05h BRT:** mantido. Passa a logar quantos itens corrigiu — métrica de saúde da escuta em tempo real (deve tender a zero).
+- **Testes:** suíte Deno em `supabase/functions/meli-webhook/__tests__/` cobrindo mapeamento de status, idempotência e ordem de eventos; testes de UI (vitest) para a aba Inativos, badge de sincronização e tooltip de origem.
+- **Sem mudança** em `meli-publish-listing` (delete já funciona). Sem mudança em pedidos e perguntas.

@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
         externalUsername: connection.external_username,
         connectedAt: connection.metadata?.connected_at,
         lastSyncAt: connection.last_sync_at,
+        lastWebhookAt: connection.last_webhook_at,
         lastError: connection.last_error,
         expiresAt: connection.expires_at,
       } : null,

@@ -1,8 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
+import { mapMeliItemToLocal, type LocalStatus } from "./status-mapper.ts";
 
-const VERSION = "v2.0.0"; // Now ingests questions into AI engine
+// v3.0.0 — Sincronização bidirecional em tempo real (items + items_prices + questions)
+const VERSION = "v3.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +24,7 @@ Deno.serve(async (req) => {
     const notification = await req.json();
     console.log(`[meli-webhook][${VERSION}] Received:`, JSON.stringify(notification));
 
-    const { resource, user_id, topic } = notification;
+    const { resource, user_id, topic, sent } = notification;
     if (!resource || !user_id || !topic) {
       return new Response(
         JSON.stringify({ success: false, error: "Invalid notification format" }),
@@ -30,23 +32,24 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Look up the active connection (real column names: external_user_id / is_active)
     const { data: connection, error: connError } = await supabase
       .from("marketplace_connections")
       .select("*")
       .eq("marketplace", "mercadolivre")
-      .eq("external_account_id", String(user_id))
-      .eq("status", "active")
-      .single();
+      .eq("external_user_id", String(user_id))
+      .eq("is_active", true)
+      .maybeSingle();
 
     if (connError || !connection) {
-      console.error("[meli-webhook] Connection not found for user_id:", user_id);
+      console.error("[meli-webhook] Connection not found for user_id:", user_id, connError);
       return new Response(
         JSON.stringify({ success: false, error: "Connection not found" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Always log
+    // Audit log
     await supabase.from("marketplace_sync_logs").insert({
       tenant_id: connection.tenant_id,
       connection_id: connection.id,
@@ -56,12 +59,24 @@ Deno.serve(async (req) => {
       details: { notification, resource, topic },
     });
 
-    // Ingest chat-style events into the AI engine
+    // Real-time signal indicator (powers the "sincronizado em tempo real" UI badge)
+    await supabase
+      .from("marketplace_connections")
+      .update({ last_webhook_at: new Date().toISOString() })
+      .eq("id", connection.id);
+
+    // Route by topic
     if (topic === "questions") {
       try {
         await ingestQuestion(supabase, supabaseUrl, supabaseKey, connection, resource);
       } catch (e) {
         console.error("[meli-webhook] ingestQuestion error:", e);
+      }
+    } else if (topic === "items" || topic === "items_prices") {
+      try {
+        await syncItemFromWebhook(supabase, connection, resource, sent);
+      } catch (e) {
+        console.error("[meli-webhook] syncItemFromWebhook error:", e);
       }
     }
 
@@ -74,6 +89,97 @@ Deno.serve(async (req) => {
     return errorResponse(error, corsHeaders, { module: "mercadolivre", action: "webhook" });
   }
 });
+
+// ============================================================
+// items / items_prices — real-time listing sync (ML → System)
+// ============================================================
+async function syncItemFromWebhook(
+  supabase: any,
+  connection: any,
+  resource: string,
+  sent?: string,
+) {
+  const itemId = resource.split("/").pop();
+  if (!itemId) return;
+
+  if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
+    console.warn(`[meli-webhook] ML token expired for tenant ${connection.tenant_id}; cron will reconcile`);
+    return;
+  }
+
+  const { data: listing } = await supabase
+    .from("meli_listings")
+    .select("id, status, last_status_change_at")
+    .eq("tenant_id", connection.tenant_id)
+    .eq("meli_item_id", itemId)
+    .maybeSingle();
+
+  if (!listing) {
+    console.log(`[meli-webhook] No local listing for ${itemId}; ignoring`);
+    return;
+  }
+
+  // Out-of-order protection
+  if (sent && listing.last_status_change_at) {
+    const sentTs = new Date(sent).getTime();
+    const localTs = new Date(listing.last_status_change_at).getTime();
+    if (!Number.isNaN(sentTs) && sentTs < localTs - 1000) {
+      console.log(`[meli-webhook] Stale notification (sent=${sent} < local=${listing.last_status_change_at}); skipping`);
+      return;
+    }
+  }
+
+  const mlRes = await fetch(
+    `https://api.mercadolibre.com/items/${itemId}?attributes=id,status,sub_status,price,available_quantity,permalink`,
+    { headers: { Authorization: `Bearer ${connection.access_token}` } },
+  );
+
+  if (mlRes.status === 404) {
+    const everPublished = ["published", "paused", "inactive"].includes(listing.status as LocalStatus);
+    if (!everPublished) {
+      await supabase.from("meli_listings").delete().eq("id", listing.id);
+      console.log(`[meli-webhook] Item ${itemId} 404 + never published → deleted locally`);
+    } else {
+      await supabase.from("meli_listings").update({
+        status: "inactive",
+        inactive_reason: "Excluído no Mercado Livre",
+        error_message: "Excluído no Mercado Livre",
+        last_status_change_source: "meli",
+      }).eq("id", listing.id);
+      console.log(`[meli-webhook] Item ${itemId} 404 + was published → inactive`);
+    }
+    return;
+  }
+
+  if (!mlRes.ok) {
+    console.error(`[meli-webhook] ML API error for ${itemId}: ${mlRes.status}`);
+    return;
+  }
+
+  const mlItem = await mlRes.json();
+  const mapped = mapMeliItemToLocal(mlItem, listing.status as LocalStatus);
+
+  if (mapped.action === "delete") {
+    await supabase.from("meli_listings").delete().eq("id", listing.id);
+    console.log(`[meli-webhook] Item ${itemId} closed+deleted → deleted locally`);
+    return;
+  }
+
+  const update: Record<string, any> = {
+    status: mapped.status,
+    last_status_change_source: "meli",
+    updated_at: new Date().toISOString(),
+  };
+  if (mapped.error_message !== undefined) update.error_message = mapped.error_message;
+  if (mapped.inactive_reason !== undefined) update.inactive_reason = mapped.inactive_reason;
+  if (typeof mlItem.price === "number") update.price = mlItem.price;
+  if (typeof mlItem.available_quantity === "number") update.available_quantity = mlItem.available_quantity;
+  if (mlItem.permalink) update.meli_response = { permalink: mlItem.permalink };
+
+  await supabase.from("meli_listings").update(update).eq("id", listing.id);
+  console.log(`[meli-webhook] Item ${itemId}: ${listing.status} → ${mapped.status} (ML: ${mlItem.status})`);
+}
+
 
 async function ingestQuestion(
   supabase: any,

@@ -1,37 +1,46 @@
 ---
-name: Mercado Livre — Sincronização bidirecional de anúncios
-description: Cron de listagens ML reduzido para 1×/dia 05:00 BRT (exceção à grade fixa). Exclusão tenta close→delete incomplete. Sync inclui status, sub_status, preço, estoque, motivo. Refresh leve ao abrir aba.
+name: Mercado Livre Bidirectional Real-Time Sync
+description: Sincronização anúncio sistema ↔ ML em tempo real via webhook items/items_prices + cron 05h como fallback, status inactive na aba Inativos, origem da última mudança, idempotência por evento.
 type: feature
 ---
 
-# Sincronização bidirecional de anúncios do Mercado Livre
+# Sincronização Bidirecional ML ↔ Sistema (v2.6 — 2026-06-22)
 
-## Regras
+## Arquitetura em 3 camadas
+1. **Sistema → ML (imediato):** mutations locais chamam `meli-publish-listing`; trigger BEFORE UPDATE em `meli_listings` carimba `last_status_change_source = 'local'` e `last_status_change_at = now()` quando o status muda e o writer não informou origem.
+2. **ML → Sistema em tempo real:** `meli-webhook` v3.0.0 escuta os topics `items`, `items_prices` e `questions`. Para `items`/`items_prices` chama `GET /items/{id}` no ML e aplica `mapMeliItemToLocal` (status-mapper.ts puro, testado). Carimba `last_status_change_source = 'meli'`. Atualiza `marketplace_connections.last_webhook_at`.
+3. **Cron 05h BRT (`meli-sync-listings`):** rede de segurança. Métrica de saúde: tende a zero updates conforme o tempo real funciona.
 
-1. **Cron automático:** `meli-sync-listings-auto` roda **1×/dia às 05:00 BRT (08:00 UTC)** — exceção explícita à grade fixa 00/06/09/12/15/18/21 documentada em `external-panel-sync-fixed-grid`. Pedidos não dependem desse cron (chegam por webhook em tempo real).
+## Regra excluído vs desativado (limitação do ML)
+- ML não permite DELETE definitivo de anúncios já publicados — só `closed`.
+- Excluir aqui um publicado → `closed` no ML + DELETE local. Aviso v2.6 explícito.
+- ML reporta `closed` + `sub_status: deleted` em item que **nunca** atingiu published/paused/inactive → DELETE local.
+- ML reporta `closed` em item já publicado → vira `inactive` local com `inactive_reason`. Aba **Inativos**.
+- 404 na consulta segue a mesma regra (nunca publicado → delete; senão → inactive "Excluído no Mercado Livre").
 
-2. **Refresh ao abrir a aba:** ao montar `MeliListingsTab`, dispara sync silencioso se `last_sync_at` está há mais de 10 min. Indicador "Sincronizado há X" visível no cabeçalho da aba.
+## Mapeamento canônico ML→local
+Fonte única em `supabase/functions/meli-webhook/status-mapper.ts`. Usado tanto pelo webhook quanto pelo cron. Coberto por 11 testes Deno em `__tests__/status-mapper_test.ts`.
 
-3. **Botão Sincronizar:** puxa status, sub_status, preço, estoque, motivo de pausa de TODOS os anúncios já enviados ao ML (inclui status local `published`, `paused`, `publishing`, `error`).
+## Idempotência
+Webhook compara `notification.sent` com `meli_listings.last_status_change_at`. Eventos `> 1s` mais antigos são descartados (proteção contra ordem fora).
 
-4. **Exclusão 100% nos dois lados:**
-   - Anúncio nunca enviado ao ML → remove localmente.
-   - Anúncio `published`/`paused` → PUT `status=closed` no ML + remove localmente.
-   - Anúncio `under_review`/`inactive`/nunca aprovado → tenta DELETE no item (some do painel ML como incompleto). Se ML recusar, avisa "removido aqui, mas pode continuar como incompleto no painel ML — exclua manualmente lá se necessário".
+## UI
+- **4 abas** em `MeliListingsTab`: Rascunhos / Publicados / Pendências / **Inativos**.
+- Selo **"Sincronizado em tempo real com o Mercado Livre"** (verde se `last_webhook_at < 1h`, âmbar caso contrário).
+- Indicador de **origem** ao lado do badge de status (• azul = local; ML âmbar = ML), tooltip com data/hora relativa BRT.
+- Aba Inativos mostra `inactive_reason` e botão "Ver no Mercado Livre (histórico)".
+- Realtime: subscription em `meli_listings` filtrada por `tenant_id`, pausada em `visibilitychange=hidden` (proteção de custo e canais).
+- Texto de exclusão v2.6 deixa explícito que o ML não permite exclusão definitiva — só finaliza e mantém no histórico interno.
 
-5. **Mapeamento de status ML → sistema:**
-   - `active` → `published`
-   - `paused` → `paused`
-   - `under_review` → `publishing` + mensagem "Em revisão pelo Mercado Livre"
-   - `inactive` → `paused` + sub_status detalhado
-   - `closed` → `error` + motivo (deleted/expired/encerrado)
+## Schema (migração 2026-06-22)
+- `meli_listings.status` CHECK passa a aceitar `paused` e `inactive` (além dos anteriores).
+- Novas colunas: `last_status_change_source` (local|meli), `last_status_change_at`, `inactive_reason`, `inactive_at`.
+- `marketplace_connections.last_webhook_at`.
+- Trigger `meli_listings_status_change_stamp` BEFORE INSERT OR UPDATE.
+- `ALTER PUBLICATION supabase_realtime ADD TABLE public.meli_listings` + `REPLICA IDENTITY FULL`.
 
-## Por quê
+## Pré-requisito de plataforma
+App ML no DevCenter precisa assinar os topics `items` e `items_prices` (callback já é `meli-webhook`). One-time. Sem custo ao lojista.
 
-Lojista precisa ver o painel local refletindo o ML. Cron diário cobre mudanças feitas direto no painel ML (raras). Ações manuais (editar, pausar, excluir, sincronizar) continuam instantâneas em ambos os lados. Custo de processamento ~85% menor que a grade fixa anterior.
-
-## Como aplicar
-
-- Não mover esse cron para frequências menores sem aprovação — é exceção documentada à grade unificada.
-- Pedidos do ML continuam por webhook (`meli-webhook`), nunca por cron.
-- Não fechar exclusão silenciosamente: se DELETE incomplete falhar, comunicar ao lojista.
+## Bugs corrigidos junto
+- `meli-webhook` filtrava conexão por colunas inexistentes (`external_account_id`/`status`); corrigido para `external_user_id`/`is_active`. Antes disso o webhook de perguntas nunca encontrava a conexão.
