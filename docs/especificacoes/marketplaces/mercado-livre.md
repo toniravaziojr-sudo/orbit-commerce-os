@@ -103,15 +103,32 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 ### Organização da Tela (Abas)
 
-A tela de Anúncios é dividida em **três abas**, com filtro automático por status:
+A tela de Anúncios é dividida em **quatro abas**, com filtro automático por status:
 
 | Aba | Conteúdo | Quando aparece vazia |
 |-----|----------|----------------------|
 | **Rascunhos** (padrão) | Anúncios em `draft`, `ready`, `approved` | Mostra estado limpo com botão "Novo Anúncio" |
 | **Publicados** | Anúncios em `published`, `paused` | Mensagem indicando ausência de anúncios ativos no ML |
 | **Pendências** | Anúncios em `error` (revisão necessária) e `publishing` (em envio / em revisão pelo Mercado Livre) | Mensagem de "Nenhuma pendência" |
+| **Inativos** (v2.6 — 2026-06-22) | Anúncios em `inactive` — finalizados no Mercado Livre (encerrados pelo lojista, expirados ou sem estoque) | Mensagem explicando que finalizados ficam preservados aqui para consulta |
 
 Cada aba exibe um contador (badge) quando há itens; **Pendências** usa badge destrutivo para chamar atenção. A seleção de itens é escopada à aba ativa (trocar de aba limpa a seleção).
+
+#### Selo de sincronização em tempo real (v2.6)
+
+No cabeçalho da tela aparece um selo:
+- **Verde "Sincronizado em tempo real com o Mercado Livre"** quando o sistema recebeu qualquer sinal do ML na última 1h (webhook ativo).
+- **Âmbar "Sem sinal recente do Mercado Livre"** quando a última notificação tem mais de 1h. Nesse caso, a reconciliação diária às 5h cobre divergências e o lojista pode forçar com o botão "Sincronizar".
+
+Ao lado do selo, label "Última atualização há X" baseado no maior entre `last_webhook_at` e `last_sync_at` da conexão.
+
+#### Indicador de origem da última mudança (v2.6)
+
+Cada anúncio exibe ao lado do badge de status um pequeno indicador da **origem da última alteração**:
+- **"•" azul:** alterado aqui no sistema.
+- **"ML" âmbar:** alterado no painel do Mercado Livre (pelo lojista ou pelo ML automaticamente).
+
+Tooltip mostra a data/hora relativa em BRT.
 
 ### Ações em Massa (apenas com seleção)
 
@@ -120,7 +137,9 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 - **Editar em Lote** — reabre o assistente de 7 etapas com os itens selecionados pré-carregados. Na última etapa:
   - Se **todos** os selecionados já estão publicados no ML (têm `meli_item_id`), o único botão é **"Atualizar anúncios no Mercado Livre"**, que dispara `meli-publish-listing` com `action: "update"` para cada item.
   - Caso contrário, exibe **"Salvar como rascunho"** e **"Salvar e publicar no Mercado Livre"** (este último publica os novos e atualiza os já publicados, conforme o caso).
-- **Excluir Selecionados** — para itens nunca publicados, remove apenas localmente. Para itens publicados/pausados, **encerra definitivamente no Mercado Livre** (status `closed` — sai do ar, link público para de funcionar) antes de remover. Confirmação explícita de irreversibilidade.
+- **Excluir Selecionados** — para itens nunca publicados, remove apenas localmente. Para itens publicados/pausados, **desativa (finaliza) no Mercado Livre** (status `closed` — sai do ar, link público para de funcionar) e remove daqui. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; eles ficam apenas no histórico interno do ML. Texto da confirmação (v2.6):
+  > "Este anúncio será desativado (finalizado) no Mercado Livre — sai do ar e o link público para de funcionar. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; ele fica apenas no histórico interno do ML. Aqui no sistema o anúncio será removido. Deseja continuar?"
+
 
 > **Removido da tela principal (v2.4.0):** "Enviar Todos", "Gerar Títulos", "Gerar Descrições", "Auto-Categorizar" e "Enviar Selecionados". Essas funções continuam disponíveis **dentro** do dialog de criação/edição em lote, onde são naturais ao fluxo. A edge function `meli-bulk-operations` permanece ativa porque é consumida pelo dialog.
 
@@ -547,51 +566,93 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` e títulos curtos como `"Balm Respeite o Homem Pós"` (25 chars) no botão **Regenerar** do Creator/Wizard.
 
-## Sincronização de Status dos Anúncios (`meli-sync-listings`)
+## Sincronização Bidirecional em Tempo Real (v2.6 — 2026-06-22)
 
-Edge function que consulta a API do ML para detectar anúncios excluídos, pausados ou encerrados externamente e atualizar o status local.
+A sincronização **anúncio sistema ↔ Mercado Livre** opera em três camadas:
+
+1. **Sistema → ML (imediato):** toda ação no app (criar, pausar, reativar, editar, excluir) chama `meli-publish-listing` na hora. Carimba `last_status_change_source = 'local'`.
+2. **ML → Sistema em tempo real (webhook):** `meli-webhook` escuta os topics `items`, `items_prices` e `questions`. Ao receber `items`/`items_prices` consulta o item no ML, aplica o mapeamento de status (mesma tabela de `meli-sync-listings`) e atualiza o registro local em segundos. Carimba `last_status_change_source = 'meli'`. Atualiza `marketplace_connections.last_webhook_at` (insumo do selo de tempo real na UI). A UI mantém uma subscription Realtime em `meli_listings` (filtrada por `tenant_id`, escopada à aba visível para não vazar canais), então a tabela reflete a mudança sem refresh do navegador.
+3. **Reconciliação diária (`meli-sync-listings`, cron 05h BRT):** roda em todos os tenants ativos como rede de segurança. Métrica de saúde: deve tender a zero atualizações por execução conforme o webhook em tempo real cobrir o fluxo.
+
+### Pré-requisito de plataforma
+
+O app integrador (DevCenter do ML) precisa estar assinando os topics **`items`** e **`items_prices`** além do `questions` já existente. Callback continua sendo a edge function `meli-webhook`. Sem essa assinatura a sincronização cai apenas no cron 05h.
+
+### Regra "excluído vs desativado" (alinhada à limitação do ML)
+
+O Mercado Livre **não permite exclusão definitiva** de anúncios já publicados — apenas o status `closed`. Por isso:
+
+| Cenário | Ação no sistema |
+|---------|-----------------|
+| Lojista exclui aqui um anúncio publicado/pausado | Sistema chama `closed` no ML (anúncio sai do ar, link público para) e remove o registro daqui. Aviso explícito ao usuário. |
+| Lojista exclui aqui um rascunho nunca publicado | DELETE local apenas. |
+| ML reporta `closed` + `sub_status: deleted` em item que **nunca** atingiu `published`/`paused`/`inactive` locais | DELETE local (rascunho remoto descartado). |
+| ML reporta `closed` em item que já foi publicado | Vira `inactive` aqui, com `inactive_reason` preservado. Aparece na aba **Inativos**. |
+| ML reporta `paused` | Vira `paused` aqui automaticamente. |
+| ML reporta `active` | Vira `published` aqui automaticamente. |
+| Item retornar 404 na consulta ao ML | Mesma regra: nunca publicado → DELETE; já publicado → `inactive` com motivo "Excluído no Mercado Livre". |
+
+### Idempotência e ordem dos eventos
+
+O webhook compara `notification.sent` com `meli_listings.last_status_change_at`. Se o evento for mais antigo que o último estado conhecido (com tolerância de 1s) é descartado — protege contra notificações fora de ordem.
+
+### Origem da última mudança
+
+Coluna `last_status_change_source` em `meli_listings` (`local` | `meli`) + `last_status_change_at` carimbada por trigger BEFORE UPDATE quando o `status` muda. Webhook envia explicitamente `'meli'`. UI mostra indicador discreto ao lado do badge de status (tooltip com data/hora relativa em BRT).
+
+## Sincronização de Status dos Anúncios — Cron de Fallback (`meli-sync-listings`)
+
+Edge function que consulta a API do ML para reconciliar status em lote. **Hoje serve como rede de segurança do webhook em tempo real**, não como fluxo primário.
 
 ```typescript
 POST /meli-sync-listings
 {
   "tenantId": "...",
-  "listingIds": ["id1", "id2"]  // opcional — se vazio, sincroniza todos published/paused/publishing
+  "listingIds": ["id1", "id2"]  // opcional — se vazio, sincroniza published/paused/publishing/inactive/error
 }
 ```
 
-### Mapeamento de Status ML → Local
+### Mapeamento de Status ML → Local (canônico — usado por webhook e cron)
 
-| Status ML | Sub-status | Status Local | Descrição |
-|-----------|-----------|--------------|-----------|
-| `active` | — | `published` | Anúncio ativo |
-| `paused` | — | `paused` | Pausado |
-| `closed` | `deleted` | `error` | Excluído no ML |
-| `closed` | `expired` | `error` | Expirado no ML |
-| `closed` | outros | `error` | Encerrado no ML |
-| `under_review` | — | `publishing` | Em revisão pelo ML |
-| `inactive` | — | `paused` | Inativo (sem estoque, etc.) |
-| Item não encontrado | — | `error` | Excluído ou encerrado |
+| Status ML | Sub-status | Status Local | Notas |
+|-----------|-----------|--------------|-------|
+| `active` | — | `published` | — |
+| `paused` | — | `paused` | — |
+| `closed` | `deleted` em item **nunca publicado localmente** | DELETE local | Rascunho remoto descartado |
+| `closed` | `deleted` em item já publicado | `inactive` | Motivo: "Excluído no Mercado Livre" |
+| `closed` | `expired` | `inactive` | Motivo: "Expirado no Mercado Livre" |
+| `closed` | `out_of_stock` | `inactive` | Motivo: "Sem estoque no Mercado Livre" |
+| `closed` | outros / vazio | `inactive` | Motivo: "Finalizado no Mercado Livre" |
+| `under_review` | — | `publishing` | Mensagem: "Em revisão pelo Mercado Livre" |
+| `inactive` | — | `paused` | Mensagem: "Inativo no ML: <sub_status>" |
+| 404 em consulta | — | DELETE se nunca publicado; senão `inactive` "Excluído no Mercado Livre" | — |
 
 ### Dados Sincronizados
 
-- **Status** (mapeado conforme tabela acima)
-- **Preço** (`price`) — atualizado do ML
-- **Estoque** (`available_quantity`) — atualizado do ML
-- **Permalink** (`meli_response.permalink`) — para link "Ver no ML"
-- **Mensagem de erro** (`error_message`) — descrição do motivo quando status vira `error`
+- Status (regra acima) + `inactive_reason`/`error_message`.
+- Preço (`price`).
+- Estoque (`available_quantity`).
+- Permalink (`meli_response.permalink`).
+- `last_status_change_source = 'meli'`.
 
 ### Regras
 
-- Usa API multiget (`GET /items?ids=...`) com chunks de 20 itens
-- Auto-refresh de token expirado via `meli-token-refresh`
-- Só atualiza registros cujo status realmente mudou
-- Anúncios com status `error` (detectados como excluídos/encerrados no ML) podem ser **excluídos localmente** pelo usuário
+- API multiget (`GET /items?ids=...`) chunks de 20.
+- Auto-refresh de token via `meli-token-refresh`.
+- Só grava quando o status efetivamente mudou ou há nova mensagem de erro.
+- Cron 05h BRT roda em todos tenants ativos sem auth (modo `cronMode`).
+
+### Testes automatizados
+
+`supabase/functions/meli-webhook/__tests__/status-mapper_test.ts` (Deno) cobre os 11 cenários canônicos do mapeamento, incluindo idempotência da regra "closed+deleted vs já-publicado" e tolerância a `sub_status` como string ou array.
 
 ### UI
 
-- Botão **"Sincronizar"** (ícone RefreshCw) no header da aba Anúncios (`MeliListingsTab`)
-- Exibe toast com resultado da sincronização
-- Invalida cache de listings após conclusão
+- Botão **Sincronizar** no header força reconciliação imediata.
+- Selo "Sincronizado em tempo real" + última atualização em BRT.
+- Aba **Inativos** lista anúncios em `inactive` com motivo e link permanente para o histórico do ML.
+- Toast com resultado.
+
 
 ## Anti-Patterns
 

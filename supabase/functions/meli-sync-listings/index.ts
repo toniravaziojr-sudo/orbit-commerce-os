@@ -176,12 +176,13 @@ async function syncTenantListings(
   }
 
   // Sync listings already pushed to ML (any state ML may report on).
+  // 'inactive' incluído para detectar reativações feitas pelo lojista no painel ML.
   let query = supabase
     .from("meli_listings")
     .select("id, meli_item_id, status, title")
     .eq("tenant_id", tenantId)
     .not("meli_item_id", "is", null)
-    .in("status", ["published", "paused", "publishing", "error"]);
+    .in("status", ["published", "paused", "publishing", "inactive", "error"]);
 
   if (listingIds && listingIds.length > 0) {
     query = query.in("id", listingIds);
@@ -204,7 +205,6 @@ async function syncTenantListings(
   let updated = 0;
   const errors: string[] = [];
 
-  // ML multiget endpoint: GET /items?ids=MLB123,MLB456 (max 20 per request)
   const chunks: typeof listings[] = [];
   for (let i = 0; i < listings.length; i += 20) {
     chunks.push(listings.slice(i, i + 20));
@@ -216,9 +216,7 @@ async function syncTenantListings(
     try {
       const mlRes = await fetch(
         `https://api.mercadolibre.com/items?ids=${itemIds}&attributes=id,status,sub_status,price,available_quantity,permalink`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
       if (!mlRes.ok) {
@@ -236,74 +234,90 @@ async function syncTenantListings(
         synced++;
 
         if (mlResult.code !== 200 || !mlResult.body) {
-          console.log(`[meli-sync-listings] Item ${listing.meli_item_id} not found on ML (code: ${mlResult.code})`);
-          await supabase
-            .from("meli_listings")
-            .update({
-              status: "error",
-              error_message: `Anúncio não encontrado no Mercado Livre (excluído ou encerrado)`,
+          // Item desaparecido do ML: aplica a mesma regra do webhook
+          const everPublished = ["published", "paused", "inactive"].includes(listing.status);
+          if (!everPublished) {
+            await supabase.from("meli_listings").delete().eq("id", listing.id);
+            console.log(`[meli-sync-listings] ${listing.meli_item_id} 404 + never published → deleted locally`);
+          } else {
+            await supabase.from("meli_listings").update({
+              status: "inactive",
+              inactive_reason: "Excluído no Mercado Livre",
+              error_message: "Excluído no Mercado Livre",
+              last_status_change_source: "meli",
               updated_at: new Date().toISOString(),
-            })
-            .eq("id", listing.id);
+            }).eq("id", listing.id);
+            console.log(`[meli-sync-listings] ${listing.meli_item_id} 404 + was published → inactive`);
+          }
           updated++;
           continue;
         }
+
+
 
         const mlItem = mlResult.body;
         const mlStatus = mlItem.status;
         const mlSubStatus = mlItem.sub_status || [];
 
-        // Map ML status to our internal status
+        // Map ML status to our internal status (mirrors meli-webhook/status-mapper.ts)
         let newStatus = listing.status;
         let errorMessage: string | null = null;
+        let inactiveReason: string | null = null;
+        let shouldDeleteLocal = false;
 
         if (mlStatus === "closed") {
-          const reason = mlSubStatus.includes("deleted")
-            ? "Excluído no Mercado Livre"
-            : mlSubStatus.includes("expired")
-            ? "Expirado no Mercado Livre"
-            : "Encerrado no Mercado Livre";
-          newStatus = "error";
-          errorMessage = reason;
+          const isDeleted = mlSubStatus.includes("deleted");
+          const everPublished = ["published", "paused", "inactive"].includes(listing.status);
+          if (isDeleted && !everPublished) {
+            shouldDeleteLocal = true;
+          } else {
+            const reason = isDeleted
+              ? "Excluído no Mercado Livre"
+              : mlSubStatus.includes("expired")
+              ? "Expirado no Mercado Livre"
+              : mlSubStatus.includes("out_of_stock")
+              ? "Sem estoque no Mercado Livre"
+              : "Finalizado no Mercado Livre";
+            newStatus = "inactive";
+            errorMessage = reason;
+            inactiveReason = reason;
+          }
         } else if (mlStatus === "paused") {
           newStatus = "paused";
+          errorMessage = null;
         } else if (mlStatus === "active") {
           newStatus = "published";
+          errorMessage = null;
         } else if (mlStatus === "under_review") {
           newStatus = "publishing";
           errorMessage = "Em revisão pelo Mercado Livre";
         } else if (mlStatus === "inactive") {
           newStatus = "paused";
-          errorMessage = `Inativo: ${mlSubStatus.join(", ") || "sem detalhes"}`;
+          errorMessage = `Inativo no ML: ${mlSubStatus.join(", ") || "sem detalhes"}`;
         }
 
-        // Only update if status changed
-        if (newStatus !== listing.status || errorMessage) {
+        if (shouldDeleteLocal) {
+          console.log(`[meli-sync-listings] ${listing.meli_item_id}: closed+deleted/never-published → deleting locally`);
+          await supabase.from("meli_listings").delete().eq("id", listing.id);
+          updated++;
+          continue;
+        }
+
+        // Only update if status changed or error message changed
+        if (newStatus !== listing.status || errorMessage !== null) {
           console.log(`[meli-sync-listings] ${listing.meli_item_id}: ${listing.status} → ${newStatus} (ML: ${mlStatus})`);
 
           const updateData: Record<string, any> = {
             status: newStatus,
+            last_status_change_source: "meli",
             updated_at: new Date().toISOString(),
+            error_message: errorMessage,
           };
 
-          if (errorMessage) {
-            updateData.error_message = errorMessage;
-          } else {
-            updateData.error_message = null;
-          }
-
-          if (mlItem.price !== undefined) {
-            updateData.price = mlItem.price;
-          }
-          if (mlItem.available_quantity !== undefined) {
-            updateData.available_quantity = mlItem.available_quantity;
-          }
-
-          if (mlItem.permalink) {
-            updateData.meli_response = {
-              permalink: mlItem.permalink,
-            };
-          }
+          if (inactiveReason !== null) updateData.inactive_reason = inactiveReason;
+          if (mlItem.price !== undefined) updateData.price = mlItem.price;
+          if (mlItem.available_quantity !== undefined) updateData.available_quantity = mlItem.available_quantity;
+          if (mlItem.permalink) updateData.meli_response = { permalink: mlItem.permalink };
 
           await supabase
             .from("meli_listings")
@@ -313,6 +327,7 @@ async function syncTenantListings(
           updated++;
         }
       }
+
     } catch (err) {
       console.error(`[meli-sync-listings] Error processing chunk:`, err);
       errors.push(err instanceof Error ? err.message : "Erro desconhecido");

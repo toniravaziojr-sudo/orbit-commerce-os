@@ -13,6 +13,7 @@ interface MeliConnectionStatus {
     externalUsername: string;
     connectedAt: string;
     lastSyncAt: string | null;
+    lastWebhookAt: string | null;
     lastError: string | null;
     expiresAt: string;
   } | null;

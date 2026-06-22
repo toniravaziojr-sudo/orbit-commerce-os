@@ -8,7 +8,7 @@ export interface MeliListing {
   id: string;
   tenant_id: string;
   product_id: string;
-  status: 'draft' | 'ready' | 'approved' | 'publishing' | 'published' | 'paused' | 'error';
+  status: 'draft' | 'ready' | 'approved' | 'publishing' | 'published' | 'paused' | 'inactive' | 'error';
   meli_item_id: string | null;
   title: string;
   description: string | null;
@@ -24,6 +24,10 @@ export interface MeliListing {
   meli_response: any;
   error_message: string | null;
   published_at: string | null;
+  last_status_change_source: 'local' | 'meli' | null;
+  last_status_change_at: string | null;
+  inactive_reason: string | null;
+  inactive_at: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

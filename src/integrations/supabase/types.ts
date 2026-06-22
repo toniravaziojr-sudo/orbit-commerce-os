@@ -11999,6 +11999,7 @@ export type Database = {
           is_active: boolean
           last_error: string | null
           last_sync_at: string | null
+          last_webhook_at: string | null
           marketplace: string
           metadata: Json | null
           refresh_token: string | null
@@ -12017,6 +12018,7 @@ export type Database = {
           is_active?: boolean
           last_error?: string | null
           last_sync_at?: string | null
+          last_webhook_at?: string | null
           marketplace?: string
           metadata?: Json | null
           refresh_token?: string | null
@@ -12035,6 +12037,7 @@ export type Database = {
           is_active?: boolean
           last_error?: string | null
           last_sync_at?: string | null
+          last_webhook_at?: string | null
           marketplace?: string
           metadata?: Json | null
           refresh_token?: string | null
@@ -13026,6 +13029,10 @@ export type Database = {
           error_message: string | null
           id: string
           images: Json | null
+          inactive_at: string | null
+          inactive_reason: string | null
+          last_status_change_at: string | null
+          last_status_change_source: string | null
           listing_type: string
           meli_item_id: string | null
           meli_response: Json | null
@@ -13049,6 +13056,10 @@ export type Database = {
           error_message?: string | null
           id?: string
           images?: Json | null
+          inactive_at?: string | null
+          inactive_reason?: string | null
+          last_status_change_at?: string | null
+          last_status_change_source?: string | null
           listing_type?: string
           meli_item_id?: string | null
           meli_response?: Json | null
@@ -13072,6 +13083,10 @@ export type Database = {
           error_message?: string | null
           id?: string
           images?: Json | null
+          inactive_at?: string | null
+          inactive_reason?: string | null
+          last_status_change_at?: string | null
+          last_status_change_source?: string | null
           listing_type?: string
           meli_item_id?: string | null
           meli_response?: Json | null

@@ -63,6 +63,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   publishing: { label: "Publicando...", variant: "secondary" },
   published: { label: "Publicado", variant: "default", color: "bg-green-600" },
   paused: { label: "Pausado", variant: "secondary" },
+  inactive: { label: "Inativo", variant: "outline", color: "border-muted-foreground/40 text-muted-foreground" },
   error: { label: "Erro", variant: "destructive" },
 };
 
@@ -88,8 +89,8 @@ export function MeliListingsTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfigure, setShowBulkConfigure] = useState(false);
 
-  // Tabs: drafts (default) | published | pending
-  type TabKey = 'drafts' | 'published' | 'pending';
+  // Tabs: drafts (default) | published | pending | inactive
+  type TabKey = 'drafts' | 'published' | 'pending' | 'inactive';
   const [activeTab, setActiveTab] = useState<TabKey>('drafts');
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
@@ -114,15 +115,62 @@ export function MeliListingsTab() {
     };
   }, [queryClient, currentTenant?.id]);
 
+  // Sincronização em tempo real: escuta mudanças na tabela meli_listings
+  // disparadas pelo webhook do Mercado Livre. Cancela na desmontagem e
+  // pausa quando a aba do navegador fica oculta para não consumir canais.
+  useEffect(() => {
+    if (!currentTenant?.id) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let mounted = true;
+
+    const subscribe = () => {
+      if (!mounted || channel) return;
+      channel = supabase
+        .channel(`meli-listings-${currentTenant.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'meli_listings', filter: `tenant_id=eq.${currentTenant.id}` },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+            queryClient.invalidateQueries({ queryKey: ['meli-connection-status'] });
+          },
+        )
+        .subscribe();
+    };
+
+    const unsubscribe = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') subscribe();
+      else unsubscribe();
+    };
+
+    subscribe();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      mounted = false;
+      document.removeEventListener('visibilitychange', onVisibility);
+      unsubscribe();
+    };
+  }, [currentTenant?.id, queryClient]);
+
   const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
   const publishedCount = listings.filter(l => ['published', 'paused'].includes(l.status)).length;
   const pendingCount = listings.filter(l => ['error', 'publishing'].includes(l.status)).length;
+  const inactiveCount = listings.filter(l => l.status === 'inactive').length;
 
   const filteredListings = useMemo(() => {
     if (activeTab === 'drafts') return listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status));
     if (activeTab === 'published') return listings.filter(l => ['published', 'paused'].includes(l.status));
+    if (activeTab === 'inactive') return listings.filter(l => l.status === 'inactive');
     return listings.filter(l => ['error', 'publishing'].includes(l.status));
   }, [listings, activeTab]);
+
 
   // Selection scoped to currently visible tab
   const allSelected = filteredListings.length > 0 && filteredListings.every(l => selectedIds.has(l.id));
@@ -245,12 +293,12 @@ export function MeliListingsTab() {
     const listing = listings.find(l => l.id === id);
     const isPublishedOnML = !!listing?.meli_item_id && ['published', 'paused', 'publishing'].includes(listing?.status || '');
     const description = isPublishedOnML
-      ? "Este anúncio será encerrado no Mercado Livre de forma definitiva (sai do ar, o link público para de funcionar) e removido do sistema. Não há como reverter."
+      ? "Este anúncio será desativado (finalizado) no Mercado Livre — sai do ar e o link público para de funcionar. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; ele fica apenas no histórico interno do ML. Aqui no sistema o anúncio será removido. Deseja continuar?"
       : "Tem certeza que deseja remover este anúncio? Esta ação não pode ser desfeita.";
     const ok = await confirmAction({
-      title: isPublishedOnML ? "Encerrar e remover anúncio" : "Remover anúncio",
+      title: isPublishedOnML ? "Desativar no Mercado Livre e remover daqui" : "Remover anúncio",
       description,
-      confirmLabel: isPublishedOnML ? "Encerrar no ML e remover" : "Remover",
+      confirmLabel: isPublishedOnML ? "Desativar no ML e remover" : "Remover",
       variant: "destructive",
     });
     if (ok) deleteListing.mutate(id);
@@ -262,18 +310,19 @@ export function MeliListingsTab() {
     const items = ids.map(id => listings.find(l => l.id === id)).filter(Boolean) as MeliListing[];
     const publishedCount = items.filter(l => l.meli_item_id && ['published', 'paused', 'publishing'].includes(l.status)).length;
     const description = publishedCount > 0
-      ? `Você está prestes a remover ${ids.length} anúncio${ids.length > 1 ? "s" : ""}. ${publishedCount} ${publishedCount > 1 ? "estão publicados" : "está publicado"} no Mercado Livre e ${publishedCount > 1 ? "serão encerrados de forma definitiva" : "será encerrado de forma definitivo"} (sai do ar, link público para de funcionar). Não há como reverter.`
+      ? `Você está prestes a remover ${ids.length} anúncio${ids.length > 1 ? "s" : ""}. ${publishedCount} ${publishedCount > 1 ? "estão publicados" : "está publicado"} no Mercado Livre e ${publishedCount > 1 ? "serão desativados (finalizados) lá" : "será desativado (finalizado) lá"} — saem do ar e os links públicos param de funcionar. O Mercado Livre não permite exclusão definitiva de anúncios publicados; eles ficam apenas no histórico interno do ML. Aqui no sistema serão removidos.`
       : `Excluir ${ids.length} anúncio${ids.length > 1 ? "s" : ""}? Esta ação não pode ser desfeita.`;
     const ok = await confirmAction({
-      title: publishedCount > 0 ? "Encerrar e remover anúncios" : "Excluir anúncios",
+      title: publishedCount > 0 ? "Desativar no Mercado Livre e remover daqui" : "Excluir anúncios",
       description,
-      confirmLabel: publishedCount > 0 ? "Encerrar no ML e remover" : "Excluir",
+      confirmLabel: publishedCount > 0 ? "Desativar no ML e remover" : "Excluir",
       variant: "destructive",
     });
     if (!ok) return;
     bulkDeleteListings.mutate(ids);
     setSelectedIds(new Set());
   };
+
 
   const handleApprove = (id: string) => approveListing.mutate(id);
 
@@ -289,12 +338,19 @@ export function MeliListingsTab() {
     }
   };
 
-  // Indicador de frescor + sincronização leve ao abrir a aba.
+  // Indicador de frescor + selo de sincronização em tempo real.
   const { connection, refetch: refetchConnection } = useMeliConnection();
   const lastSyncAt = connection?.lastSyncAt ? new Date(connection.lastSyncAt) : null;
-  const lastSyncLabel = lastSyncAt
-    ? `Sincronizado ${formatDistanceToNow(lastSyncAt, { addSuffix: true, locale: ptBR })}`
+  const lastWebhookAt = connection?.lastWebhookAt ? new Date(connection.lastWebhookAt) : null;
+  // Selo verde se recebemos qualquer sinal do ML na última 1h.
+  const realtimeFresh = !!lastWebhookAt && (Date.now() - lastWebhookAt.getTime()) < 60 * 60 * 1000;
+  const lastSignalAt = lastWebhookAt && lastSyncAt
+    ? (lastWebhookAt > lastSyncAt ? lastWebhookAt : lastSyncAt)
+    : (lastWebhookAt || lastSyncAt);
+  const lastSyncLabel = lastSignalAt
+    ? `Última atualização ${formatDistanceToNow(lastSignalAt, { addSuffix: true, locale: ptBR })}`
     : "Ainda não sincronizado";
+
 
   const autoSyncDoneRef = useRef(false);
   useEffect(() => {
@@ -322,7 +378,34 @@ export function MeliListingsTab() {
               <CardDescription className="mt-1">
                 Prepare, revise e publique seus produtos no ML
               </CardDescription>
-              <div className="mt-1 text-xs text-muted-foreground">{lastSyncLabel}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 ${
+                        realtimeFresh
+                          ? "border-green-600/40 bg-green-600/10 text-green-700 dark:text-green-400"
+                          : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          realtimeFresh ? "bg-green-600" : "bg-amber-500"
+                        } ${realtimeFresh ? "animate-pulse" : ""}`}
+                      />
+                      {realtimeFresh
+                        ? "Sincronizado em tempo real com o Mercado Livre"
+                        : "Sem sinal recente do Mercado Livre"}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {realtimeFresh
+                      ? "Mudanças feitas no painel do Mercado Livre aparecem aqui em segundos."
+                      : "Sem sinal recente do ML. A reconciliação diária às 5h cobre qualquer divergência. Use Sincronizar para forçar agora."}
+                  </TooltipContent>
+                </Tooltip>
+                <span className="text-muted-foreground">{lastSyncLabel}</span>
+              </div>
             </div>
             <div className="flex gap-2">
               <Tooltip>
@@ -332,7 +415,7 @@ export function MeliListingsTab() {
                     Sincronizar
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Sincroniza o status dos anúncios com o Mercado Livre</TooltipContent>
+                <TooltipContent>Força uma reconciliação imediata com o Mercado Livre</TooltipContent>
               </Tooltip>
               <Button onClick={() => setShowCreator(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -357,9 +440,15 @@ export function MeliListingsTab() {
                   Pendências
                   {pendingCount > 0 && <Badge variant="destructive" className="text-xs">{pendingCount}</Badge>}
                 </TabsTrigger>
+                <TabsTrigger value="inactive" className="gap-2">
+                  Inativos
+                  {inactiveCount > 0 && <Badge variant="outline" className="text-xs">{inactiveCount}</Badge>}
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
+
+
 
           {/* Bulk actions bar — only when something is selected */}
           {selectedIds.size > 0 && (
@@ -431,6 +520,16 @@ export function MeliListingsTab() {
                   <p className="text-sm mt-1">Anúncios com erro ou que precisam de revisão aparecem aqui.</p>
                 </>
               )}
+              {activeTab === 'inactive' && (
+                <>
+                  <Package className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p className="font-medium">Nenhum anúncio inativo</p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Anúncios finalizados no Mercado Livre (encerrados, expirados ou sem estoque) ficam preservados aqui para consulta.
+                  </p>
+                </>
+              )}
+
             </div>
           ) : (
             <Table>
@@ -488,9 +587,45 @@ export function MeliListingsTab() {
                       <TableCell className="font-medium">{formatCurrency(Number(listing.price))}</TableCell>
                       <TableCell>{listing.available_quantity}</TableCell>
                       <TableCell>
-                        <Badge variant={statusInfo.variant} className={statusInfo.color || ""}>
-                          {statusInfo.label}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant={statusInfo.variant} className={statusInfo.color || ""}>
+                            {statusInfo.label}
+                          </Badge>
+                          {listing.last_status_change_source && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  aria-label="Origem da última alteração"
+                                  className={`inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-semibold ${
+                                    listing.last_status_change_source === 'meli'
+                                      ? "bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                                      : "bg-primary/15 text-primary"
+                                  }`}
+                                >
+                                  {listing.last_status_change_source === 'meli' ? 'ML' : '•'}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                {listing.last_status_change_source === 'meli'
+                                  ? `Última alteração veio do Mercado Livre${
+                                      listing.last_status_change_at
+                                        ? ` ${formatDistanceToNow(new Date(listing.last_status_change_at), { addSuffix: true, locale: ptBR })}`
+                                        : ''
+                                    }.`
+                                  : `Última alteração feita aqui no sistema${
+                                      listing.last_status_change_at
+                                        ? ` ${formatDistanceToNow(new Date(listing.last_status_change_at), { addSuffix: true, locale: ptBR })}`
+                                        : ''
+                                    }.`}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {listing.status === 'inactive' && listing.inactive_reason && (
+                          <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
+                            {listing.inactive_reason}
+                          </p>
+                        )}
                         {listing.error_message && (() => {
                           const raw = String(listing.error_message);
                           const friendly = /address_pending|unable_to_list/i.test(raw)
@@ -591,6 +726,17 @@ export function MeliListingsTab() {
                               <TooltipContent>Reativar</TooltipContent>
                             </Tooltip>
                           )}
+                          {listing.status === 'inactive' && listing.meli_item_id && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => window.open(listing.meli_response?.permalink || `https://www.mercadolivre.com.br/p/${listing.meli_item_id}`, '_blank')}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver no Mercado Livre (histórico)</TooltipContent>
+                            </Tooltip>
+                          )}
+
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="ghost" size="icon" onClick={() => handleDelete(listing.id)} disabled={deleteListing.isPending && deleteListing.variables === listing.id}>
@@ -601,7 +747,7 @@ export function MeliListingsTab() {
                                 )}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{['published', 'paused', 'publishing'].includes(listing.status) ? 'Encerrar no ML e remover' : 'Remover'}</TooltipContent>
+                            <TooltipContent>{['published', 'paused', 'publishing'].includes(listing.status) ? 'Desativar no ML e remover daqui' : 'Remover'}</TooltipContent>
                           </Tooltip>
                         </div>
                       </TableCell>
