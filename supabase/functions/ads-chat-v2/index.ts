@@ -1322,19 +1322,25 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
 // ----------------------------------------------------------------------
 async function executeUpdateAutopilotConfig(supabase: any, tenantId: string, args: any): Promise<string> {
   try {
+    console.log("[ads-chat-v2] update_autopilot_config args:", JSON.stringify(args));
     const updates: Record<string, any> = {};
-    const u = args.updates || {};
-    if (typeof u.target_roi === "number") updates.target_roi = u.target_roi;
-    if (typeof u.budget_cents === "number") updates.budget_cents = u.budget_cents;
+    // Accept fields either under `updates` (canonical) or at top level (fallback for AI mistakes)
+    const u = (args.updates && typeof args.updates === "object") ? args.updates : args;
+    const num = (v: any) => (typeof v === "number" ? v : (typeof v === "string" && !isNaN(Number(v)) ? Number(v) : undefined));
+    const tr = num(u.target_roi);
+    if (tr !== undefined) updates.target_roi = tr;
+    const bc = num(u.budget_cents);
+    if (bc !== undefined) updates.budget_cents = bc;
     if (typeof u.strategy_mode === "string") updates.strategy_mode = u.strategy_mode;
     if (typeof u.is_ai_enabled === "boolean") updates.is_ai_enabled = u.is_ai_enabled;
     if (typeof u.user_instructions === "string") updates.user_instructions = u.user_instructions;
     if (typeof u.human_approval_mode === "string") updates.human_approval_mode = u.human_approval_mode;
     if (u.chat_overrides && typeof u.chat_overrides === "object") updates.chat_overrides = u.chat_overrides;
     if (Object.keys(updates).length === 0) {
-      return JSON.stringify({ error: "Nenhum campo válido enviado para atualização." });
+      return JSON.stringify({ error: "Nenhum campo válido enviado para atualização.", received_args_keys: Object.keys(args || {}) });
     }
     updates.updated_at = new Date().toISOString();
+
 
     // Upsert per-account config
     const { data: existing } = await supabase
