@@ -82,11 +82,25 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // ---- EARLY: governança / fila / experimentos / contas (Ondas 2A/3/4) ----
   // Precisa vir ANTES de performance e composite-signal para não ser capturado por "roi/conta/configuração".
   const onda234Topic = /\b(meta\s+de\s+roi|target\s+roi|prompt\s+estratégico|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|configuraç(ão|ões)\s+da\s+ia|configur(ar|ações?)\s+(a\s+)?ia|fila\s+de\s+aprovaç|aguardando\s+aç(ão|ões)|propostas?\s+pendente[s]?|experiment[oa]s?|hipótese|teste[s]?\s+a\/?b|conta[s]?\s+conectada[s]?|conta[s]?\s+de\s+an[uú]ncios?|avisos?\s+aberto[s]?)\b/i;
-  const onda234EditVerb = /\b(ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|aument[ae]r?|diminu[ie]r?|baix[ae]r?|sub[ie]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|encerr[ae]r?|cancel[ae]r?|ativ[ae]r?|desativ[ae]r?|liga[er]?|deslig[ae]r?|criar?|colocar?|defin[ie]r?)\b/i;
+  const onda234EditVerb = /\b(ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|aument[ae]r?|diminu[ie]r?|baix[ae]r?|sub[ie]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|encerr[ae]r?|cancel[ae]r?|ativ[ae]r?|desativ[ae]r?|liga[er]?|deslig[ae]r?|criar?|colocar?|defin[ie]r?|aplic[ae]r?|executar?|implement[ae]r?|proceder?|fazer?|pode\s+(aplicar|mudar|alterar|atualizar|fazer|prosseguir))\b/i;
   const onda234ListVerb = /\b(quais|liste|listar|mostr[ae]|tenho|tem|ver|consult[ae]r?|lista)\b/i;
   if (onda234Topic.test(msg) && (onda234EditVerb.test(msg) || onda234ListVerb.test(msg))) {
     return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
+
+  // ---- CONFIRMATION FOLLOW-UP: if last assistant message asked for confirmation
+  // about a sensitive op (config/queue/experiment), and user replies short affirmative,
+  // keep the conversation in autopilot mode so the tool can actually execute.
+  const lastAssistant = [...history].reverse().find((h: any) => h.role === "assistant")?.content?.toLowerCase() || "";
+  const askedForConfirmation = /confirma\??|confirma\s+a\s+alteração|posso\s+aplicar|posso\s+prosseguir|pode\s+confirmar/i.test(lastAssistant)
+    && /(meta\s+de\s+roi|target\s+roi|configura|orçamento|budget|prompt\s+estratégico|aprovaç|proposta|experiment|hipótese|modo\s+(conservador|equilibrado|agressivo))/i.test(lastAssistant);
+  const shortAffirmative = /^(sim|confirmo|confirma|pode|ok|okay|certo|aprovado|aprova|prossiga|prossegue|vai|manda|pode\s+(aplicar|mudar|alterar|prosseguir|seguir|fazer))[\s.,!]*$/i.test(msg)
+    || (/\b(sim|confirmo|pode\s+aplicar|pode\s+mudar|pode\s+alterar|pode\s+prosseguir|pode\s+seguir|aplica|aprovado)\b/i.test(msg) && msg.length < 80);
+  if (askedForConfirmation && shortAffirmative) {
+    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.95 };
+  }
+
+
 
 
 
