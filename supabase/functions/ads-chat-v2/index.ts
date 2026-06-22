@@ -354,7 +354,35 @@ function _getToolSubset(category: IntentCategory): any[] {
           },
           user_confirmed: { type: "boolean", description: "Obrigatório true — só após confirmação explícita do lojista na conversa." },
         }, ["ad_account_id", "channel", "updates", "user_confirmed"]),
+        toolDef("approve_pending_action", "Aprova uma proposta da fila 'Aguardando ação' (estratégia, campanha, ajuste). SENSÍVEL: só chame após confirmação explícita do lojista (user_confirmed=true). Sempre mostre antes: tipo da ação, conta, resumo do que vai ser publicado.", {
+          action_id: { type: "string", description: "ID da proposta a aprovar" },
+          user_confirmed: { type: "boolean" },
+        }, ["action_id", "user_confirmed"]),
+        toolDef("reject_pending_action", "Rejeita uma proposta da fila. SENSÍVEL: só chame após confirmação explícita.", {
+          action_id: { type: "string" },
+          reason: { type: "string", description: "Motivo da rejeição (curto, em PT-BR)" },
+          user_confirmed: { type: "boolean" },
+        }, ["action_id", "reason", "user_confirmed"]),
+        toolDef("create_experiment", "Cria um experimento A/B (status inicial 'planned'). SENSÍVEL: só chame após confirmação explícita. Mostre hipótese, variável testada, conta, orçamento, duração antes de confirmar.", {
+          channel: { type: "string", enum: ["meta", "google", "tiktok"] },
+          ad_account_id: { type: "string" },
+          hypothesis: { type: "string", description: "Hipótese de negócio (PT-BR, 1-2 frases)" },
+          variable_type: { type: "string", description: "O que está sendo testado (ex: criativo, público, oferta, copy)" },
+          duration_days: { type: "number", description: "Duração em dias (default 7)" },
+          budget_brl: { type: "number", description: "Orçamento total em R$ do experimento" },
+          min_conversions: { type: "number" },
+          success_criteria: { type: "object", description: "Critérios objetivos de sucesso (ex: {roas_min: 2.5})" },
+          user_confirmed: { type: "boolean" },
+        }, ["channel", "hypothesis", "variable_type", "user_confirmed"]),
+        toolDef("end_experiment", "Encerra um experimento em andamento (status 'completed' ou 'cancelled'). SENSÍVEL: só chame após confirmação explícita.", {
+          experiment_id: { type: "string" },
+          outcome: { type: "string", enum: ["completed", "cancelled"], description: "completed = encerrou com resultado; cancelled = abortou antes do prazo" },
+          winner_variant_id: { type: "string", description: "ID da variante vencedora, se houver" },
+          notes: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["experiment_id", "outcome", "user_confirmed"]),
       ];
+
 
     // STRATEGIC: AI gets read tools + context tools to gather info, plus the strategic plan creation tool
     case "strategic":
