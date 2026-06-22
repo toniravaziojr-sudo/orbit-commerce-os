@@ -1318,8 +1318,66 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
 
 
 // ----------------------------------------------------------------------
+// Onda 3 — Local handler: update_autopilot_config (per-account governance)
+// ----------------------------------------------------------------------
+async function executeUpdateAutopilotConfig(supabase: any, tenantId: string, args: any): Promise<string> {
+  try {
+    const updates: Record<string, any> = {};
+    const u = args.updates || {};
+    if (typeof u.target_roi === "number") updates.target_roi = u.target_roi;
+    if (typeof u.budget_cents === "number") updates.budget_cents = u.budget_cents;
+    if (typeof u.strategy_mode === "string") updates.strategy_mode = u.strategy_mode;
+    if (typeof u.is_ai_enabled === "boolean") updates.is_ai_enabled = u.is_ai_enabled;
+    if (typeof u.user_instructions === "string") updates.user_instructions = u.user_instructions;
+    if (typeof u.human_approval_mode === "string") updates.human_approval_mode = u.human_approval_mode;
+    if (u.chat_overrides && typeof u.chat_overrides === "object") updates.chat_overrides = u.chat_overrides;
+    if (Object.keys(updates).length === 0) {
+      return JSON.stringify({ error: "Nenhum campo válido enviado para atualização." });
+    }
+    updates.updated_at = new Date().toISOString();
+
+    // Upsert per-account config
+    const { data: existing } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("channel", args.channel)
+      .eq("ad_account_id", args.ad_account_id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("ads_autopilot_account_configs")
+        .update(updates)
+        .eq("id", existing.id);
+      if (error) return JSON.stringify({ error: error.message });
+    } else {
+      const { error } = await supabase
+        .from("ads_autopilot_account_configs")
+        .insert({
+          tenant_id: tenantId,
+          channel: args.channel,
+          ad_account_id: args.ad_account_id,
+          ...updates,
+        });
+      if (error) return JSON.stringify({ error: error.message });
+    }
+
+    const changed = Object.keys(updates).filter((k) => k !== "updated_at");
+    return JSON.stringify({
+      success: true,
+      message: `Configurações atualizadas na conta ${args.ad_account_id}: ${changed.join(", ")}.`,
+      changed_fields: changed,
+    });
+  } catch (err: any) {
+    return JSON.stringify({ error: err?.message || "Erro ao atualizar configurações." });
+  }
+}
+
+// ----------------------------------------------------------------------
 // Onda 4 — Local handlers: queue approval/rejection + experiments lifecycle
 // ----------------------------------------------------------------------
+
 async function executeOnda4Tool(supabase: any, tenantId: string, toolName: string, args: any): Promise<string> {
   try {
     const nowIso = new Date().toISOString();
