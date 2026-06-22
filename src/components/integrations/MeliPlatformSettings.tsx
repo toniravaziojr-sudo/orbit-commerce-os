@@ -14,7 +14,7 @@ export function MeliPlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
-  const webhookUri = `https://app.comandocentral.com.br/integrations/meli/webhook`;
+  const webhookUri = `https://integrations.comandocentral.com.br/meli/webhook`;
 
   const { data: integrationData, isLoading } = usePlatformIntegrationStatus("mercadolivre");
 
@@ -125,6 +125,9 @@ export function MeliPlatformSettings() {
                   {copiedUrl === "Webhook URL" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Endereço de recebimento de notificações. Usa um domínio dedicado a integrações — diferente do endereço do painel.
+              </p>
             </div>
           </div>
         </CardContent>
