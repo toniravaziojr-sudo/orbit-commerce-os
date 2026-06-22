@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
   RefreshCw,
   Settings2,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
@@ -35,6 +37,23 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+/**
+ * Detecta se o erro de uma pendência tem origem em campo faltando no cadastro
+ * do produto. Quando verdadeiro, exibimos o atalho "Abrir cadastro do produto".
+ */
+function pendencyNeedsProductCadastro(errorMessage: string | null | undefined): boolean {
+  if (!errorMessage) return false;
+  const m = String(errorMessage).toLowerCase();
+  return (
+    m.includes("cadastro do produto") ||
+    m.includes("missing_required_attributes") ||
+    m.includes("marca") ||
+    m.includes("brand") ||
+    m.includes("gtin") ||
+    m.includes("ean")
+  );
+}
 
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
