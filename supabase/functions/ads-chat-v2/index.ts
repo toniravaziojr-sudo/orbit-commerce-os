@@ -148,8 +148,8 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
 
-  // WRITE - META (direct execution requests — pause, activate, budget changes)
-  if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
+  // WRITE - META (direct execution requests — pause, activate, budget changes, delete, bulk)
+  if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)|exclu[ie]r?\s+(campanha|conjunto|anúncio)|delet[ae]r?\s+(campanha|conjunto|anúncio)|apag[ae]r?\s+(campanha|conjunto|anúncio)|remov[ae]r?\s+(campanha|conjunto|anúncio)|desativ[ae]r?\s+(em\s+lote|tod[ao]s|várias|múltiplas)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
     return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
   }
@@ -421,6 +421,19 @@ function _getToolSubset(category: IntentCategory): any[] {
           source_campaign_id: { type: "string" }, new_name: { type: "string" },
           new_daily_budget_cents: { type: "number" }, ad_account_id: { type: "string" },
         }, ["source_campaign_id"]),
+        toolDef("delete_meta_entity", "DESTRUTIVA: exclui campanha/conjunto/anúncio Meta. SÓ chame após o lojista confirmar explicitamente na conversa (passar user_confirmed=true).", {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_id: { type: "string" },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["entity_type", "entity_id", "user_confirmed"]),
+        toolDef("bulk_toggle_entities", "Pausa/reativa várias entidades de uma vez. Pausar mais de 3 exige user_confirmed=true após confirmação na conversa.", {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_ids: { type: "array", items: { type: "string" } },
+          new_status: { type: "string", enum: ["ACTIVE", "PAUSED"] },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean" },
+        }, ["entity_type", "entity_ids", "new_status"]),
         toolDef("update_adset_targeting", "Atualiza segmentação de adset.", {
           adset_id: { type: "string" }, age_min: { type: "number" }, age_max: { type: "number" },
           genders: { type: "array", items: { type: "number" } },
@@ -1021,10 +1034,13 @@ Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios indivi
 - Só depois dos dados apresentados, adicione análise e sugestões baseadas nos números.
 - Se o turno anterior listou campanhas, use os IDs/nomes dessas campanhas como contexto para buscar adsets — NÃO peça ao lojista repetir informação já fornecida.
 
-## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO
-- NUNCA termine resposta com "Posso seguir?" ou "Quer que eu faça?"
-- EXECUTE PRIMEIRO, REPORTE DEPOIS.
-- Única exceção: override de regras de segurança.
+## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO (com exceções claras)
+- Para AÇÕES UNITÁRIAS (pausar/reativar 1 entidade, ajustar orçamento de 1 entidade, duplicar 1 campanha): execute e reporte. Não pergunte "posso?".
+- ÚNICA EXCEÇÃO — AÇÕES DESTRUTIVAS exigem confirmação EXPLÍCITA do lojista na conversa antes de chamar a ferramenta:
+  - Excluir campanha, conjunto ou anúncio (delete_meta_entity)
+  - Desativar mais de 3 entidades em lote (bulk_toggle_entities com PAUSED e mais de 3 IDs)
+- Padrão para destrutivas: descreva o que será feito ("Vou excluir a campanha X — essa ação é permanente. Confirma?") e SÓ chame a ferramenta depois que o lojista responder algo como "sim", "confirmo", "pode excluir", "pode desativar todas". Ao chamar, passe user_confirmed=true.
+- Se o lojista pedir exclusão sem ter dito qual entidade, liste as opções primeiro.
 
 ## REGRA: SEQUÊNCIA PARA CAMPANHAS
 - NUNCA chame generate_creative_image e create_meta_campaign na mesma rodada.
@@ -1621,6 +1637,8 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   update_budget: "Ajustando orçamento",
   toggle_entity_status: "Alterando status",
   duplicate_campaign: "Duplicando campanha",
+  delete_meta_entity: "Excluindo no Meta",
+  bulk_toggle_entities: "Aplicando alteração em lote",
   create_custom_audience: "Criando público",
   create_lookalike_audience: "Criando público semelhante",
   browse_drive: "Explorando Drive",

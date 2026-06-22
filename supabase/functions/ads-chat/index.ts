@@ -697,6 +697,43 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "delete_meta_entity",
+      description: "AÇÃO DESTRUTIVA: Exclui permanentemente uma campanha, conjunto de anúncios ou anúncio no Meta. Só execute APÓS confirmação explícita do lojista (ex: 'sim, pode excluir', 'confirmo a exclusão'). Recomende sempre pausar antes de excluir.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_id: { type: "string", description: "ID da entidade na Meta" },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean", description: "DEVE ser true. Só passe true após o lojista confirmar explicitamente a exclusão na conversa." },
+        },
+        required: ["entity_type", "entity_id", "user_confirmed"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_toggle_entities",
+      description: "AÇÃO EM LOTE: Pausa ou reativa várias entidades Meta de uma vez. Quando new_status='PAUSED' e há mais de 3 entidades, é destrutivo e exige confirmação explícita do lojista.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"] },
+          entity_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs (máx 50)" },
+          new_status: { type: "string", enum: ["ACTIVE", "PAUSED"] },
+          ad_account_id: { type: "string" },
+          user_confirmed: { type: "boolean", description: "Obrigatório true quando new_status='PAUSED' e mais de 3 entidades." },
+        },
+        required: ["entity_type", "entity_ids", "new_status"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "update_adset_targeting",
       description: "Atualiza a segmentação (targeting) de um conjunto de anúncios existente no Meta. Pode alterar faixa etária, gênero, localização e interesses.",
       parameters: {
@@ -962,6 +999,10 @@ async function executeTool(
         return await updateBudget(supabase, tenantId, args, chatSessionId);
       case "duplicate_campaign":
         return await duplicateCampaign(supabase, tenantId, args, chatSessionId);
+      case "delete_meta_entity":
+        return await deleteMetaEntity(supabase, tenantId, args, chatSessionId);
+      case "bulk_toggle_entities":
+        return await bulkToggleEntities(supabase, tenantId, args, chatSessionId);
       case "update_adset_targeting":
         return await updateAdsetTargeting(supabase, tenantId, args, chatSessionId);
       case "create_custom_audience":
@@ -2096,6 +2137,79 @@ async function duplicateCampaign(supabase: any, tenantId: string, args: any, cha
     adsets_created: adsetsCreated,
     ads_created: adsCreated,
   });
+}
+
+// --- Onda 2B: delete_meta_entity (DESTRUTIVA, exige confirmação) ---
+async function deleteMetaEntity(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { entity_type, entity_id, user_confirmed } = args;
+  if (!user_confirmed) {
+    return JSON.stringify({
+      success: false,
+      requires_confirmation: true,
+      error: "Exclusão exige confirmação explícita do lojista. Peça confirmação na conversa antes de tentar novamente com user_confirmed=true.",
+    });
+  }
+
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
+
+  const table = entity_type === "campaign" ? "meta_ad_campaigns" : entity_type === "adset" ? "meta_ad_adsets" : "meta_ad_ads";
+  const idCol = entity_type === "campaign" ? "meta_campaign_id" : entity_type === "adset" ? "meta_adset_id" : "meta_ad_id";
+  const { data: entityData } = await supabase.from(table).select("name").eq("tenant_id", tenantId).eq(idCol, entity_id).maybeSingle();
+  const entityName = entityData?.name || entity_id;
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/${entity_id}?access_token=${encodeURIComponent(conn.access_token)}`, { method: "DELETE" });
+  const result = await res.json().catch(() => ({}));
+
+  if (result.error) {
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
+      action_type: "delete_entity", status: "failed", error_message: result.error.message,
+      action_data: { entity_type, entity_id, entity_name: entityName, created_by: "ads_chat" },
+      reasoning: `Tentativa de excluir ${entity_type} "${entityName}" via Chat IA`,
+    });
+    return JSON.stringify({ success: false, error: result.error.message });
+  }
+
+  // Soft mark in DB (Meta delete returns success; the entity disappears from the platform)
+  await supabase.from(table).update({ status: "DELETED", synced_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId).eq(idCol, entity_id);
+
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
+    action_type: "delete_entity", status: "executed", executed_at: new Date().toISOString(), confidence: "high",
+    action_data: { entity_type, entity_id, entity_name: entityName, created_by: "ads_chat" },
+    reasoning: `${entity_type === "campaign" ? "Campanha" : entity_type === "adset" ? "Conjunto" : "Anúncio"} "${entityName}" excluído via Chat IA com confirmação do lojista`,
+  });
+
+  return JSON.stringify({ success: true, message: `"${entityName}" excluído com sucesso.` });
+}
+
+// --- Onda 2B: bulk_toggle_entities ---
+async function bulkToggleEntities(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { entity_type, entity_ids, new_status, user_confirmed } = args;
+  if (!Array.isArray(entity_ids) || entity_ids.length === 0) {
+    return JSON.stringify({ success: false, error: "Nenhuma entidade informada." });
+  }
+  if (entity_ids.length > 50) {
+    return JSON.stringify({ success: false, error: "Máximo 50 entidades por lote." });
+  }
+  const isDestructive = new_status === "PAUSED" && entity_ids.length > 3;
+  if (isDestructive && !user_confirmed) {
+    return JSON.stringify({
+      success: false,
+      requires_confirmation: true,
+      error: `Desativar ${entity_ids.length} entidades em lote exige confirmação explícita. Peça confirmação na conversa antes de tentar novamente com user_confirmed=true.`,
+    });
+  }
+
+  const results: any[] = [];
+  for (const id of entity_ids) {
+    const r = await toggleEntityStatus(supabase, tenantId, { entity_type, entity_id: id, new_status }, chatSessionId);
+    try { results.push({ entity_id: id, ...JSON.parse(r) }); } catch { results.push({ entity_id: id, success: false }); }
+  }
+  const ok = results.filter((r) => r.success).length;
+  return JSON.stringify({ success: ok > 0, total: results.length, succeeded: ok, failed: results.length - ok, results });
 }
 
 // --- Frente 4.4: update_adset_targeting ---
