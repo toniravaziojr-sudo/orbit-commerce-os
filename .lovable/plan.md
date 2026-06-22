@@ -24,9 +24,14 @@ O lojista deve conseguir, **só pelo chat**, fazer tudo que o Gestor de Tráfego
 - A proposta resultante aparece em "Aguardando ação" no formato canônico, marcada com selo "via chat".
 - Mantém o fluxo padrão de revisão e publicação manual.
 
-### Onda 2 — Expansão de capacidades operacionais
-- Habilitar no chat o conjunto completo de ações: operação fina Meta, Google Ads, TikTok, leitura de aprendizados e avisos.
-- Reaproveita funções já existentes do módulo.
+### Onda 2A — Leitura plena (✅ aplicada, pendente de validação)
+- Chat passa a responder qualquer pergunta de leitura do módulo em qualquer intent: performance, conjuntos, anúncios, criativos, públicos, produtos, rastreamento, avisos abertos, configurações da IA por conta, planos estratégicos, experimentos e lista de contas conectadas (Meta/Google/TikTok).
+- Sem mudança de UI, sem novo motor, sem ação de escrita.
+
+### Onda 2B — Ações unitárias, estruturais e destrutivas (a iniciar)
+- Unitárias (pausar/reativar, ajuste de orçamento, duplicar): execução direta com confirmação leve.
+- Estruturais (campanha/conjunto/criativo/plano): já entram em "Aguardando ação" com selo "via chat" (Onda 1).
+- Destrutivas (exclusão, desativação em lote): confirmação explícita no chat.
 
 ### Onda 3 — Governança e configuração via chat
 - Permitir ler e alterar configurações da IA por conta (prompt estratégico, metas, splits, modo de aprovação, janela de publicação).
