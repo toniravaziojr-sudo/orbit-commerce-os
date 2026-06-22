@@ -14,7 +14,7 @@ export function MeliPlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
-  const webhookUri = `https://app.comandocentral.com.br/integrations/meli/webhook`;
+  const webhookUri = `https://integrations.comandocentral.com.br/meli/webhook`;
 
   const { data: integrationData, isLoading } = usePlatformIntegrationStatus("mercadolivre");
 
