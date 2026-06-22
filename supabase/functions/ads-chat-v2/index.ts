@@ -79,6 +79,31 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   } else if (/este\s+mês|últimos?\s+30/i.test(msg)) {
     entities.period = "last_30d";
   }
+  // ---- EARLY: governança / fila / experimentos / contas (Ondas 2A/3/4) ----
+  // Precisa vir ANTES de performance e composite-signal para não ser capturado por "roi/conta/configuração".
+  const onda234Topic = /\b(meta\s+de\s+roi|target\s+roi|prompt\s+estratégico|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|configuraç(ão|ões)\s+da\s+ia|configur(ar|ações?)\s+(a\s+)?ia|fila\s+de\s+aprovaç|aguardando\s+aç(ão|ões)|propostas?\s+pendente[s]?|experiment[oa]s?|hipótese|teste[s]?\s+a\/?b|conta[s]?\s+conectada[s]?|conta[s]?\s+de\s+an[uú]ncios?|avisos?\s+aberto[s]?)\b/i;
+  const onda234EditVerb = /\b(ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|aument[ae]r?|diminu[ie]r?|baix[ae]r?|sub[ie]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|encerr[ae]r?|cancel[ae]r?|ativ[ae]r?|desativ[ae]r?|liga[er]?|deslig[ae]r?|criar?|colocar?|defin[ie]r?|aplic[ae]r?|executar?|implement[ae]r?|proceder?|fazer?|pode\s+(aplicar|mudar|alterar|atualizar|fazer|prosseguir))\b/i;
+  const onda234ListVerb = /\b(quais|liste|listar|mostr[ae]|tenho|tem|ver|consult[ae]r?|lista)\b/i;
+  if (onda234Topic.test(msg) && (onda234EditVerb.test(msg) || onda234ListVerb.test(msg))) {
+    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
+  }
+
+  // ---- CONFIRMATION FOLLOW-UP: if last assistant message asked for confirmation
+  // about a sensitive op (config/queue/experiment), and user replies short affirmative,
+  // keep the conversation in autopilot mode so the tool can actually execute.
+  const lastAssistant = [...history].reverse().find((h: any) => h.role === "assistant")?.content?.toLowerCase() || "";
+  const askedForConfirmation = /confirma\??|confirma\s+a\s+alteração|posso\s+aplicar|posso\s+prosseguir|pode\s+confirmar/i.test(lastAssistant)
+    && /(meta\s+de\s+roi|target\s+roi|configura|orçamento|budget|prompt\s+estratégico|aprovaç|proposta|experiment|hipótese|modo\s+(conservador|equilibrado|agressivo))/i.test(lastAssistant);
+  const shortAffirmative = /^(sim|confirmo|confirma|pode|ok|okay|certo|aprovado|aprova|prossiga|prossegue|vai|manda|pode\s+(aplicar|mudar|alterar|prosseguir|seguir|fazer))[\s.,!]*$/i.test(msg)
+    || (/\b(sim|confirmo|pode\s+aplicar|pode\s+mudar|pode\s+alterar|pode\s+prosseguir|pode\s+seguir|aplica|aprovado)\b/i.test(msg) && msg.length < 80);
+  if (askedForConfirmation && shortAffirmative) {
+    return { category: "autopilot", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.95 };
+  }
+
+
+
+
+
 
   // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
   // These are requests where the user wants the AI to PLAN, PROPOSE, or DESIGN
@@ -1298,10 +1323,81 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     return await executeOnda4Tool(supabase, tenantId, toolName, args);
   }
 
+  // Onda 3 — update_autopilot_config handled locally
+  if (toolName === "update_autopilot_config") {
+    return await executeUpdateAutopilotConfig(supabase, tenantId, args);
+  }
+
+
+
+
+// ----------------------------------------------------------------------
+// Onda 3 — Local handler: update_autopilot_config (per-account governance)
+// ----------------------------------------------------------------------
+async function executeUpdateAutopilotConfig(supabase: any, tenantId: string, args: any): Promise<string> {
+  try {
+    console.log("[ads-chat-v2] update_autopilot_config args:", JSON.stringify(args));
+    const updates: Record<string, any> = {};
+    // Accept fields either under `updates` (canonical) or at top level (fallback for AI mistakes)
+    const u = (args.updates && typeof args.updates === "object") ? args.updates : args;
+    const num = (v: any) => (typeof v === "number" ? v : (typeof v === "string" && !isNaN(Number(v)) ? Number(v) : undefined));
+    const tr = num(u.target_roi);
+    if (tr !== undefined) updates.target_roi = tr;
+    const bc = num(u.budget_cents);
+    if (bc !== undefined) updates.budget_cents = bc;
+    if (typeof u.strategy_mode === "string") updates.strategy_mode = u.strategy_mode;
+    if (typeof u.is_ai_enabled === "boolean") updates.is_ai_enabled = u.is_ai_enabled;
+    if (typeof u.user_instructions === "string") updates.user_instructions = u.user_instructions;
+    if (typeof u.human_approval_mode === "string") updates.human_approval_mode = u.human_approval_mode;
+    if (u.chat_overrides && typeof u.chat_overrides === "object") updates.chat_overrides = u.chat_overrides;
+    if (Object.keys(updates).length === 0) {
+      return JSON.stringify({ error: "Nenhum campo válido enviado para atualização.", received_args_keys: Object.keys(args || {}) });
+    }
+    updates.updated_at = new Date().toISOString();
+
+
+    // Upsert per-account config
+    const { data: existing } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("channel", args.channel)
+      .eq("ad_account_id", args.ad_account_id)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("ads_autopilot_account_configs")
+        .update(updates)
+        .eq("id", existing.id);
+      if (error) return JSON.stringify({ error: error.message });
+    } else {
+      const { error } = await supabase
+        .from("ads_autopilot_account_configs")
+        .insert({
+          tenant_id: tenantId,
+          channel: args.channel,
+          ad_account_id: args.ad_account_id,
+          ...updates,
+        });
+      if (error) return JSON.stringify({ error: error.message });
+    }
+
+    const changed = Object.keys(updates).filter((k) => k !== "updated_at");
+    return JSON.stringify({
+      success: true,
+      message: `Configurações atualizadas na conta ${args.ad_account_id}: ${changed.join(", ")}.`,
+      changed_fields: changed,
+    });
+  } catch (err: any) {
+    return JSON.stringify({ error: err?.message || "Erro ao atualizar configurações." });
+  }
+}
 
 // ----------------------------------------------------------------------
 // Onda 4 — Local handlers: queue approval/rejection + experiments lifecycle
 // ----------------------------------------------------------------------
+
 async function executeOnda4Tool(supabase: any, tenantId: string, toolName: string, args: any): Promise<string> {
   try {
     const nowIso = new Date().toISOString();
@@ -1521,24 +1617,105 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         return JSON.stringify({ total: data?.length || 0, warnings: data || [] });
       }
       case "get_ad_accounts": {
-        const ch = args.channel && args.channel !== "all" ? [args.channel] : ["meta", "google", "tiktok"];
-        const { data: conns } = await supabase
-          .from("marketplace_connections")
-          .select("channel, account_name, metadata, status")
-          .eq("tenant_id", tenantId)
-          .in("channel", ch);
+        const wantAll = !args.channel || args.channel === "all";
+        const wantMeta = wantAll || args.channel === "meta";
+        const wantGoogle = wantAll || args.channel === "google";
+        const wantTiktok = wantAll || args.channel === "tiktok";
         const accounts: any[] = [];
-        for (const c of (conns || [])) {
-          const list = c?.metadata?.assets?.ad_accounts || [];
-          for (const a of list) {
+
+        if (wantMeta) {
+          // 1. Canonical: tenant_meta_auth_grants.discovered_assets
+          const { data: grants } = await supabase
+            .from("tenant_meta_auth_grants")
+            .select("status, meta_user_name, discovered_assets")
+            .eq("tenant_id", tenantId)
+            .eq("status", "active");
+          const seen = new Set<string>();
+          for (const g of (grants || [])) {
+            const list = g?.discovered_assets?.ad_accounts || [];
+            for (const a of list) {
+              const id = typeof a === "string" ? a : (a?.id || a?.account_id);
+              if (!id || seen.has(id)) continue;
+              seen.add(id);
+              accounts.push({
+                channel: "meta",
+                id,
+                name: typeof a === "string" ? null : (a?.name || a?.account_name || null),
+                connection_status: "active",
+                source: "auth_grant",
+              });
+            }
+          }
+          // 2. Fallback: derive from real campaign data
+          const { data: campAccts } = await supabase
+            .from("meta_ad_campaigns")
+            .select("ad_account_id")
+            .eq("tenant_id", tenantId)
+            .not("ad_account_id", "is", null);
+          for (const r of (campAccts || [])) {
+            const id = r.ad_account_id;
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            accounts.push({ channel: "meta", id, name: null, connection_status: "active", source: "campaigns" });
+          }
+          // 3. Enrich with autopilot config (AI on/off)
+          const { data: cfgs } = await supabase
+            .from("ads_autopilot_account_configs")
+            .select("ad_account_id, is_ai_enabled, strategy_mode, target_roi")
+            .eq("tenant_id", tenantId)
+            .eq("channel", "meta");
+          const cfgMap: Record<string, any> = {};
+          for (const c of (cfgs || [])) cfgMap[c.ad_account_id] = c;
+          for (const acc of accounts) {
+            if (acc.channel === "meta" && cfgMap[acc.id]) {
+              acc.ai_enabled = cfgMap[acc.id].is_ai_enabled;
+              acc.strategy_mode = cfgMap[acc.id].strategy_mode;
+              acc.target_roi = cfgMap[acc.id].target_roi;
+            }
+          }
+        }
+
+        if (wantGoogle) {
+          const { data: gconns } = await supabase
+            .from("google_connections")
+            .select("google_email, display_name, connection_status, is_active, assets")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true);
+          for (const c of (gconns || [])) {
+            const list = c?.assets?.ad_accounts || [];
+            if (list.length === 0) {
+              accounts.push({ channel: "google", id: null, name: c.display_name || c.google_email, connection_status: c.connection_status, source: "connection_no_assets" });
+            } else {
+              for (const a of list) {
+                accounts.push({
+                  channel: "google",
+                  id: typeof a === "string" ? a : (a?.id || a?.customer_id),
+                  name: typeof a === "string" ? null : (a?.name || a?.descriptive_name || null),
+                  connection_status: c.connection_status,
+                  source: "connection",
+                });
+              }
+            }
+          }
+        }
+
+        if (wantTiktok) {
+          const { data: tconns } = await supabase
+            .from("tiktok_ads_connections")
+            .select("advertiser_id, advertiser_name, connection_status, is_active")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true);
+          for (const c of (tconns || [])) {
             accounts.push({
-              channel: c.channel,
-              id: typeof a === "string" ? a : a.id,
-              name: typeof a === "string" ? null : (a.name || a.account_name || null),
-              connection_status: c.status,
+              channel: "tiktok",
+              id: c.advertiser_id,
+              name: c.advertiser_name,
+              connection_status: c.connection_status,
+              source: "connection",
             });
           }
         }
+
         return JSON.stringify({ total: accounts.length, accounts });
       }
       case "get_strategic_plan": {
