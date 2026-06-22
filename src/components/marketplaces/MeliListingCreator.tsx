@@ -181,6 +181,10 @@ export function MeliListingCreator({
   // Expanded descriptions
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
 
+  // Atributos resolvidos por anúncio (etapa "Características").
+  // Cada item guarda {attributes, canPublish} vindos do MeliAttributesPanel.
+  const [attrValuesByListing, setAttrValuesByListing] = useState<Record<string, MeliAttributesPanelValue>>({});
+
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
 
