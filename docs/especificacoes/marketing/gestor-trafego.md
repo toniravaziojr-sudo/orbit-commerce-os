@@ -29,6 +29,11 @@ O Chat IA passa a fazer, em linguagem natural, tudo o que as abas do Gestor de T
 - O chat lê e altera configurações da IA por conta: prompt estratégico (instruções do lojista), meta de ROI, orçamento, modo de estratégia (conservador / equilibrado / agressivo), aprovação humana (auto / high_impact), ligar/desligar IA, overrides de chat.
 - Toda alteração é sensível: a IA precisa identificar a conta-alvo, mostrar o campo, valor atual → novo valor, e SÓ executar após confirmação explícita do lojista. Sem confirmação, o servidor bloqueia.
 
+**Onda 4 — Experimentos e fila no chat**
+
+- Experimentos A/B: o chat abre experimento (hipótese, variável testada, conta, orçamento, duração, critérios de sucesso) e encerra (completed/cancelled, variante vencedora, notas). Em ambos os casos a IA precisa mostrar o resumo antes e obter confirmação explícita do lojista.
+- Fila "Aguardando ação": o chat lista propostas pendentes, mostra o que será publicado e pode aprovar (publica pelo mesmo pipeline canônico — inclusive o fluxo de 2 etapas do plano estratégico) ou rejeitar (com motivo registrado). Sempre com confirmação explícita.
+
 **Regras invariantes**
 
 - Aviso continua sendo só diagnóstico; nunca executa ação.
