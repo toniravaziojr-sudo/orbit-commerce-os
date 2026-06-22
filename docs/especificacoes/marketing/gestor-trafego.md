@@ -1,7 +1,7 @@
 # Gestor de Tráfego IA — Especificação Completa
 
 > **Status:** ✅ Ativo  
-> **Versão:** 7.1.0 (Onda 4 — Convergência do Chat IA com pipeline canônico)
+> **Versão:** 7.4.0 (Ondas 2A, 2B e 3 — Chat IA como agente único do Gestor de Tráfego)
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Rota:** `/ads`  
 > **Extraído de:** `docs/especificacoes/marketing/marketing-integracoes.md` (Seção 5)  
@@ -9,7 +9,38 @@
 
 ---
 
+## Onda 5 (2026-06-22) — Chat IA como agente único do Gestor de Tráfego
+
+O Chat IA passa a fazer, em linguagem natural, tudo o que as abas do Gestor de Tráfego fazem hoje, mantendo o princípio de que a IA nunca publica direto.
+
+**Onda 2A — Leitura plena**
+
+- O chat responde qualquer pergunta de leitura do módulo em qualquer assunto: desempenho, conjuntos, anúncios, criativos, públicos, produtos, rastreamento, avisos abertos, configurações da IA por conta, planos estratégicos, experimentos e lista de contas conectadas (Meta, Google, TikTok).
+- Não muda UI, não cria motor novo, não executa escrita.
+
+**Onda 2B — Ações no chat**
+
+- Ações unitárias (pausar/reativar uma campanha, ajustar orçamento de uma entidade, duplicar uma campanha): executadas direto pelo chat, com reporte do resultado.
+- Ações estruturais (estratégia completa, lote de campanhas): viram proposta em "Aguardando ação" com selo "via chat" (mesma esteira da Onda 4).
+- Ações destrutivas (excluir campanha/conjunto/anúncio, desativar mais de 3 entidades em lote): exigem confirmação explícita do lojista na conversa antes de qualquer execução. Sem o "sim/confirmo" do lojista, o servidor recusa a execução.
+
+**Onda 3 — Governança via chat**
+
+- O chat lê e altera configurações da IA por conta: prompt estratégico (instruções do lojista), meta de ROI, orçamento, modo de estratégia (conservador / equilibrado / agressivo), aprovação humana (auto / high_impact), ligar/desligar IA, overrides de chat.
+- Toda alteração é sensível: a IA precisa identificar a conta-alvo, mostrar o campo, valor atual → novo valor, e SÓ executar após confirmação explícita do lojista. Sem confirmação, o servidor bloqueia.
+
+**Regras invariantes**
+
+- Aviso continua sendo só diagnóstico; nunca executa ação.
+- Toda configuração que afeta execução vive por conta de anúncios — não existe "IA global".
+- IA nunca publica campanha direto: estrutural sempre passa por aprovação manual no fluxo padrão.
+- Comunicação da IA: PT-BR, linguagem de negócio, sem expor IDs ou termos técnicos.
+
+---
+
 ## Onda 4 (2026-06-22) — Convergência do Chat IA
+
+
 
 **Mudança de comportamento**
 
