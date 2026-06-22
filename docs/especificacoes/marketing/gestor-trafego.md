@@ -1,13 +1,31 @@
 # Gestor de Tráfego IA — Especificação Completa
 
 > **Status:** ✅ Ativo  
-> **Versão:** 7.0.0 (Onda 3 — Insights aposentado, Avisos ativo)
+> **Versão:** 7.1.0 (Onda 4 — Convergência do Chat IA com pipeline canônico)
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Rota:** `/ads`  
 > **Extraído de:** `docs/especificacoes/marketing/marketing-integracoes.md` (Seção 5)  
-> **Última atualização:** 2026-06-17
+> **Última atualização:** 2026-06-22
 
 ---
+
+## Onda 4 (2026-06-22) — Convergência do Chat IA
+
+**Mudança de comportamento**
+
+- Propostas estratégicas criadas via Chat IA não ficam mais travadas como "incompleta".
+- Quando o lojista fecha uma estratégia no chat, o sistema:
+  1. Resolve a conta de anúncios alvo. Padrão: a única conta ativa do canal. Se houver mais de uma, o chat pede a conta antes de submeter.
+  2. Abre uma análise canônica e delega ao estrategista oficial em modo assíncrono, passando o brief estruturado da conversa (diagnóstico, ações planejadas, públicos, orçamento, riscos) como diretriz prioritária.
+  3. O estrategista honra a intenção do lojista e produz a proposta no formato canônico (mesmo contrato das propostas autônomas).
+  4. A proposta aparece em "Aguardando ação" marcada com o selo **"via chat"**, segue o fluxo padrão (revisão final, paridade total, janela de publicação) e só vai para a Meta quando o lojista aprovar explicitamente.
+
+**Regra mantida**
+
+- A IA é auxiliar de criação. Não publica campanhas direto. Toda campanha criada pela IA — autônoma ou via chat — passa pelo fluxo de aprovação manual.
+
+---
+
 
 ## Onda 3 (2026-06-17) — Resumo executivo da mudança
 
