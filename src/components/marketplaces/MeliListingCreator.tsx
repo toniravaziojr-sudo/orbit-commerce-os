@@ -82,13 +82,14 @@ interface MeliListingCreatorProps {
   existingDrafts?: ExistingDraft[];
 }
 
-type Step = "select" | "categories" | "titles" | "descriptions" | "condition" | "listing_type" | "shipping";
+type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
   { key: "categories", label: "Categorias" },
   { key: "titles", label: "Títulos" },
   { key: "descriptions", label: "Descrições" },
+  { key: "attributes", label: "Características" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
   { key: "shipping", label: "Frete" },
