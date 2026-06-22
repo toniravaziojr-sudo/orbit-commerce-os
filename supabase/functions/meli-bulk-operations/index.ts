@@ -677,15 +677,14 @@ Retorne APENAS o título, nada mais.`,
       let updated = 0;
       const errors: string[] = [];
 
-      for (const listing of (listings || [])) {
+      const results = await Promise.all((listings || []).map(async (listing: any) => {
         try {
-          const product = (listing as any).products;
+          const product = listing.products;
           const htmlSource = product?.description || listing.description || "";
           const shortDescLocal = product?.short_description || "";
 
           if (!htmlSource?.trim() && !shortDescLocal?.trim()) {
-            errors.push(`${listing.title}: Sem descrição fonte`);
-            continue;
+            return { ok: false, err: `${listing.title}: Sem descrição fonte` };
           }
 
           // Build rich context for AI — WITHOUT barcode/EAN/GTIN
@@ -717,40 +716,34 @@ Inclua especificações técnicas do produto (peso, dimensões) se disponíveis.
 NÃO inclua código de barras, EAN ou GTIN na descrição — esses dados vão como atributos separados do anúncio.
 Retorne APENAS o texto da descrição.`,
                 },
-                {
-                  role: "user",
-                  content: fullSource,
-                },
+                { role: "user", content: fullSource },
               ],
               max_tokens: 4096,
               temperature: 0.3,
             },
-            {
-              supabaseUrl,
-              supabaseServiceKey,
-              logPrefix: "[meli-bulk-descriptions]",
-            }
+            { supabaseUrl, supabaseServiceKey, logPrefix: "[meli-bulk-descriptions]" }
           );
 
           if (!aiRes.ok) {
-            const errText = await aiRes.text();
-            errors.push(`${listing.title}: AI error ${aiRes.status}`);
-            continue;
+            return { ok: false, err: `${listing.title}: AI error ${aiRes.status}` };
           }
 
           const aiData = await aiRes.json();
           const description = aiData.choices?.[0]?.message?.content?.trim() || "";
 
           if (description) {
-            await supabase
-              .from("meli_listings")
-              .update({ description })
-              .eq("id", listing.id);
-            updated++;
+            await supabase.from("meli_listings").update({ description }).eq("id", listing.id);
+            return { ok: true };
           }
+          return { ok: false, err: `${listing.title}: resposta vazia` };
         } catch (err) {
-          errors.push(`${listing.title}: ${err instanceof Error ? err.message : "Erro"}`);
+          return { ok: false, err: `${listing.title}: ${err instanceof Error ? err.message : "Erro"}` };
         }
+      }));
+
+      for (const r of results) {
+        if (r.ok) updated++;
+        else if (r.err) errors.push(r.err);
       }
 
       return new Response(
