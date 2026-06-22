@@ -578,6 +578,17 @@ A sincronização **anúncio sistema ↔ Mercado Livre** opera em três camadas:
 
 O app integrador (DevCenter do ML) precisa estar assinando os topics **`items`** e **`items_prices`** além do `questions` já existente. Callback continua sendo a edge function `meli-webhook`. Sem essa assinatura a sincronização cai apenas no cron 05h.
 
+### Domínios das URLs expostas ao DevCenter (OBRIGATÓRIO)
+
+O Mercado Livre exige URLs públicas que respondam o que ele espera. Por isso há **dois domínios distintos** na configuração:
+
+| Item | Domínio correto | Por quê |
+|------|-----------------|---------|
+| **Redirect URI (callback OAuth)** | `https://app.comandocentral.com.br/integrations/meli/callback` | Precisa ser uma rota da aplicação porque renderiza a tela do popup que captura `code`/`state` e fecha a janela. |
+| **Webhook (Notifications URL)** | `https://integrations.comandocentral.com.br/meli/webhook` | Precisa responder **JSON puro** e estar fora do roteamento da SPA. O domínio `integrations.*` é dedicado a endpoints de integração e é roteado direto para a edge function `meli-webhook`. |
+
+> ⚠️ **Anti-regressão:** nunca usar `app.comandocentral.com.br/integrations/meli/webhook` como Notifications URL. Esse caminho devolve o HTML da aplicação (SPA) e o Mercado Livre rejeita como "URL inválida". A tela **Integrações → Mercado Livre → Configurações da Plataforma** já exibe as duas URLs prontas para copiar, com o domínio correto de cada uma e a explicação da diferença.
+
 ### Regra "excluído vs desativado" (alinhada à limitação do ML)
 
 O Mercado Livre **não permite exclusão definitiva** de anúncios já publicados — apenas o status `closed`. Por isso:
