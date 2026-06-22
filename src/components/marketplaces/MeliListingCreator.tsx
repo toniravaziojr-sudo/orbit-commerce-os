@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ProductWithImage } from "@/hooks/useProducts";
 import { MeliCategoryPicker } from "./MeliCategoryPicker";
+import { MeliAttributesPanel, type MeliAttributesPanelValue } from "./MeliAttributesPanel";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -82,13 +83,14 @@ interface MeliListingCreatorProps {
   existingDrafts?: ExistingDraft[];
 }
 
-type Step = "select" | "categories" | "titles" | "descriptions" | "condition" | "listing_type" | "shipping";
+type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
   { key: "categories", label: "Categorias" },
   { key: "titles", label: "Títulos" },
   { key: "descriptions", label: "Descrições" },
+  { key: "attributes", label: "Características" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
   { key: "shipping", label: "Frete" },
@@ -179,6 +181,10 @@ export function MeliListingCreator({
   // Expanded descriptions
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
 
+  // Atributos resolvidos por anúncio (etapa "Características").
+  // Cada item guarda {attributes, canPublish} vindos do MeliAttributesPanel.
+  const [attrValuesByListing, setAttrValuesByListing] = useState<Record<string, MeliAttributesPanelValue>>({});
+
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
 
@@ -263,6 +269,7 @@ export function MeliListingCreator({
       setFreeShipping(false);
       setLocalPickup(false);
       setExpandedDescs(new Set());
+      setAttrValuesByListing({});
       configureInitRef.current = null;
     }
   }, [open]);
@@ -802,6 +809,28 @@ export function MeliListingCreator({
     if (ops.length) await Promise.all(ops);
   };
 
+  // ====== Save resolved attributes to DB (etapa "Características") ======
+  // Para cada anúncio, persiste o array completo de atributos resolvidos no
+  // formato esperado pela publicação do Mercado Livre: [{ id, value_name, value_id? }, ...].
+  // É essa lista que faz o anúncio nascer com pontuação alta de qualidade.
+  const handleSaveAttributes = async () => {
+    const entries = Object.entries(attrValuesByListing);
+    if (entries.length === 0) return;
+    const ops = entries
+      .filter(([, val]) => Array.isArray(val?.attributes) && val.attributes.length > 0)
+      .map(([listingId, val]) => {
+        const attrs = (val.attributes || [])
+          .filter(a => a.status !== "missing" && (a.value_name || a.value_id))
+          .map(a => ({
+            id: a.id,
+            ...(a.value_id ? { value_id: a.value_id } : {}),
+            ...(a.value_name ? { value_name: a.value_name } : {}),
+          }));
+        return supabase.from("meli_listings").update({ attributes: attrs as any }).eq("id", listingId);
+      });
+    if (ops.length) await Promise.all(ops);
+  };
+
   // ====== Final save: condition + listing_type + shipping ======
   // mode: 'draft' just saves locally; 'publish' also pushes to ML (publish new for unpublished, update for existing meli_item_id)
   const handleFinalSave = async (mode: 'draft' | 'publish' = 'draft') => {
@@ -921,12 +950,16 @@ export function MeliListingCreator({
           setTimeout(() => handleGenerateDescriptions(), 100);
         }
       } else if (idx === 3) {
-        // Descriptions → Condition
+        // Descriptions → Attributes
         await handleSaveDescriptions();
-        setStep("condition");
+        setStep("attributes");
       } else if (idx === 4) {
-        setStep("listing_type");
+        // Attributes → Condition (salva os atributos resolvidos por anúncio)
+        await handleSaveAttributes();
+        setStep("condition");
       } else if (idx === 5) {
+        setStep("listing_type");
+      } else if (idx === 6) {
         setStep("shipping");
       }
     } finally {
@@ -953,6 +986,11 @@ export function MeliListingCreator({
     if (step === "categories") return !isProcessing;
     if (step === "titles") return !isProcessing && generatedItems.length > 0 && invalidTitleCount === 0;
     if (step === "descriptions") return !isProcessing;
+    if (step === "attributes") {
+      // Permite avançar quando nenhum anúncio tem atributo obrigatório faltando.
+      const values = Object.values(attrValuesByListing);
+      return values.every(v => v.canPublish !== false);
+    }
     if (step === "condition") return !!condition;
     if (step === "listing_type") return !!listingType;
     return false;
@@ -974,6 +1012,7 @@ export function MeliListingCreator({
             {step === "categories" && "Categorias do Mercado Livre"}
             {step === "titles" && "Títulos dos Anúncios"}
             {step === "descriptions" && "Descrições dos Anúncios"}
+            {step === "attributes" && "Características dos Anúncios"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
             {step === "shipping" && "Configuração de Frete"}
@@ -983,6 +1022,7 @@ export function MeliListingCreator({
             {step === "categories" && "Confirme as categorias atribuídas pela API do Mercado Livre"}
             {step === "titles" && "Revise e edite os títulos gerados pela IA (respeitando o limite da categoria)"}
             {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
+            {step === "attributes" && "Confirmamos as características exigidas e recomendadas pelo Mercado Livre. Quanto mais preenchido, maior a pontuação do anúncio."}
             {step === "condition" && "Defina a condição dos produtos"}
             {step === "listing_type" && "Escolha o tipo de anúncio e salve"}
           </DialogDescription>
@@ -1341,7 +1381,67 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 5: Condition ===== */}
+        {/* ===== STEP 5: Attributes (Características) ===== */}
+        {step === "attributes" && (
+          <div className="flex-1 flex flex-col gap-3 min-h-0">
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              Para cada anúncio, o sistema cruza o cadastro do produto, a categoria escolhida e o dicionário do Mercado Livre, e completa o que falta com a IA. Itens em vermelho precisam ser preenchidos no cadastro do produto antes de continuar — use o atalho ao lado do nome.
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-3 pr-3">
+                {generatedItems.map(item => {
+                  const value = attrValuesByListing[item.listingId];
+                  const missingCount = value?.attributes?.filter(a => a.status === "missing").length ?? 0;
+                  return (
+                    <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.productName}</p>
+                          {item.categoryName && (
+                            <p className="text-[11px] text-muted-foreground truncate">{item.categoryPath || item.categoryName}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {missingCount > 0 && (
+                            <Badge variant="outline" className="border-destructive/50 text-destructive text-[10px]">
+                              {missingCount} faltando
+                            </Badge>
+                          )}
+                          {item.productId && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => window.open(`/products?edit=${item.productId}`, '_blank', 'noopener')}
+                              title="Abrir o cadastro deste produto em nova aba"
+                            >
+                              <ArrowRight className="h-3 w-3" />
+                              Abrir cadastro
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {item.categoryId && currentTenant?.id ? (
+                        <MeliAttributesPanel
+                          tenantId={currentTenant.id}
+                          productId={item.productId}
+                          categoryId={item.categoryId}
+                          onChange={(v) => setAttrValuesByListing(prev => ({ ...prev, [item.listingId]: v }))}
+                        />
+                      ) : (
+                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Defina a categoria antes de carregar as características.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== STEP 6: Condition ===== */}
         {step === "condition" && (
           <div className="flex-1 flex flex-col gap-4 py-4">
             <p className="text-sm text-muted-foreground">

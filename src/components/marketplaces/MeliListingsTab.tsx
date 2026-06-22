@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
   RefreshCw,
   Settings2,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
@@ -35,6 +37,23 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+/**
+ * Detecta se o erro de uma pendência tem origem em campo faltando no cadastro
+ * do produto. Quando verdadeiro, exibimos o atalho "Abrir cadastro do produto".
+ */
+function pendencyNeedsProductCadastro(errorMessage: string | null | undefined): boolean {
+  if (!errorMessage) return false;
+  const m = String(errorMessage).toLowerCase();
+  return (
+    m.includes("cadastro do produto") ||
+    m.includes("missing_required_attributes") ||
+    m.includes("marca") ||
+    m.includes("brand") ||
+    m.includes("gtin") ||
+    m.includes("ean")
+  );
+}
 
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
@@ -74,6 +93,26 @@ export function MeliListingsTab() {
   const [activeTab, setActiveTab] = useState<TabKey>('drafts');
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
+
+  const queryClient = useQueryClient();
+
+  // Revalidação automática quando o lojista volta para esta aba do navegador
+  // (ex.: depois de corrigir o cadastro de um produto em outra aba via atalho
+  // "Abrir cadastro do produto"). Custo zero: só reaproveita o cache do React
+  // Query e dispara um refetch local.
+  useEffect(() => {
+    const handleRevalidate = () => {
+      if (document.visibilityState !== 'visible') return;
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
+    };
+    window.addEventListener('focus', handleRevalidate);
+    document.addEventListener('visibilitychange', handleRevalidate);
+    return () => {
+      window.removeEventListener('focus', handleRevalidate);
+      document.removeEventListener('visibilitychange', handleRevalidate);
+    };
+  }, [queryClient, currentTenant?.id]);
 
   const draftsCount = listings.filter(l => ['draft', 'ready', 'approved'].includes(l.status)).length;
   const publishedCount = listings.filter(l => ['published', 'paused'].includes(l.status)).length;
@@ -466,6 +505,22 @@ export function MeliListingsTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {activeTab === 'pending' && pendencyNeedsProductCadastro(listing.error_message) && listing.product_id && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1 text-xs"
+                                  onClick={() => window.open(`/products?edit=${listing.product_id}`, '_blank', 'noopener')}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  Abrir cadastro
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Abrir o cadastro do produto em uma nova aba para completar os dados que faltam</TooltipContent>
+                            </Tooltip>
+                          )}
                           {['draft', 'ready', 'approved', 'error', 'published', 'paused'].includes(listing.status) && (
                             <Tooltip>
                               <TooltipTrigger asChild>

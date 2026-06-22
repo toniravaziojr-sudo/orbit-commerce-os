@@ -1,70 +1,56 @@
-# Plano — Chat IA do Gestor de Tráfego como agente único
-
 ## Objetivo
-O lojista deve conseguir, **só pelo chat**, fazer tudo que o Gestor de Tráfego faz hoje em telas separadas: consultar performance, pedir diagnóstico, criar estratégia, montar campanha completa, gerar criativos, ajustar orçamento, pausar/duplicar, ler/ajustar configurações, ver aprendizados e avisos. A proposta gerada no chat segue para "Aguardando ação" no formato canônico, marcada como "via chat", e só é publicada na Meta quando o lojista aprovar manualmente.
+Resolver os 3 pontos abertos no Mercado Livre:
+1. Atalho na aba **Pendências** para abrir o cadastro do produto.
+2. Preencher marca "Respeite o Homem" nos 8 SKUs do Kit Banho Calvície Zero que estão sem marca.
+3. Fazer o assistente de anúncios enviar **TODOS** os atributos pedidos pelo Mercado Livre, não só os básicos.
 
-## Decisões aprovadas
-1. **Conta no chat:** conta única padrão automática. Se houver só uma conta ativa do canal, o chat usa direto; com mais de uma, pergunta antes de submeter.
-2. **Onde aparece:** mesma fila "Aguardando ação", com selo "via chat".
-3. **Ordem:** Onda 1 primeiro (convergência), depois capacidades, governança e relatórios. A IA é auxiliar de criação — **nunca publica direto**; sempre passa pelo fluxo de aprovação manual.
+Resumo da investigação:
+- O Mercado Livre dá pontuação ao anúncio com base em quantos atributos relevantes (obrigatórios + recomendados) vão preenchidos. Hoje o sistema só envia os básicos (marca, GTIN, SKU, garantia, condição) + auto-preenchimento de obrigatórios. Os recomendados, que sobem o score, nunca vão.
+- Existe um motor pronto que resolve atributos por categoria (cadastro + derivações de kit/peso/conteúdo + dicionário universal + IA). Esse motor já é usado na tela de edição individual, mas **não** no assistente de criação em lote — por isso a pontuação fica baixa.
 
-## Princípios obrigatórios
-- Não existe "IA global" de execução. Toda configuração de execução é por conta.
-- Aviso ≠ proposta. Aviso é só diagnóstico.
-- Insights está aposentado.
-- Publicação canônica: paridade total, anti-limbo, gates técnicos, janela 00:01 BRT.
-- Supremacia do prompt estratégico mantida.
-- IA nunca publica direto. Sempre fila de aprovação.
+## O que vai ser feito
 
-## Entrega em ondas
+### 1) Atalho na aba Pendências
+Em cada linha de pendência cuja causa seja "dado faltando no cadastro do produto" (ex.: marca vazia), adicionar botão **"Abrir cadastro do produto"**. O botão abre **em nova aba**, direto na tela de edição do produto. O lojista corrige, salva e fecha a aba.
 
-### Onda 1 — Convergência do chat (✅ aplicada, pendente de validação)
-- Fim do bloqueio "incompleta" no chat.
-- Quando o lojista fecha estratégia no chat, o sistema resolve a conta alvo, abre análise canônica e delega ao estrategista oficial em modo assíncrono passando o brief da conversa como diretriz prioritária.
-- A proposta resultante aparece em "Aguardando ação" no formato canônico, marcada com selo "via chat".
-- Mantém o fluxo padrão de revisão e publicação manual.
+**Sincronização após o ajuste:** quando o lojista voltar para a aba Pendências, o sistema detecta o retorno de foco e **revalida automaticamente** a lista de pendências e os anúncios — sem cron e sem assinatura em tempo real (zero custo de cloud). Se por algum motivo a revalidação automática não couber em alguma tela, mostro um aviso discreto "Os dados podem ter mudado em outra aba — atualizar agora" com botão de refresh.
 
-### Onda 2A — Leitura plena (✅ aplicada, pendente de validação)
-- Chat passa a responder qualquer pergunta de leitura do módulo em qualquer intent: performance, conjuntos, anúncios, criativos, públicos, produtos, rastreamento, avisos abertos, configurações da IA por conta, planos estratégicos, experimentos e lista de contas conectadas (Meta/Google/TikTok).
-- Sem mudança de UI, sem novo motor, sem ação de escrita.
+### 2) Marca dos 8 SKUs (Respeite o Homem)
+Preencher marca = "Respeite o Homem" nos 8 produtos abaixo (são 8, não 7 como falei antes — apareceu mais um "Noite"):
+- 0050 Kit Banho Calvície Zero Noite
+- 0051 Kit Banho Calvície Zero (FLEX) Noite
+- 0052 Kit Banho Calvície Zero (2x) Noite
+- 0053 Kit Banho Calvície Zero (3x) Noite
+- 0060 Kit Banho Calvície Zero (FLEX)
+- 0061 Kit Banho Calvície Zero
+- 0062 Kit Banho Calvície Zero (2x)
+- 0063 Kit Banho Calvície Zero (3x)
 
-### Onda 2B — Ações unitárias, estruturais e destrutivas (✅ aplicada, pendente de validação)
-- Unitárias (pausar/reativar, ajuste de orçamento, duplicar): já operacionais — execução direta, reporte depois.
-- Estruturais (campanha/conjunto/criativo/plano): em "Aguardando ação" com selo "via chat" (Onda 1).
-- Destrutivas (excluir campanha/conjunto/anúncio, desativar +3 em lote): tool com flag `user_confirmed`, IA obrigada a pedir confirmação explícita ("sim, pode excluir") antes de executar.
-- Intent classifier reconhece "excluir/deletar/apagar/remover" e "desativar em lote".
+### 3) Envio completo de atributos ao Mercado Livre
+**Nova etapa "Características" no assistente**, posicionada **entre "Descrições" e "Condição"** (conforme você aprovou). Para cada anúncio em preparação, essa etapa:
+- Busca os atributos exigidos e recomendados pelo Mercado Livre para a categoria escolhida.
+- Auto-preenche o máximo a partir do cadastro do produto, derivações (kit, peso, unidades por embalagem, conteúdo líquido, regime regulatório) e do dicionário universal; o que sobrar de obrigatório é sugerido pela IA para o lojista revisar.
+- Mostra resumo por produto: "X preenchidos, Y para revisar, Z faltando", com o mesmo atalho "Abrir cadastro do produto" quando faltar algo que precisa vir do cadastro.
+- Salva tudo no rascunho antes de avançar para "Condição".
 
-### Onda 3 — Governança e configuração via chat (✅ aplicada, pendente de validação)
-- Chat lê e altera configurações da IA por conta: prompt estratégico (instruções do lojista), meta de ROI, orçamento, modo (conservador/equilibrado/agressivo), aprovação humana (auto/high_impact), ligar/desligar IA, overrides via chat.
-- Toda alteração é sensível: a IA precisa mostrar conta-alvo, campo, valor atual → novo valor, e SÓ executa após "sim/confirmo" explícito (gate `user_confirmed=true` validado no servidor — chamada sem confirmação retorna `confirmation_required`).
-- Intent classifier reconhece "ajustar/alterar/mudar/configurar IA", "prompt estratégico", "meta de ROI", "modo conservador/agressivo", "aprovação automática/manual".
+A publicação passa a enviar tudo o que foi resolvido — sem mudar nada na lógica de publicação além de garantir que ela não sobrescreva o que o lojista revisou.
 
-### Onda 4 — Experimentos e gestão da fila via chat (✅ aplicada, pendente de validação)
-- Experimentos A/B: chat abre (com hipótese, variável, conta, orçamento, duração) e encerra (completed/cancelled, vencedor, notas) — todas exigem confirmação explícita do lojista.
-- Fila "Aguardando ação": chat lista propostas pendentes e pode aprovar (publica de verdade pelo pipeline canônico, inclusive plano estratégico de 2 etapas) ou rejeitar (com motivo) — sempre com confirmação explícita.
-- Gate de confirmação no servidor cobre as 5 ferramentas sensíveis (config, aprovar, rejeitar, criar experimento, encerrar experimento): chamada sem `user_confirmed=true` retorna `confirmation_required`.
+Vale tanto na criação em lote quanto na reabertura de rascunhos.
 
-## Hierarquia de execução no chat
-- **Ação unitária** (uma pausa, ajuste de orçamento, público): executa direto.
-- **Ação estrutural** (estratégia, lote, campanha completa): vai para "Aguardando ação".
-- **Ação destrutiva** (exclusão, desativação em lote, mudança crítica de conta): confirmação explícita no chat.
-- **Cross-conta:** só com nome da conta-alvo.
+**Reenvio para os 14 já publicados:** conforme você decidiu, **não entra neste plano**. Você refaz o processo do zero depois que os ajustes estiverem prontos.
 
-## Critérios de aceite
-1. Conversar no chat → fechar estratégia → ver proposta em "Aguardando ação" marcada "via chat" → aprovar → publicada na Meta pelo fluxo padrão.
-2. Toda ação que existe em qualquer aba do Gestor de Tráfego pode ser solicitada em linguagem natural no chat.
-3. Nenhuma proposta nascida no chat fica em "incompleta" travada.
-4. Toda execução real está amarrada a uma conta de anúncios.
-5. IA nunca publica direto; sempre fluxo de aprovação manual.
-6. Avisos continuam sendo só diagnóstico.
-7. Doc do módulo, mapa de UI e memórias atualizados a cada onda.
+## Resultado final
+- Aba Pendências com atalho de 1 clique para o cadastro, abrindo em nova aba e atualizando sozinha quando o lojista volta.
+- 8 SKUs com marca preenchida, prontos para publicar sem erro.
+- Toda criação nova de anúncio nasce com **todos** os atributos relevantes preenchidos e score alto no Mercado Livre.
 
-## Fora de escopo
-- Refatoração visual das abas existentes.
-- Mudança no motor de criativos, no ciclo noturno autônomo ou no pipeline de publicação.
-- Estender o agente para fora do Gestor de Tráfego.
-- Reanimar Insights ou criar "IA global".
+## Documentação que será atualizada na mesma entrega
+- Especificação do Mercado Livre — nova etapa "Características" e atalho na aba Pendências.
+- Mapa de UI — nova etapa no assistente e novo botão na aba Pendências.
 
-## Status
-- Onda 1: **aplicada, aguardando validação do lojista** (testar conversar com a IA, fechar uma estratégia, confirmar que a proposta aparece em "Aguardando ação" com selo "via chat" em 1–3 min).
-- Onda 2, 3, 4: a iniciar após validação da Onda 1.
+## Bloco técnico (opcional)
+- `MeliListingsTab.tsx`: novo botão "Abrir cadastro do produto" (alvo `_blank`, rota `/products` em modo edição). Hook de revalidação automática via `visibilitychange` + `focus` na aba Pendências (invalida apenas as queries de listings e products do tenant — custo zero).
+- `MeliListingCreator.tsx`: nova etapa `"attributes"` no array `STEPS`, posicionada após `"descriptions"`. A etapa chama `meli-resolve-attributes` (já existe, sem alteração) por listing, mostra o painel `MeliAttributesPanel` em modo "linha por produto" com resumo e atalhos, e persiste o array `attributes` em `meli_listings` antes do avanço.
+- `meli-publish-listing`: nenhuma mudança estrutural; só garantir merge sem sobrescrever atributos já salvos pelo lojista.
+- Página de Produtos (`/products`): suportar deep link `?edit={productId}` se ainda não suportar (verifico no início da implementação e, se faltar, adiciono).
+- Correção dos 8 SKUs: feita via tela de Produtos (não via migração), respeitando trilhas de auditoria do cadastro.
