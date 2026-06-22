@@ -176,9 +176,9 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "creative", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
-  // AUTOPILOT (leitura E governança/edição de configs por conta)
-  if (/configuraç(ão|ões)|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment|prompt\s+estratégico|meta\s+de\s+roi|target\s+roi|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|ajustar?\s+(a\s+)?ia|alterar?\s+(a\s+)?ia|configurar?\s+(a\s+)?ia|mudar?\s+(a\s+)?ia/i.test(msg)) {
-    const wantsEdit = /ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|ativ[ae]r?|desativ[ae]r?/i.test(msg);
+  // AUTOPILOT (leitura, governança, fila e experimentos)
+  if (/configuraç(ão|ões)|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment|hipótese|prompt\s+estratégico|meta\s+de\s+roi|target\s+roi|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|ajustar?\s+(a\s+)?ia|alterar?\s+(a\s+)?ia|configurar?\s+(a\s+)?ia|mudar?\s+(a\s+)?ia|fila\s+de\s+aprovaç|aguardando\s+aç(ão|ões)|proposta[s]?\s+pendente|aprov[ae]r?\s+(a\s+)?(proposta|plano|campanha|estratégia)|rejeit[ae]r?\s+(a\s+)?(proposta|plano|campanha)|encerrar?\s+(o\s+)?experiment|abrir?\s+(um\s+)?experiment/i.test(msg)) {
+    const wantsEdit = /ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|ativ[ae]r?|desativ[ae]r?|aprov[ae]r?|rejeit[ae]r?|abrir?|criar?|encerr[ae]r?|cancel[ae]r?/i.test(msg);
     return { category: "autopilot", mode: wantsEdit ? "conversational" : "factual", isFactual: !wantsEdit, isHybrid: false, entities, confidence: 0.8 };
   }
 
