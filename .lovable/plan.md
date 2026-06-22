@@ -28,10 +28,11 @@ O lojista deve conseguir, **só pelo chat**, fazer tudo que o Gestor de Tráfego
 - Chat passa a responder qualquer pergunta de leitura do módulo em qualquer intent: performance, conjuntos, anúncios, criativos, públicos, produtos, rastreamento, avisos abertos, configurações da IA por conta, planos estratégicos, experimentos e lista de contas conectadas (Meta/Google/TikTok).
 - Sem mudança de UI, sem novo motor, sem ação de escrita.
 
-### Onda 2B — Ações unitárias, estruturais e destrutivas (a iniciar)
-- Unitárias (pausar/reativar, ajuste de orçamento, duplicar): execução direta com confirmação leve.
-- Estruturais (campanha/conjunto/criativo/plano): já entram em "Aguardando ação" com selo "via chat" (Onda 1).
-- Destrutivas (exclusão, desativação em lote): confirmação explícita no chat.
+### Onda 2B — Ações unitárias, estruturais e destrutivas (✅ aplicada, pendente de validação)
+- Unitárias (pausar/reativar, ajuste de orçamento, duplicar): já operacionais — execução direta, reporte depois.
+- Estruturais (campanha/conjunto/criativo/plano): em "Aguardando ação" com selo "via chat" (Onda 1).
+- Destrutivas (excluir campanha/conjunto/anúncio, desativar +3 em lote): tool com flag `user_confirmed`, IA obrigada a pedir confirmação explícita ("sim, pode excluir") antes de executar.
+- Intent classifier reconhece "excluir/deletar/apagar/remover" e "desativar em lote".
 
 ### Onda 3 — Governança e configuração via chat
 - Permitir ler e alterar configurações da IA por conta (prompt estratégico, metas, splits, modo de aprovação, janela de publicação).
