@@ -16,6 +16,7 @@ O Chat IA passa a fazer, em linguagem natural, tudo o que as abas do Gestor de T
 **Onda 2A — Leitura plena**
 
 - O chat responde qualquer pergunta de leitura do módulo em qualquer assunto: desempenho, conjuntos, anúncios, criativos, públicos, produtos, rastreamento, avisos abertos, configurações da IA por conta, planos estratégicos, experimentos e lista de contas conectadas (Meta, Google, TikTok).
+- **Fontes canônicas das contas conectadas (rastreabilidade):** Meta vem do vínculo oficial de autorização do tenant na Meta; Google vem da conexão oficial do Google Ads; TikTok vem da conexão oficial do TikTok Ads. Quando essas fontes não trouxerem rótulo amigável, o chat completa o nome a partir das campanhas reais já vinculadas àquela conta. Nunca usar a tabela genérica de marketplaces como fonte.
 - Não muda UI, não cria motor novo, não executa escrita.
 
 **Onda 2B — Ações no chat**
