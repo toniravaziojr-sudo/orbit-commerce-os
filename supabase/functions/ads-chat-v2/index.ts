@@ -1248,6 +1248,15 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     return await handleStrategicProposal(supabase, tenantId, args, chatSessionId, strategyRunId, channel || "meta");
   }
 
+  // Governance gate: sensitive config edits require explicit user confirmation
+  if (toolName === "update_autopilot_config" && !args?.user_confirmed) {
+    return JSON.stringify({
+      error: "confirmation_required",
+      message: "Alteração de configuração da IA exige confirmação explícita do lojista. Descreva a mudança (conta, campo, valor atual → novo) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.",
+    });
+  }
+
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
