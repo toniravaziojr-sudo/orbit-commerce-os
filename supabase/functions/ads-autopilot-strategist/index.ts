@@ -4358,6 +4358,36 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       prompt.system = prompt.system.replace("{{AVAILABLE_CREATIVES}}", "Nenhum criativo pré-gerado disponível.");
     }
 
+    // Onda 1 — quando a análise foi disparada pelo Chat IA, o brief estruturado
+    // da conversa é injetado no prompt como diretriz prioritária. O estrategista
+    // deve honrar a intenção do lojista (produtos, públicos, criativos, orçamentos
+    // discutidos no chat) e adaptar ao contrato canônico de aprovação.
+    if (body?.source === "chat" && body?.chat_brief) {
+      try {
+        const cb = body.chat_brief;
+        const briefBlock = `\n\n## DIRETRIZ DO LOJISTA — ESTRATÉGIA SOLICITADA NO CHAT IA\n\n` +
+          `O lojista conversou com o Chat IA e fechou a seguinte estratégia. Use-a como diretriz prioritária da sua proposta para esta conta. ` +
+          `Adapte o que for necessário para atender ao contrato canônico (públicos frios excluindo clientes, regra de funil, paridade de adsets, etc.), ` +
+          `mas mantenha a intenção estratégica do lojista (produtos, públicos, criativos, orçamentos discutidos).\n\n` +
+          (cb.diagnosis ? `### Diagnóstico do lojista\n${String(cb.diagnosis).substring(0, 4000)}\n\n` : "") +
+          (cb.strategy_summary ? `### Resumo da estratégia combinada\n${String(cb.strategy_summary).substring(0, 2000)}\n\n` : "") +
+          (cb.total_daily_budget_brl ? `### Orçamento diário total combinado\nR$ ${cb.total_daily_budget_brl}\n\n` : "") +
+          `### Ações planejadas no chat\n${JSON.stringify(cb.planned_actions || [], null, 2).substring(0, 8000)}\n\n` +
+          (Array.isArray(cb.risks) && cb.risks.length > 0
+            ? `### Riscos identificados pelo lojista\n- ${cb.risks.map((r: any) => String(r)).join("\n- ")}\n\n`
+            : "") +
+          `### Como honrar essa diretriz\n` +
+          `- Trate as ações acima como a intenção declarada do lojista.\n` +
+          `- Construa o plano final no formato canônico (strategic_plan), preservando produtos/públicos/criativos discutidos.\n` +
+          `- Não ignore o brief, mas também não publique algo que viole as regras canônicas — adapte e justifique.\n` +
+          `- A proposta vai para "Aguardando ação" para o lojista revisar e publicar manualmente.\n`;
+        prompt.system = prompt.system + briefBlock;
+      } catch (_briefErr) {
+        // Falha de injeção do brief é tolerada — a análise canônica segue normalmente.
+      }
+    }
+
+
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -4650,10 +4680,25 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
               }
             }
 
+            // Onda 1 — marca origem "chat" quando a estratégia veio do Chat IA,
+            // para a fila de Aguardando ação exibir o selo "via chat".
+            const isFromChat = body?.source === "chat";
+            const chatBrief = body?.chat_brief || null;
             actionRecord.action_data = {
               ...canonicalPlanPayload,
               ad_account_id: config.ad_account_id,
               campaign_name: campaignName,
+              ...(isFromChat
+                ? {
+                    origin_source: "chat",
+                    chat_brief: chatBrief,
+                    metadata: {
+                      ...(canonicalPlanPayload?.metadata || {}),
+                      origin_source: "chat",
+                      chat_session_id: chatBrief?.chat_session_id || null,
+                    },
+                  }
+                : {}),
             };
             actionRecord.status = canonicalStatus;
           }
