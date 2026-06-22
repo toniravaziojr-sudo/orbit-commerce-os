@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-21 (v2.4.1: anúncios em `publishing` movidos para a aba **Pendências** (junto com `error`), pois ainda aguardam aprovação do ML. Aba **Publicados** passa a conter apenas `published` e `paused`. Botão de excluir agora aparece em todos os status, exibe spinner "Excluindo…" durante a operação, e o encerramento no ML detecta automaticamente anúncios nunca aprovados (pula a chamada de close e remove apenas localmente).)
+> **Última atualização:** 2026-06-22 (v2.4.2: reabertura de rascunhos em lote passa a ser somente leitura quanto à IA — nunca gera descrições automaticamente ao entrar na etapa; categorias salvas são reidratadas da fonte oficial antes de resolver o nome amigável, evitando exibição/reset visual inconsistente.)
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
 
@@ -193,7 +193,7 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 
 **Reabertura de rascunhos (modo "Configurar Selecionados"):**
 - Ao abrir o dialog para rascunhos já existentes, o sistema **relê o estado oficial do banco** (título, descrição, categoria, condição, tipo e frete) antes de exibir qualquer etapa, ignorando cache desatualizado da listagem.
-- Auto-geração de descrições só dispara para itens que **realmente** estão sem descrição no banco no momento da entrada na etapa (dupla checagem). Itens com descrição já salva são exibidos diretamente — proibido regerar conteúdo já produzido.
+- Ao reabrir rascunhos, a etapa de descrições **não dispara IA automaticamente**. O sistema apenas exibe o que está salvo; qualquer nova geração precisa partir de ação explícita do lojista. Itens com descrição já salva são exibidos diretamente — proibido regerar conteúdo já produzido.
 - Botão "Continuar" mostra estado **"Salvando..." com spinner** durante a transição entre etapas (garante feedback visual e evita duplo clique).
 - Barra de progresso de geração em massa exibe contador `X/Y` em tempo real e é **resetada ao trocar de etapa**, eliminando o bug visual da tarja azul aparecendo numa etapa diferente da atual.
 - Gravação de títulos e descrições é feita em **paralelo** (batch), acelerando lotes grandes.
