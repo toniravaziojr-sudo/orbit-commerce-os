@@ -1105,25 +1105,28 @@ async function handleStrategicProposal(
       })),
     };
 
-    // Cria run de análise para o estrategista atualizar com diagnóstico/estratégia.
+    // Cria run de análise para o estrategista canônico anexar o diagnóstico.
     const { data: runRow, error: runErr } = await supabase
       .from("ads_ai_analysis_runs")
       .insert({
         tenant_id: tenantId,
+        platform: targetChannel,
         ad_account_id: targetAccountId,
-        channel: targetChannel,
-        trigger: "start",
-        status: "running",
-        source: "chat",
+        scope: "account",
+        trigger: "manual",
+        status: "queued",
+        session_id: chatSessionId,
       })
       .select("id")
       .single();
 
     if (runErr) {
       console.error(`[ads-chat-v2][${VERSION}] analysis_run insert failed:`, runErr);
-      // Segue mesmo sem run row; estrategista lida sem analysis_run_id.
+      return JSON.stringify({
+        error: "Não consegui abrir uma análise estratégica agora. Tente novamente em alguns minutos.",
+      });
     }
-    const analysisRunId = runRow?.id || null;
+    const analysisRunId = runRow.id;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
