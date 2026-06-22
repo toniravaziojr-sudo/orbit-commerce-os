@@ -176,9 +176,10 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "creative", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
-  // AUTOPILOT
-  if (/configuração|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment/i.test(msg)) {
-    return { category: "autopilot", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.8 };
+  // AUTOPILOT (leitura E governança/edição de configs por conta)
+  if (/configuraç(ão|ões)|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment|prompt\s+estratégico|meta\s+de\s+roi|target\s+roi|modo\s+(conservador|equilibrado|agressivo)|aprovaç(ão|ões)\s+(autom|manual)|janela\s+de\s+publicação|ajustar?\s+(a\s+)?ia|alterar?\s+(a\s+)?ia|configurar?\s+(a\s+)?ia|mudar?\s+(a\s+)?ia/i.test(msg)) {
+    const wantsEdit = /ajust[ae]r?|alter[ae]r?|mud[ae]r?|configur[ae]r?|defin[ie]r?|atualiz[ae]r?|trocar?|ativ[ae]r?|desativ[ae]r?/i.test(msg);
+    return { category: "autopilot", mode: wantsEdit ? "conversational" : "factual", isFactual: !wantsEdit, isHybrid: false, entities, confidence: 0.8 };
   }
 
   // STORE CONTEXT
@@ -334,6 +335,25 @@ function _getToolSubset(category: IntentCategory): any[] {
           status: { type: "string", enum: ["pending_approval", "approved", "rejected", "superseded", "executed"] },
         }),
         toolDef("get_experiments", "Testes A/B.", { status: { type: "string", enum: ["draft", "running", "completed", "cancelled"] } }),
+        toolDef("get_ad_accounts", "Lista contas conectadas para identificar a conta-alvo da alteração.", { channel: { type: "string", enum: ["meta", "google", "tiktok", "all"] } }),
+        toolDef("update_autopilot_config", "Altera configurações da IA de Tráfego por conta (prompt estratégico, meta de ROI, orçamento, modo, aprovação humana, instruções do lojista). SENSÍVEL: só chame após o lojista confirmar explicitamente na conversa (passar user_confirmed=true). Sempre informe a conta-alvo, o que muda, valor antigo → valor novo, antes de confirmar.", {
+          ad_account_id: { type: "string", description: "ID da conta de anúncios alvo" },
+          channel: { type: "string", enum: ["meta", "google", "tiktok"] },
+          updates: {
+            type: "object",
+            description: "Campos a atualizar",
+            properties: {
+              target_roi: { type: "number" },
+              budget_cents: { type: "number" },
+              strategy_mode: { type: "string", enum: ["conservative", "balanced", "aggressive"] },
+              is_ai_enabled: { type: "boolean" },
+              user_instructions: { type: "string", description: "Prompt estratégico / instruções do lojista" },
+              human_approval_mode: { type: "string", enum: ["auto", "high_impact"] },
+              chat_overrides: { type: "object", description: "Override via chat com {campo, reason}" },
+            },
+          },
+          user_confirmed: { type: "boolean", description: "Obrigatório true — só após confirmação explícita do lojista na conversa." },
+        }, ["ad_account_id", "channel", "updates", "user_confirmed"]),
       ];
 
     // STRATEGIC: AI gets read tools + context tools to gather info, plus the strategic plan creation tool
@@ -1036,11 +1056,13 @@ Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios indivi
 
 ## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO (com exceções claras)
 - Para AÇÕES UNITÁRIAS (pausar/reativar 1 entidade, ajustar orçamento de 1 entidade, duplicar 1 campanha): execute e reporte. Não pergunte "posso?".
-- ÚNICA EXCEÇÃO — AÇÕES DESTRUTIVAS exigem confirmação EXPLÍCITA do lojista na conversa antes de chamar a ferramenta:
+- EXCEÇÕES — exigem confirmação EXPLÍCITA do lojista na conversa antes de chamar a ferramenta:
   - Excluir campanha, conjunto ou anúncio (delete_meta_entity)
   - Desativar mais de 3 entidades em lote (bulk_toggle_entities com PAUSED e mais de 3 IDs)
-- Padrão para destrutivas: descreva o que será feito ("Vou excluir a campanha X — essa ação é permanente. Confirma?") e SÓ chame a ferramenta depois que o lojista responder algo como "sim", "confirmo", "pode excluir", "pode desativar todas". Ao chamar, passe user_confirmed=true.
-- Se o lojista pedir exclusão sem ter dito qual entidade, liste as opções primeiro.
+  - **Alterar configurações da IA por conta** (update_autopilot_config): prompt estratégico, meta de ROI, orçamento, modo, aprovação humana, ligar/desligar IA, instruções do lojista.
+- Padrão para destrutivas/sensíveis: descreva o que será feito ("Vou alterar a meta de ROI da conta X de 2.5 para 3.0. Confirma?") e SÓ chame a ferramenta depois que o lojista responder algo como "sim", "confirmo", "pode mudar". Ao chamar, passe user_confirmed=true.
+- Para update_autopilot_config: SEMPRE leia get_autopilot_config antes para saber o valor atual, mostre "valor atual → novo valor" e a conta-alvo, então peça confirmação.
+- Se o lojista pedir alteração sem dizer qual conta, e houver mais de uma, liste e pergunte.
 
 ## REGRA: SEQUÊNCIA PARA CAMPANHAS
 - NUNCA chame generate_creative_image e create_meta_campaign na mesma rodada.
@@ -1225,6 +1247,15 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
   if (toolName === "submit_strategic_proposal") {
     return await handleStrategicProposal(supabase, tenantId, args, chatSessionId, strategyRunId, channel || "meta");
   }
+
+  // Governance gate: sensitive config edits require explicit user confirmation
+  if (toolName === "update_autopilot_config" && !args?.user_confirmed) {
+    return JSON.stringify({
+      error: "confirmation_required",
+      message: "Alteração de configuração da IA exige confirmação explícita do lojista. Descreva a mudança (conta, campo, valor atual → novo) e peça 'confirma?'. Só chame novamente com user_confirmed=true após o 'sim'.",
+    });
+  }
+
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1637,6 +1668,7 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   update_budget: "Ajustando orçamento",
   toggle_entity_status: "Alterando status",
   duplicate_campaign: "Duplicando campanha",
+  update_autopilot_config: "Atualizando configurações da IA",
   delete_meta_entity: "Excluindo no Meta",
   bulk_toggle_entities: "Aplicando alteração em lote",
   create_custom_audience: "Criando público",

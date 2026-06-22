@@ -34,9 +34,10 @@ O lojista deve conseguir, **só pelo chat**, fazer tudo que o Gestor de Tráfego
 - Destrutivas (excluir campanha/conjunto/anúncio, desativar +3 em lote): tool com flag `user_confirmed`, IA obrigada a pedir confirmação explícita ("sim, pode excluir") antes de executar.
 - Intent classifier reconhece "excluir/deletar/apagar/remover" e "desativar em lote".
 
-### Onda 3 — Governança e configuração via chat
-- Permitir ler e alterar configurações da IA por conta (prompt estratégico, metas, splits, modo de aprovação, janela de publicação).
-- Confirmação explícita para alterações sensíveis.
+### Onda 3 — Governança e configuração via chat (✅ aplicada, pendente de validação)
+- Chat lê e altera configurações da IA por conta: prompt estratégico (instruções do lojista), meta de ROI, orçamento, modo (conservador/equilibrado/agressivo), aprovação humana (auto/high_impact), ligar/desligar IA, overrides via chat.
+- Toda alteração é sensível: a IA precisa mostrar conta-alvo, campo, valor atual → novo valor, e SÓ executa após "sim/confirmo" explícito (gate `user_confirmed=true` validado no servidor — chamada sem confirmação retorna `confirmation_required`).
+- Intent classifier reconhece "ajustar/alterar/mudar/configurar IA", "prompt estratégico", "meta de ROI", "modo conservador/agressivo", "aprovação automática/manual".
 
 ### Onda 4 — Experimentos e relatórios
 - Abertura/encerramento de experimentos A/B, relatórios de ROI e gestão da fila via chat.
