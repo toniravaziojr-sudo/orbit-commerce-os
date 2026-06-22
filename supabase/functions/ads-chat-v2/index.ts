@@ -1309,6 +1309,13 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     return await executeOnda4Tool(supabase, tenantId, toolName, args);
   }
 
+  // Onda 3 — update_autopilot_config handled locally
+  if (toolName === "update_autopilot_config") {
+    return await executeUpdateAutopilotConfig(supabase, tenantId, args);
+  }
+
+
+
 
 // ----------------------------------------------------------------------
 // Onda 4 — Local handlers: queue approval/rejection + experiments lifecycle
