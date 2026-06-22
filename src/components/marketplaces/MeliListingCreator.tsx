@@ -316,7 +316,7 @@ export function MeliListingCreator({
             title: r.title || i.title,
             description: r.description || i.description,
             categoryId: r.category_id || i.categoryId,
-            categoryName: r.category_id || i.categoryName,
+            categoryName: r.category_id ? i.categoryName : "",
           };
         }));
         const f: any = fresh[0];
@@ -329,9 +329,9 @@ export function MeliListingCreator({
       } catch { /* skip */ }
     })();
 
-    // Resolve friendly names for already-saved category IDs
+    // Resolve friendly names for already-saved category IDs using the currently hydrated state.
     (async () => {
-      const uniqueIds = Array.from(new Set(existingDrafts.map(d => d.category_id).filter(Boolean) as string[]));
+      const uniqueIds = Array.from(new Set(items.map(d => d.categoryId).filter(Boolean) as string[]));
       if (uniqueIds.length === 0) return;
       try {
         const session = (await supabase.auth.getSession()).data.session;
@@ -943,95 +943,10 @@ export function MeliListingCreator({
     }
   };
 
-  // Auto-generate descriptions in configure mode when entering the step with empty ones
+  // Configure mode must be read-only on step entry: reopening drafts never triggers AI spend.
   useEffect(() => {
-    if (!open) { autoGenDescDoneRef.current = false; return; }
-    if (step !== "descriptions") return;
-    if (!isConfigureMode) return;
-    if (autoGenDescDoneRef.current) return;
-    if (isProcessing) return;
-    const candidateIds = generatedItems.filter(i => !i.description?.trim()).map(i => i.listingId);
-    if (candidateIds.length === 0) { autoGenDescDoneRef.current = true; return; }
-    autoGenDescDoneRef.current = true;
-
-    let cancelled = false;
-    (async () => {
-      if (!currentTenant?.id) return;
-      // Double-check in DB to avoid regenerating descriptions that already exist
-      // (parent's React Query cache can be stale after a previous session of this dialog).
-      let emptyIds = candidateIds;
-      try {
-        const { data: fresh } = await supabase
-          .from("meli_listings")
-          .select("id, description")
-          .in("id", candidateIds);
-        if (fresh) {
-          const filled = new Map(fresh.map((r: any) => [r.id, (r.description || "").trim()]));
-          emptyIds = candidateIds.filter(id => !(filled.get(id) || "").length);
-          // Hydrate items that already have descriptions in DB
-          const hydrated = fresh.filter((r: any) => (r.description || "").trim().length > 0);
-          if (hydrated.length > 0) {
-            setGeneratedItems(prev => prev.map(item => {
-              const r: any = hydrated.find((h: any) => h.id === item.listingId);
-              return r ? { ...item, description: r.description } : item;
-            }));
-          }
-        }
-      } catch { /* fall through */ }
-      if (cancelled) return;
-      if (emptyIds.length === 0) {
-        setIsProcessing(false);
-        setProcessingProgress(0);
-        setProcessingLabel("");
-        return;
-      }
-      setIsProcessing(true);
-      // Start with a small visible progress so the bar doesn't look stuck at 0%
-      setProcessingProgress(2);
-      setProcessingLabel(`Gerando descrições via IA (0/${emptyIds.length})...`);
-      try {
-        let offset = 0;
-        const limit = 5;
-        let hasMore = true;
-        let totalProcessed = 0;
-        while (hasMore && !cancelled) {
-          const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-            body: { tenantId: currentTenant.id, action: "bulk_generate_descriptions", offset, limit, listingIds: emptyIds },
-          });
-          if (cancelled) return;
-          if (error || !data?.success) break;
-          hasMore = data.hasMore;
-          offset += limit;
-          totalProcessed += data.processed || 0;
-          const pct = Math.max(2, Math.min(99, Math.round((totalProcessed / emptyIds.length) * 100)));
-          setProcessingProgress(pct);
-          setProcessingLabel(`Gerando descrições via IA (${Math.min(totalProcessed, emptyIds.length)}/${emptyIds.length})...`);
-        }
-        if (cancelled) return;
-        const { data: updated } = await supabase
-          .from("meli_listings")
-          .select("id, description")
-          .in("id", emptyIds);
-        if (cancelled) return;
-        if (updated) {
-          setGeneratedItems(prev => prev.map(item => {
-            const u = updated.find(l => l.id === item.listingId);
-            return u?.description ? { ...item, description: u.description } : item;
-          }));
-        }
-      } catch (err) {
-        console.error("Auto-gen descriptions error:", err);
-      } finally {
-        if (!cancelled) {
-          setIsProcessing(false);
-          setProcessingProgress(100);
-          setProcessingLabel("");
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [open, step, isConfigureMode, currentTenant?.id]);
+    if (!open) autoGenDescDoneRef.current = false;
+  }, [open]);
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;

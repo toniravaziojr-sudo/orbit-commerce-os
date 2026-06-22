@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,10 @@ export function MeliCategoryPicker({ value, onChange, selectedName, productName,
   const [isLoading, setIsLoading] = useState(false);
   const [displayName, setDisplayName] = useState(selectedName || "");
   const [isAutoSuggesting, setIsAutoSuggesting] = useState(false);
+
+  useEffect(() => {
+    setDisplayName(selectedName || "");
+  }, [selectedName, value]);
 
   const fetchCategories = useCallback(async (params: Record<string, string>) => {
     setIsLoading(true);
