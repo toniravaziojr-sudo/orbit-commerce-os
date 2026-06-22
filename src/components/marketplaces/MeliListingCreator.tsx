@@ -986,6 +986,11 @@ export function MeliListingCreator({
     if (step === "categories") return !isProcessing;
     if (step === "titles") return !isProcessing && generatedItems.length > 0 && invalidTitleCount === 0;
     if (step === "descriptions") return !isProcessing;
+    if (step === "attributes") {
+      // Permite avançar quando nenhum anúncio tem atributo obrigatório faltando.
+      const values = Object.values(attrValuesByListing);
+      return values.every(v => v.canPublish !== false);
+    }
     if (step === "condition") return !!condition;
     if (step === "listing_type") return !!listingType;
     return false;
