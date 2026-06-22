@@ -39,8 +39,10 @@ O lojista deve conseguir, **só pelo chat**, fazer tudo que o Gestor de Tráfego
 - Toda alteração é sensível: a IA precisa mostrar conta-alvo, campo, valor atual → novo valor, e SÓ executa após "sim/confirmo" explícito (gate `user_confirmed=true` validado no servidor — chamada sem confirmação retorna `confirmation_required`).
 - Intent classifier reconhece "ajustar/alterar/mudar/configurar IA", "prompt estratégico", "meta de ROI", "modo conservador/agressivo", "aprovação automática/manual".
 
-### Onda 4 — Experimentos e relatórios
-- Abertura/encerramento de experimentos A/B, relatórios de ROI e gestão da fila via chat.
+### Onda 4 — Experimentos e gestão da fila via chat (✅ aplicada, pendente de validação)
+- Experimentos A/B: chat abre (com hipótese, variável, conta, orçamento, duração) e encerra (completed/cancelled, vencedor, notas) — todas exigem confirmação explícita do lojista.
+- Fila "Aguardando ação": chat lista propostas pendentes e pode aprovar (publica de verdade pelo pipeline canônico, inclusive plano estratégico de 2 etapas) ou rejeitar (com motivo) — sempre com confirmação explícita.
+- Gate de confirmação no servidor cobre as 5 ferramentas sensíveis (config, aprovar, rejeitar, criar experimento, encerrar experimento): chamada sem `user_confirmed=true` retorna `confirmation_required`.
 
 ## Hierarquia de execução no chat
 - **Ação unitária** (uma pausa, ajuste de orçamento, público): executa direto.
