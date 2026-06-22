@@ -1,7 +1,7 @@
 # Gestor de Tráfego IA — Especificação Completa
 
 > **Status:** ✅ Ativo  
-> **Versão:** 7.4.0 (Ondas 2A, 2B e 3 — Chat IA como agente único do Gestor de Tráfego)
+> **Versão:** 7.5.0 (Ondas 2A, 2B, 3 e 4 — Chat IA como agente único do Gestor de Tráfego)
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Rota:** `/ads`  
 > **Extraído de:** `docs/especificacoes/marketing/marketing-integracoes.md` (Seção 5)  
