@@ -809,6 +809,28 @@ export function MeliListingCreator({
     if (ops.length) await Promise.all(ops);
   };
 
+  // ====== Save resolved attributes to DB (etapa "Características") ======
+  // Para cada anúncio, persiste o array completo de atributos resolvidos no
+  // formato esperado pela publicação do Mercado Livre: [{ id, value_name, value_id? }, ...].
+  // É essa lista que faz o anúncio nascer com pontuação alta de qualidade.
+  const handleSaveAttributes = async () => {
+    const entries = Object.entries(attrValuesByListing);
+    if (entries.length === 0) return;
+    const ops = entries
+      .filter(([, val]) => Array.isArray(val?.attributes) && val.attributes.length > 0)
+      .map(([listingId, val]) => {
+        const attrs = (val.attributes || [])
+          .filter(a => a.status !== "missing" && (a.value_name || a.value_id))
+          .map(a => ({
+            id: a.id,
+            ...(a.value_id ? { value_id: a.value_id } : {}),
+            ...(a.value_name ? { value_name: a.value_name } : {}),
+          }));
+        return supabase.from("meli_listings").update({ attributes: attrs as any }).eq("id", listingId);
+      });
+    if (ops.length) await Promise.all(ops);
+  };
+
   // ====== Final save: condition + listing_type + shipping ======
   // mode: 'draft' just saves locally; 'publish' also pushes to ML (publish new for unpublished, update for existing meli_item_id)
   const handleFinalSave = async (mode: 'draft' | 'publish' = 'draft') => {
