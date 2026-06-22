@@ -335,6 +335,25 @@ function _getToolSubset(category: IntentCategory): any[] {
           status: { type: "string", enum: ["pending_approval", "approved", "rejected", "superseded", "executed"] },
         }),
         toolDef("get_experiments", "Testes A/B.", { status: { type: "string", enum: ["draft", "running", "completed", "cancelled"] } }),
+        toolDef("get_ad_accounts", "Lista contas conectadas para identificar a conta-alvo da alteração.", { channel: { type: "string", enum: ["meta", "google", "tiktok", "all"] } }),
+        toolDef("update_autopilot_config", "Altera configurações da IA de Tráfego por conta (prompt estratégico, meta de ROI, orçamento, modo, aprovação humana, instruções do lojista). SENSÍVEL: só chame após o lojista confirmar explicitamente na conversa (passar user_confirmed=true). Sempre informe a conta-alvo, o que muda, valor antigo → valor novo, antes de confirmar.", {
+          ad_account_id: { type: "string", description: "ID da conta de anúncios alvo" },
+          channel: { type: "string", enum: ["meta", "google", "tiktok"] },
+          updates: {
+            type: "object",
+            description: "Campos a atualizar",
+            properties: {
+              target_roi: { type: "number" },
+              budget_cents: { type: "number" },
+              strategy_mode: { type: "string", enum: ["conservative", "balanced", "aggressive"] },
+              is_ai_enabled: { type: "boolean" },
+              user_instructions: { type: "string", description: "Prompt estratégico / instruções do lojista" },
+              human_approval_mode: { type: "string", enum: ["auto", "high_impact"] },
+              chat_overrides: { type: "object", description: "Override via chat com {campo, reason}" },
+            },
+          },
+          user_confirmed: { type: "boolean", description: "Obrigatório true — só após confirmação explícita do lojista na conversa." },
+        }, ["ad_account_id", "channel", "updates", "user_confirmed"]),
       ];
 
     // STRATEGIC: AI gets read tools + context tools to gather info, plus the strategic plan creation tool
