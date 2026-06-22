@@ -999,6 +999,10 @@ async function executeTool(
         return await updateBudget(supabase, tenantId, args, chatSessionId);
       case "duplicate_campaign":
         return await duplicateCampaign(supabase, tenantId, args, chatSessionId);
+      case "delete_meta_entity":
+        return await deleteMetaEntity(supabase, tenantId, args, chatSessionId);
+      case "bulk_toggle_entities":
+        return await bulkToggleEntities(supabase, tenantId, args, chatSessionId);
       case "update_adset_targeting":
         return await updateAdsetTargeting(supabase, tenantId, args, chatSessionId);
       case "create_custom_audience":
