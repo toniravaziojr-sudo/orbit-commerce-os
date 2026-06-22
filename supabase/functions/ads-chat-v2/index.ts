@@ -219,7 +219,35 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 // 2. TOOL SUBSETS — Only relevant tools per intent
 // ======================================================================
 
+// Onda 2A — Leitura plena: ferramentas de leitura disponíveis em TODA intent
+function universalReadTools(): any[] {
+  return [
+    toolDef("get_ads_warnings", "Lista avisos abertos da IA de Tráfego (diagnósticos, não propostas).", {
+      severity: { type: "string", enum: ["informativo", "atencao", "urgente"] },
+      status: { type: "string", enum: ["open", "seen", "dismissed", "converted"] },
+      limit: { type: "number" },
+    }),
+    toolDef("get_ad_accounts", "Lista as contas de anúncios conectadas (Meta, Google, TikTok) do lojista.", {
+      channel: { type: "string", enum: ["meta", "google", "tiktok", "all"] },
+    }),
+    toolDef("get_autopilot_config", "Configurações da IA de Tráfego por conta de anúncios.", { ad_account_id: { type: "string" } }),
+    toolDef("get_autopilot_insights", "Diagnósticos/insights gerados pela IA.", { status: { type: "string", enum: ["open", "resolved"] } }),
+    toolDef("get_strategic_plan", "Último plano estratégico aprovado/pendente.", { status: { type: "string", enum: ["pending_approval", "approved", "rejected", "superseded", "executed"] } }),
+    toolDef("get_experiments", "Testes A/B em andamento ou finalizados.", { status: { type: "string", enum: ["draft", "running", "completed", "cancelled"] } }),
+  ];
+}
+
 function getToolSubset(category: IntentCategory): any[] {
+  const base = _getToolSubset(category);
+  // Evita duplicatas (caso o subset já contenha o tool)
+  const names = new Set(base.map((t: any) => t?.function?.name));
+  for (const t of universalReadTools()) {
+    if (!names.has(t.function.name)) base.push(t);
+  }
+  return base;
+}
+
+function _getToolSubset(category: IntentCategory): any[] {
   switch (category) {
     case "performance":
       return [
