@@ -505,6 +505,22 @@ export function MeliListingsTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {activeTab === 'pending' && pendencyNeedsProductCadastro(listing.error_message) && listing.product_id && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1 text-xs"
+                                  onClick={() => window.open(`/products?edit=${listing.product_id}`, '_blank', 'noopener')}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  Abrir cadastro
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Abrir o cadastro do produto em uma nova aba para completar os dados que faltam</TooltipContent>
+                            </Tooltip>
+                          )}
                           {['draft', 'ready', 'approved', 'error', 'published', 'paused'].includes(listing.status) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
