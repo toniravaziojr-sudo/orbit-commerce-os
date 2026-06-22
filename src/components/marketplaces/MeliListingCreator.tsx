@@ -1012,6 +1012,7 @@ export function MeliListingCreator({
             {step === "categories" && "Categorias do Mercado Livre"}
             {step === "titles" && "Títulos dos Anúncios"}
             {step === "descriptions" && "Descrições dos Anúncios"}
+            {step === "attributes" && "Características dos Anúncios"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
             {step === "shipping" && "Configuração de Frete"}
@@ -1021,6 +1022,7 @@ export function MeliListingCreator({
             {step === "categories" && "Confirme as categorias atribuídas pela API do Mercado Livre"}
             {step === "titles" && "Revise e edite os títulos gerados pela IA (respeitando o limite da categoria)"}
             {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
+            {step === "attributes" && "Confirmamos as características exigidas e recomendadas pelo Mercado Livre. Quanto mais preenchido, maior a pontuação do anúncio."}
             {step === "condition" && "Defina a condição dos produtos"}
             {step === "listing_type" && "Escolha o tipo de anúncio e salve"}
           </DialogDescription>
