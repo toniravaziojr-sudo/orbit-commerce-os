@@ -939,7 +939,16 @@ Edge function `meli-resolve-attributes` (verify_jwt=true), payload `{ tenantId, 
   can_publish: boolean
 }
 ```
-IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. Só pergunta à IA os atributos obrigatórios que sobraram após as 3 camadas determinísticas — economiza tokens.
+IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. O motor primeiro aplica inferências determinísticas de baixo custo e só consulta IA para atributos úteis que ainda ficaram sem resposta.
+
+### Preenchimento ampliado de características recomendadas (v1.4.0 — 2026-06-23)
+Para evitar nota baixa por envio de poucas características, o motor passa a preencher de forma determinística atributos recomendados seguros quando a categoria do Mercado Livre os oferece:
+- **Formato do produto:** inferido por tipo/nome (ex.: Balm → Bálsamo, Loção → Loção).
+- **Formato de venda:** Kit quando o produto tem composição; Unidade nos demais casos.
+- **Unidades por kit:** soma da composição quando houver kit.
+- **Conservação:** Temperatura ambiente para cosméticos sem requisito especial.
+
+O motor ignora atributos somente leitura e atributos de embalagem que o próprio ML controla, evitando gasto de IA e evitando rejeição por campos não editáveis.
 
 ### Fallback determinístico por tokens (v1.2.0 — 2026-06-23)
 Para atributos **obrigatórios de lista fechada** (ex.: `PRODUCT_TYPE` com lista oficial do ML), o motor garante que nunca devolva "Faltando" silenciosamente quando há base no produto:
