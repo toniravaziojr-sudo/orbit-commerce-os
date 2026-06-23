@@ -30,6 +30,7 @@ export interface MeliAttributesPanelValue {
 
 interface Props {
   tenantId: string;
+  listingId?: string;
   productId: string | null;
   categoryId: string;
   onChange: (value: MeliAttributesPanelValue) => void;
@@ -43,7 +44,7 @@ const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
   none: "",
 };
 
-export function MeliAttributesPanel({ tenantId, productId, categoryId, onChange }: Props) {
+export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId, onChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [attrs, setAttrs] = useState<ResolvedAttr[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function MeliAttributesPanel({ tenantId, productId, categoryId, onChange 
     setLoading(true); setError(null);
     try {
       const { data, error } = await supabase.functions.invoke("meli-resolve-attributes", {
-        body: { tenantId, productId, categoryId },
+        body: { tenantId, listingId, productId, categoryId },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Falha ao resolver atributos");

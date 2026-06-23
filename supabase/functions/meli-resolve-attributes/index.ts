@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ success: false, error: "Sessão inválida" });
 
-    const { tenantId, productId, categoryId } = await req.json();
+    const { tenantId, productId, categoryId, listingId } = await req.json();
     if (!tenantId || !productId || !categoryId) {
       return json({ success: false, error: "tenantId, productId e categoryId são obrigatórios" });
     }
@@ -75,15 +75,31 @@ Deno.serve(async (req) => {
     const { data: product, error: pErr } = await supabase
       .from("products")
       .select(`
-        id, name, sku, description, short_description, price, weight, width, height, length,
-        brand, gtin, condition, warranty, warranty_duration, warranty_type, product_format,
-        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
+        id, name, sku, description, short_description, price, weight, width, height, depth,
+        brand, gtin, warranty_duration, warranty_type, product_format,
+        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
         fragrance_name, recommended_hair_types, treatment_types, expected_effects
       `)
       .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
-    if (pErr || !product) return json({ success: false, error: "Produto não encontrado" });
+    if (pErr) {
+      console.error("[meli-resolve-attributes] falha ao carregar produto:", pErr);
+      return json({ success: false, error: "Não foi possível carregar o cadastro do produto", code: "product_lookup_failed" });
+    }
+    if (!product) return json({ success: false, error: "Produto não encontrado", code: "product_not_found" });
+
+    let listingCondition = "new";
+    if (listingId) {
+      const { data: listing } = await supabase
+        .from("meli_listings")
+        .select("condition")
+        .eq("id", listingId)
+        .eq("tenant_id", tenantId)
+        .eq("product_id", productId)
+        .maybeSingle();
+      listingCondition = listing?.condition || listingCondition;
+    }
 
     const { data: components } = await supabase
       .from("product_components")
@@ -141,8 +157,9 @@ Deno.serve(async (req) => {
       if (sum > 0) netWeightG = sum;
     }
     const regulatoryRegime = product.regulatory_regime ?? universalCategory?.regulatory_regime ?? null;
-    const warrantyText = (product.warranty?.trim?.()
-      || (product.warranty_duration ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia` : null));
+    const warrantyText = product.warranty_duration
+      ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia`
+      : null;
 
     // ---- 5. Resolução determinística por atributo -----------------------
     const resolved: ResolvedAttr[] = [];
@@ -163,7 +180,7 @@ Deno.serve(async (req) => {
           ean: product.gtin,
           model: product.sku,
           sku: product.sku,
-          condition: product.condition || "new",
+          condition: listingCondition,
           gender: product.gender_audience,
           regulatory_regime: regulatoryRegime,
           net_content_value: product.net_content_value,
@@ -172,7 +189,7 @@ Deno.serve(async (req) => {
           is_kit: isKit ? "Sim" : "Não",
           units_per_package: unitsPerPackage,
           warranty: warrantyText,
-          product_type: product.ai_product_type,
+          product_type: product.product_type || product.ai_product_type,
           main_function: product.ai_main_function,
         };
         const v = map[k];
@@ -188,7 +205,7 @@ Deno.serve(async (req) => {
         if (id === "BRAND" && product.brand) { value_name = product.brand; source = "product"; }
         else if ((id === "GTIN" || id === "EAN") && product.gtin) { value_name = product.gtin; source = "product"; }
         else if (id === "MODEL" && product.sku) { value_name = product.sku; source = "product"; }
-        else if (id === "ITEM_CONDITION") { value_name = "Novo"; source = "derivation"; }
+        else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }
         }
@@ -239,6 +256,10 @@ Deno.serve(async (req) => {
         }
         else if (id === "EFFECTS" && product.expected_effects) {
           value_name = product.expected_effects; source = "product";
+        }
+        else if (id === "PRODUCT_TYPE" && (product.product_type || product.ai_product_type)) {
+          value_name = product.product_type || product.ai_product_type;
+          source = product.product_type ? "product" : "derivation";
         }
       }
 

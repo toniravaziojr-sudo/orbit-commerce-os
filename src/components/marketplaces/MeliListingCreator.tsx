@@ -1424,6 +1424,7 @@ export function MeliListingCreator({
                       {item.categoryId && currentTenant?.id ? (
                         <MeliAttributesPanel
                           tenantId={currentTenant.id}
+                          listingId={item.listingId}
                           productId={item.productId}
                           categoryId={item.categoryId}
                           onChange={(v) => setAttrValuesByListing(prev => ({ ...prev, [item.listingId]: v }))}
