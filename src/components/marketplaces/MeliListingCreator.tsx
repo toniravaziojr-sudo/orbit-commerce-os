@@ -189,6 +189,7 @@ export function MeliListingCreator({
   // Atributos resolvidos por anúncio (etapa "Características").
   // Cada item guarda {attributes, canPublish} vindos do MeliAttributesPanel.
   const [attrValuesByListing, setAttrValuesByListing] = useState<Record<string, MeliAttributesPanelValue>>({});
+  const [priceAdjustmentPercent, setPriceAdjustmentPercent] = useState("10");
 
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
@@ -275,6 +276,7 @@ export function MeliListingCreator({
       setLocalPickup(false);
       setExpandedDescs(new Set());
       setAttrValuesByListing({});
+      setPriceAdjustmentPercent("10");
       configureInitRef.current = null;
     }
   }, [open]);
