@@ -103,6 +103,7 @@ const productSchema = z.object({
   
   // New canonical fields
   brand: z.string().max(100).nullable().optional(),
+  model: z.string().max(100).nullable().optional(),
   vendor: z.string().max(100).nullable().optional(),
   product_type: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
