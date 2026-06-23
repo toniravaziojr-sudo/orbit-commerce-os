@@ -329,6 +329,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       // New canonical fields
       brand: product?.brand ?? '',
       model: (product as any)?.model ?? '',
+      line: (product as any)?.line ?? '',
       vendor: product?.vendor ?? '',
       product_type: product?.product_type ?? '',
       tags: product?.tags ?? [],
