@@ -321,11 +321,13 @@ Deno.serve(async (req) => {
         });
       } else {
         // Envia TODOS os atributos sem valor determinístico para a IA tentar preencher.
-        // Isso inclui opcionais — essencial para subir nota de qualidade do anúncio
-        // (características secundárias). IA retorna "" quando não há base e o atributo
-        // é descartado naturalmente abaixo.
+        // Inclui opcionais — essencial para nota de qualidade do anúncio (características
+        // secundárias). IA retorna "" quando não há base e o atributo é descartado.
         aiPending.push(a);
+      }
     }
+
+
 
 
 
