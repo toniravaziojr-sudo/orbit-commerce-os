@@ -303,21 +303,71 @@ function AttrRow({ attr, onEdit, compact }: {
   onEdit: (v: string) => void;
   compact?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(attr.value_name ?? "");
+
+  useEffect(() => {
+    if (!editing) setDraft(attr.value_name ?? "");
+  }, [attr.value_name, editing]);
+
   const icon = attr.status === "filled"
     ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
     : attr.status === "review"
     ? <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
     : <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
 
+  const commit = () => {
+    onEdit(draft);
+    setEditing(false);
+  };
+  const cancel = () => {
+    setDraft(attr.value_name ?? "");
+    setEditing(false);
+  };
+
   if (compact) {
+    if (editing) {
+      return (
+        <div className="flex items-center gap-1.5 text-xs">
+          {icon}
+          <span className="font-medium shrink-0">{attr.name}:</span>
+          <Input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") cancel();
+            }}
+            className="h-7 text-xs flex-1"
+          />
+          <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={commit} title="Salvar">
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={cancel} title="Cancelar">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      );
+    }
     return (
-      <div className="flex items-center gap-2 text-xs">
+      <div className="group flex items-center gap-2 text-xs">
         {icon}
         <span className="font-medium">{attr.name}:</span>
         <span className="text-muted-foreground truncate">{attr.value_name || "—"}</span>
         {SOURCE_LABEL[attr.source] && (
           <span className={`text-[10px] ml-auto font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
         )}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => setEditing(true)}
+          title="Editar manualmente"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
       </div>
     );
   }
