@@ -83,7 +83,11 @@ Deno.serve(async (req) => {
         fragrance_name, recommended_hair_types, treatment_types, expected_effects
       `)
       .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
-    if (pErr || !product) return json({ success: false, error: "Produto não encontrado" });
+    if (pErr) {
+      console.error("[meli-resolve-attributes] falha ao carregar produto:", pErr);
+      return json({ success: false, error: "Não foi possível carregar o cadastro do produto", code: "product_lookup_failed" });
+    }
+    if (!product) return json({ success: false, error: "Produto não encontrado", code: "product_not_found" });
 
     const { data: components } = await supabase
       .from("product_components")
