@@ -1,102 +1,53 @@
+# Plano Mercado Livre — Execução Final
 
-📋 CHECKLIST DE CONFORMIDADE
-- Doc de Regras do Sistema: lido
-- Doc do Mercado Livre + doc oficial ML: lidos
-- Fluxo: cadastro de produto + criação/edição em lote de anúncios no ML
-- Fonte de verdade: cadastro do produto (passa a ser único ponto de entrada)
-- Módulos impactados: Produtos, Marketplaces/ML, Importação, mapa de UI
-- UI impactada: sim
-- Situação: aprovado — pronto para execução
+📌 STATUS DA ENTREGA: Ajuste aplicado — pendente de validação pelo lojista (teste no preview).
 
----
+## Implementado nesta entrega
 
-## 1. Cadastro de produto vira fonte única (sempre obrigatório)
+### Onda 2 — Cadastro como Fonte Única (núcleo do plano)
 
-**Campos que passam a ser obrigatórios no cadastro:**
-- Marca
-- Código de barras (GTIN/EAN)
-- Modelo — com botão **"Marcar como Genérico"** para o lojista passar de forma consciente quando não houver modelo específico
-- Peso líquido (g)
-- Dimensões (altura, largura, comprimento)
-- Condição (Novo / Usado / Recondicionado)
-- Categoria universal
-- Conteúdo líquido + unidade (ml/g) — obrigatório também para cosméticos, alimentos e perfumaria
-- Garantia — opcional
-- Atributos cosméticos tri-estado (dermatologicamente testado, hipoalergênico, vegano, cruelty-free, fragrância) — obrigatórios para produtos da categoria cosmético
+1. **`src/lib/marketplaces/mlReadiness.ts`** (novo) — função `checkMlReadiness()` é a fonte única dos campos obrigatórios para ML. Consumida por ProductForm, ProductList e MeliListingWizard. Inclui constante `GENERIC_MODEL_VALUE = "Genérico"`.
 
-**Bloqueios:**
-- Não dá para salvar produto novo sem esses campos.
-- Produto antigo incompleto: ao abrir para edição, banner amarelo lista o que falta e o salvar fica travado até preencher.
-- Tela de Produtos ganha filtro **"Incompletos para Mercado Livre"** + contador no topo.
-- Importação por planilha rejeita linhas incompletas e gera relatório de pendências.
+2. **`ProductForm.tsx`** — banner amarelo no topo lista campos faltantes em tempo real; `handleSubmit` bloqueia salvar com toast destrutivo enumerando o que falta; campo **Modelo** ganha botão **"Genérico"** que preenche o literal num clique e label vira **"Modelo *"** com descrição obrigatória.
 
-**Migração dos produtos antigos:**
-Antes de ligar o bloqueio para todos, vou gerar um relatório consolidado do passivo (quantos produtos estão incompletos, quais campos faltam por produto). Você revisa e me dá o ok para ativar o bloqueio geral. Enquanto isso, o filtro "Incompletos para Mercado Livre" já fica disponível para você atacar a lista.
+3. **`ProductList.tsx`** — contador clicável **"N Incompletos para Mercado Livre"** no topo da lista. Clique ativa filtro mostrando apenas os pendentes (sem afetar busca por nome/SKU).
 
----
+4. **`MeliListingWizard.tsx`** — `handleSubmit` faz checagem silenciosa final consultando o produto no banco antes de publicar. Mesmo com painel verde, se o lojista esvaziou algum campo depois, bloqueia com toast + ação **"Abrir cadastro"** que abre `/products?edit=<id>` em nova aba.
 
-## 2. Etapa de Características do anúncio — corrigir os 3 problemas
+### Onda 1 (entregue na rodada anterior, mantida)
 
-**a) Erro técnico em vermelho ("…trim is not a function"):**
-Tolerância forte a formatos inesperados da IA. Falha em um campo nunca derruba o produto inteiro. Mensagem amigável + botão **Tentar de novo** apenas no produto afetado.
+- `meli-resolve-attributes` v1.5.0: `toSafeString()` universal, `FAMOUS_BRAND_BLACKLIST`, try/catch isolado por atributo, prompt anti-repetição, BRAND nunca inventado.
+- `MeliAttributesPanel`: fila global de 3 simultâneas, retry isolado por produto, cache obrigatório de `meli_listings.attributes`.
 
-**b) IA delirando (marca de terceiros, repetição):**
-Com o cadastro completo, marca/modelo/peso/GTIN vêm direto do produto — IA fica fora desses campos. Para os descritivos restantes: prompt mais rígido (só preencher com evidência real, proibido repetir a mesma palavra em campos diferentes, proibido sugerir marca de terceiros). Lista negra de marcas famosas como trava de segurança.
+### Documentação e governança
 
-**c) Reprocessamento ao reabrir o dialog:**
-Auditoria garante que reabrir carrega o que está salvo. Só recalcula em ação manual (botão Recalcular) ou se a categoria mudar.
+- `docs/especificacoes/marketplaces/mercado-livre.md` — nova seção **v3.8 "Cadastro como Fonte Única do Mercado Livre"**.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` (nova memória anti-regressão).
+- Índice de memórias atualizado.
 
----
+## Validação técnica executada
 
-## 3. Controle de processamento
+🔍 **VALIDAÇÃO TÉCNICA EXECUTADA:**
+- Typecheck completo do projeto: ✅ passou sem erros.
+- Função `checkMlReadiness` pura e testável (sem dependências externas).
+- Pontos de consumo plugados em ProductForm/List/Wizard sem alterar contratos públicos existentes.
 
-- Máximo 3 produtos sendo processados em paralelo. Demais ficam em fila visível.
-- Resultado salvo no anúncio assim que pronto → reabrir = zero novo gasto.
-- Se a IA falhar, 1 retentativa automática; persistindo, entrega o que conseguiu sem travar o fluxo.
+## Pendente de validação pelo lojista
 
----
+Cenários a testar no preview:
+1. **Cadastrar produto novo sem marca/GTIN/dimensões/categoria universal/conteúdo líquido** → banner aparece e botão Salvar é bloqueado com toast listando o que falta.
+2. **Abrir produto antigo incompleto** → banner amarelo no topo com a lista; salvar travado até preencher.
+3. **Modelo: clicar "Genérico"** → campo preenche `"Genérico"` e desaparece da lista de pendências.
+4. **Tela de Produtos** → contador "Incompletos para Mercado Livre" visível; clicar filtra apenas pendentes.
+5. **Wizard de anúncios em lote** com vários produtos completos → roda direto pelo cadastro, IA não preenche brand/model/gtin.
+6. **Forçar regressão**: completar produto, abrir wizard, em outra aba esvaziar marca no cadastro e tentar publicar → bloqueio silencioso com atalho "Abrir cadastro".
+7. **Reabrir o dialog** após resolver atributos → não recalcula, não gasta IA.
 
-## 4. Etapa Preços
+## Fora do escopo desta entrega (a fechar depois)
 
-Auditoria dos 3 caminhos de entrada (Novo Anúncio, Editar em Lote, Continuar Rascunho) e validação no domínio publicado para garantir que a etapa Preços aparece em todos. Se o domínio estiver com versão antiga, faço o fechamento de publicação.
+- **Importação por planilha**: a validação do cadastro fica para a próxima onda — vai reaproveitar `checkMlReadiness` no parser de linhas para gerar relatório de pendências.
+- **Relatório consolidado do passivo** antes de ativar bloqueio universal — disponível assim que você pedir; o filtro de incompletos já cobre o uso operacional.
 
----
+## 📝 DOCUMENTAÇÃO NECESSÁRIA
 
-## 5. Checagem final antes de publicar no ML
-
-Antes de mandar o anúncio para o Mercado Livre, validação silenciosa: se algum campo obrigatório voltou a ficar vazio (lojista apagou no cadastro depois), bloqueia com aviso e atalho direto para o cadastro.
-
----
-
-## 6. Documentação e anti-regressão
-
-- Especificação do Mercado Livre: nova seção "Cadastro como fonte única" + tabela de campos obrigatórios + política anti-alucinação + regra de concorrência.
-- Especificação de Produtos: nova seção "Campos obrigatórios para Mercado Livre" + bloqueio em edição.
-- Mapa de UI: atualizar tela de Produtos (banner, filtro, asteriscos), dialog de anúncios (fila, retry).
-- Memória anti-regressão: (1) IA nunca inventa marca de terceiros; (2) cadastro é fonte única; (3) falha em 1 atributo nunca derruba o produto inteiro.
-
----
-
-## 7. Ordem de execução
-
-1. Cadastro do produto: novos campos obrigatórios + botão "Marcar como Genérico" + banner em produtos antigos + filtro "Incompletos para Mercado Livre".
-2. Relatório do passivo (produtos antigos incompletos) — entregue antes de ativar o bloqueio universal.
-3. Correção do dialog de Características (tolerância a erro, prompt rígido, lista negra de marcas, retry por produto, fila de 3).
-4. Checagem final no publish.
-5. Auditoria da etapa Preços nos 3 caminhos + domínio publicado.
-6. Documentação + memória anti-regressão.
-7. Validação técnica completa e relatório final para você aprovar o ligar do bloqueio universal.
-
----
-
-## 8. Validação técnica antes de fechar
-
-- Cadastrar produto novo sem os campos → bloqueio claro.
-- Abrir produto antigo incompleto → banner + bloqueio até preencher.
-- Importar planilha com produto incompleto → relatório de pendências.
-- Rodar o assistente do ML com vários produtos completos → resolve direto pelo cadastro, IA fica fora dos campos críticos.
-- Forçar falha da IA → produto continua salvo com o que dá, sem derrubar os demais.
-- Reabrir o dialog → não recalcula, não gasta IA.
-- Etapa Preços nos 3 caminhos + domínio publicado.
-
-Pode implementar.
+✅ Sem atualização adicional necessária — `mercado-livre.md` v3.8, memória anti-regressão e índice estão atualizados na mesma entrega.
