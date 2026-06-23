@@ -273,7 +273,7 @@ POST /meli-publish-listing
 - **Multi-imagem:** Busca até 10 imagens do produto (deduplica primária + galeria). Mínimo 1 obrigatória.
 - **GTIN automático:** Busca `products.gtin` e `products.barcode` como fallback para o atributo `GTIN`.
 - **Garantia:** Envia obrigatoriamente via atributos `WARRANTY_TYPE` e `WARRANTY_TIME` (campo `warranty` de topo é **depreciado** na API ML). Valores: vendor → "Garantía del vendedor", factory → "Garantía de fábrica".
-- **Características do anúncio:** A resolução automática deve usar somente campos reais do cadastro do produto; dimensões usam profundidade como comprimento, garantia usa duração/tipo cadastrados, e condição deve vir do rascunho do anúncio. Se a consulta ao cadastro falhar por contrato quebrado, a UI não deve mascarar como produto inexistente.
+- **Características do anúncio:** A resolução automática deve usar somente campos reais do cadastro do produto; dimensões usam profundidade como comprimento, garantia usa duração/tipo cadastrados, e condição deve vir do rascunho do anúncio quando houver rascunho salvo. Se a consulta ao cadastro falhar por contrato quebrado, a UI não deve mascarar como produto inexistente.
 - **Dimensões de frete:** `PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH` **NÃO são enviados** como atributos (não modificáveis via API de itens, removidos na v3.1.0).
 - **Permalink:** Armazena `meli_response.permalink` para link "Ver no ML" funcional.
 
