@@ -15,7 +15,43 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
+
+// --------- Sanitização universal de valores vindos da IA ------------
+// A IA pode devolver string, array, objeto, número, null ou undefined.
+// Qualquer um desses deve virar string segura (ou string vazia).
+function toSafeString(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v).trim();
+  if (Array.isArray(v)) return v.map(toSafeString).filter(Boolean).join(", ");
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+    if (typeof obj.value === "string") return obj.value.trim();
+    if (typeof obj.name === "string") return obj.name.trim();
+    try { return JSON.stringify(v).slice(0, 200); } catch { return ""; }
+  }
+  try { return String(v).trim(); } catch { return ""; }
+}
+
+// Lista negra: marcas famosas que a IA tende a inventar quando o produto
+// não tem marca cadastrada. Bloqueia qualquer sugestão dessas marcas pela IA.
+const FAMOUS_BRAND_BLACKLIST = new Set([
+  "loreal", "l'oreal", "loreal paris", "l'oreal paris", "lóreal", "lóreal paris",
+  "nivea", "dove", "garnier", "pantene", "tresemme", "tresemmé",
+  "head shoulders", "head & shoulders", "clear", "seda", "elseve",
+  "natura", "boticario", "boticário", "avon", "eudora", "quem disse berenice",
+  "johnson", "johnson's", "johnson e johnson",
+  "vichy", "la roche posay", "neutrogena", "eucerin", "cetaphil",
+  "kerastase", "kérastase", "redken", "wella", "schwarzkopf",
+  "samsung", "apple", "lg", "sony", "philips", "motorola", "xiaomi",
+  "nike", "adidas", "puma", "reebok",
+]);
+
+function isBlacklistedBrand(value: string): boolean {
+  const norm = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 &']/g, "").trim();
+  return FAMOUS_BRAND_BLACKLIST.has(norm);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
