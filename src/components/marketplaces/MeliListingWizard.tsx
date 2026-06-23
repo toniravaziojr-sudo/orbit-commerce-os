@@ -753,6 +753,7 @@ export function MeliListingWizard({
       </DialogContent>
     </Dialog>
   );
+}
 
 // Price adjustment controls — 3 ações: desconto %, acréscimo %, restaurar do cadastro
 function PriceAdjustControls({
