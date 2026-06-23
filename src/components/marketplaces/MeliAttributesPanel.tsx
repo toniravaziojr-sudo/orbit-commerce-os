@@ -40,11 +40,19 @@ interface Props {
 }
 
 const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
-  product: "do cadastro",
-  derivation: "calculado",
-  dictionary: "padrão do sistema",
-  ai: "sugerido pela IA",
+  product: "Do cadastro do produto",
+  derivation: "Do cadastro do produto",
+  dictionary: "Do cadastro do produto",
+  ai: "Sugerido pela IA",
   none: "",
+};
+
+const SOURCE_TONE: Record<ResolvedAttr["source"], string> = {
+  product: "text-green-700 dark:text-green-400",
+  derivation: "text-green-700 dark:text-green-400",
+  dictionary: "text-green-700 dark:text-green-400",
+  ai: "text-sky-700 dark:text-sky-400",
+  none: "text-muted-foreground",
 };
 
 // ----- Fila global: no máximo 3 resoluções rodando em paralelo no app inteiro.
