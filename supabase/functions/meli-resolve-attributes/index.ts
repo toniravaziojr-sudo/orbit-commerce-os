@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,6 +165,46 @@ Deno.serve(async (req) => {
     const resolved: ResolvedAttr[] = [];
     const aiPending: MeliAttrSpec[] = [];
 
+    const BLOCKED_ATTR_IDS = new Set([
+      "PACKAGE_HEIGHT", "PACKAGE_WIDTH", "PACKAGE_LENGTH", "PACKAGE_WEIGHT",
+      "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WEIGHT",
+    ]);
+
+    const normalizeText = (value: string) => value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+    const matchAllowedValue = (attr: MeliAttrSpec, candidate?: string | null) => {
+      if (!candidate || !attr.values?.length) return null;
+      const normCandidate = normalizeText(String(candidate));
+      return attr.values.find(v => normalizeText(v.name) === normCandidate) ?? null;
+    };
+
+    const inferProductFormat = (attr: MeliAttrSpec) => {
+      const seeds = [product.product_type, product.ai_product_type, product.name, universalCategory?.name]
+        .filter(Boolean).join(" ");
+      const norm = normalizeText(seeds);
+      const candidates = [
+        { test: ["balm", "balsamo", "bálsamo"], value: "Bálsamo" },
+        { test: ["locao", "loção", "lotion"], value: "Loção" },
+        { test: ["gel"], value: "Gel" },
+        { test: ["creme"], value: "Creme" },
+        { test: ["serum", "sérum"], value: "Sérum" },
+        { test: ["spray"], value: "Spray" },
+        { test: ["emulsao", "emulsão"], value: "Emulsão" },
+        { test: ["aerossol", "aerosol"], value: "Aerossol" },
+        { test: ["bastao", "bastão"], value: "Bastão" },
+      ];
+      for (const candidate of candidates) {
+        if (candidate.test.some(t => norm.includes(normalizeText(t))) && matchAllowedValue(attr, candidate.value)) {
+          return candidate.value;
+        }
+      }
+      return null;
+    };
+
     // Atributos cosméticos tri-state (Sim / Não / Não se aplica).
     // Mesmo quando não obrigatórios pela categoria, devem SEMPRE ser preenchidos
     // (fallback "Não" pela IA quando não houver base) para evitar a seção
@@ -181,6 +221,7 @@ Deno.serve(async (req) => {
     ]);
 
     for (const a of meliAttrs) {
+      if (BLOCKED_ATTR_IDS.has(a.id) || a.tags?.read_only) continue;
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
       let source: ResolvedAttr["source"] = "none";
@@ -245,6 +286,21 @@ Deno.serve(async (req) => {
           // sem fallback determinístico — IA decide entre product_type ou "Não se aplica"
         }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
+        else if (id === "PRODUCT_FORMAT") {
+          const inferred = inferProductFormat(a);
+          if (inferred) { value_name = inferred; source = "derivation"; }
+        }
+        else if (id === "SALE_FORMAT") {
+          value_name = isKit ? "Kit" : "Unidade";
+          source = "derivation";
+        }
+        else if (id === "UNITS_PER_PACK" && unitsPerPackage > 1) {
+          value_name = String(unitsPerPackage); source = "derivation";
+        }
+        else if (id === "PRODUCT_CONSERVATION") {
+          value_name = "Temperatura ambiente";
+          source = "derivation";
+        }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }
         }
