@@ -1470,14 +1470,31 @@ export function MeliListingCreator({
         {/* ===== STEP 5: Attributes (Características) ===== */}
         {step === "attributes" && (
           <div className="flex-1 flex flex-col gap-3 min-h-0">
-            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Para cada anúncio, o sistema cruza o cadastro do produto, a categoria escolhida e o dicionário do Mercado Livre, e completa o que falta com a IA. Itens em vermelho precisam ser preenchidos no cadastro do produto antes de continuar — use o atalho ao lado do nome.
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground flex-1">
+                Para cada anúncio, o sistema cruza o cadastro do produto, a categoria escolhida e o dicionário do Mercado Livre, e completa o que falta com a IA. Itens em vermelho precisam ser preenchidos no cadastro do produto antes de continuar — use o atalho ao lado do nome.
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1 shrink-0"
+                onClick={handleRecalcAllAttributes}
+                title="Força a IA a refazer as características de todos os anúncios"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Recalcular todos
+              </Button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-3 pr-3">
                 {generatedItems.map(item => {
                   const value = attrValuesByListing[item.listingId];
                   const missingCount = value?.attributes?.filter(a => a.status === "missing").length ?? 0;
+                  const hasResolvedAttrs = (value?.attributes?.length ?? 0) > 0;
+                  const sameCategoryPeers = generatedItems.filter(g =>
+                    g.listingId !== item.listingId && g.categoryId && g.categoryId === item.categoryId
+                  ).length;
+                  const seed = attrSeedByListing[item.listingId];
                   return (
                     <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
@@ -1492,6 +1509,18 @@ export function MeliListingCreator({
                             <Badge variant="outline" className="border-destructive/50 text-destructive text-[10px]">
                               {missingCount} faltando
                             </Badge>
+                          )}
+                          {hasResolvedAttrs && sameCategoryPeers > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => handleApplyAttributesToAll(item.listingId)}
+                              title={`Copia estas características para os outros ${sameCategoryPeers} anúncio(s) da mesma categoria`}
+                            >
+                              <Copy className="h-3 w-3" />
+                              Aplicar a todos
+                            </Button>
                           )}
                           {item.productId && (
                             <Button
@@ -1513,6 +1542,9 @@ export function MeliListingCreator({
                           listingId={item.listingId}
                           productId={item.productId}
                           categoryId={item.categoryId}
+                          recalcToken={attrRecalcAllToken}
+                          seedToken={seed?.token}
+                          seedAttributes={seed?.attributes}
                           onChange={(v) => setAttrValuesByListing(prev => ({ ...prev, [item.listingId]: v }))}
                         />
                       ) : (
