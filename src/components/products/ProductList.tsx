@@ -57,6 +57,7 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
   const [productImages, setProductImages] = useState<Record<string, string>>({});
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [bulkAttrOpen, setBulkAttrOpen] = useState(false);
+  const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
 
   // Load primary images for all products
   useEffect(() => {
