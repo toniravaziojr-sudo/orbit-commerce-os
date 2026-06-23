@@ -212,7 +212,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, value_name: value, value_id: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
+        ? { ...a, value_name: value, value_id: undefined, values: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
         : a);
       void persistToListing(next);
       return next;
