@@ -295,6 +295,30 @@ Deno.serve(async (req) => {
             missingRequired.push(spec.name || spec.id);
           }
         }
+
+        // ===== Sanitize attributes against fixed-value lists =====
+        // Se o atributo da categoria tem `values` (lista oficial) e nosso value_name
+        // não bate com nenhum item da lista, removemos o valor para evitar
+        // "Validation error: Attribute X is not valid, item values [...]".
+        const specById = new Map<string, any>();
+        for (const s of attrSpecs) specById.set(s.id, s);
+        const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+        const cleaned: any[] = [];
+        for (const attr of attributes) {
+          const spec = specById.get(attr.id);
+          if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+            const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
+            if (!hit) {
+              console.log(`[meli-publish-listing] Dropping invalid attr ${attr.id}="${attr.value_name}" (not in category allowed_values)`);
+              continue;
+            }
+            cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
+          } else {
+            cleaned.push(attr);
+          }
+        }
+        attributes.length = 0;
+        attributes.push(...cleaned);
       }
     } catch (specErr) {
       console.log(`[meli-publish-listing] Category attribute spec fetch skipped:`, specErr);
