@@ -359,10 +359,24 @@ Deno.serve(async (req) => {
           efeitos: product.expected_effects,
         },
       };
+      const cosmeticIdsInBatch = compact
+        .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
+        .map(c => c.id);
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
-Se realmente não houver base no produto, retorne "" (string vazia).
+
+REGRA OBRIGATÓRIA — atributos cosméticos Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
+- Se o produto sugerir o atributo (ex.: descrição menciona "vegano", "sem parabenos", "orgânico"), responda "Sim".
+- Se o produto sugerir o oposto, responda "Não".
+- Se NÃO houver base no produto e o atributo não fizer sentido pra este produto, responda "Não se aplica".
+- Se NÃO houver base no produto mas o atributo fizer sentido (cosmético, shampoo, balm, loção, creme etc.), responda "Não" — NUNCA deixe em branco para esses atributos.
+
+Para o atributo LINE (Linha do produto):
+- Se o nome do produto sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho", "Hidratação Profunda"), use-a.
+- Caso contrário, use o tipo do produto (ex.: "Cosmético", "Cabelo") ou "Não se aplica".
+
+Para os demais atributos: se realmente não houver base, retorne "" (string vazia).
 
 Produto: ${JSON.stringify(productContext)}
 
@@ -389,8 +403,23 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
         const byId = new Map(answers.map(a => [a.id, a.value]));
 
         for (const a of aiPending) {
-          const suggested = (byId.get(a.id) ?? "").trim();
+          let suggested = (byId.get(a.id) ?? "").trim();
           const required = !!a.tags?.required || !!a.tags?.catalog_required;
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+
+          // Anti-vazio para cosméticos tri-state: força "Não" quando IA devolve vazio
+          // ou um valor que não bate com a lista oficial Sim/Não/Não se aplica.
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
+            const norm = (v: string) => v.toLowerCase().trim();
+            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            if (!hit) {
+              suggested = allowed.find(v => norm(v) === "não") || "Não";
+            } else {
+              suggested = hit;
+            }
+          }
+
           if (suggested) {
             let value_id: string | undefined;
             if (a.values?.length) {
@@ -400,8 +429,10 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
             }
             resolved.push({
               id: a.id, name: a.name, value_name: suggested, value_id,
-              status: "review", source: "ai", required,
-              message: "Sugestão da IA — confirme antes de publicar.",
+              status: isCosmeticTriState ? "filled" : "review",
+              source: "ai",
+              required,
+              message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
             });
           } else if (required) {
             resolved.push({
@@ -412,10 +443,20 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
           }
         }
       } catch (e) {
-        // IA falhou → marca como missing os obrigatórios restantes
+        // IA falhou → para cosméticos tri-state ainda força "Não"; para obrigatórios marca missing
         for (const a of aiPending) {
           const required = !!a.tags?.required || !!a.tags?.catalog_required;
-          if (required) resolved.push({
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => ({ name: v.name, id: v.id })) ?? [];
+            const naoHit = allowed.find(v => v.name.toLowerCase().trim() === "não");
+            const fallback = naoHit ?? { name: "Não", id: undefined as string | undefined };
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: fallback.name, value_id: fallback.id,
+              status: "filled", source: "ai", required,
+            });
+          } else if (required) resolved.push({
             id: a.id, name: a.name,
             status: "missing", source: "none", required: true,
             message: friendlyMissingMessage(a),
