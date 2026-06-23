@@ -427,6 +427,24 @@ Não existe mais bloco amarelo "para revisar" para sugestões da IA. **Tudo o qu
 
 Memória anti-regressão: `.lovable/memory/constraints/meli-resolve-attributes-hardening.md` (regras 1 e 10).
 
+### Edição Manual, Recalcular Todos e Aplicar a Todos (v1.7.0 — 2026-06-23)
+
+O painel `MeliAttributesPanel` ganhou três comportamentos para devolver controle ao lojista sem perder a economia de IA:
+
+1. **Edição manual em qualquer linha.** Toda característica (verde "Do cadastro do produto", azul "Sugerido pela IA" ou vermelha "Faltando") pode ser editada inline. Linhas compactas (já preenchidas) mostram um ícone de lápis no hover; ao salvar, o valor é marcado com a etiqueta **"Editado manualmente"** (roxo, `source: "manual"`) e gravado imediatamente no anúncio. O lojista pode corrigir erros do cadastro ou da IA sem precisar abrir o cadastro do produto.
+
+2. **Persistência automática no anúncio.** Assim que o resolver termina (ou quando o usuário edita um valor), o painel grava o resultado em `meli_listings.attributes`. Reabrir o dialog não dispara IA de novo: o painel hidrata do banco quando `category_id` bate. Antes da v1.7.0, o resultado só era salvo no clique "Continuar" da etapa — quem fechava o dialog antes perdia o cálculo e era recobrado em IA na próxima abertura.
+
+3. **Recalcular todos (topo da etapa).** Botão no cabeçalho da etapa "Características" força o resolver da IA em todos os anúncios da etapa simultaneamente. Usa a mesma fila de concorrência (máx 3 em paralelo). Útil quando o lojista atualiza o cadastro do produto e quer refletir nos rascunhos sem reabrir produto por produto.
+
+4. **Aplicar a todos (por produto).** Cada card de produto na etapa exibe o botão **"Aplicar a todos"** quando o produto já tem características resolvidas E existe pelo menos um outro produto na mesma categoria do ML. Ao clicar, copia o conjunto completo de características (com a etiqueta de origem preservada) para os outros anúncios da **mesma categoria**, persistindo em banco. Não atravessa categorias diferentes — evita aplicar atributos de cosmético em produto de outra família.
+
+Implementação: `MeliAttributesPanel` aceita `recalcToken` (incrementa → força resolve) e `seedToken + seedAttributes` (muda → substitui atributos atuais e persiste). `MeliListingCreator` controla esses tokens no estado da etapa.
+
+Memória anti-regressão: `.lovable/memory/constraints/meli-resolve-attributes-hardening.md` (regras 10, 11 e 12).
+
+
+
 
 
 ### Atualização de anúncio publicado (v2.4.5)
