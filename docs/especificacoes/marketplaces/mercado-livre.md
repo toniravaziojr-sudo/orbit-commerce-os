@@ -409,6 +409,25 @@ Regras invioláveis aplicadas em `meli-resolve-attributes` para evitar marca/atr
 Cada produto tem botão **"Tentar de novo"** isolado quando falha, com mensagem amigável em PT-BR (sem stacktrace). O resultado é salvo no anúncio assim que pronto — reabrir o dialog não recalcula (cache por `listingId + categoryId`).
 
 
+### Marca/GTIN/Modelo em Texto Livre e Etiqueta de Origem (v1.6.0 — 2026-06-23)
+
+Princípio: **o cadastro do produto é a fonte da informação**. O motor do Mercado Livre apenas traduz o cadastro para o formato exigido pela categoria. A IA entra somente quando o ML pede um campo que não existe no cadastro (ex.: "Tipo de aplicação", "Tipo de cuidado") ou para escolher o item certo de uma lista fechada quando o cadastro descreve em texto livre.
+
+**Regras de texto livre (exceção à lista fechada do ML).** Para os atributos `BRAND`, `GTIN`, `EAN`, `MODEL` e `SELLER_SKU`, quando o valor vem do cadastro do produto, o sistema **mantém o texto livre mesmo que a categoria publique uma lista oficial fechada**. Isso resolve o caso da marca própria da loja (ex.: "Respeite o Homem"), que nunca aparece na lista de marcas conhecidas do ML, mas é aceita pelo ML como valor livre. A regra se aplica em dois pontos:
+
+- **Resolver** (`meli-resolve-attributes`): o set `FREE_FORM_FROM_PRODUCT` libera o valor do cadastro como `filled` com `source: "product"` mesmo sem `value_id` da lista oficial.
+- **Sanitização final** (`meli-publish-listing`, blocos inline e `sanitizeAttributesForCategory`): o set `FREE_FORM_IDS` mantém `value_name` livre em vez de descartar; demais atributos continuam sendo descartados quando fora da lista, como antes.
+
+**Sugestão da IA = verde com etiqueta de origem.** Todo atributo resolvido com valor (cadastro, derivação, dicionário ou IA) entra como `status: "filled"`. O painel `MeliAttributesPanel` diferencia visualmente apenas pela etiqueta de origem ao lado do campo:
+
+- **"Do cadastro do produto"** — verde — para `source ∈ {product, derivation, dictionary}`.
+- **"Sugerido pela IA"** — azul — para `source = ai`.
+
+Não existe mais bloco amarelo "para revisar" para sugestões da IA. **Tudo o que está verde será enviado ao Mercado Livre na publicação**, e o lojista enxerga claramente o que veio do cadastro e o que foi sugerido pela IA. É proibido reintroduzir status `review` para sugestões da IA — cria fricção falsa e desencoraja a publicação.
+
+Memória anti-regressão: `.lovable/memory/constraints/meli-resolve-attributes-hardening.md` (regras 1 e 10).
+
+
 
 ### Atualização de anúncio publicado (v2.4.5)
 
