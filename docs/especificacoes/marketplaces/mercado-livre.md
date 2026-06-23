@@ -155,13 +155,14 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 3. Etapa 2 — Categorizar via ML API (cria drafts no banco)
 4. Etapa 3 — Gerar Títulos IA (respeitando max_title_length da categoria)
 5. Etapa 4 — Gerar Descrições IA
-6. Etapa 5 — Condição
-7. Etapa 6 — Tipo de Anúncio
-8. Etapa 8 — Preços: ajuste do preço específico do anúncio, sem alterar o cadastro interno
-9. Etapa 9 — Frete + escolha final:
+6. Etapa 5 — Características
+7. Etapa 6 — Condição
+8. Etapa 7 — Tipo de Anúncio
+9. Etapa 8 — Preços: ajuste do preço específico do anúncio, sem alterar o cadastro interno
+10. Etapa 9 — Frete + escolha final:
      • "Salvar como rascunho" (fica em Rascunhos para revisão posterior)
      • "Salvar e publicar no Mercado Livre" (publica todos os itens em sequência)
-9. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
+11. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
 ```
 
 ### Sincronização ML em todas as ações
@@ -193,10 +194,11 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 | 2 | Categorizar via ML API | Cria drafts no banco + `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 3 | Gerar Títulos IA | `bulk_generate_titles` (com `category_id` já definido → usa `max_title_length` real da categoria) → preview editável (input, validação semântica anti-truncamento, botão Regenerar com loading spinner). Botão **"Manter nomes originais dos produtos"** substitui todos os títulos pelo nome cadastrado do produto (truncado a 60 chars), útil quando o lojista prefere o naming interno em vez do título gerado pela IA. |
 | 4 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
-| 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
-| 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
-| 7 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
-| 8 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
+| 5 | Características | Cruza cadastro, categoria e dicionário do ML; preenche obrigatórios e recomendados seguros antes de publicar. |
+| 6 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
+| 7 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
+| 8 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
+| 9 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
 
 **Props:**
 
