@@ -20,6 +20,8 @@ export interface ResolvedAttr {
   name: string;
   value_name?: string;
   value_id?: string;
+  /** Múltiplos valores para atributos multi-seleção do ML (Tipos de cabelo, Formatos etc.). */
+  values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
   source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
