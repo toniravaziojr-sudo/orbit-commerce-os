@@ -516,9 +516,24 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
             { supabaseUrl, supabaseServiceKey: serviceKey, logPrefix: "meli-resolve-attrs" },
           );
           const content = data?.choices?.[0]?.message?.content ?? "{}";
-          const parsed = typeof content === "string" ? JSON.parse(content) : content;
-          const answers: Array<{ id: string; value: string }> = parsed.answers ?? [];
-          for (const ans of answers) allAnswers.set(ans.id, ans.value);
+          let parsed: any = {};
+          try {
+            parsed = typeof content === "string" ? JSON.parse(content) : content;
+          } catch {
+            console.warn("[meli-resolve-attributes] IA devolveu JSON inválido — lote ignorado");
+            parsed = {};
+          }
+          const answers: any[] = Array.isArray(parsed?.answers) ? parsed.answers : [];
+          for (const ans of answers) {
+            try {
+              const id = toSafeString(ans?.id);
+              if (!id) continue;
+              const value = toSafeString(ans?.value);
+              allAnswers.set(id, value);
+            } catch (e) {
+              console.warn("[meli-resolve-attributes] resposta IA malformada ignorada:", (e as Error).message);
+            }
+          }
         } catch (e) {
           console.error("[meli-resolve-attributes] IA falhou no lote:", (e as Error).message);
         }
