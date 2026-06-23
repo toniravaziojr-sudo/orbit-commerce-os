@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.5.0: política **manual-only** de envio ao ML formalizada; novo campo `products.line` (Linha) usado no atributo `LINE` com prioridade absoluta; `meli-resolve-attributes` v1.1.0 agora consulta a IA para TODOS os atributos cosméticos tri-state (Sim/Não/Não se aplica), com fallback obrigatório "Não" quando incerta — elimina seção "Características secundárias incompletas"; nova etapa de **Ajuste de Preço** no wizard (desconto %, acréscimo %, restaurar do cadastro) sem alterar o preço interno do produto.)
+> **Última atualização:** 2026-06-23 (v2.5.1: `meli-resolve-attributes` v1.2.0 ganha **fallback determinístico por tokens** para atributos obrigatórios de lista fechada — resolve casos como "loção de crescimento" → "Balm" sem marcar Faltando indevidamente. Prompt da IA reforçado: proibido devolver vazio em obrigatórios fechados. v2.5.0 anterior: política manual-only de envio ao ML, campo `products.line`, cosméticos tri-state com fallback "Não", etapa de Ajuste de Preço no wizard.)
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
@@ -938,6 +938,15 @@ Edge function `meli-resolve-attributes` (verify_jwt=true), payload `{ tenantId, 
 }
 ```
 IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. Só pergunta à IA os atributos obrigatórios que sobraram após as 3 camadas determinísticas — economiza tokens.
+
+### Fallback determinístico por tokens (v1.2.0 — 2026-06-23)
+Para atributos **obrigatórios de lista fechada** (ex.: `PRODUCT_TYPE` com lista oficial do ML), o motor garante que nunca devolva "Faltando" silenciosamente quando há base no produto:
+
+1. **Prompt reforçado:** a IA é instruída explicitamente a NUNCA devolver vazio para esses atributos, e a escolher sempre o valor da lista oficial que mais se aproxima do nome / tipo cadastrado / tipo inferido. Exemplos no prompt: "Balm Pós-banho" → "Balm", "Loção de crescimento" → "Loção".
+2. **Fallback por tokens:** se mesmo assim a IA devolver vazio ou um valor fora da lista, o motor faz casamento por palavras-chave entre `(nome do produto + product_type + ai_product_type + ai_main_function + categoria universal)` e cada valor da lista oficial do ML. O candidato com maior pontuação vence e entra como sugestão da IA (status **Revisar**).
+3. **Marca "Faltando" apenas se ninguém bater:** se nem o casamento por tokens encontrar candidato compatível, o atributo entra como **Faltando** com mensagem clara para o lojista.
+
+Resultado prático: o caso "Tipo de produto não encontrado" no Balm Pós-banho (cuja categoria ML aceita "Balm" mas o cadastro tinha "loção de crescimento") passa a resolver automaticamente para "Balm" via casamento de tokens com o nome do produto.
 
 ### UI (Etapa 5B — em andamento)
 Painel "Atributos para o anúncio" dentro do dialog de novo/editar anúncio do ML, abaixo do seletor de categoria. Três blocos visuais (preenchido / revisar / faltando) e botão de publicação desabilitado enquanto houver faltando.

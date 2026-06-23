@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -362,9 +362,17 @@ Deno.serve(async (req) => {
       const cosmeticIdsInBatch = compact
         .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
         .map(c => c.id);
+      const requiredClosedListIds = aiPending
+        .filter(a => (a.tags?.required || a.tags?.catalog_required) && (a.values?.length ?? 0) > 0)
+        .map(a => a.id);
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
+
+REGRA CRÍTICA — atributos obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
+- NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
+- Se houver dúvida, escolha o valor da lista que MAIS se aproxima do nome do produto, do "tipo" cadastrado ou do "tipo_inferido_ia".
+- Exemplos de mapeamento: "Balm Pós-banho" → "Balm"; "Loção de crescimento" → "Loção"; "Shampoo antiqueda" → "Shampoo".
 
 REGRA OBRIGATÓRIA — atributos cosméticos Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
 - Se o produto sugerir o atributo (ex.: descrição menciona "vegano", "sem parabenos", "orgânico"), responda "Sim".
@@ -376,7 +384,7 @@ Para o atributo LINE (Linha do produto):
 - Se o nome do produto sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho", "Hidratação Profunda"), use-a.
 - Caso contrário, use o tipo do produto (ex.: "Cosmético", "Cabelo") ou "Não se aplica".
 
-Para os demais atributos: se realmente não houver base, retorne "" (string vazia).
+Para os demais atributos opcionais: se realmente não houver base, retorne "" (string vazia).
 
 Produto: ${JSON.stringify(productContext)}
 
@@ -406,6 +414,7 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
           let suggested = (byId.get(a.id) ?? "").trim();
           const required = !!a.tags?.required || !!a.tags?.catalog_required;
           const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+          const hasClosedList = (a.values?.length ?? 0) > 0;
 
           // Anti-vazio para cosméticos tri-state: força "Não" quando IA devolve vazio
           // ou um valor que não bate com a lista oficial Sim/Não/Não se aplica.
@@ -420,6 +429,40 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
             }
           }
 
+          // Fallback determinístico para obrigatórios de lista fechada:
+          // se IA devolveu vazio ou valor fora da lista, tenta casar tokens
+          // do produto contra a lista oficial do ML.
+          if (required && hasClosedList && !isCosmeticTriState) {
+            const allowed = a.values!;
+            const norm = (v: string) => v.toLowerCase().trim();
+            let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
+            if (!hit) {
+              const seeds = [
+                product.name,
+                product.product_type,
+                product.ai_product_type,
+                product.ai_main_function,
+                universalCategory?.name,
+                suggested,
+              ].filter(Boolean).join(" ").toLowerCase();
+              const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+              let best: { v: { id: string; name: string }; score: number } | null = null;
+              for (const v of allowed) {
+                const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                let score = 0;
+                for (const vt of vTokens) {
+                  if (tokens.includes(vt)) score += 2;
+                  else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+                }
+                if (score > 0 && (!best || score > best.score)) best = { v, score };
+              }
+              if (best) {
+                suggested = best.v.name;
+                console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+              }
+            }
+          }
+
           if (suggested) {
             let value_id: string | undefined;
             if (a.values?.length) {
@@ -427,13 +470,22 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
               const hit = a.values.find(v => v.name.toLowerCase().trim() === norm);
               if (hit) value_id = hit.id;
             }
-            resolved.push({
-              id: a.id, name: a.name, value_name: suggested, value_id,
-              status: isCosmeticTriState ? "filled" : "review",
-              source: "ai",
-              required,
-              message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
-            });
+            // Se obrigatório de lista fechada mas valor ainda não bate na lista oficial → missing
+            if (required && hasClosedList && !value_id && !isCosmeticTriState) {
+              resolved.push({
+                id: a.id, name: a.name,
+                status: "missing", source: "none", required: true,
+                message: friendlyMissingMessage(a),
+              });
+            } else {
+              resolved.push({
+                id: a.id, name: a.name, value_name: suggested, value_id,
+                status: isCosmeticTriState ? "filled" : "review",
+                source: "ai",
+                required,
+                message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
+              });
+            }
           } else if (required) {
             resolved.push({
               id: a.id, name: a.name,
