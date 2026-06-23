@@ -34,6 +34,7 @@ import {
   Truck,
   MapPin,
   DollarSign,
+  Copy,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
