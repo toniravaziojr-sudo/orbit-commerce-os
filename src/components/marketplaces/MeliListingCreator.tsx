@@ -844,7 +844,8 @@ export function MeliListingCreator({
   };
 
   const handlePriceChange = (listingId: string, rawValue: string) => {
-    const normalized = rawValue.replace(".", "").replace(",", ".");
+    const trimmed = rawValue.trim();
+    const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
     const nextPrice = Number(normalized);
     setGeneratedItems(prev => prev.map(item =>
       item.listingId === listingId ? { ...item, price: Number.isFinite(nextPrice) ? nextPrice : 0 } : item
