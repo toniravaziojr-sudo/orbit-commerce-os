@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, depth,
         brand, gtin, warranty_duration, warranty_type, product_format,
-        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
+        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
         fragrance_name, recommended_hair_types, treatment_types, expected_effects
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
           is_kit: isKit ? "Sim" : "Não",
           units_per_package: unitsPerPackage,
           warranty: warrantyText,
-          product_type: product.ai_product_type,
+          product_type: product.product_type || product.ai_product_type,
           main_function: product.ai_main_function,
         };
         const v = map[k];
@@ -256,6 +256,10 @@ Deno.serve(async (req) => {
         }
         else if (id === "EFFECTS" && product.expected_effects) {
           value_name = product.expected_effects; source = "product";
+        }
+        else if (id === "PRODUCT_TYPE" && (product.product_type || product.ai_product_type)) {
+          value_name = product.product_type || product.ai_product_type;
+          source = product.product_type ? "product" : "derivation";
         }
       }
 
