@@ -20,6 +20,8 @@ export interface ResolvedAttr {
   name: string;
   value_name?: string;
   value_id?: string;
+  /** Múltiplos valores para atributos multi-seleção do ML (Tipos de cabelo, Formatos etc.). */
+  values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
   source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
@@ -95,12 +97,13 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const persistToListing = async (next: ResolvedAttr[]) => {
     if (!listingId) return;
     const payload = next
-      .filter(a => a.status !== "missing" && (a.value_name || a.value_id))
+      .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (a.values && a.values.length > 0)))
       .map(a => ({
         id: a.id,
         name: a.name,
         ...(a.value_id ? { value_id: a.value_id } : {}),
         ...(a.value_name ? { value_name: a.value_name } : {}),
+        ...(a.values && a.values.length > 0 ? { values: a.values } : {}),
         source: a.source,
       }));
     try {
@@ -131,6 +134,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             name: a.name || a.id,
             value_name: a.value_name,
             value_id: a.value_id,
+            values: Array.isArray(a.values) ? a.values : undefined,
             status: "filled",
             source: (a.source as ResolvedAttr["source"]) || "product",
             required: false,
@@ -208,7 +212,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, value_name: value, value_id: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
+        ? { ...a, value_name: value, value_id: undefined, values: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
         : a);
       void persistToListing(next);
       return next;

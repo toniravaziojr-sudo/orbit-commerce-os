@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.5.0";
+const VERSION = "1.8.0";
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
@@ -78,10 +78,25 @@ interface ResolvedAttr {
   name: string;
   value_name?: string;
   value_id?: string;
+  /** Valores múltiplos quando o atributo do ML é multivalorado (ex.: Tipos de cabelo, Formatos de tratamento). */
+  values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
   source: "product" | "derivation" | "dictionary" | "ai" | "none";
   required: boolean;
   message?: string;
+}
+
+// Detecta atributos do ML que aceitam múltiplos valores (multi-seleção).
+function isMultiValuedSpec(spec: MeliAttrSpec): boolean {
+  const tags: any = spec.tags || {};
+  if (tags.multivalued === true) return true;
+  if (tags.allow_variations === true && Array.isArray(spec.values) && spec.values.length > 1) {
+    // não confunde com variações de produto; segue regra abaixo
+  }
+  // ML também usa value_max_quantity > 1 em algumas categorias
+  const vmq = (spec as any).value_max_quantity;
+  if (typeof vmq === "number" && vmq > 1) return true;
+  return false;
 }
 
 Deno.serve(async (req) => {
@@ -371,12 +386,13 @@ Deno.serve(async (req) => {
         else if ((id === "HAIR_TYPES" || id === "HAIR_TYPE") && Array.isArray(product.recommended_hair_types) && product.recommended_hair_types.length > 0) {
           const hairMap: Record<string, string> = {
             oleoso: "Oleoso", seco: "Seco", misto: "Misto", normal: "Normal",
-            cacheado: "Cacheado", liso: "Liso", todos: "Todos os tipos",
+            cacheado: "Cacheado", liso: "Liso", ralo: "Ralo", crespo: "Crespo",
+            todos: "Todo tipo de cabelo",
           };
           value_name = product.recommended_hair_types.map((h: string) => hairMap[h] || h).join(", ");
           source = "product";
         }
-        else if ((id === "HAIR_TREATMENT_TYPE" || id === "TREATMENT_TYPE" || id === "TREATMENT_FORMAT") && Array.isArray(product.treatment_types) && product.treatment_types.length > 0) {
+        else if ((id === "HAIR_TREATMENT_TYPE" || id === "TREATMENT_TYPE" || id === "TREATMENT_FORMAT" || id === "HAIR_TREATMENT_FORMAT") && Array.isArray(product.treatment_types) && product.treatment_types.length > 0) {
           const trtMap: Record<string, string> = {
             antiqueda: "Antiqueda", crescimento: "Crescimento", hidratacao: "Hidratação",
             anticaspa: "Anticaspa", antioleosidade: "Antioleosidade", reconstrucao: "Reconstrução",
@@ -392,7 +408,51 @@ Deno.serve(async (req) => {
           value_name = product.product_type || product.ai_product_type;
           source = product.product_type ? "product" : "derivation";
         }
+        // --- Garantia (cadastro do produto) ---
+        else if (id === "WARRANTY_TYPE" && product.warranty_type && product.warranty_type !== "none") {
+          value_name = product.warranty_type === "vendor" ? "Garantia do vendedor" : "Garantia de fábrica";
+          source = "product";
+        }
+        else if ((id === "WARRANTY_TIME" || id === "WARRANTY") && product.warranty_duration) {
+          value_name = String(product.warranty_duration).trim();
+          source = "product";
+        }
+        // --- Órgão regulatório (ANVISA para cosméticos) ---
+        else if (
+          (id === "REGULATORY_AGENCY" || id === "SANITARY_REGISTRY_AGENCY" ||
+           id === "HEALTH_REGISTRATION_INSTITUTION" || id === "REGULATORY_BODY" ||
+           id === "ANVISA_REGISTRY_INSTITUTION") &&
+          regulatoryRegime && String(regulatoryRegime).toLowerCase().includes("anvisa")
+        ) {
+          value_name = "ANVISA";
+          source = "product";
+        }
       }
+
+      // Atributo multi-valor: monta lista de valores em vez de string única.
+      const multiValued = isMultiValuedSpec(a);
+      if (multiValued && value_name && value_name.includes(",")) {
+        const pieces = value_name.split(",").map(s => s.trim()).filter(Boolean);
+        const valuesArr: Array<{ id?: string; name: string }> = [];
+        for (const p of pieces) {
+          if (a.values?.length) {
+            const hit = matchAllowedValue(a, p);
+            if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+          } else {
+            valuesArr.push({ name: p });
+          }
+        }
+        if (valuesArr.length > 0) {
+          resolved.push({
+            id: a.id, name: a.name,
+            value_name: valuesArr.map(v => v.name).join(", "),
+            values: valuesArr,
+            status: "filled", source, required,
+          });
+          continue;
+        }
+      }
+
 
       // Match valor contra lista oficial do ML quando aplicável
       let value_id: string | undefined;
@@ -471,49 +531,52 @@ Deno.serve(async (req) => {
       for (const batch of batches) {
         const compact = batch.map(a => ({
           id: a.id, name: a.name,
-          values: a.values?.slice(0, 20).map(v => v.name) ?? null,
+          values: a.values?.slice(0, 30).map(v => v.name) ?? null,
           value_type: a.value_type,
+          multi: isMultiValuedSpec(a),
         }));
         const cosmeticIdsInBatch = compact
           .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
           .map(c => c.id);
+        const multiIdsInBatch = compact.filter(c => c.multi).map(c => c.id);
 
         const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
 REGRAS ABSOLUTAS DE SEGURANÇA (nunca quebrar):
-- O campo "value" SEMPRE deve ser STRING (nunca array, nunca objeto). Se for lista de valores, junte com vírgula em UMA string.
-- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto do produto, devolva "" (vazio). É PROIBIDO sugerir marcas famosas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc. quando não houver marca no cadastro.
-- NUNCA invente GTIN/EAN. Se não houver no contexto, devolva "".
-- NUNCA repita simplesmente palavras do nome do produto em campos descritivos como "Tipo de cuidado", "Efeitos", "Tipo de aplicação", "Indicação". Se você não tem base real, devolva "".
+- O campo "value" SEMPRE deve ser STRING. Para atributos MULTI-seleção (multi=true) junte os valores escolhidos com vírgula (ex.: "Oleoso, Ralo, Crespo").
+- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto, devolva "". Proibido sugerir L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc.
+- NUNCA invente GTIN/EAN. Se não houver, devolva "".
+- NUNCA repita palavras do nome do produto em campos descritivos sem base real.
 - NÃO use a MESMA palavra em campos diferentes. Cada atributo deve trazer informação distinta.
-- Só preencha um atributo descritivo se existir evidência clara no nome, descrição ou tipo do produto.
 
-REGRA GERAL — atributos opcionais (não obrigatórios):
+REGRA OBRIGATÓRIA — MULTI-seleção (${multiIdsInBatch.join(", ") || "nenhum nesta rodada"}):
+- Quando "multi": true, MARQUE TODAS as opções de "values" que façam sentido para o produto (com base em nome + descrição + tipo + público).
+- Exemplo (Tipos de cabelo): se o produto trata calvície, oleosidade e caspa → "Oleoso, Ralo, Crespo, Liso, Cacheado, Seco" (tudo que se aplica).
+- Exemplo (Formatos de tratamento capilar): shampoo + bálsamo + loção → "Shampoo, Bálsamo, Loção" se forem aplicáveis.
+- Quando em dúvida, prefira INCLUIR a EXCLUIR — mais opções = mais alcance no ML.
+
+REGRA GERAL — atributos opcionais single-select:
 - Se houver base no produto, preencha com a melhor inferência.
-- Se NÃO houver base real, devolva "" (vazio). É melhor vazio do que inventado.
+- Se NÃO houver base real, devolva "" (vazio). Melhor vazio do que inventado.
 
-REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
+REGRA CRÍTICA — obrigatórios single-select de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
-- Se houver dúvida, escolha o valor que MAIS se aproxima do nome do produto ou do "tipo".
-- Exemplos: "Balm Pós-banho" → "Balm"; "Loção de crescimento" → "Loção"; "Shampoo antiqueda" → "Shampoo".
+- Para "Tipo de cuidado": cruze com tratamentos do produto (antiqueda, hidratação, anticaspa, antifrizz, antioleosidade). Se cobrir vários, escolha o PRINCIPAL pelo nome do produto.
+- Exemplos: "Balm Pós-banho" → formato "Bálsamo"; "Shampoo antiqueda" → cuidado "Antiqueda"; "Loção crescimento" → cuidado "Antiqueda" ou "Crescimento capilar".
 
 REGRA OBRIGATÓRIA — cosméticos tri-state Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
-- Se o produto sugerir o atributo (ex.: "vegano", "sem parabenos", "orgânico"), responda "Sim".
-- Se o produto sugerir o oposto, responda "Não".
-- Se NÃO houver base e o atributo não fizer sentido, responda "Não se aplica".
-- Se NÃO houver base mas o atributo fizer sentido (cosmético, shampoo, balm, loção, creme), responda "Não".
+- Se o produto sugerir o atributo, "Sim". Se sugerir o oposto, "Não". Se não fizer sentido, "Não se aplica". Senão "Não".
 
 Para LINE (Linha do produto):
-- Se o nome sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho"), use-a.
-- Caso contrário, use o tipo do produto ou "Não se aplica".
+- Se o nome sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho"), use-a. Senão, use o tipo do produto ou "Não se aplica".
 
 Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
 
-Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string.`;
+Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string (vírgula entre múltiplos).`;
 
         try {
           const { data } = await aiChatCompletionJSON(
@@ -638,6 +701,34 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
           }
 
           if (suggested) {
+            const isMulti = isMultiValuedSpec(a);
+            if (isMulti) {
+              const pieces = suggested.split(",").map(s => s.trim()).filter(Boolean);
+              const valuesArr: Array<{ id?: string; name: string }> = [];
+              for (const p of pieces) {
+                if (a.values?.length) {
+                  const hit = matchAllowedValue(a, p);
+                  if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+                } else {
+                  valuesArr.push({ name: p });
+                }
+              }
+              if (valuesArr.length > 0) {
+                resolved.push({
+                  id: a.id, name: a.name,
+                  value_name: valuesArr.map(v => v.name).join(", "),
+                  values: valuesArr,
+                  status: "filled", source: "ai", required,
+                });
+              } else if (required) {
+                resolved.push({
+                  id: a.id, name: a.name,
+                  status: "missing", source: "none", required: true,
+                  message: friendlyMissingMessage(a),
+                });
+              }
+              continue;
+            }
             let value_id: string | undefined;
             if (a.values?.length) {
               const hit = matchAllowedValue(a, suggested);
@@ -653,10 +744,6 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
               continue;
             } else {
               if (!required && a.values?.length && !value_id) continue;
-              // Sugestões da IA já entram como "preenchidas" (verde). O painel
-              // distingue origem via `source: "ai"` com etiqueta "Sugerido pela IA".
-              // Assim o lojista vê com clareza tudo que será enviado ao ML, sem
-              // a falsa fricção de "campo para revisar".
               resolved.push({
                 id: a.id, name: a.name, value_name: suggested, value_id,
                 status: "filled",
