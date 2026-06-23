@@ -314,7 +314,7 @@ function AttrRow({ attr, onEdit, compact }: {
         <span className="font-medium">{attr.name}:</span>
         <span className="text-muted-foreground truncate">{attr.value_name || "—"}</span>
         {SOURCE_LABEL[attr.source] && (
-          <span className="text-[10px] text-muted-foreground ml-auto">{SOURCE_LABEL[attr.source]}</span>
+          <span className={`text-[10px] ml-auto font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
         )}
       </div>
     );
