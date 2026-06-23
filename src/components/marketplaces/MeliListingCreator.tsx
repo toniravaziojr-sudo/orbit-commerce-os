@@ -1053,6 +1053,7 @@ export function MeliListingCreator({
             {step === "attributes" && "Características dos Anúncios"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
+            {step === "prices" && "Preços dos Anúncios"}
             {step === "shipping" && "Configuração de Frete"}
           </DialogTitle>
           <DialogDescription>
@@ -1063,6 +1064,7 @@ export function MeliListingCreator({
             {step === "attributes" && "Confirmamos as características exigidas e recomendadas pelo Mercado Livre. Quanto mais preenchido, maior a pontuação do anúncio."}
             {step === "condition" && "Defina a condição dos produtos"}
             {step === "listing_type" && "Escolha o tipo de anúncio e salve"}
+            {step === "prices" && "Ajuste o preço que será enviado ao Mercado Livre sem alterar o cadastro interno"}
           </DialogDescription>
 
           {/* Step indicators */}
