@@ -605,6 +605,37 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       }
     }
 
+    // === Checagem "Cadastro como Fonte Única do Mercado Livre" ===
+    // Bloqueia salvar se faltam campos obrigatórios para publicar no ML.
+    // Mesma fonte usada pelo banner e pelo wizard de anúncios.
+    const readiness = checkMlReadiness({
+      brand: data.brand,
+      gtin: data.gtin,
+      model: data.model,
+      weight: data.weight,
+      width: data.width,
+      height: data.height,
+      depth: data.depth,
+      universal_category_id: (data as any).universal_category_id,
+      net_content_value: (data as any).net_content_value,
+      net_content_unit: (data as any).net_content_unit,
+      regulatory_regime: (data as any).regulatory_regime,
+      regulatory_category: (data as any).regulatory_category,
+      dermatologically_tested: (data as any).dermatologically_tested,
+      hypoallergenic: (data as any).hypoallergenic,
+      cruelty_free: (data as any).cruelty_free,
+      vegan: (data as any).vegan,
+      has_fragrance: (data as any).has_fragrance,
+    });
+    if (!readiness.ready) {
+      toast({
+        title: 'Faltam dados obrigatórios para o Mercado Livre',
+        description: formatMissingForToast(readiness.missing),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (isEditing && product) {
