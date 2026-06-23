@@ -294,6 +294,8 @@ export function MeliListingCreator({
       categoryId: d.category_id || "",
       categoryName: d.category_id || "",
       categoryPath: "",
+      price: Number(d.price ?? d.product?.price ?? 0),
+      productPrice: Number(d.product?.price ?? d.price ?? 0),
     }));
     setGeneratedItems(items);
     setListingIds(existingDrafts.map(d => d.id));
@@ -316,7 +318,7 @@ export function MeliListingCreator({
       try {
         const { data: fresh } = await supabase
           .from("meli_listings")
-          .select("id, title, description, category_id, condition, listing_type, shipping")
+          .select("id, title, description, category_id, condition, listing_type, shipping, price")
           .in("id", ids);
         if (!fresh) return;
         const byId = new Map(fresh.map((r: any) => [r.id, r]));
@@ -329,6 +331,7 @@ export function MeliListingCreator({
             description: r.description || i.description,
             categoryId: r.category_id || i.categoryId,
             categoryName: r.category_id ? i.categoryName : "",
+            price: Number(r.price ?? i.price),
           };
         }));
         const f: any = fresh[0];
@@ -452,6 +455,8 @@ export function MeliListingCreator({
         categoryId: "",
         categoryName: "",
         categoryPath: "",
+        price: Number(p.price || 0),
+        productPrice: Number(p.price || 0),
       }));
       setGeneratedItems(items);
 
