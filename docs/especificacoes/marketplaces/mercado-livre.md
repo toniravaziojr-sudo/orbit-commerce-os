@@ -195,7 +195,8 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 | 4 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
-| 7 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
+| 7 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
+| 8 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
 
 **Props:**
 
@@ -212,7 +213,7 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_auto_categories` com `listingIds` para definir categorias
 2. Etapa 3 chama `bulk_generate_titles` com mesmos `listingIds` — como `category_id` já está definido, a edge function consulta `max_title_length` da categoria e gera títulos dentro do limite
 3. Etapa 4 chama `bulk_generate_descriptions` com mesmos `listingIds`
-4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
+4. Etapas 5-8 aplicam condição, listing_type, preço específico do anúncio e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
 **Reabertura de rascunhos (modo "Configurar Selecionados"):**
