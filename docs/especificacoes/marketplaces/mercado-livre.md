@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.4.4: etapa de Características passa a consultar apenas campos reais do cadastro de produto — dimensões usam profundidade, condição vem do anúncio e garantia vem da duração/tipo cadastrados — evitando falso "Produto não encontrado".)
+> **Última atualização:** 2026-06-23 (v2.4.5: novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.)
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
