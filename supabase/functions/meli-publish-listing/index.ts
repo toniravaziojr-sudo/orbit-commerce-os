@@ -272,6 +272,13 @@ Deno.serve(async (req) => {
               autoValue = brandValue;
               break;
             case "LINE":
+              // Linha do produto: prioriza products.line; nunca usa SKU.
+              autoValue = listing.product?.line
+                || listing.product?.product_type
+                || listing.product?.ai_product_type
+                || brandValue
+                || "Não se aplica";
+              break;
             case "MODEL":
               // Fallback: product_type (Shampoo, Balm, Loção...) when no specific model; never SKU
               autoValue = listing.product?.model
