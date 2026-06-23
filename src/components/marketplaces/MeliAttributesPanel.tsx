@@ -37,6 +37,11 @@ interface Props {
   productId: string | null;
   categoryId: string;
   onChange: (value: MeliAttributesPanelValue) => void;
+  /** Incrementa para forçar recálculo via IA (botão "Recalcular todos"). */
+  recalcToken?: number;
+  /** Quando muda, substitui os atributos atuais pelos fornecidos (botão "Aplicar a todos"). */
+  seedToken?: number;
+  seedAttributes?: ResolvedAttr[];
 }
 
 const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
