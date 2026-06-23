@@ -21,7 +21,7 @@ export interface ResolvedAttr {
   value_name?: string;
   value_id?: string;
   status: "filled" | "review" | "missing";
-  source: "product" | "derivation" | "dictionary" | "ai" | "none";
+  source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
   message?: string;
 }
@@ -44,6 +44,7 @@ const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
   derivation: "Do cadastro do produto",
   dictionary: "Do cadastro do produto",
   ai: "Sugerido pela IA",
+  manual: "Editado manualmente",
   none: "",
 };
 
@@ -52,6 +53,7 @@ const SOURCE_TONE: Record<ResolvedAttr["source"], string> = {
   derivation: "text-green-700 dark:text-green-400",
   dictionary: "text-green-700 dark:text-green-400",
   ai: "text-sky-700 dark:text-sky-400",
+  manual: "text-violet-700 dark:text-violet-400",
   none: "text-muted-foreground",
 };
 
