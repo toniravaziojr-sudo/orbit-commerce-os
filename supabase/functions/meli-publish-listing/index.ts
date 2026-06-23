@@ -519,6 +519,11 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     updatePayload.pictures = images;
   }
 
+  // Update attributes (MODEL, BRAND, etc.) if saved on the listing
+  if (Array.isArray(listing.attributes) && listing.attributes.length > 0) {
+    updatePayload.attributes = listing.attributes;
+  }
+
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
