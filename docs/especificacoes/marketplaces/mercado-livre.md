@@ -939,6 +939,15 @@ Edge function `meli-resolve-attributes` (verify_jwt=true), payload `{ tenantId, 
 ```
 IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. Só pergunta à IA os atributos obrigatórios que sobraram após as 3 camadas determinísticas — economiza tokens.
 
+### Fallback determinístico por tokens (v1.2.0 — 2026-06-23)
+Para atributos **obrigatórios de lista fechada** (ex.: `PRODUCT_TYPE` com lista oficial do ML), o motor garante que nunca devolva "Faltando" silenciosamente quando há base no produto:
+
+1. **Prompt reforçado:** a IA é instruída explicitamente a NUNCA devolver vazio para esses atributos, e a escolher sempre o valor da lista oficial que mais se aproxima do nome / tipo cadastrado / tipo inferido. Exemplos no prompt: "Balm Pós-banho" → "Balm", "Loção de crescimento" → "Loção".
+2. **Fallback por tokens:** se mesmo assim a IA devolver vazio ou um valor fora da lista, o motor faz casamento por palavras-chave entre `(nome do produto + product_type + ai_product_type + ai_main_function + categoria universal)` e cada valor da lista oficial do ML. O candidato com maior pontuação vence e entra como sugestão da IA (status **Revisar**).
+3. **Marca "Faltando" apenas se ninguém bater:** se nem o casamento por tokens encontrar candidato compatível, o atributo entra como **Faltando** com mensagem clara para o lojista.
+
+Resultado prático: o caso "Tipo de produto não encontrado" no Balm Pós-banho (cuja categoria ML aceita "Balm" mas o cadastro tinha "loção de crescimento") passa a resolver automaticamente para "Balm" via casamento de tokens com o nome do produto.
+
 ### UI (Etapa 5B — em andamento)
 Painel "Atributos para o anúncio" dentro do dialog de novo/editar anúncio do ML, abaixo do seletor de categoria. Três blocos visuais (preenchido / revisar / faltando) e botão de publicação desabilitado enquanto houver faltando.
 
