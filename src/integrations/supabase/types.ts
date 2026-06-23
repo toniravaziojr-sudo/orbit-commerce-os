@@ -17539,6 +17539,7 @@ export type Database = {
           hypoallergenic: string | null
           id: string
           is_featured: boolean | null
+          line: string | null
           low_stock_threshold: number | null
           manage_stock: boolean | null
           meta_keywords: string | null
@@ -17617,6 +17618,7 @@ export type Database = {
           hypoallergenic?: string | null
           id?: string
           is_featured?: boolean | null
+          line?: string | null
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
           meta_keywords?: string | null
@@ -17695,6 +17697,7 @@ export type Database = {
           hypoallergenic?: string | null
           id?: string
           is_featured?: boolean | null
+          line?: string | null
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
           meta_keywords?: string | null
