@@ -362,9 +362,17 @@ Deno.serve(async (req) => {
       const cosmeticIdsInBatch = compact
         .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
         .map(c => c.id);
+      const requiredClosedListIds = aiPending
+        .filter(a => (a.tags?.required || a.tags?.catalog_required) && (a.values?.length ?? 0) > 0)
+        .map(a => a.id);
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
+
+REGRA CRÍTICA — atributos obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
+- NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
+- Se houver dúvida, escolha o valor da lista que MAIS se aproxima do nome do produto, do "tipo" cadastrado ou do "tipo_inferido_ia".
+- Exemplos de mapeamento: "Balm Pós-banho" → "Balm"; "Loção de crescimento" → "Loção"; "Shampoo antiqueda" → "Shampoo".
 
 REGRA OBRIGATÓRIA — atributos cosméticos Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
 - Se o produto sugerir o atributo (ex.: descrição menciona "vegano", "sem parabenos", "orgânico"), responda "Sim".
@@ -376,7 +384,7 @@ Para o atributo LINE (Linha do produto):
 - Se o nome do produto sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho", "Hidratação Profunda"), use-a.
 - Caso contrário, use o tipo do produto (ex.: "Cosmético", "Cabelo") ou "Não se aplica".
 
-Para os demais atributos: se realmente não houver base, retorne "" (string vazia).
+Para os demais atributos opcionais: se realmente não houver base, retorne "" (string vazia).
 
 Produto: ${JSON.stringify(productContext)}
 
