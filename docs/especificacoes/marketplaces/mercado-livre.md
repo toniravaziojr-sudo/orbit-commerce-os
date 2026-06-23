@@ -393,9 +393,9 @@ Atributos cosméticos do tipo Sim/Não/Não se aplica (`DERMATOLOGICALLY_TESTED`
 
 A ação `update` do `meli-publish-listing` reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
 
-### Ajuste de Preço no Wizard de Publicação (v2.5.0)
+### Ajuste de Preço no Wizard de Publicação (v2.5.2)
 
-Dentro do passo de revisão do `MeliListingWizard`, abaixo do campo Preço, existem 3 controles:
+No assistente em lote, a etapa **Preços** fica antes de **Frete**. Para cada produto, mostra o preço atual do anúncio e o preço do cadastro como referência. Existem 3 controles:
 
 | Ação | Efeito |
 |------|--------|
@@ -403,7 +403,7 @@ Dentro do passo de revisão do `MeliListingWizard`, abaixo do campo Preço, exis
 | **Aplicar acréscimo %** | Aumenta o preço atual em X% (ex.: 15% para cobrir taxa do ML) |
 | **Restaurar do cadastro** | Volta para o preço definido em `products.price` |
 
-O ajuste afeta APENAS o preço do anúncio (campo `meli_listings.price`). O preço de venda interno (`products.price`) **não é alterado** — o ajuste é específico do canal ML.
+O ajuste afeta APENAS o preço do anúncio (campo `meli_listings.price`). O preço de venda interno (`products.price`) **não é alterado** — o ajuste é específico do canal ML. O fluxo bloqueia avanço se algum preço ficar zero ou negativo.
 
 
 
