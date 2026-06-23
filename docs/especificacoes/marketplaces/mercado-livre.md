@@ -1102,3 +1102,28 @@ Produtos cadastrados antes desta versão entram automaticamente na lista de inco
 ### Por que isso elimina alucinação da IA
 
 Quando os campos críticos (marca, modelo, GTIN, peso, dimensões) **sempre** existem no cadastro, o motor de atributos `meli-resolve-attributes` opera em modo "preferir cadastro": só consulta a IA para atributos descritivos restantes (efeitos, tipo de cuidado, indicações), e mesmo assim com a lista negra `FAMOUS_BRAND_BLACKLIST` ativa. Marcas de terceiros e modelos inventados (como o caso `MLB7017325810` que saiu com Modelo = `"0002"`) deixam de ser possíveis por construção.
+
+---
+
+## v1.8.0 — Multi-valor, Garantia e Órgão Regulatório (2026-06-23)
+
+Esta onda fecha as 4 lacunas detectadas após a 1ª remessa de 21 anúncios:
+
+### 1. Atributos multi-valor (Tipos de cabelo, Formatos de tratamento capilar etc.)
+- Resolver detecta atributos do ML com `tags.multivalued=true` ou `value_max_quantity>1` e devolve `values: [{id, name}]` em vez de `value_name` único.
+- Painel persiste o array em `meli_listings.attributes.values`. Display continua mostrando os valores separados por vírgula (com edição manual disponível).
+- Publish envia no formato exigido pelo ML (`{ id, values: [{id, name}] }`). Antes, mandávamos `value_name: "A, B, C"` e o ML aceitava só "A".
+- IA é instruída a **marcar TODAS** as opções compatíveis (mais alcance no ML). Para single-select obrigatório, escolher SEMPRE a opção mais próxima do produto.
+
+### 2. Garantia automática
+- Resolver cria `WARRANTY_TYPE` (`vendor`→"Garantia do vendedor"; `factory`→"Garantia de fábrica") e `WARRANTY_TIME` (texto do cadastro) a partir de `products.warranty_type` + `products.warranty_duration`. Aparece como verde "Do cadastro do produto" no painel.
+- `WARRANTY_TIME` entrou no conjunto `FREE_FORM_IDS` do publish — texto livre não é descartado pela sanitização.
+
+### 3. Órgão regulatório (ANVISA) automático
+- Quando `regulatory_regime` do produto contém "anvisa", o publish preenche automaticamente o atributo de órgão regulatório da categoria com "ANVISA". IDs cobertos: `REGULATORY_AGENCY`, `SANITARY_REGISTRY_AGENCY`, `HEALTH_REGISTRATION_INSTITUTION`, `REGULATORY_BODY`, `ANVISA_REGISTRY_INSTITUTION` — só o que a categoria expuser.
+
+### 4. Anti-regressão de IDs inválidos
+- Sanitização do publish passa a descartar atributos cujo `id` não exista na spec da categoria (antes passavam direto e o ML rejeitava o item inteiro).
+
+### Aplicar nos 21 anúncios já publicados
+Os atributos não são reenviados automaticamente. Para atualizar, abrir Anúncios → selecionar os 21 → "Recalcular todos" no painel → "Salvar e publicar".
