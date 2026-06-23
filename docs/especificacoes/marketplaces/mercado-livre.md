@@ -138,7 +138,7 @@ Tooltip mostra a data/hora relativa em BRT.
 
 A barra de ações aparece somente quando há itens marcados e contém **dois botões**:
 
-- **Editar em Lote** — reabre o assistente de 7 etapas com os itens selecionados pré-carregados. Na última etapa:
+- **Editar em Lote** — reabre o assistente de 9 etapas com os itens selecionados pré-carregados. Na última etapa:
   - Se **todos** os selecionados já estão publicados no ML (têm `meli_item_id`), o único botão é **"Atualizar anúncios no Mercado Livre"**, que dispara `meli-publish-listing` com `action: "update"` para cada item.
   - Caso contrário, exibe **"Salvar como rascunho"** e **"Salvar e publicar no Mercado Livre"** (este último publica os novos e atualiza os já publicados, conforme o caso).
 - **Excluir Selecionados** — para itens nunca publicados, remove apenas localmente. Para itens publicados/pausados, **desativa (finaliza) no Mercado Livre** (status `closed` — sai do ar, link público para de funcionar) e remove daqui. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; eles ficam apenas no histórico interno do ML. Texto da confirmação (v2.6):
