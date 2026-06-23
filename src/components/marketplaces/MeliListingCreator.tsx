@@ -1031,6 +1031,7 @@ export function MeliListingCreator({
     }
     if (step === "condition") return !!condition;
     if (step === "listing_type") return !!listingType;
+    if (step === "prices") return generatedItems.length > 0 && generatedItems.every(item => Number.isFinite(item.price) && item.price > 0);
     return false;
   };
 
