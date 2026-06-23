@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.5.1: `meli-resolve-attributes` v1.2.0 ganha **fallback determinístico por tokens** para atributos obrigatórios de lista fechada — resolve casos como "loção de crescimento" → "Balm" sem marcar Faltando indevidamente. Prompt da IA reforçado: proibido devolver vazio em obrigatórios fechados. v2.5.0 anterior: política manual-only de envio ao ML, campo `products.line`, cosméticos tri-state com fallback "Não", etapa de Ajuste de Preço no wizard.)
+> **Última atualização:** 2026-06-23 (v2.5.2: assistente em lote volta a ter etapa **Preços** antes de Frete; `meli-resolve-attributes` v1.4.0 corrige regressão de deploy antigo e amplia preenchimento útil de características recomendadas como formato, formato de venda, unidades por kit e conservação. v2.5.1: fallback determinístico por tokens para atributos obrigatórios de lista fechada.)
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
@@ -150,14 +150,15 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 ### Pipeline: Criar → Publicar (no mesmo dialog)
 
 ```
-1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 7 etapas)
+1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 9 etapas)
 2. Etapa 1 — Selecionar Produtos
 3. Etapa 2 — Categorizar via ML API (cria drafts no banco)
 4. Etapa 3 — Gerar Títulos IA (respeitando max_title_length da categoria)
 5. Etapa 4 — Gerar Descrições IA
 6. Etapa 5 — Condição
 7. Etapa 6 — Tipo de Anúncio
-8. Etapa 7 — Frete + escolha final:
+8. Etapa 8 — Preços: ajuste do preço específico do anúncio, sem alterar o cadastro interno
+9. Etapa 9 — Frete + escolha final:
      • "Salvar como rascunho" (fica em Rascunhos para revisão posterior)
      • "Salvar e publicar no Mercado Livre" (publica todos os itens em sequência)
 9. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
@@ -179,9 +180,9 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 
 
 
-### Creator Multi-Produto (MeliListingCreator) — 7 Etapas
+### Creator Multi-Produto (MeliListingCreator) — 9 Etapas
 
-Dialog de 7 etapas para criação em massa de anúncios com validação ML sincronizada:
+Dialog de 9 etapas para criação em massa de anúncios com validação ML sincronizada:
 
 > **IMPORTANTE:** A ordem das etapas é **Categorias → Títulos → Descrições** (não o inverso).
 > Isso garante que os títulos sejam gerados já respeitando o `max_title_length` da categoria atribuída, evitando erros de limite de caracteres.
