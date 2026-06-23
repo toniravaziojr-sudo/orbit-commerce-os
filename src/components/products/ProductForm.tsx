@@ -714,6 +714,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           recommended_hair_types: (data as any).recommended_hair_types ?? [],
           treatment_types: (data as any).treatment_types ?? [],
           expected_effects: (data as any).expected_effects || null,
+          brand: data.brand || null,
+          model: data.model || null,
+          vendor: data.vendor || null,
+          product_type: data.product_type || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
