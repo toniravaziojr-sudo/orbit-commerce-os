@@ -531,49 +531,52 @@ Deno.serve(async (req) => {
       for (const batch of batches) {
         const compact = batch.map(a => ({
           id: a.id, name: a.name,
-          values: a.values?.slice(0, 20).map(v => v.name) ?? null,
+          values: a.values?.slice(0, 30).map(v => v.name) ?? null,
           value_type: a.value_type,
+          multi: isMultiValuedSpec(a),
         }));
         const cosmeticIdsInBatch = compact
           .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
           .map(c => c.id);
+        const multiIdsInBatch = compact.filter(c => c.multi).map(c => c.id);
 
         const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
 REGRAS ABSOLUTAS DE SEGURANÇA (nunca quebrar):
-- O campo "value" SEMPRE deve ser STRING (nunca array, nunca objeto). Se for lista de valores, junte com vírgula em UMA string.
-- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto do produto, devolva "" (vazio). É PROIBIDO sugerir marcas famosas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc. quando não houver marca no cadastro.
-- NUNCA invente GTIN/EAN. Se não houver no contexto, devolva "".
-- NUNCA repita simplesmente palavras do nome do produto em campos descritivos como "Tipo de cuidado", "Efeitos", "Tipo de aplicação", "Indicação". Se você não tem base real, devolva "".
+- O campo "value" SEMPRE deve ser STRING. Para atributos MULTI-seleção (multi=true) junte os valores escolhidos com vírgula (ex.: "Oleoso, Ralo, Crespo").
+- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto, devolva "". Proibido sugerir L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc.
+- NUNCA invente GTIN/EAN. Se não houver, devolva "".
+- NUNCA repita palavras do nome do produto em campos descritivos sem base real.
 - NÃO use a MESMA palavra em campos diferentes. Cada atributo deve trazer informação distinta.
-- Só preencha um atributo descritivo se existir evidência clara no nome, descrição ou tipo do produto.
 
-REGRA GERAL — atributos opcionais (não obrigatórios):
+REGRA OBRIGATÓRIA — MULTI-seleção (${multiIdsInBatch.join(", ") || "nenhum nesta rodada"}):
+- Quando "multi": true, MARQUE TODAS as opções de "values" que façam sentido para o produto (com base em nome + descrição + tipo + público).
+- Exemplo (Tipos de cabelo): se o produto trata calvície, oleosidade e caspa → "Oleoso, Ralo, Crespo, Liso, Cacheado, Seco" (tudo que se aplica).
+- Exemplo (Formatos de tratamento capilar): shampoo + bálsamo + loção → "Shampoo, Bálsamo, Loção" se forem aplicáveis.
+- Quando em dúvida, prefira INCLUIR a EXCLUIR — mais opções = mais alcance no ML.
+
+REGRA GERAL — atributos opcionais single-select:
 - Se houver base no produto, preencha com a melhor inferência.
-- Se NÃO houver base real, devolva "" (vazio). É melhor vazio do que inventado.
+- Se NÃO houver base real, devolva "" (vazio). Melhor vazio do que inventado.
 
-REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
+REGRA CRÍTICA — obrigatórios single-select de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
-- Se houver dúvida, escolha o valor que MAIS se aproxima do nome do produto ou do "tipo".
-- Exemplos: "Balm Pós-banho" → "Balm"; "Loção de crescimento" → "Loção"; "Shampoo antiqueda" → "Shampoo".
+- Para "Tipo de cuidado": cruze com tratamentos do produto (antiqueda, hidratação, anticaspa, antifrizz, antioleosidade). Se cobrir vários, escolha o PRINCIPAL pelo nome do produto.
+- Exemplos: "Balm Pós-banho" → formato "Bálsamo"; "Shampoo antiqueda" → cuidado "Antiqueda"; "Loção crescimento" → cuidado "Antiqueda" ou "Crescimento capilar".
 
 REGRA OBRIGATÓRIA — cosméticos tri-state Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
-- Se o produto sugerir o atributo (ex.: "vegano", "sem parabenos", "orgânico"), responda "Sim".
-- Se o produto sugerir o oposto, responda "Não".
-- Se NÃO houver base e o atributo não fizer sentido, responda "Não se aplica".
-- Se NÃO houver base mas o atributo fizer sentido (cosmético, shampoo, balm, loção, creme), responda "Não".
+- Se o produto sugerir o atributo, "Sim". Se sugerir o oposto, "Não". Se não fizer sentido, "Não se aplica". Senão "Não".
 
 Para LINE (Linha do produto):
-- Se o nome sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho"), use-a.
-- Caso contrário, use o tipo do produto ou "Não se aplica".
+- Se o nome sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho"), use-a. Senão, use o tipo do produto ou "Não se aplica".
 
 Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
 
-Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string.`;
+Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string (vírgula entre múltiplos).`;
 
         try {
           const { data } = await aiChatCompletionJSON(
