@@ -586,6 +586,15 @@ export function MeliListingWizard({
                   min="0.01"
                   step="0.01"
                 />
+                <PriceAdjustControls
+                  basePrice={
+                    selectedProduct?.price ??
+                    (initialData?.product?.price as number | undefined) ??
+                    null
+                  }
+                  currentPrice={price}
+                  onApply={(newValue) => setPrice(newValue)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Quantidade <span className="text-destructive">*</span></Label>
@@ -597,6 +606,7 @@ export function MeliListingWizard({
                 />
               </div>
             </div>
+
 
             {/* Listing Type + Condition */}
             <div className="grid grid-cols-2 gap-4">
