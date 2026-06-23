@@ -6,7 +6,7 @@ type: constraint
 
 Regras invioláveis aplicadas em `meli-resolve-attributes` e `MeliAttributesPanel` (a partir da v1.5.0):
 
-1. **IA nunca inventa marca.** Se `products.brand` for vazio, o atributo `BRAND` vai para `missing` com mensagem "Preencha a marca no cadastro do produto". É proibido aceitar sugestão da IA para `BRAND` quando o cadastro não tem marca.
+1. **IA nunca inventa marca.** Se `products.brand` for vazio, o atributo `BRAND` vai para `missing` com mensagem "Preencha a marca no cadastro do produto". É proibido aceitar sugestão da IA para `BRAND` quando o cadastro não tem marca. **Quando há marca no cadastro, ela é enviada ao ML em texto livre mesmo que a categoria publique uma lista fechada de marcas** (marca própria de loja nunca está na lista do ML, mas o ML aceita). O mesmo vale para `GTIN`, `EAN`, `MODEL` e `SELLER_SKU` — exceções de free-form no resolver e na sanitização do `meli-publish-listing` (set `FREE_FORM_IDS`).
 
 2. **Lista negra de marcas famosas.** Helper `isBlacklistedBrand()` bloqueia sugestões da IA com marcas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Samsung, Apple, Nike etc. mesmo se vierem por erro do modelo. Lista vive no topo de `meli-resolve-attributes/index.ts`. Para adicionar marca, editar `FAMOUS_BRAND_BLACKLIST`.
 
