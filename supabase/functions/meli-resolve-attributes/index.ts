@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
       for (const batch of batches) {
         const compact = batch.map(a => ({
           id: a.id, name: a.name,
-          values: a.values?.slice(0, 30).map(v => v.name) ?? null,
+          values: a.values?.slice(0, 20).map(v => v.name) ?? null,
           value_type: a.value_type,
         }));
         const cosmeticIdsInBatch = compact
@@ -435,13 +435,14 @@ Deno.serve(async (req) => {
           .map(c => c.id);
 
         const prompt = `Você preenche atributos de anúncio do Mercado Livre.
-Preencha o MÁXIMO de atributos possível para subir a nota de qualidade do anúncio.
+Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
 REGRA GERAL — atributos opcionais (não obrigatórios):
 - Se houver QUALQUER base no produto (nome, descrição, tipo, função, categoria), preencha com a melhor inferência.
 - Só retorne "" (vazio) se o atributo realmente não fizer sentido para este produto ou não houver nenhuma base.
 - Para atributos descritivos comuns (cor, material, formato, tamanho, gênero, idade, indicação, fragrância principal, perfil de cabelo/pele etc.) tente sempre inferir a partir do nome e descrição.
+- Para produto cosmético capilar, atributos como formato do produto, formato de venda, unidades por kit, conservação, fragrância, indicação, efeitos e características cosméticas devem ser preenchidos quando existirem na lista.
 
 REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
@@ -531,8 +532,7 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
         if (suggested) {
           let value_id: string | undefined;
           if (a.values?.length) {
-            const norm = suggested.toLowerCase().trim();
-            const hit = a.values.find(v => v.name.toLowerCase().trim() === norm);
+            const hit = matchAllowedValue(a, suggested);
             if (hit) value_id = hit.id;
           }
           // Obrigatório de lista fechada sem match na lista oficial → missing.
