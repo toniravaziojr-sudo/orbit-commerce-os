@@ -211,10 +211,23 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
             {statusCounts['archived']} Arquivados
           </Badge>
         )}
+        {incompleteCount > 0 && (
+          <Badge
+            variant={showOnlyIncomplete ? 'default' : 'outline'}
+            className="text-sm px-3 py-1 cursor-pointer border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30"
+            onClick={() => setShowOnlyIncomplete(v => !v)}
+            title="Mostrar apenas produtos com dados faltando para o Mercado Livre"
+          >
+            <AlertCircle className="h-3.5 w-3.5 mr-1" />
+            {incompleteCount} Incompleto{incompleteCount !== 1 ? 's' : ''} para Mercado Livre
+            {showOnlyIncomplete ? ' (filtrando)' : ''}
+          </Badge>
+        )}
         <span className="text-sm text-muted-foreground ml-auto">
           {products.length} produto{products.length !== 1 ? 's' : ''} no total
         </span>
       </div>
+
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-sm">
