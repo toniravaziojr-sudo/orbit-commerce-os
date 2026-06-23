@@ -174,11 +174,15 @@ Deno.serve(async (req) => {
       const dictEntry = dictByMeliId.get(a.id);
       if (dictEntry?.universal_key) {
         const k = dictEntry.universal_key as string;
+        const productTypeFallback = (product.model && String(product.model).trim())
+          || product.product_type
+          || product.ai_product_type
+          || "Genérico";
         const map: Record<string, any> = {
           brand: product.brand,
           gtin: product.gtin,
           ean: product.gtin,
-          model: product.sku,
+          model: productTypeFallback,
           sku: product.sku,
           condition: listingCondition,
           gender: product.gender_audience,
