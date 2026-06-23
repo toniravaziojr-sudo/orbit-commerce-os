@@ -1616,6 +1616,25 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name={"line" as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Linha</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={(field.value as string) ?? ''}
+                              placeholder="Ex: Calvície Zero (opcional)"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+
 
                     <FormField
                       control={form.control}
