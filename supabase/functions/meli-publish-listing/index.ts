@@ -273,8 +273,12 @@ Deno.serve(async (req) => {
               break;
             case "LINE":
             case "MODEL":
-              // Use brand as fallback line/model when no specific value exists
-              autoValue = brandValue;
+              // Fallback: product_type (Shampoo, Balm, Loção...) when no specific model; never SKU
+              autoValue = listing.product?.model
+                || listing.product?.product_type
+                || listing.product?.ai_product_type
+                || brandValue
+                || "Genérico";
               break;
             case "ITEM_CONDITION":
               autoValue = listing.condition === "used" ? "Usado" : "Novo";
