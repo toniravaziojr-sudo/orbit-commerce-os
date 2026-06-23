@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.5.0";
+const VERSION = "1.8.0";
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
