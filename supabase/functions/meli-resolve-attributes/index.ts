@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     }
     const regulatoryRegime = product.regulatory_regime ?? universalCategory?.regulatory_regime ?? null;
     const warrantyText = (product.warranty?.trim?.()
-      || (product.warranty_months ? `${product.warranty_months} ${product.warranty_months === 1 ? "mês" : "meses"} de garantia` : null));
+      || (product.warranty_duration ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia` : null));
 
     // ---- 5. Resolução determinística por atributo -----------------------
     const resolved: ResolvedAttr[] = [];
