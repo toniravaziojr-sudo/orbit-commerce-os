@@ -28,6 +28,8 @@ import { DeleteProductDialog } from './DeleteProductDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
+import { checkMlReadiness } from '@/lib/marketplaces/mlReadiness';
+import { AlertCircle } from 'lucide-react';
 
 interface ProductListProps {
   onCreateProduct: () => void;
