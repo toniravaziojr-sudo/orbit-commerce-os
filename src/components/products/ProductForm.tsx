@@ -48,6 +48,7 @@ import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
 import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 import { useUniversalCategories } from '@/hooks/useUniversalCategories';
+import { checkMlReadiness, formatMissingForToast, GENERIC_MODEL_VALUE } from '@/lib/marketplaces/mlReadiness';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
