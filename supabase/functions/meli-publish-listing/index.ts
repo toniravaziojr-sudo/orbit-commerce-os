@@ -438,6 +438,46 @@ Deno.serve(async (req) => {
 
 // ===================== Helper Functions =====================
 
+/**
+ * Sanitiza atributos contra os values fixos da categoria do ML.
+ * Remove atributos cujo value_name não existe na lista oficial.
+ * Quando bate, normaliza para usar o value_id oficial do ML.
+ */
+async function sanitizeAttributesForCategory(
+  accessToken: string,
+  categoryId: string,
+  attrs: any[],
+): Promise<any[]> {
+  try {
+    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) return attrs;
+    const specs: any[] = await res.json();
+    const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
+    const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+    const cleaned: any[] = [];
+    for (const attr of attrs) {
+      const spec = byId.get(attr.id);
+      if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+        const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
+        if (!hit) {
+          console.log(`[meli-publish-listing] sanitize: dropping ${attr.id}="${attr.value_name}" (not allowed)`);
+          continue;
+        }
+        cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
+      } else {
+        cleaned.push(attr);
+      }
+    }
+    return cleaned;
+  } catch (e) {
+    console.log("[meli-publish-listing] sanitize skipped:", e);
+    return attrs;
+  }
+}
+
+
 function buildImagesList(listingImages: any[], productImages: any[] | null): any[] {
   const seenUrls = new Set<string>();
   const images: any[] = [];
