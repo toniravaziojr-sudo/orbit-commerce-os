@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     // Get listing with product data - include gtin, regulatory_info, warranty
     const { data: listing, error: listingError } = await supabase
       .from("meli_listings")
-      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, model, product_type, ai_product_type, gtin, regulatory_info, warranty_type, warranty_duration)")
+      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, model, line, product_type, ai_product_type, gtin, regulatory_info, warranty_type, warranty_duration)")
       .eq("id", listingId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
