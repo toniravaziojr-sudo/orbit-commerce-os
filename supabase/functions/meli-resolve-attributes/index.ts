@@ -376,6 +376,7 @@ Deno.serve(async (req) => {
           status: "filled", source, required,
         });
       } else {
+        if (a.tags?.hidden && !required && !isCosmeticTriState) continue;
         // Envia TODOS os atributos sem valor determinístico para a IA tentar preencher.
         // Inclui opcionais — essencial para nota de qualidade do anúncio (características
         // secundárias). IA retorna "" quando não há base e o atributo é descartado.
