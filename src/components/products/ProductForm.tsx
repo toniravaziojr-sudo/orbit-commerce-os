@@ -1592,6 +1592,25 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
                     <FormField
                       control={form.control}
+                      name="model"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Modelo</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Pro Max 2024 (opcional)"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+
+                    <FormField
+                      control={form.control}
                       name="vendor"
                       render={({ field }) => (
                         <FormItem>
