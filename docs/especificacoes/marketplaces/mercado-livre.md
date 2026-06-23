@@ -1023,3 +1023,45 @@ Comportamento da etapa:
 A função de publicação (`meli-publish-listing`) já consome esse array e faz merge sem sobrescrever: agora o anúncio nasce com pontuação alta no Mercado Livre porque vai com **todos** os atributos relevantes (obrigatórios + recomendados), não só os básicos.
 
 Vale tanto na criação em lote (modo "Selecionar produtos") quanto na reabertura de rascunhos ("Editar em lote").
+
+## Cadastro como Fonte Única do Mercado Livre (v3.8 — 2026-06-23)
+
+O **cadastro do produto** é a única fonte de verdade para os campos obrigatórios do Mercado Livre. O motor de atributos (`meli-resolve-attributes`) e o assistente de criação/edição em lote **nunca** chamam IA para esses valores — todos vêm direto do cadastro.
+
+### Campos obrigatórios no cadastro
+
+Aplicados em `src/lib/marketplaces/mlReadiness.ts` (função `checkMlReadiness`, fonte única consumida pelo formulário de produto, pela tela de Produtos e pelo wizard de anúncios):
+
+- **Marca** (`products.brand`)
+- **Código de barras GTIN/EAN** (`products.gtin`, 8 a 14 dígitos)
+- **Modelo** (`products.model`) — com botão **"Genérico"** ao lado do campo para o lojista marcar conscientemente quando não houver modelo específico. Persistido como o literal `"Genérico"`.
+- **Peso (g) + dimensões (largura, altura, profundidade em cm)**
+- **Categoria universal** (`products.universal_category_id`)
+- **Conteúdo líquido** — valor numérico + unidade (ml/g/l/kg/un)
+- **Atributos cosméticos tri-estado** (obrigatórios quando `regulatory_regime = anvisa_cosmetic`): dermatologicamente testado, hipoalergênico, cruelty free, vegano, tem fragrância
+
+### Bloqueios e UX
+
+1. **No formulário do produto** (`ProductForm.tsx`):
+   - Banner amarelo no topo lista os campos faltantes assim que o lojista abre/edita o produto.
+   - Botão **"Salvar"** travado por toast destrutivo enquanto qualquer item da lista estiver vazio.
+   - Botão **"Genérico"** ao lado de **Modelo** preenche `products.model = "Genérico"` em um clique.
+
+2. **Na lista de Produtos** (`ProductList.tsx`):
+   - Contador **"N Incompletos para Mercado Livre"** visível no topo da lista.
+   - Clique no contador ativa filtro que mostra **somente** os produtos pendentes.
+
+3. **No wizard de anúncios** (`MeliListingWizard.tsx`):
+   - Checagem silenciosa final imediatamente antes do `onSubmit`. Mesmo com o painel verde, consulta o cadastro do produto no banco e bloqueia a publicação com toast + ação **"Abrir cadastro"** se algum campo voltou a ficar vazio.
+   - Garante que ninguém burla o fluxo apagando dados no cadastro depois de resolver atributos.
+
+### Política para produtos antigos
+
+Produtos cadastrados antes desta versão entram automaticamente na lista de incompletos. Estratégia em duas fases:
+
+- **Fase 1 (atual):** Filtro **"Incompletos para Mercado Livre"** + banner por produto + bloqueio de salvar **na edição do próprio produto**. Permite atacar a fila sem travar operações não-ML.
+- **Fase 2 (a ativar após relatório do passivo):** Bloqueio universal — qualquer salvamento que toque um produto incompleto é rejeitado, sem exceção. Depende de aprovação do lojista após revisar o passivo.
+
+### Por que isso elimina alucinação da IA
+
+Quando os campos críticos (marca, modelo, GTIN, peso, dimensões) **sempre** existem no cadastro, o motor de atributos `meli-resolve-attributes` opera em modo "preferir cadastro": só consulta a IA para atributos descritivos restantes (efeitos, tipo de cuidado, indicações), e mesmo assim com a lista negra `FAMOUS_BRAND_BLACKLIST` ativa. Marcas de terceiros e modelos inventados (como o caso `MLB7017325810` que saiu com Modelo = `"0002"`) deixam de ser possíveis por construção.
