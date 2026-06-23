@@ -208,7 +208,14 @@ Deno.serve(async (req) => {
         const id = a.id.toUpperCase();
         if (id === "BRAND" && product.brand) { value_name = product.brand; source = "product"; }
         else if ((id === "GTIN" || id === "EAN") && product.gtin) { value_name = product.gtin; source = "product"; }
-        else if (id === "MODEL" && product.sku) { value_name = product.sku; source = "product"; }
+        else if (id === "MODEL") {
+          const modelValue = (product.model && String(product.model).trim())
+            || product.product_type
+            || product.ai_product_type
+            || "Genérico";
+          value_name = String(modelValue);
+          source = product.model ? "product" : "derivation";
+        }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }
