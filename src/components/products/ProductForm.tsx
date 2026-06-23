@@ -718,6 +718,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           expected_effects: (data as any).expected_effects || null,
           brand: data.brand || null,
           model: data.model || null,
+          line: (data as any).line || null,
           vendor: data.vendor || null,
           product_type: data.product_type || null,
           free_shipping: data.free_shipping ?? false,
