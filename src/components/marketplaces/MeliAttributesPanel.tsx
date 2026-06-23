@@ -329,7 +329,7 @@ function AttrRow({ attr, onEdit, compact }: {
           {attr.required && <span className="text-destructive ml-0.5">*</span>}
         </Label>
         {SOURCE_LABEL[attr.source] && (
-          <span className="text-[10px] text-muted-foreground">{SOURCE_LABEL[attr.source]}</span>
+          <span className={`text-[10px] font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
         )}
       </div>
       <Input
