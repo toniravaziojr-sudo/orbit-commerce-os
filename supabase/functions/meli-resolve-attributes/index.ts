@@ -701,6 +701,34 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
           }
 
           if (suggested) {
+            const isMulti = isMultiValuedSpec(a);
+            if (isMulti) {
+              const pieces = suggested.split(",").map(s => s.trim()).filter(Boolean);
+              const valuesArr: Array<{ id?: string; name: string }> = [];
+              for (const p of pieces) {
+                if (a.values?.length) {
+                  const hit = matchAllowedValue(a, p);
+                  if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+                } else {
+                  valuesArr.push({ name: p });
+                }
+              }
+              if (valuesArr.length > 0) {
+                resolved.push({
+                  id: a.id, name: a.name,
+                  value_name: valuesArr.map(v => v.name).join(", "),
+                  values: valuesArr,
+                  status: "filled", source: "ai", required,
+                });
+              } else if (required) {
+                resolved.push({
+                  id: a.id, name: a.name,
+                  status: "missing", source: "none", required: true,
+                  message: friendlyMissingMessage(a),
+                });
+              }
+              continue;
+            }
             let value_id: string | undefined;
             if (a.values?.length) {
               const hit = matchAllowedValue(a, suggested);
@@ -716,10 +744,6 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
               continue;
             } else {
               if (!required && a.values?.length && !value_id) continue;
-              // Sugestões da IA já entram como "preenchidas" (verde). O painel
-              // distingue origem via `source: "ai"` com etiqueta "Sugerido pela IA".
-              // Assim o lojista vê com clareza tudo que será enviado ao ML, sem
-              // a falsa fricção de "campo para revisar".
               resolved.push({
                 id: a.id, name: a.name, value_name: suggested, value_id,
                 status: "filled",
