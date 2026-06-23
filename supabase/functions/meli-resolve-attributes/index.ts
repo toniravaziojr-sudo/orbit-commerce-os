@@ -319,17 +319,14 @@ Deno.serve(async (req) => {
           id: a.id, name: a.name, value_name, value_id,
           status: "filled", source, required,
         });
-      } else if (required || a.tags?.allow_variations === false || listMismatch || isCosmeticTriState || a.id.toUpperCase() === "LINE") {
-        // inclui:
-        // - obrigatórios sem valor
-        // - valores heurísticos fora da lista oficial (IA escolhe um válido)
-        // - atributos cosméticos tri-state (sempre preencher para não deixar
-        //   "Características secundárias incompletas" no anúncio do ML)
-        // - LINE (linha do produto): IA sugere baseado no contexto se não houver cadastro
+      } else {
+        // Envia TODOS os atributos sem valor determinístico para a IA tentar preencher.
+        // Isso inclui opcionais — essencial para subir nota de qualidade do anúncio
+        // (características secundárias). IA retorna "" quando não há base e o atributo
+        // é descartado naturalmente abaixo.
         aiPending.push(a);
       }
-      // não-obrigatório sem valor válido: ignora (não polui painel)
-    }
+
 
     // ---- 6. Pergunta à IA para cobrir o que sobrou (obrigatórios) ------
     if (aiPending.length > 0) {
