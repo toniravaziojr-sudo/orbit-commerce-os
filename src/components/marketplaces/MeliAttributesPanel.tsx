@@ -49,10 +49,36 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const [attrs, setAttrs] = useState<ResolvedAttr[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAttrs = async () => {
+  // Carrega características já salvas no anúncio. Só chama a IA/resolver
+  // quando não houver nada salvo OU quando o usuário clicar em Recalcular.
+  const loadSavedOrResolve = async (forceResolve = false) => {
     if (!tenantId || !productId || !categoryId) return;
     setLoading(true); setError(null);
     try {
+      if (!forceResolve && listingId) {
+        const { data: saved } = await supabase
+          .from("meli_listings")
+          .select("attributes, category_id")
+          .eq("id", listingId)
+          .maybeSingle();
+        const savedAttrs = Array.isArray(saved?.attributes) ? (saved!.attributes as any[]) : [];
+        const sameCategory = saved?.category_id === categoryId;
+        if (sameCategory && savedAttrs.length > 0) {
+          // Reaproveita as características já resolvidas — sem custo de IA.
+          const hydrated: ResolvedAttr[] = savedAttrs.map((a: any) => ({
+            id: a.id,
+            name: a.name || a.id,
+            value_name: a.value_name,
+            value_id: a.value_id,
+            status: "filled",
+            source: "product",
+            required: false,
+          }));
+          setAttrs(hydrated);
+          setLoading(false);
+          return;
+        }
+      }
       const { data, error } = await supabase.functions.invoke("meli-resolve-attributes", {
         body: { tenantId, listingId, productId, categoryId },
       });
@@ -67,7 +93,13 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
     }
   };
 
-  useEffect(() => { fetchAttrs(); /* eslint-disable-next-line */ }, [tenantId, productId, categoryId]);
+  const fetchAttrs = () => loadSavedOrResolve(true);
+
+  // Carrega uma única vez por combinação tenant+produto+categoria+anúncio.
+  useEffect(() => {
+    loadSavedOrResolve(false);
+    // eslint-disable-next-line
+  }, [tenantId, productId, categoryId, listingId]);
 
   // Propaga estado pro pai (validação de publicação)
   useEffect(() => {
