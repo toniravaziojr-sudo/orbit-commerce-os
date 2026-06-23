@@ -343,6 +343,14 @@ GET (sem params)         → Lista categorias raiz do MLB
 2. Filtro de categoria dos resultados de busca (`available_filters`)
 3. Extração de categorias únicas dos resultados de busca
 
+### Política de Envio ao ML: 100% Manual (v2.5.0 — OBRIGATÓRIO)
+
+> **Não existe nenhum mecanismo automático (cron, gatilho ou job) que envie atualizações ao Mercado Livre.** Todo `POST` ou `PUT` para a API do ML é disparado exclusivamente por ação manual do usuário (publicar, atualizar, pausar, reativar, excluir).
+>
+> **Motivo:** o Mercado Livre penaliza anúncios editados com alta frequência — perda de relevância na busca orgânica, reset do score de qualidade do anúncio e queda em campanhas Mercado Ads. Por isso é proibido criar rotina que atualize anúncios sem intervenção do lojista.
+>
+> O único cron que toca em ML — `meli-sync-listings-auto` (08:00 diário) — é **somente leitura**: traz status/preço/estoque do ML para o nosso banco e nunca dispara `PUT` no sentido inverso.
+
 ### Atributos Enviados Automaticamente
 
 A edge function `meli-publish-listing` monta os atributos a partir do formulário + dados do produto:
@@ -352,29 +360,50 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `BRAND` | Formulário ou `products.brand` |
 | `GTIN` | `products.gtin` ou `products.barcode` (fallback automático) |
 | `SELLER_SKU` | `products.sku` |
+| `LINE` | `products.line` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Não se aplica" (cascata; SKU nunca é usado) |
 | `MODEL` | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" (cascata; SKU nunca é usado como modelo — v2.4.5) |
 | `WARRANTY_TYPE` | `products.warranty_type` (vendor → "Garantía del vendedor", factory → "Garantía de fábrica") |
 | `WARRANTY_TIME` | `products.warranty_duration` (ex: "6 meses") |
 
-### Auto-preenchimento de Atributos Obrigatórios por Categoria (v3.3.0 + v2.4.5)
+### Auto-preenchimento de Atributos Obrigatórios por Categoria (v3.3.0 + v2.5.0)
 
 Antes de publicar, a edge function consulta `GET /categories/{id}/attributes` e identifica os atributos marcados como `required` pela categoria escolhida. Para cada obrigatório que ainda não tenha valor, o sistema tenta preencher automaticamente:
 
 | Atributo obrigatório | Fallback automático |
 |----------------------|---------------------|
 | `BRAND` | `products.brand` |
-| `LINE` (Linha) | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" |
+| `LINE` (Linha) | `products.line` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Não se aplica" |
 | `MODEL` (Modelo) | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" |
 | `ITEM_CONDITION` | "Novo" (ou "Usado" se `listing.condition = used`) |
 | `GTIN` / `EAN` | `products.gtin` |
 
 > **⚠️ Anti-regressão (v2.4.5):** O SKU **NUNCA** deve ser usado como valor de `MODEL` em nenhum marketplace. SKU é código interno de inventário, não modelo comercial. Produtos sem modelo específico (caso comum em cosméticos como linha Respeite o Homem) devem cair no `product_type` (Shampoo, Balm, Loção, Óleo etc.). Regra registrada também em `_padrao-canonico-marketplaces.md`.
 
-Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um campo que não temos no cadastro), a publicação é bloqueada e o anúncio fica com erro descrevendo exatamente quais campos preencher no cadastro do produto.
+### Atributos Cosméticos Secundários — IA Preenche Sempre (v2.5.0)
+
+Atributos cosméticos do tipo Sim/Não/Não se aplica (`DERMATOLOGICALLY_TESTED`, `HYPOALLERGENIC`, `IS_CRUELTY_FREE`, `IS_VEGAN`, `WITH_FRAGRANCE`, `IS_ORGANIC`, `IS_PARABEN_FREE`, `IS_NATURAL`, `IS_GLUTEN_FREE` e variações), **mesmo quando opcionais pela categoria do ML**, são SEMPRE consultados via `meli-resolve-attributes`:
+
+1. Se o cadastro do produto tem o campo respectivo preenchido → usa o valor do cadastro.
+2. Se não tem → IA é consultada e responde "Sim", "Não" ou "Não se aplica" com base no nome/descrição/contexto do produto.
+3. **Se a IA não tem certeza, é obrigada a responder "Não"** — nunca deixa em branco. Isso elimina a seção "Características secundárias incompletas" no painel do ML.
 
 ### Atualização de anúncio publicado (v2.4.5)
 
-A ação `update` do `meli-publish-listing` agora reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
+A ação `update` do `meli-publish-listing` reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
+
+### Ajuste de Preço no Wizard de Publicação (v2.5.0)
+
+Dentro do passo de revisão do `MeliListingWizard`, abaixo do campo Preço, existem 3 controles:
+
+| Ação | Efeito |
+|------|--------|
+| **Aplicar desconto %** | Reduz o preço atual em X% (ex.: 10% → preço × 0,90) |
+| **Aplicar acréscimo %** | Aumenta o preço atual em X% (ex.: 15% para cobrir taxa do ML) |
+| **Restaurar do cadastro** | Volta para o preço definido em `products.price` |
+
+O ajuste afeta APENAS o preço do anúncio (campo `meli_listings.price`). O preço de venda interno (`products.price`) **não é alterado** — o ajuste é específico do canal ML.
+
+
 
 
 
