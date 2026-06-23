@@ -33,6 +33,7 @@ import {
   HelpCircle,
   Truck,
   MapPin,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +55,8 @@ export interface ExistingDraft {
   condition?: string | null;
   listing_type?: string | null;
   shipping?: Record<string, any> | null;
-  product?: { name: string } | null;
+  price?: number | null;
+  product?: { name: string; price?: number | null } | null;
   status?: string | null;
   meli_item_id?: string | null;
 }
@@ -83,7 +85,7 @@ interface MeliListingCreatorProps {
   existingDrafts?: ExistingDraft[];
 }
 
-type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "shipping";
+type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "prices" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
@@ -93,6 +95,7 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "attributes", label: "Características" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
+  { key: "prices", label: "Preços" },
   { key: "shipping", label: "Frete" },
 ];
 
@@ -105,6 +108,8 @@ interface GeneratedItem {
   categoryId: string;
   categoryName: string;
   categoryPath: string;
+  price: number;
+  productPrice: number;
 }
 
 const TITLE_SOFT_WARNING_LENGTH = 90;
