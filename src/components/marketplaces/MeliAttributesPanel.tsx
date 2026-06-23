@@ -37,6 +37,11 @@ interface Props {
   productId: string | null;
   categoryId: string;
   onChange: (value: MeliAttributesPanelValue) => void;
+  /** Incrementa para forçar recálculo via IA (botão "Recalcular todos"). */
+  recalcToken?: number;
+  /** Quando muda, substitui os atributos atuais pelos fornecidos (botão "Aplicar a todos"). */
+  seedToken?: number;
+  seedAttributes?: ResolvedAttr[];
 }
 
 const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
@@ -77,12 +82,33 @@ async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId, onChange }: Props) {
+export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId, onChange, recalcToken, seedToken, seedAttributes }: Props) {
   const [loading, setLoading] = useState(false);
   const [queued, setQueued] = useState(false);
   const [attrs, setAttrs] = useState<ResolvedAttr[]>([]);
   const [error, setError] = useState<string | null>(null);
   const lastKeyRef = useRef<string>("");
+  const lastRecalcTokenRef = useRef<number | undefined>(recalcToken);
+  const lastSeedTokenRef = useRef<number | undefined>(seedToken);
+
+  // Persiste o resultado no anúncio para que reabrir o dialog não dispare IA de novo.
+  const persistToListing = async (next: ResolvedAttr[]) => {
+    if (!listingId) return;
+    const payload = next
+      .filter(a => a.status !== "missing" && (a.value_name || a.value_id))
+      .map(a => ({
+        id: a.id,
+        name: a.name,
+        ...(a.value_id ? { value_id: a.value_id } : {}),
+        ...(a.value_name ? { value_name: a.value_name } : {}),
+        source: a.source,
+      }));
+    try {
+      await supabase.from("meli_listings").update({ attributes: payload as any }).eq("id", listingId);
+    } catch {
+      /* persistência silenciosa — não bloqueia UX */
+    }
+  };
 
   // Carrega características já salvas no anúncio. Só chama a IA/resolver
   // quando não houver nada salvo OU quando o usuário clicar em Recalcular.
@@ -106,7 +132,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             value_name: a.value_name,
             value_id: a.value_id,
             status: "filled",
-            source: "product",
+            source: (a.source as ResolvedAttr["source"]) || "product",
             required: false,
           }));
           setAttrs(hydrated);
@@ -124,7 +150,10 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           });
           if (error) throw error;
           if (!data?.success) throw new Error(data?.error || "Falha ao resolver atributos");
-          setAttrs(data.attributes ?? []);
+          const next = (data.attributes ?? []) as ResolvedAttr[];
+          setAttrs(next);
+          // Persiste imediatamente para que reabrir o dialog não dispare IA de novo.
+          void persistToListing(next);
         } finally {
           setLoading(false);
         }
@@ -148,6 +177,27 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
     // eslint-disable-next-line
   }, [tenantId, productId, categoryId, listingId]);
 
+  // Recalcular todos (acionado pelo pai).
+  useEffect(() => {
+    if (recalcToken === undefined) return;
+    if (lastRecalcTokenRef.current === recalcToken) return;
+    lastRecalcTokenRef.current = recalcToken;
+    void loadSavedOrResolve(true);
+    // eslint-disable-next-line
+  }, [recalcToken]);
+
+  // Aplicar a todos (acionado pelo pai) — substitui atributos atuais pelos do produto fonte.
+  useEffect(() => {
+    if (seedToken === undefined) return;
+    if (lastSeedTokenRef.current === seedToken) return;
+    lastSeedTokenRef.current = seedToken;
+    if (Array.isArray(seedAttributes) && seedAttributes.length > 0) {
+      setAttrs(seedAttributes);
+      void persistToListing(seedAttributes);
+    }
+    // eslint-disable-next-line
+  }, [seedToken]);
+
   // Propaga estado pro pai (validação de publicação)
   useEffect(() => {
     const canPublish = !loading && !queued && !error && attrs.every(a => a.status !== "missing");
@@ -156,9 +206,13 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   }, [attrs, loading, queued, error]);
 
   const handleEdit = (id: string, value: string) => {
-    setAttrs(prev => prev.map(a => a.id === id
-      ? { ...a, value_name: value, value_id: undefined, status: value.trim() ? "filled" : "missing", source: "manual" }
-      : a));
+    setAttrs(prev => {
+      const next = prev.map(a => a.id === id
+        ? { ...a, value_name: value, value_id: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
+        : a);
+      void persistToListing(next);
+      return next;
+    });
   };
 
   const filled = attrs.filter(a => a.status === "filled");
