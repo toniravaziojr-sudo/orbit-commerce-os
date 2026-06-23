@@ -846,6 +846,38 @@ export function MeliListingCreator({
     if (ops.length) await Promise.all(ops);
   };
 
+  // ====== Recalcular todos os atributos (botão no topo da etapa) ======
+  const handleRecalcAllAttributes = () => {
+    setAttrRecalcAllToken(t => t + 1);
+    toast.message("Recalculando características de todos os anúncios...");
+  };
+
+  // ====== Aplicar as características de um produto a todos os outros da mesma categoria ======
+  const handleApplyAttributesToAll = (sourceListingId: string) => {
+    const source = generatedItems.find(i => i.listingId === sourceListingId);
+    const sourceAttrs = attrValuesByListing[sourceListingId]?.attributes;
+    if (!source?.categoryId || !Array.isArray(sourceAttrs) || sourceAttrs.length === 0) {
+      toast.error("Este produto ainda não tem características calculadas.");
+      return;
+    }
+    const targets = generatedItems.filter(i =>
+      i.listingId !== sourceListingId && i.categoryId === source.categoryId
+    );
+    if (targets.length === 0) {
+      toast.error("Nenhum outro produto na mesma categoria para aplicar.");
+      return;
+    }
+    setAttrSeedByListing(prev => {
+      const next = { ...prev };
+      const baseToken = Date.now();
+      targets.forEach((t, idx) => {
+        next[t.listingId] = { token: baseToken + idx, attributes: sourceAttrs };
+      });
+      return next;
+    });
+    toast.success(`Características aplicadas a ${targets.length} produto(s) da mesma categoria.`);
+  };
+
   const handlePriceChange = (listingId: string, rawValue: string) => {
     const trimmed = rawValue.trim();
     const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
