@@ -523,9 +523,12 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     updatePayload.pictures = images;
   }
 
-  // Update attributes (MODEL, BRAND, etc.) if saved on the listing
-  if (Array.isArray(listing.attributes) && listing.attributes.length > 0) {
-    updatePayload.attributes = listing.attributes;
+  // Update attributes (MODEL, BRAND, etc.) if saved on the listing — sanitize against ML category specs
+  if (Array.isArray(listing.attributes) && listing.attributes.length > 0 && listing.category_id) {
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, listing.attributes);
+    if (sanitized.length > 0) {
+      updatePayload.attributes = sanitized;
+    }
   }
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
