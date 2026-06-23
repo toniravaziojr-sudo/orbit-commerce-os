@@ -24,4 +24,6 @@ Regras invioláveis aplicadas em `meli-resolve-attributes` e `MeliAttributesPane
 
 9. **Cache obrigatório.** O painel hidrata de `meli_listings.attributes` quando `category_id` bate. Só chama o resolvedor quando o usuário aperta "Recalcular" ou quando não há nada salvo. Proibido recalcular automático ao reabrir o dialog.
 
-Docs: `docs/especificacoes/marketplaces/mercado-livre.md` seção "Anti-Alucinação e Tolerância a Erros da IA (v1.5.0)" + "Fila de Concorrência no Painel (v1.5.0)".
+10. **Sugestão da IA = verde com etiqueta de origem (v1.6.0).** Todo atributo resolvido com valor (cadastro, derivação, dicionário ou IA) entra como `status: "filled"`. O painel diferencia visualmente apenas pela etiqueta de origem: **"Do cadastro do produto"** (verde) vs **"Sugerido pela IA"** (azul). Não existe mais bloco amarelo "para revisar" — proibido reintroduzir status `review` para sugestões da IA, porque cria fricção falsa e desencoraja a publicação. O lojista enxerga claramente que **tudo o que está verde será enviado ao Mercado Livre**.
+
+Docs: `docs/especificacoes/marketplaces/mercado-livre.md` seção "Anti-Alucinação e Tolerância a Erros da IA (v1.5.0)" + "Fila de Concorrência no Painel (v1.5.0)" + "Marca/GTIN/Model free-form e etiqueta de origem (v1.6.0)".
