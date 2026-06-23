@@ -237,13 +237,25 @@ Deno.serve(async (req) => {
     // Warranty via attributes (warranty field is deprecated on ML API)
     if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
       if (!attrIds.has("WARRANTY_TYPE")) {
-        const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantía del vendedor' : 'Garantía de fábrica';
+        const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
         attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
         attrIds.add("WARRANTY_TYPE");
       }
       if (!attrIds.has("WARRANTY_TIME") && listing.product.warranty_duration) {
-        attributes.push({ id: "WARRANTY_TIME", value_name: listing.product.warranty_duration });
+        attributes.push({ id: "WARRANTY_TIME", value_name: String(listing.product.warranty_duration).trim() });
         attrIds.add("WARRANTY_TIME");
+      }
+    }
+
+    // Órgão regulatório (ANVISA) — fallback quando o regime do cadastro for ANVISA cosmético.
+    const _regRegime = String(listing.product?.regulatory_regime || "").toLowerCase();
+    if (_regRegime.includes("anvisa")) {
+      const REG_IDS = ["REGULATORY_AGENCY","SANITARY_REGISTRY_AGENCY","HEALTH_REGISTRATION_INSTITUTION","REGULATORY_BODY","ANVISA_REGISTRY_INSTITUTION"];
+      for (const rid of REG_IDS) {
+        if (!attrIds.has(rid)) {
+          attributes.push({ id: rid, value_name: "ANVISA" });
+          attrIds.add(rid);
+        }
       }
     }
 
