@@ -6,7 +6,7 @@ type: constraint
 
 Regras invioláveis aplicadas em `meli-resolve-attributes` e `MeliAttributesPanel` (a partir da v1.5.0):
 
-1. **IA nunca inventa marca.** Se `products.brand` for vazio, o atributo `BRAND` vai para `missing` com mensagem "Preencha a marca no cadastro do produto". É proibido aceitar sugestão da IA para `BRAND` quando o cadastro não tem marca.
+1. **IA nunca inventa marca.** Se `products.brand` for vazio, o atributo `BRAND` vai para `missing` com mensagem "Preencha a marca no cadastro do produto". É proibido aceitar sugestão da IA para `BRAND` quando o cadastro não tem marca. **Quando há marca no cadastro, ela é enviada ao ML em texto livre mesmo que a categoria publique uma lista fechada de marcas** (marca própria de loja nunca está na lista do ML, mas o ML aceita). O mesmo vale para `GTIN`, `EAN`, `MODEL` e `SELLER_SKU` — exceções de free-form no resolver e na sanitização do `meli-publish-listing` (set `FREE_FORM_IDS`).
 
 2. **Lista negra de marcas famosas.** Helper `isBlacklistedBrand()` bloqueia sugestões da IA com marcas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Samsung, Apple, Nike etc. mesmo se vierem por erro do modelo. Lista vive no topo de `meli-resolve-attributes/index.ts`. Para adicionar marca, editar `FAMOUS_BRAND_BLACKLIST`.
 
@@ -24,4 +24,6 @@ Regras invioláveis aplicadas em `meli-resolve-attributes` e `MeliAttributesPane
 
 9. **Cache obrigatório.** O painel hidrata de `meli_listings.attributes` quando `category_id` bate. Só chama o resolvedor quando o usuário aperta "Recalcular" ou quando não há nada salvo. Proibido recalcular automático ao reabrir o dialog.
 
-Docs: `docs/especificacoes/marketplaces/mercado-livre.md` seção "Anti-Alucinação e Tolerância a Erros da IA (v1.5.0)" + "Fila de Concorrência no Painel (v1.5.0)".
+10. **Sugestão da IA = verde com etiqueta de origem (v1.6.0).** Todo atributo resolvido com valor (cadastro, derivação, dicionário ou IA) entra como `status: "filled"`. O painel diferencia visualmente apenas pela etiqueta de origem: **"Do cadastro do produto"** (verde) vs **"Sugerido pela IA"** (azul). Não existe mais bloco amarelo "para revisar" — proibido reintroduzir status `review` para sugestões da IA, porque cria fricção falsa e desencoraja a publicação. O lojista enxerga claramente que **tudo o que está verde será enviado ao Mercado Livre**.
+
+Docs: `docs/especificacoes/marketplaces/mercado-livre.md` seção "Anti-Alucinação e Tolerância a Erros da IA (v1.5.0)" + "Fila de Concorrência no Painel (v1.5.0)" + "Marca/GTIN/Model free-form e etiqueta de origem (v1.6.0)".

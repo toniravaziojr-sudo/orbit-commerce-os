@@ -40,11 +40,19 @@ interface Props {
 }
 
 const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
-  product: "do cadastro",
-  derivation: "calculado",
-  dictionary: "padrão do sistema",
-  ai: "sugerido pela IA",
+  product: "Do cadastro do produto",
+  derivation: "Do cadastro do produto",
+  dictionary: "Do cadastro do produto",
+  ai: "Sugerido pela IA",
   none: "",
+};
+
+const SOURCE_TONE: Record<ResolvedAttr["source"], string> = {
+  product: "text-green-700 dark:text-green-400",
+  derivation: "text-green-700 dark:text-green-400",
+  dictionary: "text-green-700 dark:text-green-400",
+  ai: "text-sky-700 dark:text-sky-400",
+  none: "text-muted-foreground",
 };
 
 // ----- Fila global: no máximo 3 resoluções rodando em paralelo no app inteiro.
@@ -306,7 +314,7 @@ function AttrRow({ attr, onEdit, compact }: {
         <span className="font-medium">{attr.name}:</span>
         <span className="text-muted-foreground truncate">{attr.value_name || "—"}</span>
         {SOURCE_LABEL[attr.source] && (
-          <span className="text-[10px] text-muted-foreground ml-auto">{SOURCE_LABEL[attr.source]}</span>
+          <span className={`text-[10px] ml-auto font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
         )}
       </div>
     );
@@ -321,7 +329,7 @@ function AttrRow({ attr, onEdit, compact }: {
           {attr.required && <span className="text-destructive ml-0.5">*</span>}
         </Label>
         {SOURCE_LABEL[attr.source] && (
-          <span className="text-[10px] text-muted-foreground">{SOURCE_LABEL[attr.source]}</span>
+          <span className={`text-[10px] font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
         )}
       </div>
       <Input
