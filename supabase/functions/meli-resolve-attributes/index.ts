@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       .from("products")
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, length,
-        brand, gtin, condition, warranty, warranty_months, product_format,
+        brand, gtin, condition, warranty, warranty_duration, warranty_type, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     }
     const regulatoryRegime = product.regulatory_regime ?? universalCategory?.regulatory_regime ?? null;
     const warrantyText = (product.warranty?.trim?.()
-      || (product.warranty_months ? `${product.warranty_months} ${product.warranty_months === 1 ? "mês" : "meses"} de garantia` : null));
+      || (product.warranty_duration ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia` : null));
 
     // ---- 5. Resolução determinística por atributo -----------------------
     const resolved: ResolvedAttr[] = [];
