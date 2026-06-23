@@ -1635,18 +1635,33 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="model"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Modelo</FormLabel>
+                          <FormLabel>Modelo *</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Ex: Pro Max 2024 (opcional)"
-                            />
+                            <div className="flex gap-2">
+                              <Input
+                                {...field}
+                                value={field.value ?? ''}
+                                placeholder="Ex: Pro Max 2024"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => form.setValue('model', GENERIC_MODEL_VALUE, { shouldDirty: true })}
+                                title="Marcar como Genérico quando o produto não tem modelo específico"
+                              >
+                                Genérico
+                              </Button>
+                            </div>
                           </FormControl>
+                          <FormDescription className="text-xs">
+                            Obrigatório para o Mercado Livre. Use "Genérico" quando não houver modelo específico.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+
 
                     <FormField
                       control={form.control}
