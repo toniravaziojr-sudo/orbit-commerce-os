@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.5.1: `meli-resolve-attributes` v1.2.0 ganha **fallback determinístico por tokens** para atributos obrigatórios de lista fechada — resolve casos como "loção de crescimento" → "Balm" sem marcar Faltando indevidamente. Prompt da IA reforçado: proibido devolver vazio em obrigatórios fechados. v2.5.0 anterior: política manual-only de envio ao ML, campo `products.line`, cosméticos tri-state com fallback "Não", etapa de Ajuste de Preço no wizard.)
+> **Última atualização:** 2026-06-23 (v2.5.2: assistente em lote volta a ter etapa **Preços** antes de Frete; `meli-resolve-attributes` v1.4.0 corrige regressão de deploy antigo e amplia preenchimento útil de características recomendadas como formato, formato de venda, unidades por kit e conservação. v2.5.1: fallback determinístico por tokens para atributos obrigatórios de lista fechada.)
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
@@ -138,7 +138,7 @@ Tooltip mostra a data/hora relativa em BRT.
 
 A barra de ações aparece somente quando há itens marcados e contém **dois botões**:
 
-- **Editar em Lote** — reabre o assistente de 7 etapas com os itens selecionados pré-carregados. Na última etapa:
+- **Editar em Lote** — reabre o assistente de 9 etapas com os itens selecionados pré-carregados. Na última etapa:
   - Se **todos** os selecionados já estão publicados no ML (têm `meli_item_id`), o único botão é **"Atualizar anúncios no Mercado Livre"**, que dispara `meli-publish-listing` com `action: "update"` para cada item.
   - Caso contrário, exibe **"Salvar como rascunho"** e **"Salvar e publicar no Mercado Livre"** (este último publica os novos e atualiza os já publicados, conforme o caso).
 - **Excluir Selecionados** — para itens nunca publicados, remove apenas localmente. Para itens publicados/pausados, **desativa (finaliza) no Mercado Livre** (status `closed` — sai do ar, link público para de funcionar) e remove daqui. O Mercado Livre não permite exclusão definitiva de anúncios já publicados; eles ficam apenas no histórico interno do ML. Texto da confirmação (v2.6):
@@ -150,17 +150,19 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 ### Pipeline: Criar → Publicar (no mesmo dialog)
 
 ```
-1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 7 etapas)
+1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 9 etapas)
 2. Etapa 1 — Selecionar Produtos
 3. Etapa 2 — Categorizar via ML API (cria drafts no banco)
 4. Etapa 3 — Gerar Títulos IA (respeitando max_title_length da categoria)
 5. Etapa 4 — Gerar Descrições IA
-6. Etapa 5 — Condição
-7. Etapa 6 — Tipo de Anúncio
-8. Etapa 7 — Frete + escolha final:
+6. Etapa 5 — Características
+7. Etapa 6 — Condição
+8. Etapa 7 — Tipo de Anúncio
+9. Etapa 8 — Preços: ajuste do preço específico do anúncio, sem alterar o cadastro interno
+10. Etapa 9 — Frete + escolha final:
      • "Salvar como rascunho" (fica em Rascunhos para revisão posterior)
      • "Salvar e publicar no Mercado Livre" (publica todos os itens em sequência)
-9. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
+11. Após publicação: aparece na aba Publicados, pode pausar/reativar/editar/sincronizar/excluir
 ```
 
 ### Sincronização ML em todas as ações
@@ -179,9 +181,9 @@ A barra de ações aparece somente quando há itens marcados e contém **dois bo
 
 
 
-### Creator Multi-Produto (MeliListingCreator) — 7 Etapas
+### Creator Multi-Produto (MeliListingCreator) — 9 Etapas
 
-Dialog de 7 etapas para criação em massa de anúncios com validação ML sincronizada:
+Dialog de 9 etapas para criação em massa de anúncios com validação ML sincronizada:
 
 > **IMPORTANTE:** A ordem das etapas é **Categorias → Títulos → Descrições** (não o inverso).
 > Isso garante que os títulos sejam gerados já respeitando o `max_title_length` da categoria atribuída, evitando erros de limite de caracteres.
@@ -192,9 +194,11 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 | 2 | Categorizar via ML API | Cria drafts no banco + `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 3 | Gerar Títulos IA | `bulk_generate_titles` (com `category_id` já definido → usa `max_title_length` real da categoria) → preview editável (input, validação semântica anti-truncamento, botão Regenerar com loading spinner). Botão **"Manter nomes originais dos produtos"** substitui todos os títulos pelo nome cadastrado do produto (truncado a 60 chars), útil quando o lojista prefere o naming interno em vez do título gerado pela IA. |
 | 4 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
-| 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
-| 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
-| 7 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
+| 5 | Características | Cruza cadastro, categoria e dicionário do ML; preenche obrigatórios e recomendados seguros antes de publicar. |
+| 6 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
+| 7 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
+| 8 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
+| 9 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
 
 **Props:**
 
@@ -211,7 +215,7 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_auto_categories` com `listingIds` para definir categorias
 2. Etapa 3 chama `bulk_generate_titles` com mesmos `listingIds` — como `category_id` já está definido, a edge function consulta `max_title_length` da categoria e gera títulos dentro do limite
 3. Etapa 4 chama `bulk_generate_descriptions` com mesmos `listingIds`
-4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
+4. Etapas 5-8 aplicam condição, listing_type, preço específico do anúncio e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
 **Reabertura de rascunhos (modo "Configurar Selecionados"):**
@@ -391,9 +395,9 @@ Atributos cosméticos do tipo Sim/Não/Não se aplica (`DERMATOLOGICALLY_TESTED`
 
 A ação `update` do `meli-publish-listing` reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
 
-### Ajuste de Preço no Wizard de Publicação (v2.5.0)
+### Ajuste de Preço no Wizard de Publicação (v2.5.2)
 
-Dentro do passo de revisão do `MeliListingWizard`, abaixo do campo Preço, existem 3 controles:
+No assistente em lote, a etapa **Preços** fica antes de **Frete**. Para cada produto, mostra o preço atual do anúncio e o preço do cadastro como referência. Existem 3 controles:
 
 | Ação | Efeito |
 |------|--------|
@@ -401,7 +405,7 @@ Dentro do passo de revisão do `MeliListingWizard`, abaixo do campo Preço, exis
 | **Aplicar acréscimo %** | Aumenta o preço atual em X% (ex.: 15% para cobrir taxa do ML) |
 | **Restaurar do cadastro** | Volta para o preço definido em `products.price` |
 
-O ajuste afeta APENAS o preço do anúncio (campo `meli_listings.price`). O preço de venda interno (`products.price`) **não é alterado** — o ajuste é específico do canal ML.
+O ajuste afeta APENAS o preço do anúncio (campo `meli_listings.price`). O preço de venda interno (`products.price`) **não é alterado** — o ajuste é específico do canal ML. O fluxo bloqueia avanço se algum preço ficar zero ou negativo.
 
 
 
@@ -937,7 +941,16 @@ Edge function `meli-resolve-attributes` (verify_jwt=true), payload `{ tenantId, 
   can_publish: boolean
 }
 ```
-IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. Só pergunta à IA os atributos obrigatórios que sobraram após as 3 camadas determinísticas — economiza tokens.
+IA via `aiChatCompletionJSON` do `_shared/ai-router.ts` (Gemini 2.5 Flash → fallback automático). Nunca chama Lovable Gateway direto. O motor primeiro aplica inferências determinísticas de baixo custo e só consulta IA para atributos úteis que ainda ficaram sem resposta.
+
+### Preenchimento ampliado de características recomendadas (v1.4.0 — 2026-06-23)
+Para evitar nota baixa por envio de poucas características, o motor passa a preencher de forma determinística atributos recomendados seguros quando a categoria do Mercado Livre os oferece:
+- **Formato do produto:** inferido por tipo/nome (ex.: Balm → Bálsamo, Loção → Loção).
+- **Formato de venda:** Kit quando o produto tem composição; Unidade nos demais casos.
+- **Unidades por kit:** soma da composição quando houver kit.
+- **Conservação:** Temperatura ambiente para cosméticos sem requisito especial.
+
+O motor ignora atributos somente leitura e atributos de embalagem que o próprio ML controla, evitando gasto de IA e evitando rejeição por campos não editáveis.
 
 ### Fallback determinístico por tokens (v1.2.0 — 2026-06-23)
 Para atributos **obrigatórios de lista fechada** (ex.: `PRODUCT_TYPE` com lista oficial do ML), o motor garante que nunca devolva "Faltando" silenciosamente quando há base no produto:
@@ -973,17 +986,18 @@ Comportamento:
 - Quando o lojista volta para a aba Pendências, o sistema **revalida automaticamente** a lista de anúncios e o catálogo (listener de `focus` + `visibilitychange`). Custo zero — só reaproveita o React Query.
 - A tela de Produtos passa a aceitar o deep link `?edit=<productId>` (uso interno do atalho).
 
-## Etapa "Características" no assistente em lote (v3.5 — 2026-06-22)
+## Etapas "Características" e "Preços" no assistente em lote (v3.6 — 2026-06-23)
 
-O assistente de criação/edição em lote de anúncios passa de 7 para **8 etapas**, com a nova etapa **"Características"** posicionada entre "Descrições" e "Condição":
+O assistente de criação/edição em lote de anúncios tem **9 etapas**, com **"Características"** entre "Descrições" e "Condição" e **"Preços"** entre "Tipo" e "Frete":
 
-1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → 8. Frete.
+1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → **8. Preços** → 9. Frete.
 
 Comportamento da etapa:
 - Para cada anúncio em preparação, chama o motor `meli-resolve-attributes` (já existente, sem alteração) e renderiza o painel **"Atributos para o anúncio"** com os blocos Preenchido / Revisar / Faltando.
 - Mostra contador "X faltando" e atalho "Abrir cadastro" por anúncio, abrindo o produto correspondente em nova aba.
 - Botão **"Continuar"** fica desabilitado enquanto houver atributos obrigatórios faltando em qualquer anúncio.
 - Ao avançar, persiste para cada anúncio o array `attributes` em `meli_listings` no formato `[{ id, value_name?, value_id? }, ...]` — só os com status diferente de `missing`.
+- Na etapa **Preços**, o lojista pode editar o preço por anúncio, aplicar desconto/acréscimo percentual em lote ou restaurar o preço do cadastro. O preço interno do produto não muda.
 
 A função de publicação (`meli-publish-listing`) já consome esse array e faz merge sem sobrescrever: agora o anúncio nasce com pontuação alta no Mercado Livre porque vai com **todos** os atributos relevantes (obrigatórios + recomendados), não só os básicos.
 

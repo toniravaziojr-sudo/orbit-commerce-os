@@ -34,7 +34,9 @@ Não existe. O anúncio é publicado com o preço do cadastro, sem chance de aju
 - Para atributos cosméticos do tipo Sim/Não/Não se aplica (parabenos, crueldade, vegano, orgânico, hipoalergênico, dermatologicamente testado, com fragrância), quando o cadastro estiver vazio, a IA é sempre consultada — mesmo se o atributo for opcional.
 - Regra obrigatória: **se a IA não tiver certeza, responde "Não"**, nunca em branco.
 - Para atributos texto (tipo de pele, fragrância, etc.): IA propõe valor compatível com a lista oficial do ML; sem base, marca "Não se aplica".
-- Resultado: seção "Características secundárias" sempre 100% preenchida, eliminando o aviso amarelo do ML.
+- Resultado esperado: seção "Características secundárias" mais completa, com inferências determinísticas de baixo custo antes de acionar IA.
+
+**Status 2026-06-23:** regressão confirmada: o backend publicado ainda respondia versão antiga e retornava apenas 5 atributos. Corrigido com nova versão do motor, que já valida 9 atributos no Balm Pós-Banho (2x) Dia: marca, formato, formato de venda, unidades por kit, conservação, GTIN, condição, modelo e kit.
 
 ### Parte D — Nova etapa de Preços no wizard de envio
 Etapa nova, antes da revisão final:
@@ -45,6 +47,8 @@ Etapa nova, antes da revisão final:
   3. **Restaurar preço do cadastro**
 - O preço ajustado é o que vai para o ML. O preço do cadastro interno **não muda**.
 - Bloqueio de envio se algum preço final ficar zero ou negativo.
+
+**Status 2026-06-23:** regressão confirmada: a etapa prevista não estava no assistente em lote. Reimplantada antes de Frete, com edição por item, desconto %, acréscimo % e restauração do preço do cadastro.
 
 ### Parte E — Republicar o anúncio MLB7017325810 (validação)
 Após as mudanças, atualizar o Balm Pós-banho:

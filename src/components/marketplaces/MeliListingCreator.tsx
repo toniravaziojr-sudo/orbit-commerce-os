@@ -33,6 +33,7 @@ import {
   HelpCircle,
   Truck,
   MapPin,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +55,8 @@ export interface ExistingDraft {
   condition?: string | null;
   listing_type?: string | null;
   shipping?: Record<string, any> | null;
-  product?: { name: string } | null;
+  price?: number | null;
+  product?: { name: string; price?: number | null } | null;
   status?: string | null;
   meli_item_id?: string | null;
 }
@@ -83,7 +85,7 @@ interface MeliListingCreatorProps {
   existingDrafts?: ExistingDraft[];
 }
 
-type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "shipping";
+type Step = "select" | "categories" | "titles" | "descriptions" | "attributes" | "condition" | "listing_type" | "prices" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
@@ -93,6 +95,7 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "attributes", label: "Características" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
+  { key: "prices", label: "Preços" },
   { key: "shipping", label: "Frete" },
 ];
 
@@ -105,6 +108,8 @@ interface GeneratedItem {
   categoryId: string;
   categoryName: string;
   categoryPath: string;
+  price: number;
+  productPrice: number;
 }
 
 const TITLE_SOFT_WARNING_LENGTH = 90;
@@ -184,6 +189,7 @@ export function MeliListingCreator({
   // Atributos resolvidos por anúncio (etapa "Características").
   // Cada item guarda {attributes, canPublish} vindos do MeliAttributesPanel.
   const [attrValuesByListing, setAttrValuesByListing] = useState<Record<string, MeliAttributesPanelValue>>({});
+  const [priceAdjustmentPercent, setPriceAdjustmentPercent] = useState("10");
 
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
@@ -270,6 +276,7 @@ export function MeliListingCreator({
       setLocalPickup(false);
       setExpandedDescs(new Set());
       setAttrValuesByListing({});
+      setPriceAdjustmentPercent("10");
       configureInitRef.current = null;
     }
   }, [open]);
@@ -289,6 +296,8 @@ export function MeliListingCreator({
       categoryId: d.category_id || "",
       categoryName: d.category_id || "",
       categoryPath: "",
+      price: Number(d.price ?? d.product?.price ?? 0),
+      productPrice: Number(d.product?.price ?? d.price ?? 0),
     }));
     setGeneratedItems(items);
     setListingIds(existingDrafts.map(d => d.id));
@@ -311,7 +320,7 @@ export function MeliListingCreator({
       try {
         const { data: fresh } = await supabase
           .from("meli_listings")
-          .select("id, title, description, category_id, condition, listing_type, shipping")
+          .select("id, title, description, category_id, condition, listing_type, shipping, price")
           .in("id", ids);
         if (!fresh) return;
         const byId = new Map(fresh.map((r: any) => [r.id, r]));
@@ -324,6 +333,7 @@ export function MeliListingCreator({
             description: r.description || i.description,
             categoryId: r.category_id || i.categoryId,
             categoryName: r.category_id ? i.categoryName : "",
+            price: Number(r.price ?? i.price),
           };
         }));
         const f: any = fresh[0];
@@ -447,6 +457,8 @@ export function MeliListingCreator({
         categoryId: "",
         categoryName: "",
         categoryPath: "",
+        price: Number(p.price || 0),
+        productPrice: Number(p.price || 0),
       }));
       setGeneratedItems(items);
 
@@ -831,6 +843,33 @@ export function MeliListingCreator({
     if (ops.length) await Promise.all(ops);
   };
 
+  const handlePriceChange = (listingId: string, rawValue: string) => {
+    const trimmed = rawValue.trim();
+    const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
+    const nextPrice = Number(normalized);
+    setGeneratedItems(prev => prev.map(item =>
+      item.listingId === listingId ? { ...item, price: Number.isFinite(nextPrice) ? nextPrice : 0 } : item
+    ));
+  };
+
+  const applyPriceAdjustment = (mode: "discount" | "increase" | "restore") => {
+    const percent = Number(priceAdjustmentPercent.replace(",", ".")) || 0;
+    setGeneratedItems(prev => prev.map(item => {
+      if (mode === "restore") return { ...item, price: item.productPrice };
+      const factor = mode === "discount" ? (1 - percent / 100) : (1 + percent / 100);
+      return { ...item, price: Math.max(0, Number((item.price * factor).toFixed(2))) };
+    }));
+  };
+
+  const handleSavePrices = async () => {
+    const invalid = generatedItems.some(item => !Number.isFinite(item.price) || item.price <= 0);
+    if (invalid) throw new Error("Revise os preços: todos precisam ser maiores que zero.");
+    const ops = generatedItems.map(item =>
+      supabase.from("meli_listings").update({ price: item.price }).eq("id", item.listingId)
+    );
+    if (ops.length) await Promise.all(ops);
+  };
+
   // ====== Final save: condition + listing_type + shipping ======
   // mode: 'draft' just saves locally; 'publish' also pushes to ML (publish new for unpublished, update for existing meli_item_id)
   const handleFinalSave = async (mode: 'draft' | 'publish' = 'draft') => {
@@ -960,8 +999,13 @@ export function MeliListingCreator({
       } else if (idx === 5) {
         setStep("listing_type");
       } else if (idx === 6) {
+        setStep("prices");
+      } else if (idx === 7) {
+        await handleSavePrices();
         setStep("shipping");
       }
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível avançar");
     } finally {
       setIsNavigating(false);
     }
@@ -988,11 +1032,15 @@ export function MeliListingCreator({
     if (step === "descriptions") return !isProcessing;
     if (step === "attributes") {
       // Permite avançar quando nenhum anúncio tem atributo obrigatório faltando.
+      const expectedIds = generatedItems.filter(item => item.categoryId).map(item => item.listingId);
+      if (expectedIds.length !== generatedItems.length) return false;
+      if (expectedIds.some(id => !attrValuesByListing[id])) return false;
       const values = Object.values(attrValuesByListing);
       return values.every(v => v.canPublish !== false);
     }
     if (step === "condition") return !!condition;
     if (step === "listing_type") return !!listingType;
+    if (step === "prices") return generatedItems.length > 0 && generatedItems.every(item => Number.isFinite(item.price) && item.price > 0);
     return false;
   };
 
@@ -1015,6 +1063,7 @@ export function MeliListingCreator({
             {step === "attributes" && "Características dos Anúncios"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
+            {step === "prices" && "Preços dos Anúncios"}
             {step === "shipping" && "Configuração de Frete"}
           </DialogTitle>
           <DialogDescription>
@@ -1025,6 +1074,7 @@ export function MeliListingCreator({
             {step === "attributes" && "Confirmamos as características exigidas e recomendadas pelo Mercado Livre. Quanto mais preenchido, maior a pontuação do anúncio."}
             {step === "condition" && "Defina a condição dos produtos"}
             {step === "listing_type" && "Escolha o tipo de anúncio e salve"}
+            {step === "prices" && "Ajuste o preço que será enviado ao Mercado Livre sem alterar o cadastro interno"}
           </DialogDescription>
 
           {/* Step indicators */}
@@ -1534,7 +1584,57 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 7: Shipping ===== */}
+        {/* ===== STEP 8: Prices ===== */}
+        {step === "prices" && (
+          <div className="flex-1 flex flex-col gap-4 min-h-0 py-2">
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              O valor abaixo é específico do anúncio no Mercado Livre. O preço do cadastro do produto permanece igual.
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="w-full sm:w-32">
+                <Label className="text-xs">Percentual</Label>
+                <Input
+                  value={priceAdjustmentPercent}
+                  onChange={(e) => setPriceAdjustmentPercent(e.target.value)}
+                  inputMode="decimal"
+                  className="h-9"
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={() => applyPriceAdjustment("discount")} className="gap-2">
+                <DollarSign className="h-4 w-4" /> Aplicar desconto %
+              </Button>
+              <Button type="button" variant="outline" onClick={() => applyPriceAdjustment("increase")} className="gap-2">
+                <DollarSign className="h-4 w-4" /> Aplicar acréscimo %
+              </Button>
+              <Button type="button" variant="outline" onClick={() => applyPriceAdjustment("restore")}>Restaurar preço do cadastro</Button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-3 pr-3">
+                {generatedItems.map(item => (
+                  <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">Cadastro: {formatCurrency(item.productPrice || 0)}</p>
+                      </div>
+                      <div className="w-36 shrink-0">
+                        <Input
+                          value={Number.isFinite(item.price) ? String(item.price).replace(".", ",") : ""}
+                          onChange={(e) => handlePriceChange(item.listingId, e.target.value)}
+                          inputMode="decimal"
+                          className={item.price <= 0 ? "border-destructive" : ""}
+                        />
+                      </div>
+                    </div>
+                    {item.price <= 0 && <p className="text-xs text-destructive">O preço precisa ser maior que zero.</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== STEP 9: Shipping ===== */}
         {step === "shipping" && (
           <div className="flex-1 flex flex-col gap-4 py-4">
             <p className="text-sm text-muted-foreground">

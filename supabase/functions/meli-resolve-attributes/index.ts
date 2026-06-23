@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,6 +165,46 @@ Deno.serve(async (req) => {
     const resolved: ResolvedAttr[] = [];
     const aiPending: MeliAttrSpec[] = [];
 
+    const BLOCKED_ATTR_IDS = new Set([
+      "PACKAGE_HEIGHT", "PACKAGE_WIDTH", "PACKAGE_LENGTH", "PACKAGE_WEIGHT",
+      "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WEIGHT",
+    ]);
+
+    const normalizeText = (value: string) => value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+    const matchAllowedValue = (attr: MeliAttrSpec, candidate?: string | null) => {
+      if (!candidate || !attr.values?.length) return null;
+      const normCandidate = normalizeText(String(candidate));
+      return attr.values.find(v => normalizeText(v.name) === normCandidate) ?? null;
+    };
+
+    const inferProductFormat = (attr: MeliAttrSpec) => {
+      const seeds = [product.product_type, product.ai_product_type, product.name, universalCategory?.name]
+        .filter(Boolean).join(" ");
+      const norm = normalizeText(seeds);
+      const candidates = [
+        { test: ["balm", "balsamo", "bálsamo"], value: "Bálsamo" },
+        { test: ["locao", "loção", "lotion"], value: "Loção" },
+        { test: ["gel"], value: "Gel" },
+        { test: ["creme"], value: "Creme" },
+        { test: ["serum", "sérum"], value: "Sérum" },
+        { test: ["spray"], value: "Spray" },
+        { test: ["emulsao", "emulsão"], value: "Emulsão" },
+        { test: ["aerossol", "aerosol"], value: "Aerossol" },
+        { test: ["bastao", "bastão"], value: "Bastão" },
+      ];
+      for (const candidate of candidates) {
+        if (candidate.test.some(t => norm.includes(normalizeText(t))) && matchAllowedValue(attr, candidate.value)) {
+          return candidate.value;
+        }
+      }
+      return null;
+    };
+
     // Atributos cosméticos tri-state (Sim / Não / Não se aplica).
     // Mesmo quando não obrigatórios pela categoria, devem SEMPRE ser preenchidos
     // (fallback "Não" pela IA quando não houver base) para evitar a seção
@@ -181,6 +221,7 @@ Deno.serve(async (req) => {
     ]);
 
     for (const a of meliAttrs) {
+      if (BLOCKED_ATTR_IDS.has(a.id) || a.tags?.read_only) continue;
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
       let source: ResolvedAttr["source"] = "none";
@@ -245,6 +286,21 @@ Deno.serve(async (req) => {
           // sem fallback determinístico — IA decide entre product_type ou "Não se aplica"
         }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
+        else if (id === "PRODUCT_FORMAT") {
+          const inferred = inferProductFormat(a);
+          if (inferred) { value_name = inferred; source = "derivation"; }
+        }
+        else if (id === "SALE_FORMAT") {
+          value_name = isKit ? "Kit" : "Unidade";
+          source = "derivation";
+        }
+        else if (id === "UNITS_PER_PACK" && unitsPerPackage > 1) {
+          value_name = String(unitsPerPackage); source = "derivation";
+        }
+        else if (id === "PRODUCT_CONSERVATION") {
+          value_name = "Temperatura ambiente";
+          source = "derivation";
+        }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }
         }
@@ -320,6 +376,7 @@ Deno.serve(async (req) => {
           status: "filled", source, required,
         });
       } else {
+        if (a.tags?.hidden && !required && !isCosmeticTriState) continue;
         // Envia TODOS os atributos sem valor determinístico para a IA tentar preencher.
         // Inclui opcionais — essencial para nota de qualidade do anúncio (características
         // secundárias). IA retorna "" quando não há base e o atributo é descartado.
@@ -371,7 +428,7 @@ Deno.serve(async (req) => {
       for (const batch of batches) {
         const compact = batch.map(a => ({
           id: a.id, name: a.name,
-          values: a.values?.slice(0, 30).map(v => v.name) ?? null,
+          values: a.values?.slice(0, 20).map(v => v.name) ?? null,
           value_type: a.value_type,
         }));
         const cosmeticIdsInBatch = compact
@@ -379,13 +436,14 @@ Deno.serve(async (req) => {
           .map(c => c.id);
 
         const prompt = `Você preenche atributos de anúncio do Mercado Livre.
-Preencha o MÁXIMO de atributos possível para subir a nota de qualidade do anúncio.
+Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
 REGRA GERAL — atributos opcionais (não obrigatórios):
 - Se houver QUALQUER base no produto (nome, descrição, tipo, função, categoria), preencha com a melhor inferência.
 - Só retorne "" (vazio) se o atributo realmente não fizer sentido para este produto ou não houver nenhuma base.
 - Para atributos descritivos comuns (cor, material, formato, tamanho, gênero, idade, indicação, fragrância principal, perfil de cabelo/pele etc.) tente sempre inferir a partir do nome e descrição.
+- Para produto cosmético capilar, atributos como formato do produto, formato de venda, unidades por kit, conservação, fragrância, indicação, efeitos e características cosméticas devem ser preenchidos quando existirem na lista.
 
 REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
@@ -475,8 +533,7 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
         if (suggested) {
           let value_id: string | undefined;
           if (a.values?.length) {
-            const norm = suggested.toLowerCase().trim();
-            const hit = a.values.find(v => v.name.toLowerCase().trim() === norm);
+            const hit = matchAllowedValue(a, suggested);
             if (hit) value_id = hit.id;
           }
           // Obrigatório de lista fechada sem match na lista oficial → missing.
