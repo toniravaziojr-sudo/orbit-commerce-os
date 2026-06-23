@@ -843,6 +843,32 @@ export function MeliListingCreator({
     if (ops.length) await Promise.all(ops);
   };
 
+  const handlePriceChange = (listingId: string, rawValue: string) => {
+    const normalized = rawValue.replace(".", "").replace(",", ".");
+    const nextPrice = Number(normalized);
+    setGeneratedItems(prev => prev.map(item =>
+      item.listingId === listingId ? { ...item, price: Number.isFinite(nextPrice) ? nextPrice : 0 } : item
+    ));
+  };
+
+  const applyPriceAdjustment = (mode: "discount" | "increase" | "restore") => {
+    const percent = Number(priceAdjustmentPercent.replace(",", ".")) || 0;
+    setGeneratedItems(prev => prev.map(item => {
+      if (mode === "restore") return { ...item, price: item.productPrice };
+      const factor = mode === "discount" ? (1 - percent / 100) : (1 + percent / 100);
+      return { ...item, price: Math.max(0, Number((item.price * factor).toFixed(2))) };
+    }));
+  };
+
+  const handleSavePrices = async () => {
+    const invalid = generatedItems.some(item => !Number.isFinite(item.price) || item.price <= 0);
+    if (invalid) throw new Error("Revise os preços: todos precisam ser maiores que zero.");
+    const ops = generatedItems.map(item =>
+      supabase.from("meli_listings").update({ price: item.price }).eq("id", item.listingId)
+    );
+    if (ops.length) await Promise.all(ops);
+  };
+
   // ====== Final save: condition + listing_type + shipping ======
   // mode: 'draft' just saves locally; 'publish' also pushes to ML (publish new for unpublished, update for existing meli_item_id)
   const handleFinalSave = async (mode: 'draft' | 'publish' = 'draft') => {
