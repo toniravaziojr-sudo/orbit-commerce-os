@@ -405,8 +405,15 @@ Deno.serve(async (req) => {
       }
 
       const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+      // Atributos onde o ML aceita texto LIVRE mesmo quando a categoria publica
+      // uma "lista sugerida". Marca da loja própria nunca está nessa lista, mas
+      // o ML aceita; idem GTIN/EAN/MODEL/SELLER_SKU vindos do cadastro.
+      const idUp = a.id.toUpperCase();
+      const FREE_FORM_FROM_PRODUCT = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
+      const isFreeFormFromProduct =
+        FREE_FORM_FROM_PRODUCT.has(idUp) && (source === "product" || source === "derivation");
 
-      if (value_name && !listMismatch) {
+      if (value_name && (!listMismatch || isFreeFormFromProduct)) {
         resolved.push({
           id: a.id, name: a.name, value_name, value_id,
           status: "filled", source, required,
