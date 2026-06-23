@@ -8,7 +8,7 @@
 // =============================================
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, CheckCircle2, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, Pencil, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
