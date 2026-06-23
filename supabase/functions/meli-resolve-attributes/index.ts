@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ success: false, error: "Sessão inválida" });
 
-    const { tenantId, productId, categoryId } = await req.json();
+    const { tenantId, productId, categoryId, listingId } = await req.json();
     if (!tenantId || !productId || !categoryId) {
       return json({ success: false, error: "tenantId, productId e categoryId são obrigatórios" });
     }
@@ -88,6 +88,18 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Não foi possível carregar o cadastro do produto", code: "product_lookup_failed" });
     }
     if (!product) return json({ success: false, error: "Produto não encontrado", code: "product_not_found" });
+
+    let listingCondition = "new";
+    if (listingId) {
+      const { data: listing } = await supabase
+        .from("meli_listings")
+        .select("condition")
+        .eq("id", listingId)
+        .eq("tenant_id", tenantId)
+        .eq("product_id", productId)
+        .maybeSingle();
+      listingCondition = listing?.condition || listingCondition;
+    }
 
     const { data: components } = await supabase
       .from("product_components")
@@ -168,7 +180,7 @@ Deno.serve(async (req) => {
           ean: product.gtin,
           model: product.sku,
           sku: product.sku,
-          condition: "new",
+          condition: listingCondition,
           gender: product.gender_audience,
           regulatory_regime: regulatoryRegime,
           net_content_value: product.net_content_value,
@@ -193,7 +205,7 @@ Deno.serve(async (req) => {
         if (id === "BRAND" && product.brand) { value_name = product.brand; source = "product"; }
         else if ((id === "GTIN" || id === "EAN") && product.gtin) { value_name = product.gtin; source = "product"; }
         else if (id === "MODEL" && product.sku) { value_name = product.sku; source = "product"; }
-        else if (id === "ITEM_CONDITION") { value_name = "Novo"; source = "derivation"; }
+        else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }
         }
