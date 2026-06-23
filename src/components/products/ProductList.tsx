@@ -84,11 +84,16 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
     }
   };
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  const incompleteCount = products.filter(p => !checkMlReadiness(p as any).ready).length;
+  const filteredProducts = products.filter((product) => {
+    if (showOnlyIncomplete && checkMlReadiness(product as any).ready) return false;
+    const term = search.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(term) ||
+      product.sku.toLowerCase().includes(term)
+    );
+  });
+
 
   const handleDelete = () => {
     if (deleteId) {
