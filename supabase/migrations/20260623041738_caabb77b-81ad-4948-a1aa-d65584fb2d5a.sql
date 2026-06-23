@@ -1,0 +1,2 @@
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS line text;
+COMMENT ON COLUMN public.products.line IS 'Linha comercial do produto (ex: "Calvície Zero"). Usada como atributo LINE em marketplaces. Opcional.';

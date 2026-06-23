@@ -586,6 +586,15 @@ export function MeliListingWizard({
                   min="0.01"
                   step="0.01"
                 />
+                <PriceAdjustControls
+                  basePrice={
+                    selectedProduct?.price ??
+                    (initialData?.product?.price as number | undefined) ??
+                    null
+                  }
+                  currentPrice={price}
+                  onApply={(newValue) => setPrice(newValue)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Quantidade <span className="text-destructive">*</span></Label>
@@ -597,6 +606,7 @@ export function MeliListingWizard({
                 />
               </div>
             </div>
+
 
             {/* Listing Type + Condition */}
             <div className="grid grid-cols-2 gap-4">
@@ -744,6 +754,83 @@ export function MeliListingWizard({
     </Dialog>
   );
 }
+
+// Price adjustment controls — 3 ações: desconto %, acréscimo %, restaurar do cadastro
+function PriceAdjustControls({
+  basePrice,
+  currentPrice,
+  onApply,
+}: {
+  basePrice: number | null;
+  currentPrice: string;
+  onApply: (newValue: string) => void;
+}) {
+  const [pct, setPct] = useState<string>("10");
+
+  const applyDelta = (sign: 1 | -1) => {
+    const ref = parseFloat(currentPrice);
+    if (!isFinite(ref) || ref <= 0) {
+      toast.error("Informe um preço base antes de ajustar.");
+      return;
+    }
+    const pctNum = parseFloat(pct);
+    if (!isFinite(pctNum) || pctNum <= 0) {
+      toast.error("Informe um percentual válido.");
+      return;
+    }
+    const next = ref * (1 + sign * (pctNum / 100));
+    if (next <= 0) {
+      toast.error("O ajuste deixaria o preço zerado ou negativo.");
+      return;
+    }
+    onApply(next.toFixed(2));
+    toast.success(
+      sign === -1
+        ? `Aplicado desconto de ${pctNum}%`
+        : `Aplicado acréscimo de ${pctNum}%`,
+    );
+  };
+
+  const restore = () => {
+    if (basePrice == null || basePrice <= 0) {
+      toast.error("Sem preço de cadastro disponível para restaurar.");
+      return;
+    }
+    onApply(String(basePrice));
+    toast.success("Preço restaurado do cadastro do produto.");
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="flex items-center gap-1">
+        <Input
+          type="number"
+          value={pct}
+          onChange={(e) => setPct(e.target.value)}
+          min="0.1"
+          step="0.1"
+          className="h-7 w-16 text-xs"
+        />
+        <span className="text-xs text-muted-foreground">%</span>
+      </div>
+      <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyDelta(-1)}>
+        Aplicar desconto
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyDelta(1)}>
+        Aplicar acréscimo
+      </Button>
+      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={restore}>
+        Restaurar do cadastro
+      </Button>
+      {basePrice != null && (
+        <span className="text-[10px] text-muted-foreground ml-auto">
+          Cadastro: {formatCurrency(basePrice)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 
 // Small regenerate button
 function RegenButton({ label, loading, onClick }: { label: string; loading: boolean; onClick: () => void }) {

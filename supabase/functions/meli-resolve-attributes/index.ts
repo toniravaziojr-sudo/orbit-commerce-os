@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.0.1";
+const VERSION = "1.1.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       .from("products")
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, depth,
-        brand, model, gtin, warranty_duration, warranty_type, product_format,
+        brand, model, line, gtin, warranty_duration, warranty_type, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
@@ -165,6 +165,21 @@ Deno.serve(async (req) => {
     const resolved: ResolvedAttr[] = [];
     const aiPending: MeliAttrSpec[] = [];
 
+    // Atributos cosméticos tri-state (Sim / Não / Não se aplica).
+    // Mesmo quando não obrigatórios pela categoria, devem SEMPRE ser preenchidos
+    // (fallback "Não" pela IA quando não houver base) para evitar a seção
+    // "Características secundárias incompletas" no painel do ML.
+    const COSMETIC_TRISTATE = new Set([
+      "DERMATOLOGICALLY_TESTED", "HYPOALLERGENIC",
+      "IS_CRUELTY_FREE", "CRUELTY_FREE",
+      "IS_VEGAN", "VEGAN",
+      "WITH_FRAGRANCE", "HAS_FRAGRANCE",
+      "IS_ORGANIC", "ORGANIC",
+      "IS_PARABEN_FREE", "PARABEN_FREE", "WITH_PARABEN", "CONTAINS_PARABEN",
+      "IS_NATURAL", "NATURAL_PRODUCT",
+      "IS_GLUTEN_FREE", "GLUTEN_FREE",
+    ]);
+
     for (const a of meliAttrs) {
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
@@ -178,11 +193,16 @@ Deno.serve(async (req) => {
           || product.product_type
           || product.ai_product_type
           || "Genérico";
+        const lineFallback = (product.line && String(product.line).trim())
+          || product.product_type
+          || product.ai_product_type
+          || null;
         const map: Record<string, any> = {
           brand: product.brand,
           gtin: product.gtin,
           ean: product.gtin,
           model: productTypeFallback,
+          line: lineFallback,
           sku: product.sku,
           condition: listingCondition,
           gender: product.gender_audience,
@@ -215,6 +235,14 @@ Deno.serve(async (req) => {
             || "Genérico";
           value_name = String(modelValue);
           source = product.model ? "product" : "derivation";
+        }
+        else if (id === "LINE") {
+          // Linha: cadastro tem prioridade; senão, deixa para IA sugerir com base no contexto.
+          if (product.line && String(product.line).trim()) {
+            value_name = String(product.line).trim();
+            source = "product";
+          }
+          // sem fallback determinístico — IA decide entre product_type ou "Não se aplica"
         }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
@@ -284,14 +312,20 @@ Deno.serve(async (req) => {
         else listMismatch = true; // valor heurístico fora da lista oficial → não enviar livre
       }
 
+      const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+
       if (value_name && !listMismatch) {
         resolved.push({
           id: a.id, name: a.name, value_name, value_id,
           status: "filled", source, required,
         });
-      } else if (required || a.tags?.allow_variations === false || listMismatch) {
-        // inclui casos em que o palpite não bate com a lista oficial:
-        // delega à IA escolher um valor válido entre a.values.
+      } else if (required || a.tags?.allow_variations === false || listMismatch || isCosmeticTriState || a.id.toUpperCase() === "LINE") {
+        // inclui:
+        // - obrigatórios sem valor
+        // - valores heurísticos fora da lista oficial (IA escolhe um válido)
+        // - atributos cosméticos tri-state (sempre preencher para não deixar
+        //   "Características secundárias incompletas" no anúncio do ML)
+        // - LINE (linha do produto): IA sugere baseado no contexto se não houver cadastro
         aiPending.push(a);
       }
       // não-obrigatório sem valor válido: ignora (não polui painel)
@@ -325,10 +359,24 @@ Deno.serve(async (req) => {
           efeitos: product.expected_effects,
         },
       };
+      const cosmeticIdsInBatch = compact
+        .filter(c => COSMETIC_TRISTATE.has(c.id.toUpperCase()))
+        .map(c => c.id);
       const prompt = `Você preenche atributos de anúncio do Mercado Livre.
 Dado o produto abaixo, sugira valores APENAS para os atributos listados.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
-Se realmente não houver base no produto, retorne "" (string vazia).
+
+REGRA OBRIGATÓRIA — atributos cosméticos Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
+- Se o produto sugerir o atributo (ex.: descrição menciona "vegano", "sem parabenos", "orgânico"), responda "Sim".
+- Se o produto sugerir o oposto, responda "Não".
+- Se NÃO houver base no produto e o atributo não fizer sentido pra este produto, responda "Não se aplica".
+- Se NÃO houver base no produto mas o atributo fizer sentido (cosmético, shampoo, balm, loção, creme etc.), responda "Não" — NUNCA deixe em branco para esses atributos.
+
+Para o atributo LINE (Linha do produto):
+- Se o nome do produto sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho", "Hidratação Profunda"), use-a.
+- Caso contrário, use o tipo do produto (ex.: "Cosmético", "Cabelo") ou "Não se aplica".
+
+Para os demais atributos: se realmente não houver base, retorne "" (string vazia).
 
 Produto: ${JSON.stringify(productContext)}
 
@@ -355,8 +403,23 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
         const byId = new Map(answers.map(a => [a.id, a.value]));
 
         for (const a of aiPending) {
-          const suggested = (byId.get(a.id) ?? "").trim();
+          let suggested = (byId.get(a.id) ?? "").trim();
           const required = !!a.tags?.required || !!a.tags?.catalog_required;
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+
+          // Anti-vazio para cosméticos tri-state: força "Não" quando IA devolve vazio
+          // ou um valor que não bate com a lista oficial Sim/Não/Não se aplica.
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
+            const norm = (v: string) => v.toLowerCase().trim();
+            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            if (!hit) {
+              suggested = allowed.find(v => norm(v) === "não") || "Não";
+            } else {
+              suggested = hit;
+            }
+          }
+
           if (suggested) {
             let value_id: string | undefined;
             if (a.values?.length) {
@@ -366,8 +429,10 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
             }
             resolved.push({
               id: a.id, name: a.name, value_name: suggested, value_id,
-              status: "review", source: "ai", required,
-              message: "Sugestão da IA — confirme antes de publicar.",
+              status: isCosmeticTriState ? "filled" : "review",
+              source: "ai",
+              required,
+              message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
             });
           } else if (required) {
             resolved.push({
@@ -378,10 +443,20 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
           }
         }
       } catch (e) {
-        // IA falhou → marca como missing os obrigatórios restantes
+        // IA falhou → para cosméticos tri-state ainda força "Não"; para obrigatórios marca missing
         for (const a of aiPending) {
           const required = !!a.tags?.required || !!a.tags?.catalog_required;
-          if (required) resolved.push({
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => ({ name: v.name, id: v.id })) ?? [];
+            const naoHit = allowed.find(v => v.name.toLowerCase().trim() === "não");
+            const fallback = naoHit ?? { name: "Não", id: undefined as string | undefined };
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: fallback.name, value_id: fallback.id,
+              status: "filled", source: "ai", required,
+            });
+          } else if (required) resolved.push({
             id: a.id, name: a.name,
             status: "missing", source: "none", required: true,
             message: friendlyMissingMessage(a),

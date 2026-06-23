@@ -104,6 +104,7 @@ const productSchema = z.object({
   // New canonical fields
   brand: z.string().max(100).nullable().optional(),
   model: z.string().max(100).nullable().optional(),
+  line: z.string().max(120).nullable().optional(),
   vendor: z.string().max(100).nullable().optional(),
   product_type: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
@@ -328,6 +329,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       // New canonical fields
       brand: product?.brand ?? '',
       model: (product as any)?.model ?? '',
+      line: (product as any)?.line ?? '',
       vendor: product?.vendor ?? '',
       product_type: product?.product_type ?? '',
       tags: product?.tags ?? [],
@@ -716,6 +718,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           expected_effects: (data as any).expected_effects || null,
           brand: data.brand || null,
           model: data.model || null,
+          line: (data as any).line || null,
           vendor: data.vendor || null,
           product_type: data.product_type || null,
           free_shipping: data.free_shipping ?? false,
@@ -1612,6 +1615,25 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={form.control}
+                      name={"line" as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Linha</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={(field.value as string) ?? ''}
+                              placeholder="Ex: Calvície Zero (opcional)"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
 
 
                     <FormField

@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.4.0"; // Delete action: close on ML (with skip for unapproved) + local remove
+const VERSION = "3.5.0"; // LINE autofill from products.line; manual-only push policy documented
 // ===================
 
 const corsHeaders = {
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     // Get listing with product data - include gtin, regulatory_info, warranty
     const { data: listing, error: listingError } = await supabase
       .from("meli_listings")
-      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, model, product_type, ai_product_type, gtin, regulatory_info, warranty_type, warranty_duration)")
+      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, model, line, product_type, ai_product_type, gtin, regulatory_info, warranty_type, warranty_duration)")
       .eq("id", listingId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -272,6 +272,13 @@ Deno.serve(async (req) => {
               autoValue = brandValue;
               break;
             case "LINE":
+              // Linha do produto: prioriza products.line; nunca usa SKU.
+              autoValue = listing.product?.line
+                || listing.product?.product_type
+                || listing.product?.ai_product_type
+                || brandValue
+                || "Não se aplica";
+              break;
             case "MODEL":
               // Fallback: product_type (Shampoo, Balm, Loção...) when no specific model; never SKU
               autoValue = listing.product?.model
