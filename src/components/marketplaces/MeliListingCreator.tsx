@@ -189,6 +189,9 @@ export function MeliListingCreator({
   // Atributos resolvidos por anúncio (etapa "Características").
   // Cada item guarda {attributes, canPublish} vindos do MeliAttributesPanel.
   const [attrValuesByListing, setAttrValuesByListing] = useState<Record<string, MeliAttributesPanelValue>>({});
+  // Tokens para forçar comportamento nos painéis (Recalcular todos / Aplicar a todos).
+  const [attrRecalcAllToken, setAttrRecalcAllToken] = useState(0);
+  const [attrSeedByListing, setAttrSeedByListing] = useState<Record<string, { token: number; attributes: import("./MeliAttributesPanel").ResolvedAttr[] }>>({});
   const [priceAdjustmentPercent, setPriceAdjustmentPercent] = useState("10");
 
   // Auto-gen guard for descriptions in configure mode
