@@ -325,7 +325,9 @@ Deno.serve(async (req) => {
         // (características secundárias). IA retorna "" quando não há base e o atributo
         // é descartado naturalmente abaixo.
         aiPending.push(a);
-      }
+    }
+
+
 
 
     // ---- 6. Pergunta à IA para cobrir o que sobrou (obrigatórios) ------
