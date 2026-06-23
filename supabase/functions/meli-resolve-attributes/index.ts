@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       .from("products")
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, length,
-        brand, gtin, condition, warranty, warranty_months, product_format,
+        brand, gtin, condition, warranty, warranty_duration, warranty_type, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
