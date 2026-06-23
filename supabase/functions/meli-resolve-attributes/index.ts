@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,8 +75,8 @@ Deno.serve(async (req) => {
     const { data: product, error: pErr } = await supabase
       .from("products")
       .select(`
-        id, name, sku, description, short_description, price, weight, width, height, length,
-        brand, gtin, condition, warranty, warranty_duration, warranty_type, product_format,
+        id, name, sku, description, short_description, price, weight, width, height, depth,
+        brand, gtin, warranty_duration, warranty_type, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
@@ -141,8 +141,9 @@ Deno.serve(async (req) => {
       if (sum > 0) netWeightG = sum;
     }
     const regulatoryRegime = product.regulatory_regime ?? universalCategory?.regulatory_regime ?? null;
-    const warrantyText = (product.warranty?.trim?.()
-      || (product.warranty_duration ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia` : null));
+    const warrantyText = product.warranty_duration
+      ? `${product.warranty_duration}${product.warranty_type ? ` (${product.warranty_type})` : ""} de garantia`
+      : null;
 
     // ---- 5. Resolução determinística por atributo -----------------------
     const resolved: ResolvedAttr[] = [];
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
           ean: product.gtin,
           model: product.sku,
           sku: product.sku,
-          condition: product.condition || "new",
+          condition: "new",
           gender: product.gender_audience,
           regulatory_regime: regulatoryRegime,
           net_content_value: product.net_content_value,
