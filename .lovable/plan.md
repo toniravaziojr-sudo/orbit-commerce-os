@@ -1,88 +1,102 @@
-📋 CHECKLIST DE CONFORMIDADE:
-- Doc de Regras do Sistema lido: sim, via instruções ativas de governança.
-- Doc formal do tema lido: sim, especificação do Mercado Livre e mapa de UI.
-- Doc oficial do Mercado Livre lido: sim, documentação de atributos e publicação.
-- Fluxo afetado identificado: criação/edição em lote de anúncios do Mercado Livre.
-- Fonte de verdade identificada: cadastro do produto + categoria escolhida + dicionário oficial do Mercado Livre + dados já salvos no anúncio.
-- Módulos impactados listados: Marketplaces/Mercado Livre, cadastro de produtos, publicação de anúncios e documentação transversal de UI.
-- Impacto cruzado mapeado: publicação, reedição de rascunhos, atualização de anúncio já publicado, qualidade do anúncio e custo de IA.
-- UI impactada? sim; mapa de UI deverá ser atualizado após o ajuste.
-- Situação: Diagnóstico concluído; aguardando confirmação do usuário para execução.
 
-📌 STATUS DA ENTREGA: Diagnóstico → Proposta
+📋 CHECKLIST DE CONFORMIDADE
+- Doc de Regras do Sistema: lido
+- Doc do Mercado Livre + doc oficial ML: lidos
+- Fluxo: cadastro de produto + criação/edição em lote de anúncios no ML
+- Fonte de verdade: cadastro do produto (passa a ser único ponto de entrada)
+- Módulos impactados: Produtos, Marketplaces/ML, Importação, mapa de UI
+- UI impactada: sim
+- Situação: aprovado — pronto para execução
 
-## Como funciona hoje
+---
 
-O fluxo deveria ter 9 etapas:
+## 1. Cadastro de produto vira fonte única (sempre obrigatório)
 
-```text
-Produtos → Categorias → Títulos → Descrições → Características → Condição → Tipo → Preços → Frete
-```
+**Campos que passam a ser obrigatórios no cadastro:**
+- Marca
+- Código de barras (GTIN/EAN)
+- Modelo — com botão **"Marcar como Genérico"** para o lojista passar de forma consciente quando não houver modelo específico
+- Peso líquido (g)
+- Dimensões (altura, largura, comprimento)
+- Condição (Novo / Usado / Recondicionado)
+- Categoria universal
+- Conteúdo líquido + unidade (ml/g) — obrigatório também para cosméticos, alimentos e perfumaria
+- Garantia — opcional
+- Atributos cosméticos tri-estado (dermatologicamente testado, hipoalergênico, vegano, cruelty-free, fragrância) — obrigatórios para produtos da categoria cosmético
 
-Na etapa de características, o sistema cruza cadastro, categoria e regras do Mercado Livre, e só deveria gastar IA quando realmente precisa preencher algo que não foi possível resolver de forma automática.
+**Bloqueios:**
+- Não dá para salvar produto novo sem esses campos.
+- Produto antigo incompleto: ao abrir para edição, banner amarelo lista o que falta e o salvar fica travado até preencher.
+- Tela de Produtos ganha filtro **"Incompletos para Mercado Livre"** + contador no topo.
+- Importação por planilha rejeita linhas incompletas e gera relatório de pendências.
 
-## O problema
+**Migração dos produtos antigos:**
+Antes de ligar o bloqueio para todos, vou gerar um relatório consolidado do passivo (quantos produtos estão incompletos, quais campos faltam por produto). Você revisa e me dá o ok para ativar o bloqueio geral. Enquanto isso, o filtro "Incompletos para Mercado Livre" já fica disponível para você atacar a lista.
 
-Identifiquei três pontos diferentes, não um único erro:
+---
 
-1. **Reprocessamento automático ao retornar ao dialog**  
-   Ao voltar para a etapa de características, o painel dispara nova vinculação automaticamente. Isso explica o comportamento frágil e também gera gasto desnecessário de IA. O correto é: se o anúncio já tem características salvas, carregar o que já existe e só recalcular quando o usuário clicar em **Recalcular**.
+## 2. Etapa de Características do anúncio — corrigir os 3 problemas
 
-2. **Características ainda abaixo do ideal**  
-   O motor já melhorou: no teste real do Balm Pós-Banho ele retornou 9 características e o rascunho salvo está com 10. Porém ainda não está fechado como fluxo robusto, porque a tela não usa as características já salvas como primeira fonte e o motor ainda pode descartar atributos recomendados quando não consegue casar exatamente com a lista oficial do Mercado Livre. O fechamento precisa separar melhor: obrigatório, recomendado útil, opcional sem base e campo que não deve ser enviado.
+**a) Erro técnico em vermelho ("…trim is not a function"):**
+Tolerância forte a formatos inesperados da IA. Falha em um campo nunca derruba o produto inteiro. Mensagem amigável + botão **Tentar de novo** apenas no produto afetado.
 
-3. **Etapa de preços não aparece para você**  
-   O código atual e a documentação já têm a etapa **Preços**, mas o print mostra uma versão com apenas 8 etapas, pulando de **Tipo** para **Frete**. Isso é forte evidência de que o domínio final ainda está servindo uma versão antiga do frontend, ou que há um caminho de abertura do dialog usando uma versão/fluxo antigo. Vou tratar isso como regressão de entrega/publicação, não como “só limpar cache”.
+**b) IA delirando (marca de terceiros, repetição):**
+Com o cadastro completo, marca/modelo/peso/GTIN vêm direto do produto — IA fica fora desses campos. Para os descritivos restantes: prompt mais rígido (só preencher com evidência real, proibido repetir a mesma palavra em campos diferentes, proibido sugerir marca de terceiros). Lista negra de marcas famosas como trava de segurança.
 
-## O que eu faria
+**c) Reprocessamento ao reabrir o dialog:**
+Auditoria garante que reabrir carrega o que está salvo. Só recalcula em ação manual (botão Recalcular) ou se a categoria mudar.
 
-### 1. Travar o reprocessamento automático
-- Ao abrir a etapa de características, carregar primeiro as características já salvas no anúncio.
-- Não chamar IA automaticamente se já houver características salvas.
-- Manter **Recalcular** como ação explícita do usuário.
-- Se o usuário alterou a categoria, aí sim invalidar as características antigas e pedir nova resolução.
-- Evitar chamadas duplicadas quando o usuário troca de aba, volta do cadastro do produto ou reabre o dialog.
+---
 
-### 2. Fechar o motor de características por prioridade
-- Criar uma régua clara de qualidade:
-  - obrigatórios do Mercado Livre: nunca podem faltar sem bloquear;
-  - recomendados úteis: preencher por cadastro/regra/IA quando houver base;
-  - opcionais sem base: não inventar;
-  - campos técnicos/embalagem/somente leitura: não enviar.
-- Usar primeiro o que já está salvo no anúncio.
-- Melhorar inferências automáticas de baixo custo antes de chamar IA.
-- Reduzir IA para lotes pequenos e apenas nos atributos úteis que ainda ficaram sem resposta.
-- Persistir o resultado de forma estável para que o anúncio não perca características ao avançar, voltar ou reabrir.
+## 3. Controle de processamento
 
-### 3. Garantir que Preços apareça no caminho real do usuário
-- Auditar todos os caminhos que abrem o assistente: **Novo Anúncio**, **Editar em Lote** e edição de rascunho/publicado.
-- Garantir que todos usem o fluxo de 9 etapas quando for edição/criação em lote.
-- Validar no app publicado/domínio final, não só no ambiente de desenvolvimento.
-- Se o domínio estiver com versão antiga, fazer o fechamento de publicação/atualização necessário após o ajuste.
+- Máximo 3 produtos sendo processados em paralelo. Demais ficam em fila visível.
+- Resultado salvo no anúncio assim que pronto → reabrir = zero novo gasto.
+- Se a IA falhar, 1 retentativa automática; persistindo, entrega o que conseguiu sem travar o fluxo.
 
-### 4. Validação obrigatória antes de liberar para teste
-Vou validar tecnicamente:
-- Abrir/reabrir o dialog e confirmar que não recalcula automaticamente quando já há características salvas.
-- Clicar **Recalcular** e confirmar que só recalcula por ação manual.
-- Confirmar que o Balm Pós-Banho continua com mais que os 5 campos antigos.
-- Avançar de **Tipo** para **Preços** e depois **Frete**.
-- Confirmar no banco que preço e características foram salvos no anúncio sem alterar o cadastro do produto.
-- Conferir logs para garantir ausência de chamadas duplicadas e falhas no motor.
-- Validar no domínio final/publicado, porque seu print veio de lá.
+---
 
-## Resultado final esperado
+## 4. Etapa Preços
 
-- O dialog não fica “pensando/revinculando” sozinho ao retornar.
-- As características já resolvidas ficam salvas e reaproveitadas.
-- A IA só roda quando necessário ou quando o usuário pede.
-- O anúncio sai com características obrigatórias e recomendadas úteis, sem inventar campos frágeis.
-- A etapa **Preços** aparece antes de **Frete** para o usuário ajustar valores.
-- O fluxo inteiro fica validado no caminho real de uso.
+Auditoria dos 3 caminhos de entrada (Novo Anúncio, Editar em Lote, Continuar Rascunho) e validação no domínio publicado para garantir que a etapa Preços aparece em todos. Se o domínio estiver com versão antiga, faço o fechamento de publicação.
 
-## Documentação necessária
+---
 
-- Documento de Mercado Livre: atualizar regra de cache/reuso das características e gatilho manual de recálculo.
-- Mapa de UI: confirmar o assistente de 9 etapas e a presença obrigatória de Preços no fluxo em lote.
-- Plano operacional: registrar validações executadas e estado final.
+## 5. Checagem final antes de publicar no ML
 
-Se aprovar este plano, eu sigo com a execução completa e só marco como corrigido depois da validação técnica real.
+Antes de mandar o anúncio para o Mercado Livre, validação silenciosa: se algum campo obrigatório voltou a ficar vazio (lojista apagou no cadastro depois), bloqueia com aviso e atalho direto para o cadastro.
+
+---
+
+## 6. Documentação e anti-regressão
+
+- Especificação do Mercado Livre: nova seção "Cadastro como fonte única" + tabela de campos obrigatórios + política anti-alucinação + regra de concorrência.
+- Especificação de Produtos: nova seção "Campos obrigatórios para Mercado Livre" + bloqueio em edição.
+- Mapa de UI: atualizar tela de Produtos (banner, filtro, asteriscos), dialog de anúncios (fila, retry).
+- Memória anti-regressão: (1) IA nunca inventa marca de terceiros; (2) cadastro é fonte única; (3) falha em 1 atributo nunca derruba o produto inteiro.
+
+---
+
+## 7. Ordem de execução
+
+1. Cadastro do produto: novos campos obrigatórios + botão "Marcar como Genérico" + banner em produtos antigos + filtro "Incompletos para Mercado Livre".
+2. Relatório do passivo (produtos antigos incompletos) — entregue antes de ativar o bloqueio universal.
+3. Correção do dialog de Características (tolerância a erro, prompt rígido, lista negra de marcas, retry por produto, fila de 3).
+4. Checagem final no publish.
+5. Auditoria da etapa Preços nos 3 caminhos + domínio publicado.
+6. Documentação + memória anti-regressão.
+7. Validação técnica completa e relatório final para você aprovar o ligar do bloqueio universal.
+
+---
+
+## 8. Validação técnica antes de fechar
+
+- Cadastrar produto novo sem os campos → bloqueio claro.
+- Abrir produto antigo incompleto → banner + bloqueio até preencher.
+- Importar planilha com produto incompleto → relatório de pendências.
+- Rodar o assistente do ML com vários produtos completos → resolve direto pelo cadastro, IA fica fora dos campos críticos.
+- Forçar falha da IA → produto continua salvo com o que dá, sem derrubar os demais.
+- Reabrir o dialog → não recalcula, não gasta IA.
+- Etapa Preços nos 3 caminhos + domínio publicado.
+
+Pode implementar.

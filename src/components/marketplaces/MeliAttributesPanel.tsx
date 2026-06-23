@@ -1,16 +1,19 @@
 // =============================================
 // MeliAttributesPanel — Painel "Atributos para o anúncio" (Etapa 5B)
 // Mostra 3 blocos (preenchido / revisar / faltando) e expõe se a publicação pode prosseguir.
+//
+// v1.5.0 — Fila global de concorrência (máx 3 simultâneas) para impedir bombardeio
+// quando o usuário abre o dialog em lote (21 produtos = 21 chamadas paralelas).
+// Erro amigável por produto, com botão "Tentar de novo" isolado.
 // =============================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 export interface ResolvedAttr {
   id: string;
@@ -44,16 +47,38 @@ const SOURCE_LABEL: Record<ResolvedAttr["source"], string> = {
   none: "",
 };
 
+// ----- Fila global: no máximo 3 resoluções rodando em paralelo no app inteiro.
+// Isto protege o motor de IA contra 21 painéis disparando ao mesmo tempo
+// quando o usuário abre o dialog de configuração em lote.
+const MAX_CONCURRENT = 3;
+let running = 0;
+const queue: Array<() => void> = [];
+async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT) {
+    await new Promise<void>((resolve) => queue.push(resolve));
+  }
+  running++;
+  try {
+    return await fn();
+  } finally {
+    running--;
+    const next = queue.shift();
+    if (next) next();
+  }
+}
+
 export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId, onChange }: Props) {
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [attrs, setAttrs] = useState<ResolvedAttr[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const lastKeyRef = useRef<string>("");
 
   // Carrega características já salvas no anúncio. Só chama a IA/resolver
   // quando não houver nada salvo OU quando o usuário clicar em Recalcular.
   const loadSavedOrResolve = async (forceResolve = false) => {
     if (!tenantId || !productId || !categoryId) return;
-    setLoading(true); setError(null);
+    setError(null);
     try {
       if (!forceResolve && listingId) {
         const { data: saved } = await supabase
@@ -75,21 +100,30 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             required: false,
           }));
           setAttrs(hydrated);
-          setLoading(false);
           return;
         }
       }
-      const { data, error } = await supabase.functions.invoke("meli-resolve-attributes", {
-        body: { tenantId, listingId, productId, categoryId },
+      // Passa pela fila: no máximo 3 simultâneas no app inteiro.
+      setQueued(true);
+      await withSlot(async () => {
+        setQueued(false);
+        setLoading(true);
+        try {
+          const { data, error } = await supabase.functions.invoke("meli-resolve-attributes", {
+            body: { tenantId, listingId, productId, categoryId },
+          });
+          if (error) throw error;
+          if (!data?.success) throw new Error(data?.error || "Falha ao resolver atributos");
+          setAttrs(data.attributes ?? []);
+        } finally {
+          setLoading(false);
+        }
       });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Falha ao resolver atributos");
-      setAttrs(data.attributes ?? []);
     } catch (e: any) {
-      setError(e.message || "Não foi possível carregar os atributos.");
-      setAttrs([]);
-    } finally {
+      setQueued(false);
       setLoading(false);
+      setError(friendlyError(e));
+      setAttrs([]);
     }
   };
 
@@ -97,16 +131,19 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
 
   // Carrega uma única vez por combinação tenant+produto+categoria+anúncio.
   useEffect(() => {
+    const key = `${tenantId}|${productId}|${categoryId}|${listingId ?? ""}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
     loadSavedOrResolve(false);
     // eslint-disable-next-line
   }, [tenantId, productId, categoryId, listingId]);
 
   // Propaga estado pro pai (validação de publicação)
   useEffect(() => {
-    const canPublish = !loading && attrs.every(a => a.status !== "missing");
+    const canPublish = !loading && !queued && !error && attrs.every(a => a.status !== "missing");
     onChange({ attributes: attrs, canPublish });
     // eslint-disable-next-line
-  }, [attrs, loading]);
+  }, [attrs, loading, queued, error]);
 
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => prev.map(a => a.id === id
@@ -127,11 +164,18 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           <Sparkles className="h-4 w-4 text-primary" />
           <h4 className="text-sm font-semibold">Atributos para o anúncio</h4>
         </div>
-        <Button size="sm" variant="ghost" onClick={fetchAttrs} disabled={loading} className="h-7 text-xs gap-1">
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+        <Button size="sm" variant="ghost" onClick={fetchAttrs} disabled={loading || queued} className="h-7 text-xs gap-1">
+          {(loading || queued) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           Recalcular
         </Button>
       </div>
+
+      {queued && !loading && (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Aguardando vez na fila (processamos no máximo 3 produtos ao mesmo tempo)...
+        </p>
+      )}
 
       {loading && (
         <p className="text-xs text-muted-foreground flex items-center gap-2">
@@ -141,16 +185,22 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
       )}
 
       {error && (
-        <p className="text-xs text-destructive flex items-center gap-1">
-          <AlertCircle className="h-3 w-3" /> {error}
-        </p>
+        <div className="flex items-start justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2">
+          <div className="flex items-start gap-2 text-xs text-destructive">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={fetchAttrs} disabled={loading || queued}>
+            Tentar de novo
+          </Button>
+        </div>
       )}
 
-      {!loading && !error && attrs.length === 0 && (
+      {!loading && !queued && !error && attrs.length === 0 && (
         <p className="text-xs text-muted-foreground">Nenhum atributo exigido por esta categoria.</p>
       )}
 
-      {!loading && !error && attrs.length > 0 && (
+      {!loading && !queued && !error && attrs.length > 0 && (
         <>
           {/* Resumo */}
           <div className="flex gap-2 text-xs">
@@ -195,6 +245,20 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
       )}
     </div>
   );
+}
+
+function friendlyError(e: any): string {
+  const raw = String(e?.message || e || "");
+  if (/non-2xx|status code|FunctionsHttpError/i.test(raw)) {
+    return "Não conseguimos preparar as características deste produto agora. Tente de novo em alguns segundos.";
+  }
+  if (/timeout|aborted/i.test(raw)) {
+    return "A IA demorou demais para responder. Tente novamente.";
+  }
+  if (/429|rate/i.test(raw)) {
+    return "Estamos processando muitos produtos ao mesmo tempo. Aguarde e tente de novo.";
+  }
+  return "Não conseguimos carregar as características deste produto. Tente novamente.";
 }
 
 function Section({ title, tone, collapsible, children }: {

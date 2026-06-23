@@ -15,7 +15,43 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
+
+// --------- Sanitização universal de valores vindos da IA ------------
+// A IA pode devolver string, array, objeto, número, null ou undefined.
+// Qualquer um desses deve virar string segura (ou string vazia).
+function toSafeString(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v).trim();
+  if (Array.isArray(v)) return v.map(toSafeString).filter(Boolean).join(", ");
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+    if (typeof obj.value === "string") return obj.value.trim();
+    if (typeof obj.name === "string") return obj.name.trim();
+    try { return JSON.stringify(v).slice(0, 200); } catch { return ""; }
+  }
+  try { return String(v).trim(); } catch { return ""; }
+}
+
+// Lista negra: marcas famosas que a IA tende a inventar quando o produto
+// não tem marca cadastrada. Bloqueia qualquer sugestão dessas marcas pela IA.
+const FAMOUS_BRAND_BLACKLIST = new Set([
+  "loreal", "l'oreal", "loreal paris", "l'oreal paris", "lóreal", "lóreal paris",
+  "nivea", "dove", "garnier", "pantene", "tresemme", "tresemmé",
+  "head shoulders", "head & shoulders", "clear", "seda", "elseve",
+  "natura", "boticario", "boticário", "avon", "eudora", "quem disse berenice",
+  "johnson", "johnson's", "johnson e johnson",
+  "vichy", "la roche posay", "neutrogena", "eucerin", "cetaphil",
+  "kerastase", "kérastase", "redken", "wella", "schwarzkopf",
+  "samsung", "apple", "lg", "sony", "philips", "motorola", "xiaomi",
+  "nike", "adidas", "puma", "reebok",
+]);
+
+function isBlacklistedBrand(value: string): boolean {
+  const norm = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 &']/g, "").trim();
+  return FAMOUS_BRAND_BLACKLIST.has(norm);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -439,11 +475,17 @@ Deno.serve(async (req) => {
 Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
+REGRAS ABSOLUTAS DE SEGURANÇA (nunca quebrar):
+- O campo "value" SEMPRE deve ser STRING (nunca array, nunca objeto). Se for lista de valores, junte com vírgula em UMA string.
+- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto do produto, devolva "" (vazio). É PROIBIDO sugerir marcas famosas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc. quando não houver marca no cadastro.
+- NUNCA invente GTIN/EAN. Se não houver no contexto, devolva "".
+- NUNCA repita simplesmente palavras do nome do produto em campos descritivos como "Tipo de cuidado", "Efeitos", "Tipo de aplicação", "Indicação". Se você não tem base real, devolva "".
+- NÃO use a MESMA palavra em campos diferentes. Cada atributo deve trazer informação distinta.
+- Só preencha um atributo descritivo se existir evidência clara no nome, descrição ou tipo do produto.
+
 REGRA GERAL — atributos opcionais (não obrigatórios):
-- Se houver QUALQUER base no produto (nome, descrição, tipo, função, categoria), preencha com a melhor inferência.
-- Só retorne "" (vazio) se o atributo realmente não fizer sentido para este produto ou não houver nenhuma base.
-- Para atributos descritivos comuns (cor, material, formato, tamanho, gênero, idade, indicação, fragrância principal, perfil de cabelo/pele etc.) tente sempre inferir a partir do nome e descrição.
-- Para produto cosmético capilar, atributos como formato do produto, formato de venda, unidades por kit, conservação, fragrância, indicação, efeitos e características cosméticas devem ser preenchidos quando existirem na lista.
+- Se houver base no produto, preencha com a melhor inferência.
+- Se NÃO houver base real, devolva "" (vazio). É melhor vazio do que inventado.
 
 REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
@@ -464,7 +506,7 @@ Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
 
-Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
+Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string.`;
 
         try {
           const { data } = await aiChatCompletionJSON(
@@ -480,91 +522,157 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
             { supabaseUrl, supabaseServiceKey: serviceKey, logPrefix: "meli-resolve-attrs" },
           );
           const content = data?.choices?.[0]?.message?.content ?? "{}";
-          const parsed = typeof content === "string" ? JSON.parse(content) : content;
-          const answers: Array<{ id: string; value: string }> = parsed.answers ?? [];
-          for (const ans of answers) allAnswers.set(ans.id, ans.value);
+          let parsed: any = {};
+          try {
+            parsed = typeof content === "string" ? JSON.parse(content) : content;
+          } catch {
+            console.warn("[meli-resolve-attributes] IA devolveu JSON inválido — lote ignorado");
+            parsed = {};
+          }
+          const answers: any[] = Array.isArray(parsed?.answers) ? parsed.answers : [];
+          for (const ans of answers) {
+            try {
+              const id = toSafeString(ans?.id);
+              if (!id) continue;
+              const value = toSafeString(ans?.value);
+              allAnswers.set(id, value);
+            } catch (e) {
+              console.warn("[meli-resolve-attributes] resposta IA malformada ignorada:", (e as Error).message);
+            }
+          }
         } catch (e) {
           console.error("[meli-resolve-attributes] IA falhou no lote:", (e as Error).message);
         }
       }
 
+      // Conjunto de palavras do nome do produto (para detectar repetição preguiçosa da IA)
+      const productNameTokens = new Set(
+        normalizeText(String(product.name ?? ""))
+          .split(/[^a-z0-9]+/i)
+          .filter(t => t.length >= 4)
+      );
+      const isJustRepeatingName = (val: string) => {
+        const vTokens = normalizeText(val).split(/[^a-z0-9]+/i).filter(t => t.length >= 4);
+        if (vTokens.length === 0) return false;
+        return vTokens.every(t => productNameTokens.has(t));
+      };
+
       for (const a of aiPending) {
-        let suggested = (allAnswers.get(a.id) ?? "").trim();
-        const required = !!a.tags?.required || !!a.tags?.catalog_required;
-        const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
-        const hasClosedList = (a.values?.length ?? 0) > 0;
+        // Blindagem: nenhum atributo individual pode derrubar todos os outros.
+        try {
+          let suggested = toSafeString(allAnswers.get(a.id));
+          const required = !!a.tags?.required || !!a.tags?.catalog_required;
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+          const hasClosedList = (a.values?.length ?? 0) > 0;
+          const idUp = a.id.toUpperCase();
 
-        // Anti-vazio para cosméticos tri-state.
-        if (isCosmeticTriState) {
-          const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
-          const norm = (v: string) => v.toLowerCase().trim();
-          const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
-          suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
-        }
+          // ANTI-ALUCINAÇÃO DE MARCA: se o produto não tem marca cadastrada,
+          // nunca aceitar sugestão da IA para BRAND — vira "missing" obrigatório.
+          if ((idUp === "BRAND") && !product.brand) {
+            resolved.push({
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required,
+              message: "Preencha a marca no cadastro do produto antes de publicar.",
+            });
+            continue;
+          }
 
-        // Fallback determinístico por tokens para obrigatórios de lista fechada.
-        if (required && hasClosedList && !isCosmeticTriState) {
-          const allowed = a.values!;
-          const norm = (v: string) => v.toLowerCase().trim();
-          let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
-          if (!hit) {
-            const seeds = [
-              product.name, product.product_type, product.ai_product_type,
-              product.ai_main_function, universalCategory?.name, suggested,
-            ].filter(Boolean).join(" ").toLowerCase();
-            const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-            let best: { v: { id: string; name: string }; score: number } | null = null;
-            for (const v of allowed) {
-              const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-              let score = 0;
-              for (const vt of vTokens) {
-                if (tokens.includes(vt)) score += 2;
-                else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+          // Lista negra de marcas famosas inventadas pela IA.
+          if (idUp === "BRAND" && suggested && isBlacklistedBrand(suggested)) {
+            console.warn(`[meli-resolve-attributes] IA tentou marca de terceiros (${suggested}) — bloqueado.`);
+            resolved.push({
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required,
+              message: "Preencha a marca no cadastro do produto antes de publicar.",
+            });
+            continue;
+          }
+
+          // Anti-repetição preguiçosa: descritivos opcionais que apenas repetem o nome.
+          if (!isCosmeticTriState && !required && suggested && !hasClosedList && isJustRepeatingName(suggested)) {
+            // Descarta sugestão fraca para opcionais livres.
+            suggested = "";
+          }
+
+          // Anti-vazio para cosméticos tri-state.
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
+            const norm = (v: string) => v.toLowerCase().trim();
+            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
+          }
+
+          // Fallback determinístico por tokens para obrigatórios de lista fechada.
+          if (required && hasClosedList && !isCosmeticTriState) {
+            const allowed = a.values!;
+            const norm = (v: string) => v.toLowerCase().trim();
+            let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
+            if (!hit) {
+              const seeds = [
+                product.name, product.product_type, product.ai_product_type,
+                product.ai_main_function, universalCategory?.name, suggested,
+              ].filter(Boolean).join(" ").toLowerCase();
+              const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+              let best: { v: { id: string; name: string }; score: number } | null = null;
+              for (const v of allowed) {
+                const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                let score = 0;
+                for (const vt of vTokens) {
+                  if (tokens.includes(vt)) score += 2;
+                  else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+                }
+                if (score > 0 && (!best || score > best.score)) best = { v, score };
               }
-              if (score > 0 && (!best || score > best.score)) best = { v, score };
-            }
-            if (best) {
-              suggested = best.v.name;
-              console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+              if (best) {
+                suggested = best.v.name;
+                console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+              }
             }
           }
-        }
 
-        if (suggested) {
-          let value_id: string | undefined;
-          if (a.values?.length) {
-            const hit = matchAllowedValue(a, suggested);
-            if (hit) value_id = hit.id;
-          }
-          // Obrigatório de lista fechada sem match na lista oficial → missing.
-          if (required && hasClosedList && !value_id && !isCosmeticTriState) {
+          if (suggested) {
+            let value_id: string | undefined;
+            if (a.values?.length) {
+              const hit = matchAllowedValue(a, suggested);
+              if (hit) value_id = hit.id;
+            }
+            if (required && hasClosedList && !value_id && !isCosmeticTriState) {
+              resolved.push({
+                id: a.id, name: a.name,
+                status: "missing", source: "none", required: true,
+                message: friendlyMissingMessage(a),
+              });
+            } else if (required && hasClosedList && !value_id) {
+              continue;
+            } else {
+              if (!required && a.values?.length && !value_id) continue;
+              resolved.push({
+                id: a.id, name: a.name, value_name: suggested, value_id,
+                status: isCosmeticTriState ? "filled" : "review",
+                source: "ai",
+                required,
+                message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
+              });
+            }
+          } else if (required) {
             resolved.push({
               id: a.id, name: a.name,
               status: "missing", source: "none", required: true,
               message: friendlyMissingMessage(a),
             });
-          } else if (required && hasClosedList && !value_id) {
-            // tri-state sem match → ignora (não devia acontecer pelo anti-vazio acima)
-            continue;
-          } else {
-            // Opcional sem match em lista fechada → não envia (ML rejeita value_name livre)
-            if (!required && a.values?.length && !value_id) continue;
+          }
+          // não-obrigatório sem valor: silenciosamente ignorado
+        } catch (e) {
+          console.error(`[meli-resolve-attributes] falha ao processar atributo ${a.id}:`, (e as Error).message);
+          // Não derruba o produto inteiro — segue para o próximo atributo.
+          if (a.tags?.required || a.tags?.catalog_required) {
             resolved.push({
-              id: a.id, name: a.name, value_name: suggested, value_id,
-              status: isCosmeticTriState ? "filled" : "review",
-              source: "ai",
-              required,
-              message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required: true,
+              message: friendlyMissingMessage(a),
             });
           }
-        } else if (required) {
-          resolved.push({
-            id: a.id, name: a.name,
-            status: "missing", source: "none", required: true,
-            message: friendlyMissingMessage(a),
-          });
         }
-        // não-obrigatório sem valor: silenciosamente ignorado
       }
     }
 

@@ -391,6 +391,25 @@ Atributos cosméticos do tipo Sim/Não/Não se aplica (`DERMATOLOGICALLY_TESTED`
 2. Se não tem → IA é consultada e responde "Sim", "Não" ou "Não se aplica" com base no nome/descrição/contexto do produto.
 3. **Se a IA não tem certeza, é obrigada a responder "Não"** — nunca deixa em branco. Isso elimina a seção "Características secundárias incompletas" no painel do ML.
 
+### Anti-Alucinação e Tolerância a Erros da IA (v1.5.0)
+
+Regras invioláveis aplicadas em `meli-resolve-attributes` para evitar marca/atributo inventado e crash em lote:
+
+- **Marca de terceiros — bloqueio duplo:** se o produto não tem `brand` no cadastro, a IA **nunca** é aceita para o atributo `BRAND` (vira `missing` com mensagem "Preencha a marca no cadastro do produto"). Além disso, uma lista negra (`FAMOUS_BRAND_BLACKLIST`) descarta sugestões da IA como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc. mesmo se vierem por engano.
+- **GTIN/EAN:** nunca preenchido pela IA. Só vem do cadastro.
+- **Anti-repetição preguiçosa:** sugestões opcionais que apenas repetem palavras do nome do produto (sem lista fechada) são descartadas — evita "Volume" aparecer em "Tipo de cuidado", "Efeitos" e "Tipo de aplicação" ao mesmo tempo.
+- **Tolerância a formato inesperado:** helper `toSafeString()` converte qualquer retorno da IA (array, objeto, número, null) em string segura antes de qualquer `.trim()`. Elimina o erro `(...).trim is not a function`.
+- **Isolamento por atributo:** o loop de processamento envolve cada atributo em `try/catch`. Falha em 1 atributo nunca derruba os demais nem o produto inteiro.
+- **Prompt rígido:** a IA recebe regras explícitas — "value sempre string", "nunca inventar marca", "não repetir palavras do nome em campos descritivos", "se não houver evidência, devolva vazio".
+
+### Fila de Concorrência no Painel (v1.5.0)
+
+`MeliAttributesPanel` usa uma fila global de no máximo 3 resoluções simultâneas no app inteiro. Quando o usuário abre o dialog de configuração em lote com N produtos, apenas 3 chamadas ao motor de IA acontecem por vez — as demais ficam visivelmente "aguardando vez na fila". Isso evita 429/timeout e protege custo de IA.
+
+Cada produto tem botão **"Tentar de novo"** isolado quando falha, com mensagem amigável em PT-BR (sem stacktrace). O resultado é salvo no anúncio assim que pronto — reabrir o dialog não recalcula (cache por `listingId + categoryId`).
+
+
+
 ### Atualização de anúncio publicado (v2.4.5)
 
 A ação `update` do `meli-publish-listing` reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
