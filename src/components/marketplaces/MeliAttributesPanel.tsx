@@ -157,7 +157,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
 
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => prev.map(a => a.id === id
-      ? { ...a, value_name: value, value_id: undefined, status: value.trim() ? "filled" : "missing", source: "product" }
+      ? { ...a, value_name: value, value_id: undefined, status: value.trim() ? "filled" : "missing", source: "manual" }
       : a));
   };
 
