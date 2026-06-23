@@ -998,8 +998,13 @@ export function MeliListingCreator({
       } else if (idx === 5) {
         setStep("listing_type");
       } else if (idx === 6) {
+        setStep("prices");
+      } else if (idx === 7) {
+        await handleSavePrices();
         setStep("shipping");
       }
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível avançar");
     } finally {
       setIsNavigating(false);
     }
