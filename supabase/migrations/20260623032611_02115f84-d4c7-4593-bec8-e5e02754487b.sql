@@ -1,0 +1,2 @@
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS model TEXT;
+COMMENT ON COLUMN public.products.model IS 'Modelo do produto (texto livre). Usado por marketplaces que exigem o atributo MODEL. Quando vazio, o envio cai para o tipo de produto.';
