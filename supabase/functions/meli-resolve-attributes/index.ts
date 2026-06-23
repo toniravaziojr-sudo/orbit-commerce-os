@@ -165,6 +165,21 @@ Deno.serve(async (req) => {
     const resolved: ResolvedAttr[] = [];
     const aiPending: MeliAttrSpec[] = [];
 
+    // Atributos cosméticos tri-state (Sim / Não / Não se aplica).
+    // Mesmo quando não obrigatórios pela categoria, devem SEMPRE ser preenchidos
+    // (fallback "Não" pela IA quando não houver base) para evitar a seção
+    // "Características secundárias incompletas" no painel do ML.
+    const COSMETIC_TRISTATE = new Set([
+      "DERMATOLOGICALLY_TESTED", "HYPOALLERGENIC",
+      "IS_CRUELTY_FREE", "CRUELTY_FREE",
+      "IS_VEGAN", "VEGAN",
+      "WITH_FRAGRANCE", "HAS_FRAGRANCE",
+      "IS_ORGANIC", "ORGANIC",
+      "IS_PARABEN_FREE", "PARABEN_FREE", "WITH_PARABEN", "CONTAINS_PARABEN",
+      "IS_NATURAL", "NATURAL_PRODUCT",
+      "IS_GLUTEN_FREE", "GLUTEN_FREE",
+    ]);
+
     for (const a of meliAttrs) {
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
@@ -178,11 +193,16 @@ Deno.serve(async (req) => {
           || product.product_type
           || product.ai_product_type
           || "Genérico";
+        const lineFallback = (product.line && String(product.line).trim())
+          || product.product_type
+          || product.ai_product_type
+          || null;
         const map: Record<string, any> = {
           brand: product.brand,
           gtin: product.gtin,
           ean: product.gtin,
           model: productTypeFallback,
+          line: lineFallback,
           sku: product.sku,
           condition: listingCondition,
           gender: product.gender_audience,
@@ -215,6 +235,14 @@ Deno.serve(async (req) => {
             || "Genérico";
           value_name = String(modelValue);
           source = product.model ? "product" : "derivation";
+        }
+        else if (id === "LINE") {
+          // Linha: cadastro tem prioridade; senão, deixa para IA sugerir com base no contexto.
+          if (product.line && String(product.line).trim()) {
+            value_name = String(product.line).trim();
+            source = "product";
+          }
+          // sem fallback determinístico — IA decide entre product_type ou "Não se aplica"
         }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
@@ -284,14 +312,20 @@ Deno.serve(async (req) => {
         else listMismatch = true; // valor heurístico fora da lista oficial → não enviar livre
       }
 
+      const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+
       if (value_name && !listMismatch) {
         resolved.push({
           id: a.id, name: a.name, value_name, value_id,
           status: "filled", source, required,
         });
-      } else if (required || a.tags?.allow_variations === false || listMismatch) {
-        // inclui casos em que o palpite não bate com a lista oficial:
-        // delega à IA escolher um valor válido entre a.values.
+      } else if (required || a.tags?.allow_variations === false || listMismatch || isCosmeticTriState || a.id.toUpperCase() === "LINE") {
+        // inclui:
+        // - obrigatórios sem valor
+        // - valores heurísticos fora da lista oficial (IA escolhe um válido)
+        // - atributos cosméticos tri-state (sempre preencher para não deixar
+        //   "Características secundárias incompletas" no anúncio do ML)
+        // - LINE (linha do produto): IA sugere baseado no contexto se não houver cadastro
         aiPending.push(a);
       }
       // não-obrigatório sem valor válido: ignora (não polui painel)
