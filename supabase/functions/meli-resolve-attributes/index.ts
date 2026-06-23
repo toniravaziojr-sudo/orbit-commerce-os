@@ -539,83 +539,134 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
         }
       }
 
+      // Conjunto de palavras do nome do produto (para detectar repetição preguiçosa da IA)
+      const productNameTokens = new Set(
+        normalizeText(String(product.name ?? ""))
+          .split(/[^a-z0-9]+/i)
+          .filter(t => t.length >= 4)
+      );
+      const isJustRepeatingName = (val: string) => {
+        const vTokens = normalizeText(val).split(/[^a-z0-9]+/i).filter(t => t.length >= 4);
+        if (vTokens.length === 0) return false;
+        return vTokens.every(t => productNameTokens.has(t));
+      };
+
       for (const a of aiPending) {
-        let suggested = (allAnswers.get(a.id) ?? "").trim();
-        const required = !!a.tags?.required || !!a.tags?.catalog_required;
-        const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
-        const hasClosedList = (a.values?.length ?? 0) > 0;
+        // Blindagem: nenhum atributo individual pode derrubar todos os outros.
+        try {
+          let suggested = toSafeString(allAnswers.get(a.id));
+          const required = !!a.tags?.required || !!a.tags?.catalog_required;
+          const isCosmeticTriState = COSMETIC_TRISTATE.has(a.id.toUpperCase());
+          const hasClosedList = (a.values?.length ?? 0) > 0;
+          const idUp = a.id.toUpperCase();
 
-        // Anti-vazio para cosméticos tri-state.
-        if (isCosmeticTriState) {
-          const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
-          const norm = (v: string) => v.toLowerCase().trim();
-          const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
-          suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
-        }
+          // ANTI-ALUCINAÇÃO DE MARCA: se o produto não tem marca cadastrada,
+          // nunca aceitar sugestão da IA para BRAND — vira "missing" obrigatório.
+          if ((idUp === "BRAND") && !product.brand) {
+            resolved.push({
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required,
+              message: "Preencha a marca no cadastro do produto antes de publicar.",
+            });
+            continue;
+          }
 
-        // Fallback determinístico por tokens para obrigatórios de lista fechada.
-        if (required && hasClosedList && !isCosmeticTriState) {
-          const allowed = a.values!;
-          const norm = (v: string) => v.toLowerCase().trim();
-          let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
-          if (!hit) {
-            const seeds = [
-              product.name, product.product_type, product.ai_product_type,
-              product.ai_main_function, universalCategory?.name, suggested,
-            ].filter(Boolean).join(" ").toLowerCase();
-            const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-            let best: { v: { id: string; name: string }; score: number } | null = null;
-            for (const v of allowed) {
-              const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-              let score = 0;
-              for (const vt of vTokens) {
-                if (tokens.includes(vt)) score += 2;
-                else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+          // Lista negra de marcas famosas inventadas pela IA.
+          if (idUp === "BRAND" && suggested && isBlacklistedBrand(suggested)) {
+            console.warn(`[meli-resolve-attributes] IA tentou marca de terceiros (${suggested}) — bloqueado.`);
+            resolved.push({
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required,
+              message: "Preencha a marca no cadastro do produto antes de publicar.",
+            });
+            continue;
+          }
+
+          // Anti-repetição preguiçosa: descritivos opcionais que apenas repetem o nome.
+          if (!isCosmeticTriState && !required && suggested && !hasClosedList && isJustRepeatingName(suggested)) {
+            // Descarta sugestão fraca para opcionais livres.
+            suggested = "";
+          }
+
+          // Anti-vazio para cosméticos tri-state.
+          if (isCosmeticTriState) {
+            const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
+            const norm = (v: string) => v.toLowerCase().trim();
+            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
+          }
+
+          // Fallback determinístico por tokens para obrigatórios de lista fechada.
+          if (required && hasClosedList && !isCosmeticTriState) {
+            const allowed = a.values!;
+            const norm = (v: string) => v.toLowerCase().trim();
+            let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
+            if (!hit) {
+              const seeds = [
+                product.name, product.product_type, product.ai_product_type,
+                product.ai_main_function, universalCategory?.name, suggested,
+              ].filter(Boolean).join(" ").toLowerCase();
+              const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+              let best: { v: { id: string; name: string }; score: number } | null = null;
+              for (const v of allowed) {
+                const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                let score = 0;
+                for (const vt of vTokens) {
+                  if (tokens.includes(vt)) score += 2;
+                  else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+                }
+                if (score > 0 && (!best || score > best.score)) best = { v, score };
               }
-              if (score > 0 && (!best || score > best.score)) best = { v, score };
-            }
-            if (best) {
-              suggested = best.v.name;
-              console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+              if (best) {
+                suggested = best.v.name;
+                console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+              }
             }
           }
-        }
 
-        if (suggested) {
-          let value_id: string | undefined;
-          if (a.values?.length) {
-            const hit = matchAllowedValue(a, suggested);
-            if (hit) value_id = hit.id;
-          }
-          // Obrigatório de lista fechada sem match na lista oficial → missing.
-          if (required && hasClosedList && !value_id && !isCosmeticTriState) {
+          if (suggested) {
+            let value_id: string | undefined;
+            if (a.values?.length) {
+              const hit = matchAllowedValue(a, suggested);
+              if (hit) value_id = hit.id;
+            }
+            if (required && hasClosedList && !value_id && !isCosmeticTriState) {
+              resolved.push({
+                id: a.id, name: a.name,
+                status: "missing", source: "none", required: true,
+                message: friendlyMissingMessage(a),
+              });
+            } else if (required && hasClosedList && !value_id) {
+              continue;
+            } else {
+              if (!required && a.values?.length && !value_id) continue;
+              resolved.push({
+                id: a.id, name: a.name, value_name: suggested, value_id,
+                status: isCosmeticTriState ? "filled" : "review",
+                source: "ai",
+                required,
+                message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
+              });
+            }
+          } else if (required) {
             resolved.push({
               id: a.id, name: a.name,
               status: "missing", source: "none", required: true,
               message: friendlyMissingMessage(a),
             });
-          } else if (required && hasClosedList && !value_id) {
-            // tri-state sem match → ignora (não devia acontecer pelo anti-vazio acima)
-            continue;
-          } else {
-            // Opcional sem match em lista fechada → não envia (ML rejeita value_name livre)
-            if (!required && a.values?.length && !value_id) continue;
+          }
+          // não-obrigatório sem valor: silenciosamente ignorado
+        } catch (e) {
+          console.error(`[meli-resolve-attributes] falha ao processar atributo ${a.id}:`, (e as Error).message);
+          // Não derruba o produto inteiro — segue para o próximo atributo.
+          if (a.tags?.required || a.tags?.catalog_required) {
             resolved.push({
-              id: a.id, name: a.name, value_name: suggested, value_id,
-              status: isCosmeticTriState ? "filled" : "review",
-              source: "ai",
-              required,
-              message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
+              id: a.id, name: a.name,
+              status: "missing", source: "none", required: true,
+              message: friendlyMissingMessage(a),
             });
           }
-        } else if (required) {
-          resolved.push({
-            id: a.id, name: a.name,
-            status: "missing", source: "none", required: true,
-            message: friendlyMissingMessage(a),
-          });
         }
-        // não-obrigatório sem valor: silenciosamente ignorado
       }
     }
 
