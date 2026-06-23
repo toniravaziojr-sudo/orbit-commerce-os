@@ -986,17 +986,18 @@ Comportamento:
 - Quando o lojista volta para a aba Pendências, o sistema **revalida automaticamente** a lista de anúncios e o catálogo (listener de `focus` + `visibilitychange`). Custo zero — só reaproveita o React Query.
 - A tela de Produtos passa a aceitar o deep link `?edit=<productId>` (uso interno do atalho).
 
-## Etapa "Características" no assistente em lote (v3.5 — 2026-06-22)
+## Etapas "Características" e "Preços" no assistente em lote (v3.6 — 2026-06-23)
 
-O assistente de criação/edição em lote de anúncios passa de 7 para **8 etapas**, com a nova etapa **"Características"** posicionada entre "Descrições" e "Condição":
+O assistente de criação/edição em lote de anúncios tem **9 etapas**, com **"Características"** entre "Descrições" e "Condição" e **"Preços"** entre "Tipo" e "Frete":
 
-1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → 8. Frete.
+1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → **8. Preços** → 9. Frete.
 
 Comportamento da etapa:
 - Para cada anúncio em preparação, chama o motor `meli-resolve-attributes` (já existente, sem alteração) e renderiza o painel **"Atributos para o anúncio"** com os blocos Preenchido / Revisar / Faltando.
 - Mostra contador "X faltando" e atalho "Abrir cadastro" por anúncio, abrindo o produto correspondente em nova aba.
 - Botão **"Continuar"** fica desabilitado enquanto houver atributos obrigatórios faltando em qualquer anúncio.
 - Ao avançar, persiste para cada anúncio o array `attributes` em `meli_listings` no formato `[{ id, value_name?, value_id? }, ...]` — só os com status diferente de `missing`.
+- Na etapa **Preços**, o lojista pode editar o preço por anúncio, aplicar desconto/acréscimo percentual em lote ou restaurar o preço do cadastro. O preço interno do produto não muda.
 
 A função de publicação (`meli-publish-listing`) já consome esse array e faz merge sem sobrescrever: agora o anúncio nasce com pontuação alta no Mercado Livre porque vai com **todos** os atributos relevantes (obrigatórios + recomendados), não só os básicos.
 
