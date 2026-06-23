@@ -653,12 +653,15 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
               continue;
             } else {
               if (!required && a.values?.length && !value_id) continue;
+              // Sugestões da IA já entram como "preenchidas" (verde). O painel
+              // distingue origem via `source: "ai"` com etiqueta "Sugerido pela IA".
+              // Assim o lojista vê com clareza tudo que será enviado ao ML, sem
+              // a falsa fricção de "campo para revisar".
               resolved.push({
                 id: a.id, name: a.name, value_name: suggested, value_id,
-                status: isCosmeticTriState ? "filled" : "review",
+                status: "filled",
                 source: "ai",
                 required,
-                message: isCosmeticTriState ? undefined : "Sugestão da IA — confirme antes de publicar.",
               });
             }
           } else if (required) {
