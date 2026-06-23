@@ -78,10 +78,25 @@ interface ResolvedAttr {
   name: string;
   value_name?: string;
   value_id?: string;
+  /** Valores múltiplos quando o atributo do ML é multivalorado (ex.: Tipos de cabelo, Formatos de tratamento). */
+  values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
   source: "product" | "derivation" | "dictionary" | "ai" | "none";
   required: boolean;
   message?: string;
+}
+
+// Detecta atributos do ML que aceitam múltiplos valores (multi-seleção).
+function isMultiValuedSpec(spec: MeliAttrSpec): boolean {
+  const tags: any = spec.tags || {};
+  if (tags.multivalued === true) return true;
+  if (tags.allow_variations === true && Array.isArray(spec.values) && spec.values.length > 1) {
+    // não confunde com variações de produto; segue regra abaixo
+  }
+  // ML também usa value_max_quantity > 1 em algumas categorias
+  const vmq = (spec as any).value_max_quantity;
+  if (typeof vmq === "number" && vmq > 1) return true;
+  return false;
 }
 
 Deno.serve(async (req) => {
