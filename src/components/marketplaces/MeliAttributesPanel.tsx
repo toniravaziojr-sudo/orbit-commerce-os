@@ -134,6 +134,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             name: a.name || a.id,
             value_name: a.value_name,
             value_id: a.value_id,
+            values: Array.isArray(a.values) ? a.values : undefined,
             status: "filled",
             source: (a.source as ResolvedAttr["source"]) || "product",
             required: false,
