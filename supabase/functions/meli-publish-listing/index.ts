@@ -312,34 +312,82 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Órgão regulatório (ANVISA): preenche se a categoria expuser e o regime do cadastro for ANVISA.
+        if (_needsAnvisa) {
+          const REG_CANDIDATES = new Set([
+            "REGULATORY_AGENCY","SANITARY_REGISTRY_AGENCY","HEALTH_REGISTRATION_INSTITUTION",
+            "REGULATORY_BODY","ANVISA_REGISTRY_INSTITUTION",
+          ]);
+          for (const spec of attrSpecs) {
+            if (!REG_CANDIDATES.has(String(spec.id).toUpperCase())) continue;
+            if (attrIds.has(spec.id)) continue;
+            attributes.push({ id: spec.id, value_name: "ANVISA" });
+            attrIds.add(spec.id);
+            console.log(`[meli-publish-listing] Auto-filled ANVISA in ${spec.id}`);
+          }
+        }
+
         // ===== Sanitize attributes against fixed-value lists =====
-        // Se o atributo da categoria tem `values` (lista oficial) e nosso value_name
-        // não bate com nenhum item da lista, removemos o valor para evitar
-        // "Validation error: Attribute X is not valid, item values [...]".
-        //
-        // EXCEÇÃO: BRAND/GTIN/EAN/MODEL/SELLER_SKU aceitam texto livre no ML
-        // mesmo quando a categoria publica uma lista sugerida. Marca própria
-        // da loja raramente está na lista — manter o valor do cadastro.
-        const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
+        // Suporta tanto single-value (value_name) quanto multi-value (values: [{id,name}]).
+        const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU", "WARRANTY_TIME"]);
         const specById = new Map<string, any>();
         for (const s of attrSpecs) specById.set(s.id, s);
         const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+        const isMulti = (s: any) => {
+          if (!s) return false;
+          const tags = s.tags || {};
+          if (tags.multivalued === true) return true;
+          const vmq = s.value_max_quantity;
+          return typeof vmq === "number" && vmq > 1;
+        };
         const cleaned: any[] = [];
         for (const attr of attributes) {
           const spec = specById.get(attr.id);
+          // Caso multi: usar attr.values (array) e casar cada um contra a lista.
+          if (spec && Array.isArray((attr as any).values) && (attr as any).values.length > 0) {
+            const out: any[] = [];
+            const allowed = Array.isArray(spec.values) ? spec.values : [];
+            for (const v of (attr as any).values) {
+              if (allowed.length === 0) { out.push({ name: v.name }); continue; }
+              const hit = allowed.find((s2: any) => norm(s2.name) === norm(v.name));
+              if (hit) out.push({ id: hit.id, name: hit.name });
+            }
+            if (out.length > 0) {
+              cleaned.push({ id: attr.id, values: out });
+            } else {
+              console.log(`[meli-publish-listing] Dropping multi attr ${attr.id} (no allowed match)`);
+            }
+            continue;
+          }
           if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+            // Se for multi-valued mas veio só value_name com vírgulas, expandir
+            if (isMulti(spec) && typeof attr.value_name === "string" && attr.value_name.includes(",")) {
+              const pieces = attr.value_name.split(",").map((s: string) => s.trim()).filter(Boolean);
+              const out: any[] = [];
+              for (const p of pieces) {
+                const hit = spec.values.find((v: any) => norm(v.name) === norm(p));
+                if (hit) out.push({ id: hit.id, name: hit.name });
+              }
+              if (out.length > 0) {
+                cleaned.push({ id: attr.id, values: out });
+                continue;
+              }
+            }
             const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
             if (hit) {
               cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
             } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
-              console.log(`[meli-publish-listing] Keeping free-form attr ${attr.id}="${attr.value_name}" (brand/gtin/model exception)`);
+              console.log(`[meli-publish-listing] Keeping free-form attr ${attr.id}="${attr.value_name}"`);
               cleaned.push({ id: attr.id, value_name: attr.value_name });
             } else {
               console.log(`[meli-publish-listing] Dropping invalid attr ${attr.id}="${attr.value_name}" (not in category allowed_values)`);
               continue;
             }
-          } else {
+          } else if (spec) {
             cleaned.push(attr);
+          } else {
+            // ID não existe na categoria → descartar para evitar erro do ML.
+            console.log(`[meli-publish-listing] Dropping attr ${attr.id} (no spec in category)`);
           }
         }
         attributes.length = 0;
