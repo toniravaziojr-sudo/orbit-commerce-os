@@ -247,17 +247,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Órgão regulatório (ANVISA) — fallback quando o regime do cadastro for ANVISA cosmético.
+    // Órgão regulatório (ANVISA) — preenchido abaixo dentro do loop de specs da categoria,
+    // só quando o ML expuser um atributo equivalente nessa categoria.
     const _regRegime = String(listing.product?.regulatory_regime || "").toLowerCase();
-    if (_regRegime.includes("anvisa")) {
-      const REG_IDS = ["REGULATORY_AGENCY","SANITARY_REGISTRY_AGENCY","HEALTH_REGISTRATION_INSTITUTION","REGULATORY_BODY","ANVISA_REGISTRY_INSTITUTION"];
-      for (const rid of REG_IDS) {
-        if (!attrIds.has(rid)) {
-          attributes.push({ id: rid, value_name: "ANVISA" });
-          attrIds.add(rid);
-        }
-      }
-    }
+    const _needsAnvisa = _regRegime.includes("anvisa");
 
     // ===== Auto-fill required category attributes =====
     // Fetch category attribute specs and complete what's missing using sensible fallbacks.
