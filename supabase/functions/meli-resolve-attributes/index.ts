@@ -386,12 +386,13 @@ Deno.serve(async (req) => {
         else if ((id === "HAIR_TYPES" || id === "HAIR_TYPE") && Array.isArray(product.recommended_hair_types) && product.recommended_hair_types.length > 0) {
           const hairMap: Record<string, string> = {
             oleoso: "Oleoso", seco: "Seco", misto: "Misto", normal: "Normal",
-            cacheado: "Cacheado", liso: "Liso", todos: "Todos os tipos",
+            cacheado: "Cacheado", liso: "Liso", ralo: "Ralo", crespo: "Crespo",
+            todos: "Todo tipo de cabelo",
           };
           value_name = product.recommended_hair_types.map((h: string) => hairMap[h] || h).join(", ");
           source = "product";
         }
-        else if ((id === "HAIR_TREATMENT_TYPE" || id === "TREATMENT_TYPE" || id === "TREATMENT_FORMAT") && Array.isArray(product.treatment_types) && product.treatment_types.length > 0) {
+        else if ((id === "HAIR_TREATMENT_TYPE" || id === "TREATMENT_TYPE" || id === "TREATMENT_FORMAT" || id === "HAIR_TREATMENT_FORMAT") && Array.isArray(product.treatment_types) && product.treatment_types.length > 0) {
           const trtMap: Record<string, string> = {
             antiqueda: "Antiqueda", crescimento: "Crescimento", hidratacao: "Hidratação",
             anticaspa: "Anticaspa", antioleosidade: "Antioleosidade", reconstrucao: "Reconstrução",
@@ -407,7 +408,51 @@ Deno.serve(async (req) => {
           value_name = product.product_type || product.ai_product_type;
           source = product.product_type ? "product" : "derivation";
         }
+        // --- Garantia (cadastro do produto) ---
+        else if (id === "WARRANTY_TYPE" && product.warranty_type && product.warranty_type !== "none") {
+          value_name = product.warranty_type === "vendor" ? "Garantia do vendedor" : "Garantia de fábrica";
+          source = "product";
+        }
+        else if ((id === "WARRANTY_TIME" || id === "WARRANTY") && product.warranty_duration) {
+          value_name = String(product.warranty_duration).trim();
+          source = "product";
+        }
+        // --- Órgão regulatório (ANVISA para cosméticos) ---
+        else if (
+          (id === "REGULATORY_AGENCY" || id === "SANITARY_REGISTRY_AGENCY" ||
+           id === "HEALTH_REGISTRATION_INSTITUTION" || id === "REGULATORY_BODY" ||
+           id === "ANVISA_REGISTRY_INSTITUTION") &&
+          regulatoryRegime && String(regulatoryRegime).toLowerCase().includes("anvisa")
+        ) {
+          value_name = "ANVISA";
+          source = "product";
+        }
       }
+
+      // Atributo multi-valor: monta lista de valores em vez de string única.
+      const multiValued = isMultiValuedSpec(a);
+      if (multiValued && value_name && value_name.includes(",")) {
+        const pieces = value_name.split(",").map(s => s.trim()).filter(Boolean);
+        const valuesArr: Array<{ id?: string; name: string }> = [];
+        for (const p of pieces) {
+          if (a.values?.length) {
+            const hit = matchAllowedValue(a, p);
+            if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+          } else {
+            valuesArr.push({ name: p });
+          }
+        }
+        if (valuesArr.length > 0) {
+          resolved.push({
+            id: a.id, name: a.name,
+            value_name: valuesArr.map(v => v.name).join(", "),
+            values: valuesArr,
+            status: "filled", source, required,
+          });
+          continue;
+        }
+      }
+
 
       // Match valor contra lista oficial do ML quando aplicável
       let value_id: string | undefined;
