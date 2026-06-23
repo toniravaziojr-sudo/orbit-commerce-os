@@ -103,6 +103,7 @@ const productSchema = z.object({
   
   // New canonical fields
   brand: z.string().max(100).nullable().optional(),
+  model: z.string().max(100).nullable().optional(),
   vendor: z.string().max(100).nullable().optional(),
   product_type: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
@@ -326,6 +327,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       
       // New canonical fields
       brand: product?.brand ?? '',
+      model: (product as any)?.model ?? '',
       vendor: product?.vendor ?? '',
       product_type: product?.product_type ?? '',
       tags: product?.tags ?? [],
@@ -712,6 +714,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           recommended_hair_types: (data as any).recommended_hair_types ?? [],
           treatment_types: (data as any).treatment_types ?? [],
           expected_effects: (data as any).expected_effects || null,
+          brand: data.brand || null,
+          model: data.model || null,
+          vendor: data.vendor || null,
+          product_type: data.product_type || null,
           free_shipping: data.free_shipping ?? false,
           free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         } as any);
@@ -1569,7 +1575,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   <CardTitle>Marca e Fornecedor</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+
                     <FormField
                       control={form.control}
                       name="brand"
@@ -1587,6 +1594,25 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={form.control}
+                      name="model"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Modelo</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Pro Max 2024 (opcional)"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
 
                     <FormField
                       control={form.control}

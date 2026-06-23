@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       .from("products")
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, depth,
-        brand, gtin, warranty_duration, warranty_type, product_format,
+        brand, model, gtin, warranty_duration, warranty_type, product_format,
         regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
@@ -174,11 +174,15 @@ Deno.serve(async (req) => {
       const dictEntry = dictByMeliId.get(a.id);
       if (dictEntry?.universal_key) {
         const k = dictEntry.universal_key as string;
+        const productTypeFallback = (product.model && String(product.model).trim())
+          || product.product_type
+          || product.ai_product_type
+          || "Genérico";
         const map: Record<string, any> = {
           brand: product.brand,
           gtin: product.gtin,
           ean: product.gtin,
-          model: product.sku,
+          model: productTypeFallback,
           sku: product.sku,
           condition: listingCondition,
           gender: product.gender_audience,
@@ -204,7 +208,14 @@ Deno.serve(async (req) => {
         const id = a.id.toUpperCase();
         if (id === "BRAND" && product.brand) { value_name = product.brand; source = "product"; }
         else if ((id === "GTIN" || id === "EAN") && product.gtin) { value_name = product.gtin; source = "product"; }
-        else if (id === "MODEL" && product.sku) { value_name = product.sku; source = "product"; }
+        else if (id === "MODEL") {
+          const modelValue = (product.model && String(product.model).trim())
+            || product.product_type
+            || product.ai_product_type
+            || "Genérico";
+          value_name = String(modelValue);
+          source = product.model ? "product" : "derivation";
+        }
         else if (id === "ITEM_CONDITION") { value_name = listingCondition === "used" ? "Usado" : listingCondition === "not_specified" ? "Não especificado" : "Novo"; source = "derivation"; }
         else if ((id === "IS_KIT" || id === "PACKAGE_LENGTH") && isKit) {
           if (id === "IS_KIT") { value_name = "Sim"; source = "derivation"; }

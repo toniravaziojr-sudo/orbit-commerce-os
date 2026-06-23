@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.4.4: etapa de Características passa a consultar apenas campos reais do cadastro de produto — dimensões usam profundidade, condição vem do anúncio e garantia vem da duração/tipo cadastrados — evitando falso "Produto não encontrado".)
+> **Última atualização:** 2026-06-23 (v2.4.5: novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.)
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
 > **Histórico:** 2026-06-21 (v2.3.4: bug fix "Configurar Selecionados"). 2026-06-21 (v2.3.3: releitura do banco ao reabrir rascunhos, anti-regeneração, spinner no Continuar). 2026-06-20 (v2.3.1: persistência por etapa com debounce).
@@ -351,22 +351,31 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `BRAND` | Formulário ou `products.brand` |
 | `GTIN` | `products.gtin` ou `products.barcode` (fallback automático) |
 | `SELLER_SKU` | `products.sku` |
+| `MODEL` | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" (cascata; SKU nunca é usado como modelo — v2.4.5) |
 | `WARRANTY_TYPE` | `products.warranty_type` (vendor → "Garantía del vendedor", factory → "Garantía de fábrica") |
 | `WARRANTY_TIME` | `products.warranty_duration` (ex: "6 meses") |
 
-### Auto-preenchimento de Atributos Obrigatórios por Categoria (v3.3.0)
+### Auto-preenchimento de Atributos Obrigatórios por Categoria (v3.3.0 + v2.4.5)
 
 Antes de publicar, a edge function consulta `GET /categories/{id}/attributes` e identifica os atributos marcados como `required` pela categoria escolhida. Para cada obrigatório que ainda não tenha valor, o sistema tenta preencher automaticamente:
 
 | Atributo obrigatório | Fallback automático |
 |----------------------|---------------------|
 | `BRAND` | `products.brand` |
-| `LINE` (Linha) | `products.brand` (mesmo valor da marca, quando não há linha específica) |
-| `MODEL` (Modelo) | `products.brand` |
+| `LINE` (Linha) | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" |
+| `MODEL` (Modelo) | `products.model` → `products.product_type` → `products.ai_product_type` → `products.brand` → "Genérico" |
 | `ITEM_CONDITION` | "Novo" (ou "Usado" se `listing.condition = used`) |
 | `GTIN` / `EAN` | `products.gtin` |
 
-Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um campo que não temos no cadastro), a publicação é bloqueada e o anúncio fica com erro descrevendo exatamente quais campos preencher no cadastro do produto. Sem essa camada, categorias como kits capilares (`MLB32130`) falhavam com `Atributos faltantes: BRAND, LINE`.
+> **⚠️ Anti-regressão (v2.4.5):** O SKU **NUNCA** deve ser usado como valor de `MODEL` em nenhum marketplace. SKU é código interno de inventário, não modelo comercial. Produtos sem modelo específico (caso comum em cosméticos como linha Respeite o Homem) devem cair no `product_type` (Shampoo, Balm, Loção, Óleo etc.). Regra registrada também em `_padrao-canonico-marketplaces.md`.
+
+Se ainda restar algum atributo obrigatório sem valor (ex.: categoria exige um campo que não temos no cadastro), a publicação é bloqueada e o anúncio fica com erro descrevendo exatamente quais campos preencher no cadastro do produto.
+
+### Atualização de anúncio publicado (v2.4.5)
+
+A ação `update` do `meli-publish-listing` agora reenvia também o array de `attributes` salvo localmente (não só título/preço/estoque/imagens). Antes de enviar, os atributos passam pelo helper `sanitizeAttributesForCategory` que consulta `GET /categories/{id}/attributes` e descarta valores fora da lista oficial da categoria — evitando `Validation error` quando o produto foi reclassificado pelo ML.
+
+
 
 > **⚠️ Removidos na v3.1.0:** `PACKAGE_WEIGHT`, `PACKAGE_WIDTH`, `PACKAGE_HEIGHT` e `PACKAGE_LENGTH` **NÃO são enviados** como atributos na publicação. Esses campos não são modificáveis via API de itens do ML e causavam erros/warnings. Dimensões de frete devem ser configuradas via painel do ML ou API de shipping separada.
 

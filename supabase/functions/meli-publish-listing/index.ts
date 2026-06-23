@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     // Get listing with product data - include gtin, regulatory_info, warranty
     const { data: listing, error: listingError } = await supabase
       .from("meli_listings")
-      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, gtin, regulatory_info, warranty_type, warranty_duration)")
+      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, model, product_type, ai_product_type, gtin, regulatory_info, warranty_type, warranty_duration)")
       .eq("id", listingId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -273,8 +273,12 @@ Deno.serve(async (req) => {
               break;
             case "LINE":
             case "MODEL":
-              // Use brand as fallback line/model when no specific value exists
-              autoValue = brandValue;
+              // Fallback: product_type (Shampoo, Balm, Loção...) when no specific model; never SKU
+              autoValue = listing.product?.model
+                || listing.product?.product_type
+                || listing.product?.ai_product_type
+                || brandValue
+                || "Genérico";
               break;
             case "ITEM_CONDITION":
               autoValue = listing.condition === "used" ? "Usado" : "Novo";
@@ -434,6 +438,46 @@ Deno.serve(async (req) => {
 
 // ===================== Helper Functions =====================
 
+/**
+ * Sanitiza atributos contra os values fixos da categoria do ML.
+ * Remove atributos cujo value_name não existe na lista oficial.
+ * Quando bate, normaliza para usar o value_id oficial do ML.
+ */
+async function sanitizeAttributesForCategory(
+  accessToken: string,
+  categoryId: string,
+  attrs: any[],
+): Promise<any[]> {
+  try {
+    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) return attrs;
+    const specs: any[] = await res.json();
+    const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
+    const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+    const cleaned: any[] = [];
+    for (const attr of attrs) {
+      const spec = byId.get(attr.id);
+      if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+        const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
+        if (!hit) {
+          console.log(`[meli-publish-listing] sanitize: dropping ${attr.id}="${attr.value_name}" (not allowed)`);
+          continue;
+        }
+        cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
+      } else {
+        cleaned.push(attr);
+      }
+    }
+    return cleaned;
+  } catch (e) {
+    console.log("[meli-publish-listing] sanitize skipped:", e);
+    return attrs;
+  }
+}
+
+
 function buildImagesList(listingImages: any[], productImages: any[] | null): any[] {
   const seenUrls = new Set<string>();
   const images: any[] = [];
@@ -517,6 +561,14 @@ async function updateListing(accessToken: string, listing: any, productImages: a
   const images = buildImagesList(listing.images, productImages);
   if (images.length > 0) {
     updatePayload.pictures = images;
+  }
+
+  // Update attributes (MODEL, BRAND, etc.) if saved on the listing — sanitize against ML category specs
+  if (Array.isArray(listing.attributes) && listing.attributes.length > 0 && listing.category_id) {
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, listing.attributes);
+    if (sanitized.length > 0) {
+      updatePayload.attributes = sanitized;
+    }
   }
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {

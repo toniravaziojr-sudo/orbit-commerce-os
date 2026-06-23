@@ -17543,6 +17543,7 @@ export type Database = {
           manage_stock: boolean | null
           meta_keywords: string | null
           meta_retailer_id: string | null
+          model: string | null
           name: string
           ncm: string | null
           net_content_unit: string | null
@@ -17620,6 +17621,7 @@ export type Database = {
           manage_stock?: boolean | null
           meta_keywords?: string | null
           meta_retailer_id?: string | null
+          model?: string | null
           name: string
           ncm?: string | null
           net_content_unit?: string | null
@@ -17697,6 +17699,7 @@ export type Database = {
           manage_stock?: boolean | null
           meta_keywords?: string | null
           meta_retailer_id?: string | null
+          model?: string | null
           name?: string
           ncm?: string | null
           net_content_unit?: string | null
