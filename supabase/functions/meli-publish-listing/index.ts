@@ -472,16 +472,21 @@ async function sanitizeAttributesForCategory(
     const specs: any[] = await res.json();
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+    const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
     const cleaned: any[] = [];
     for (const attr of attrs) {
       const spec = byId.get(attr.id);
       if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
         const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
-        if (!hit) {
+        if (hit) {
+          cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
+        } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
+          console.log(`[meli-publish-listing] sanitize: keeping free-form ${attr.id}="${attr.value_name}"`);
+          cleaned.push({ id: attr.id, value_name: attr.value_name });
+        } else {
           console.log(`[meli-publish-listing] sanitize: dropping ${attr.id}="${attr.value_name}" (not allowed)`);
           continue;
         }
-        cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
       } else {
         cleaned.push(attr);
       }
