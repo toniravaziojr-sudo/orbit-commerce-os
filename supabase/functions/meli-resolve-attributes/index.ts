@@ -475,11 +475,17 @@ Deno.serve(async (req) => {
 Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
 Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
 
+REGRAS ABSOLUTAS DE SEGURANÇA (nunca quebrar):
+- O campo "value" SEMPRE deve ser STRING (nunca array, nunca objeto). Se for lista de valores, junte com vírgula em UMA string.
+- NUNCA invente MARCA (BRAND). Se a marca não estiver explícita no contexto do produto, devolva "" (vazio). É PROIBIDO sugerir marcas famosas como L'Oréal, Nivea, Dove, Garnier, Natura, Boticário, Johnson, Samsung, Apple, Nike etc. quando não houver marca no cadastro.
+- NUNCA invente GTIN/EAN. Se não houver no contexto, devolva "".
+- NUNCA repita simplesmente palavras do nome do produto em campos descritivos como "Tipo de cuidado", "Efeitos", "Tipo de aplicação", "Indicação". Se você não tem base real, devolva "".
+- NÃO use a MESMA palavra em campos diferentes. Cada atributo deve trazer informação distinta.
+- Só preencha um atributo descritivo se existir evidência clara no nome, descrição ou tipo do produto.
+
 REGRA GERAL — atributos opcionais (não obrigatórios):
-- Se houver QUALQUER base no produto (nome, descrição, tipo, função, categoria), preencha com a melhor inferência.
-- Só retorne "" (vazio) se o atributo realmente não fizer sentido para este produto ou não houver nenhuma base.
-- Para atributos descritivos comuns (cor, material, formato, tamanho, gênero, idade, indicação, fragrância principal, perfil de cabelo/pele etc.) tente sempre inferir a partir do nome e descrição.
-- Para produto cosmético capilar, atributos como formato do produto, formato de venda, unidades por kit, conservação, fragrância, indicação, efeitos e características cosméticas devem ser preenchidos quando existirem na lista.
+- Se houver base no produto, preencha com a melhor inferência.
+- Se NÃO houver base real, devolva "" (vazio). É melhor vazio do que inventado.
 
 REGRA CRÍTICA — obrigatórios de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
 - NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
@@ -500,7 +506,7 @@ Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
 
-Responda JSON: {"answers":[{"id":"...","value":"..."}]}`;
+Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string.`;
 
         try {
           const { data } = await aiChatCompletionJSON(
