@@ -265,21 +265,25 @@ Deno.serve(async (req) => {
 
       // Match valor contra lista oficial do ML quando aplicável
       let value_id: string | undefined;
+      let listMismatch = false;
       if (value_name && a.values?.length) {
         const norm = value_name.toLowerCase().trim();
         const hit = a.values.find(v => v.name.toLowerCase().trim() === norm);
         if (hit) value_id = hit.id;
+        else listMismatch = true; // valor heurístico fora da lista oficial → não enviar livre
       }
 
-      if (value_name) {
+      if (value_name && !listMismatch) {
         resolved.push({
           id: a.id, name: a.name, value_name, value_id,
           status: "filled", source, required,
         });
-      } else if (required || a.tags?.allow_variations === false) {
+      } else if (required || a.tags?.allow_variations === false || listMismatch) {
+        // inclui casos em que o palpite não bate com a lista oficial:
+        // delega à IA escolher um valor válido entre a.values.
         aiPending.push(a);
       }
-      // não-obrigatório sem valor: ignora (não polui painel)
+      // não-obrigatório sem valor válido: ignora (não polui painel)
     }
 
     // ---- 6. Pergunta à IA para cobrir o que sobrou (obrigatórios) ------
