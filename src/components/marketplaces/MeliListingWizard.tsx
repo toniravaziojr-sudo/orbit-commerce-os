@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ProductWithImage } from "@/hooks/useProducts";
+import { checkMlReadiness, formatMissingForToast } from "@/lib/marketplaces/mlReadiness";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -256,7 +257,31 @@ export function MeliListingWizard({
     setTimeout(() => setStep("review"), 800);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // === Checagem silenciosa final "Cadastro como Fonte Única" ===
+    // Mesmo com tudo verde no painel, se o lojista esvaziou algum campo
+    // no cadastro depois, bloqueia aqui e direciona para o produto.
+    const productIdToCheck = selectedProduct?.id || initialData?.product_id;
+    if (productIdToCheck) {
+      const { data: prod } = await supabase
+        .from('products')
+        .select('brand, gtin, barcode, model, weight, width, height, depth, universal_category_id, net_content_value, net_content_unit, regulatory_regime, regulatory_category, dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance')
+        .eq('id', productIdToCheck)
+        .maybeSingle();
+      const r = checkMlReadiness(prod as any);
+      if (!r.ready) {
+        toast.error('Faltam dados obrigatórios no cadastro do produto', {
+          description: formatMissingForToast(r.missing),
+          duration: 8000,
+          action: {
+            label: 'Abrir cadastro',
+            onClick: () => window.open(`/products?edit=${productIdToCheck}`, '_blank'),
+          },
+        });
+        return;
+      }
+    }
+
     // Merge brand/gtin manuais com atributos resolvidos pelo motor (Etapa 5B)
     const merged = new Map<string, any>();
     if (brand) merged.set("BRAND", { id: "BRAND", value_name: brand });

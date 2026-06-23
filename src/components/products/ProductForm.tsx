@@ -48,6 +48,7 @@ import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
 import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 import { useUniversalCategories } from '@/hooks/useUniversalCategories';
+import { checkMlReadiness, formatMissingForToast, GENERIC_MODEL_VALUE } from '@/lib/marketplaces/mlReadiness';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
@@ -604,6 +605,37 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       }
     }
 
+    // === Checagem "Cadastro como Fonte Única do Mercado Livre" ===
+    // Bloqueia salvar se faltam campos obrigatórios para publicar no ML.
+    // Mesma fonte usada pelo banner e pelo wizard de anúncios.
+    const readiness = checkMlReadiness({
+      brand: data.brand,
+      gtin: data.gtin,
+      model: data.model,
+      weight: data.weight,
+      width: data.width,
+      height: data.height,
+      depth: data.depth,
+      universal_category_id: (data as any).universal_category_id,
+      net_content_value: (data as any).net_content_value,
+      net_content_unit: (data as any).net_content_unit,
+      regulatory_regime: (data as any).regulatory_regime,
+      regulatory_category: (data as any).regulatory_category,
+      dermatologically_tested: (data as any).dermatologically_tested,
+      hypoallergenic: (data as any).hypoallergenic,
+      cruelty_free: (data as any).cruelty_free,
+      vegan: (data as any).vegan,
+      has_fragrance: (data as any).has_fragrance,
+    });
+    if (!readiness.ready) {
+      toast({
+        title: 'Faltam dados obrigatórios para o Mercado Livre',
+        description: formatMissingForToast(readiness.missing),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (isEditing && product) {
@@ -771,9 +803,53 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
         </div>
       </div>
 
+      {/* Banner: Cadastro como Fonte Única do Mercado Livre */}
+      {(() => {
+        const v = form.watch();
+        const r = checkMlReadiness({
+          brand: v.brand, gtin: v.gtin, model: v.model,
+          weight: v.weight, width: v.width, height: v.height, depth: v.depth,
+          universal_category_id: (v as any).universal_category_id,
+          net_content_value: (v as any).net_content_value,
+          net_content_unit: (v as any).net_content_unit,
+          regulatory_regime: (v as any).regulatory_regime,
+          regulatory_category: (v as any).regulatory_category,
+          dermatologically_tested: (v as any).dermatologically_tested,
+          hypoallergenic: (v as any).hypoallergenic,
+          cruelty_free: (v as any).cruelty_free,
+          vegan: (v as any).vegan,
+          has_fragrance: (v as any).has_fragrance,
+        });
+        if (r.ready) return null;
+        return (
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  Faltam dados obrigatórios para publicar no Mercado Livre
+                </p>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">
+                  Salvar este produto está bloqueado até preencher os campos abaixo:
+                </p>
+                <ul className="mt-2 grid gap-1 sm:grid-cols-2 text-sm">
+                  {r.missing.map((m) => (
+                    <li key={m.field} className="flex items-baseline gap-2">
+                      <span className="text-amber-700">•</span>
+                      <span className="text-amber-900 dark:text-amber-100"><strong>{m.label}</strong>{m.hint ? ` — ${m.hint}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
+
             {/* Helper function to get errors per tab */}
             {(() => {
               const errors = form.formState.errors;
@@ -1603,18 +1679,33 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="model"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Modelo</FormLabel>
+                          <FormLabel>Modelo *</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Ex: Pro Max 2024 (opcional)"
-                            />
+                            <div className="flex gap-2">
+                              <Input
+                                {...field}
+                                value={field.value ?? ''}
+                                placeholder="Ex: Pro Max 2024"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => form.setValue('model', GENERIC_MODEL_VALUE, { shouldDirty: true })}
+                                title="Marcar como Genérico quando o produto não tem modelo específico"
+                              >
+                                Genérico
+                              </Button>
+                            </div>
                           </FormControl>
+                          <FormDescription className="text-xs">
+                            Obrigatório para o Mercado Livre. Use "Genérico" quando não houver modelo específico.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+
 
                     <FormField
                       control={form.control}
