@@ -993,7 +993,9 @@ O assistente de criação/edição em lote de anúncios tem **9 etapas**, com **
 1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → **8. Preços** → 9. Frete.
 
 Comportamento da etapa:
-- Para cada anúncio em preparação, chama o motor `meli-resolve-attributes` (já existente, sem alteração) e renderiza o painel **"Atributos para o anúncio"** com os blocos Preenchido / Revisar / Faltando.
+- Para cada anúncio em preparação, o painel **"Atributos para o anúncio"** primeiro carrega o que já está salvo no próprio anúncio (`meli_listings.attributes`). Só chama o motor `meli-resolve-attributes` (IA + dicionário) quando não há nada salvo para aquela categoria OU quando o lojista clica em **Recalcular** (v3.7 — 2026-06-23).
+- Anti-regressão: reabrir o dialog, trocar de aba do navegador ou voltar do cadastro do produto **não dispara** nova resolução automática — o conteúdo já resolvido é reaproveitado sem custo de IA.
+- Se o lojista trocar a categoria do anúncio, as características salvas perdem validade e o motor é chamado novamente (categoria diferente = atributos diferentes).
 - Mostra contador "X faltando" e atalho "Abrir cadastro" por anúncio, abrindo o produto correspondente em nova aba.
 - Botão **"Continuar"** fica desabilitado enquanto houver atributos obrigatórios faltando em qualquer anúncio.
 - Ao avançar, persiste para cada anúncio o array `attributes` em `meli_listings` no formato `[{ id, value_name?, value_id? }, ...]` — só os com status diferente de `missing`.
