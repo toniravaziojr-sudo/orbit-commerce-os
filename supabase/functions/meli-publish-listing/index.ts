@@ -311,6 +311,11 @@ Deno.serve(async (req) => {
         // Se o atributo da categoria tem `values` (lista oficial) e nosso value_name
         // não bate com nenhum item da lista, removemos o valor para evitar
         // "Validation error: Attribute X is not valid, item values [...]".
+        //
+        // EXCEÇÃO: BRAND/GTIN/EAN/MODEL/SELLER_SKU aceitam texto livre no ML
+        // mesmo quando a categoria publica uma lista sugerida. Marca própria
+        // da loja raramente está na lista — manter o valor do cadastro.
+        const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
         const specById = new Map<string, any>();
         for (const s of attrSpecs) specById.set(s.id, s);
         const norm = (v: any) => String(v ?? "").toLowerCase().trim();
@@ -319,11 +324,15 @@ Deno.serve(async (req) => {
           const spec = specById.get(attr.id);
           if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
             const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
-            if (!hit) {
+            if (hit) {
+              cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
+            } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
+              console.log(`[meli-publish-listing] Keeping free-form attr ${attr.id}="${attr.value_name}" (brand/gtin/model exception)`);
+              cleaned.push({ id: attr.id, value_name: attr.value_name });
+            } else {
               console.log(`[meli-publish-listing] Dropping invalid attr ${attr.id}="${attr.value_name}" (not in category allowed_values)`);
               continue;
             }
-            cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
           } else {
             cleaned.push(attr);
           }
