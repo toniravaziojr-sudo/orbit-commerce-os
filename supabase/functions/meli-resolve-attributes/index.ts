@@ -716,30 +716,42 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
           }
 
-          // Fallback determinístico por tokens para obrigatórios de lista fechada.
-          if (required && hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
+          // Fallback determinístico por tokens para QUALQUER atributo de lista fechada
+          // (obrigatório OU opcional) quando o cadastro do produto tem pista clara.
+          // Garante que campos como "Tipo de produto" não caiam em "Não se aplica"
+          // quando o cadastro tem product_type/ai_product_type preenchido.
+          if (hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
             const allowed = a.values!;
             const norm = (v: string) => v.toLowerCase().trim();
             let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
             if (!hit) {
-              const seeds = [
-                product.name, product.product_type, product.ai_product_type,
-                product.ai_main_function, universalCategory?.name, suggested,
-              ].filter(Boolean).join(" ").toLowerCase();
-              const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-              let best: { v: { id: string; name: string }; score: number } | null = null;
-              for (const v of allowed) {
-                const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-                let score = 0;
-                for (const vt of vTokens) {
-                  if (tokens.includes(vt)) score += 2;
-                  else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+              const cadastroSeeds = [
+                product.product_type, product.ai_product_type, product.ai_main_function,
+                product.line, product.model,
+              ].filter(Boolean).join(" ");
+              const hasCadastroEvidence = cadastroSeeds.trim().length > 0;
+              // Para opcional sem evidência no cadastro e sem sugestão da IA, não força match.
+              if (required || hasCadastroEvidence || suggested) {
+                const seeds = [
+                  product.name, cadastroSeeds, universalCategory?.name, suggested,
+                ].filter(Boolean).join(" ").toLowerCase();
+                const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                let best: { v: { id: string; name: string }; score: number } | null = null;
+                for (const v of allowed) {
+                  const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                  let score = 0;
+                  for (const vt of vTokens) {
+                    if (tokens.includes(vt)) score += 2;
+                    else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+                  }
+                  if (score > 0 && (!best || score > best.score)) best = { v, score };
                 }
-                if (score > 0 && (!best || score > best.score)) best = { v, score };
-              }
-              if (best) {
-                suggested = best.v.name;
-                console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+                // Para opcional, exige score mínimo 2 (uma correspondência exata) — evita N/A indevido sem inventar.
+                const minScore = required ? 1 : 2;
+                if (best && best.score >= minScore) {
+                  suggested = best.v.name;
+                  console.log(`[meli-resolve-attributes] token-match (${required ? "obrig" : "opc"}): ${a.id}="${best.v.name}" (score=${best.score})`);
+                }
               }
             }
           }
