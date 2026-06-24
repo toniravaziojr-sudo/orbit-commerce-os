@@ -1,6 +1,6 @@
 ---
 name: ML Resolve Attributes Hardening
-description: Regras invioláveis do resolvedor de atributos do Mercado Livre — anti-alucinação de marca, tolerância a formato da IA, isolamento por atributo, fila de concorrência no painel.
+description: Regras invioláveis do resolvedor de atributos do Mercado Livre — cadastro completo como ficha primária, números regulatórios automáticos por nome do atributo, anti-alucinação de marca, multi-valor, fila de concorrência.
 type: constraint
 ---
 
