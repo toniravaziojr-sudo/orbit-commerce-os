@@ -410,10 +410,11 @@ Deno.serve(async (req) => {
           value_name = product.product_type || product.ai_product_type;
           source = product.product_type ? "product" : "derivation";
         }
-        // --- Garantia (cadastro do produto) ---
-        else if (id === "WARRANTY_TYPE" && product.warranty_type && product.warranty_type !== "none") {
-          value_name = product.warranty_type === "vendor" ? "Garantia do vendedor" : "Garantia de fábrica";
-          source = "product";
+        // --- Garantia (cadastro do produto) — v1.9.0: fallback "Sem garantia" quando vazio ---
+        else if (id === "WARRANTY_TYPE") {
+          if (product.warranty_type === "vendor") { value_name = "Garantia do vendedor"; source = "product"; }
+          else if (product.warranty_type === "factory") { value_name = "Garantia de fábrica"; source = "product"; }
+          else { value_name = "Sem garantia"; source = "derivation"; }
         }
         else if ((id === "WARRANTY_TIME" || id === "WARRANTY") && product.warranty_duration) {
           value_name = String(product.warranty_duration).trim();
