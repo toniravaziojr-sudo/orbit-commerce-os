@@ -26,6 +26,8 @@ export interface ResolvedAttr {
   source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
   message?: string;
+  /** v1.9.0 — marcador "Não se aplica" enviado ao ML. */
+  not_applicable?: boolean;
 }
 
 export interface MeliAttributesPanelValue {
