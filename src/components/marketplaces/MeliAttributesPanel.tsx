@@ -448,9 +448,14 @@ function AttrRow({ attr, onEdit, onMarkNA, compact }: {
       <div className="group flex items-center gap-2 text-xs">
         {icon}
         <span className="font-medium">{attr.name}:</span>
-        <span className="text-muted-foreground truncate">{attr.value_name || "—"}</span>
-        {SOURCE_LABEL[attr.source] && (
+        <span className={`truncate ${attr.not_applicable ? "italic text-slate-500" : "text-muted-foreground"}`}>
+          {attr.not_applicable ? "Não se aplica" : (attr.value_name || "—")}
+        </span>
+        {!attr.not_applicable && SOURCE_LABEL[attr.source] && (
           <span className={`text-[10px] ml-auto font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
+        )}
+        {attr.not_applicable && (
+          <span className="text-[10px] ml-auto font-medium text-slate-500">Não se aplica</span>
         )}
         <Button
           type="button"
@@ -462,6 +467,18 @@ function AttrRow({ attr, onEdit, onMarkNA, compact }: {
         >
           <Pencil className="h-3 w-3" />
         </Button>
+        {onMarkNA && !attr.not_applicable && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onMarkNA}
+            title="Marcar como Não se aplica"
+          >
+            N/A
+          </Button>
+        )}
       </div>
     );
   }
@@ -474,14 +491,29 @@ function AttrRow({ attr, onEdit, onMarkNA, compact }: {
           {attr.name}
           {attr.required && <span className="text-destructive ml-0.5">*</span>}
         </Label>
-        {SOURCE_LABEL[attr.source] && (
+        {SOURCE_LABEL[attr.source] && !attr.not_applicable && (
           <span className={`text-[10px] font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
+        )}
+        {attr.not_applicable && (
+          <span className="text-[10px] font-medium text-slate-500">Não se aplica</span>
+        )}
+        {onMarkNA && !attr.not_applicable && !attr.required && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-[10px]"
+            onClick={onMarkNA}
+            title="Marcar como Não se aplica"
+          >
+            N/A
+          </Button>
         )}
       </div>
       <Input
-        value={attr.value_name ?? ""}
+        value={attr.not_applicable ? "" : (attr.value_name ?? "")}
         onChange={(e) => onEdit(e.target.value)}
-        placeholder={attr.status === "missing" ? "Preencha este campo..." : ""}
+        placeholder={attr.not_applicable ? "Não se aplica (digite para sobrescrever)" : attr.status === "missing" ? "Preencha este campo..." : ""}
         className="h-8 text-xs"
       />
       {attr.message && (
