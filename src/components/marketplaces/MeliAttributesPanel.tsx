@@ -26,6 +26,8 @@ export interface ResolvedAttr {
   source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
   message?: string;
+  /** v1.9.0 — marcador "Não se aplica" enviado ao ML. */
+  not_applicable?: boolean;
 }
 
 export interface MeliAttributesPanelValue {
@@ -97,13 +99,14 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const persistToListing = async (next: ResolvedAttr[]) => {
     if (!listingId) return;
     const payload = next
-      .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (a.values && a.values.length > 0)))
+      .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (a.values && a.values.length > 0) || a.not_applicable))
       .map(a => ({
         id: a.id,
         name: a.name,
         ...(a.value_id ? { value_id: a.value_id } : {}),
         ...(a.value_name ? { value_name: a.value_name } : {}),
         ...(a.values && a.values.length > 0 ? { values: a.values } : {}),
+        ...(a.not_applicable ? { not_applicable: true } : {}),
         source: a.source,
       }));
     try {
@@ -135,6 +138,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             value_name: a.value_name,
             value_id: a.value_id,
             values: Array.isArray(a.values) ? a.values : undefined,
+            not_applicable: a.not_applicable === true,
             status: "filled",
             source: (a.source as ResolvedAttr["source"]) || "product",
             required: false,
@@ -212,14 +216,25 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, value_name: value, value_id: undefined, values: undefined, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
+        ? { ...a, value_name: value, value_id: undefined, values: undefined, not_applicable: false, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
         : a);
       void persistToListing(next);
       return next;
     });
   };
 
-  const filled = attrs.filter(a => a.status === "filled");
+  const handleMarkNotApplicable = (id: string) => {
+    setAttrs(prev => {
+      const next = prev.map(a => a.id === id
+        ? { ...a, value_name: "Não se aplica", value_id: undefined, values: undefined, not_applicable: true, status: "filled" as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
+        : a);
+      void persistToListing(next);
+      return next;
+    });
+  };
+
+  const filledReal = attrs.filter(a => a.status === "filled" && !a.not_applicable);
+  const notApplicable = attrs.filter(a => a.status === "filled" && a.not_applicable);
   const review = attrs.filter(a => a.status === "review");
   const missing = attrs.filter(a => a.status === "missing");
 
@@ -271,13 +286,20 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
       {!loading && !queued && !error && attrs.length > 0 && (
         <>
           {/* Resumo */}
-          <div className="flex gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="outline" className="border-green-500/40 text-green-700 dark:text-green-400">
-              ✓ {filled.length} preenchido{filled.length === 1 ? "" : "s"}
+              ✓ {filledReal.length} preenchido{filledReal.length === 1 ? "" : "s"}
             </Badge>
-            <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
-              ⚠ {review.length} para revisar
-            </Badge>
+            {notApplicable.length > 0 && (
+              <Badge variant="outline" className="border-slate-400/40 text-slate-600 dark:text-slate-300">
+                — {notApplicable.length} não se aplica
+              </Badge>
+            )}
+            {review.length > 0 && (
+              <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
+                ⚠ {review.length} para revisar
+              </Badge>
+            )}
             <Badge variant="outline" className={missing.length > 0 ? "border-destructive/50 text-destructive" : "border-muted"}>
               ✗ {missing.length} faltando
             </Badge>
@@ -287,7 +309,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           {missing.length > 0 && (
             <Section title="Precisa preencher para publicar" tone="missing">
               {missing.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} />
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} />
               ))}
             </Section>
           )}
@@ -296,16 +318,25 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           {review.length > 0 && (
             <Section title="Sugestões da IA — revise antes de publicar" tone="review">
               {review.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} />
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} />
               ))}
             </Section>
           )}
 
           {/* Preenchido — colapsado */}
-          {filled.length > 0 && (
-            <Section title={`Já preenchidos (${filled.length})`} tone="filled" collapsible>
-              {filled.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} compact />
+          {filledReal.length > 0 && (
+            <Section title={`Já preenchidos (${filledReal.length})`} tone="filled" collapsible>
+              {filledReal.map(a => (
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} compact />
+              ))}
+            </Section>
+          )}
+
+          {/* Não se aplica — colapsado */}
+          {notApplicable.length > 0 && (
+            <Section title={`Não se aplica (${notApplicable.length})`} tone="na" collapsible>
+              {notApplicable.map(a => (
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} compact />
               ))}
             </Section>
           )}
@@ -331,7 +362,7 @@ function friendlyError(e: any): string {
 
 function Section({ title, tone, collapsible, children }: {
   title: string;
-  tone: "filled" | "review" | "missing";
+  tone: "filled" | "review" | "missing" | "na";
   collapsible?: boolean;
   children: React.ReactNode;
 }) {
@@ -340,6 +371,8 @@ function Section({ title, tone, collapsible, children }: {
     ? "border-destructive/40 bg-destructive/5"
     : tone === "review"
     ? "border-amber-500/40 bg-amber-500/5"
+    : tone === "na"
+    ? "border-slate-400/30 bg-slate-500/5"
     : "border-green-500/30 bg-green-500/5";
   return (
     <div className={`rounded-md border ${toneClass} p-2`}>
@@ -356,9 +389,10 @@ function Section({ title, tone, collapsible, children }: {
   );
 }
 
-function AttrRow({ attr, onEdit, compact }: {
+function AttrRow({ attr, onEdit, onMarkNA, compact }: {
   attr: ResolvedAttr;
   onEdit: (v: string) => void;
+  onMarkNA?: () => void;
   compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -368,7 +402,9 @@ function AttrRow({ attr, onEdit, compact }: {
     if (!editing) setDraft(attr.value_name ?? "");
   }, [attr.value_name, editing]);
 
-  const icon = attr.status === "filled"
+  const icon = attr.not_applicable
+    ? <span className="h-3.5 w-3.5 inline-flex items-center justify-center text-[10px] text-slate-500 shrink-0">—</span>
+    : attr.status === "filled"
     ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
     : attr.status === "review"
     ? <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
@@ -412,9 +448,14 @@ function AttrRow({ attr, onEdit, compact }: {
       <div className="group flex items-center gap-2 text-xs">
         {icon}
         <span className="font-medium">{attr.name}:</span>
-        <span className="text-muted-foreground truncate">{attr.value_name || "—"}</span>
-        {SOURCE_LABEL[attr.source] && (
+        <span className={`truncate ${attr.not_applicable ? "italic text-slate-500" : "text-muted-foreground"}`}>
+          {attr.not_applicable ? "Não se aplica" : (attr.value_name || "—")}
+        </span>
+        {!attr.not_applicable && SOURCE_LABEL[attr.source] && (
           <span className={`text-[10px] ml-auto font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
+        )}
+        {attr.not_applicable && (
+          <span className="text-[10px] ml-auto font-medium text-slate-500">Não se aplica</span>
         )}
         <Button
           type="button"
@@ -426,6 +467,18 @@ function AttrRow({ attr, onEdit, compact }: {
         >
           <Pencil className="h-3 w-3" />
         </Button>
+        {onMarkNA && !attr.not_applicable && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onMarkNA}
+            title="Marcar como Não se aplica"
+          >
+            N/A
+          </Button>
+        )}
       </div>
     );
   }
@@ -438,14 +491,29 @@ function AttrRow({ attr, onEdit, compact }: {
           {attr.name}
           {attr.required && <span className="text-destructive ml-0.5">*</span>}
         </Label>
-        {SOURCE_LABEL[attr.source] && (
+        {SOURCE_LABEL[attr.source] && !attr.not_applicable && (
           <span className={`text-[10px] font-medium ${SOURCE_TONE[attr.source]}`}>{SOURCE_LABEL[attr.source]}</span>
+        )}
+        {attr.not_applicable && (
+          <span className="text-[10px] font-medium text-slate-500">Não se aplica</span>
+        )}
+        {onMarkNA && !attr.not_applicable && !attr.required && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-[10px]"
+            onClick={onMarkNA}
+            title="Marcar como Não se aplica"
+          >
+            N/A
+          </Button>
         )}
       </div>
       <Input
-        value={attr.value_name ?? ""}
+        value={attr.not_applicable ? "" : (attr.value_name ?? "")}
         onChange={(e) => onEdit(e.target.value)}
-        placeholder={attr.status === "missing" ? "Preencha este campo..." : ""}
+        placeholder={attr.not_applicable ? "Não se aplica (digite para sobrescrever)" : attr.status === "missing" ? "Preencha este campo..." : ""}
         className="h-8 text-xs"
       />
       {attr.message && (

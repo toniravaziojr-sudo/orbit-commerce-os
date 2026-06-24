@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.8.0";
+const VERSION = "1.9.0";
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
@@ -84,6 +84,8 @@ interface ResolvedAttr {
   source: "product" | "derivation" | "dictionary" | "ai" | "none";
   required: boolean;
   message?: string;
+  /** v1.9.0: marcador "Não se aplica" — vai ao ML com o marcador oficial da categoria. */
+  not_applicable?: boolean;
 }
 
 // Detecta atributos do ML que aceitam múltiplos valores (multi-seleção).
@@ -408,10 +410,11 @@ Deno.serve(async (req) => {
           value_name = product.product_type || product.ai_product_type;
           source = product.product_type ? "product" : "derivation";
         }
-        // --- Garantia (cadastro do produto) ---
-        else if (id === "WARRANTY_TYPE" && product.warranty_type && product.warranty_type !== "none") {
-          value_name = product.warranty_type === "vendor" ? "Garantia do vendedor" : "Garantia de fábrica";
-          source = "product";
+        // --- Garantia (cadastro do produto) — v1.9.0: fallback "Sem garantia" quando vazio ---
+        else if (id === "WARRANTY_TYPE") {
+          if (product.warranty_type === "vendor") { value_name = "Garantia do vendedor"; source = "product"; }
+          else if (product.warranty_type === "factory") { value_name = "Garantia de fábrica"; source = "product"; }
+          else { value_name = "Sem garantia"; source = "derivation"; }
         }
         else if ((id === "WARRANTY_TIME" || id === "WARRANTY") && product.warranty_duration) {
           value_name = String(product.warranty_duration).trim();
@@ -541,8 +544,10 @@ Deno.serve(async (req) => {
         const multiIdsInBatch = compact.filter(c => c.multi).map(c => c.id);
 
         const prompt = `Você preenche atributos de anúncio do Mercado Livre.
-Preencha o MÁXIMO de atributos ÚTEIS possível para subir a nota de qualidade do anúncio.
-Use exatamente um dos valores fornecidos em "values" quando existir; caso contrário, devolva texto curto em pt-BR.
+Cada atributo da CATEGORIA escolhida deve receber UMA das três respostas:
+1) O valor real (texto ou opção exata da lista "values"), quando o cadastro do produto deixar claro.
+2) A string especial "NAO_SE_APLICA" quando o atributo NÃO faz sentido para este produto (ex.: "Voltagem" num shampoo, "Dosador" num produto que não tem dosador).
+3) "" (vazio) APENAS quando você tem dúvida real sobre o valor. O sistema converte "" em "NAO_SE_APLICA" para opcionais — então prefira "NAO_SE_APLICA" quando tiver certeza de que não se aplica.
 
 REGRAS ABSOLUTAS DE SEGURANÇA (nunca quebrar):
 - O campo "value" SEMPRE deve ser STRING. Para atributos MULTI-seleção (multi=true) junte os valores escolhidos com vírgula (ex.: "Oleoso, Ralo, Crespo").
@@ -557,26 +562,21 @@ REGRA OBRIGATÓRIA — MULTI-seleção (${multiIdsInBatch.join(", ") || "nenhum 
 - Exemplo (Formatos de tratamento capilar): shampoo + bálsamo + loção → "Shampoo, Bálsamo, Loção" se forem aplicáveis.
 - Quando em dúvida, prefira INCLUIR a EXCLUIR — mais opções = mais alcance no ML.
 
-REGRA GERAL — atributos opcionais single-select:
-- Se houver base no produto, preencha com a melhor inferência.
-- Se NÃO houver base real, devolva "" (vazio). Melhor vazio do que inventado.
-
 REGRA CRÍTICA — obrigatórios single-select de lista fechada (${requiredClosedListIds.join(", ") || "nenhum nesta rodada"}):
-- NUNCA devolva vazio. Escolha SEMPRE um dos valores da lista "values".
+- NUNCA devolva vazio nem "NAO_SE_APLICA". Escolha SEMPRE um dos valores da lista "values".
 - Para "Tipo de cuidado": cruze com tratamentos do produto (antiqueda, hidratação, anticaspa, antifrizz, antioleosidade). Se cobrir vários, escolha o PRINCIPAL pelo nome do produto.
-- Exemplos: "Balm Pós-banho" → formato "Bálsamo"; "Shampoo antiqueda" → cuidado "Antiqueda"; "Loção crescimento" → cuidado "Antiqueda" ou "Crescimento capilar".
 
 REGRA OBRIGATÓRIA — cosméticos tri-state Sim/Não/Não se aplica (${cosmeticIdsInBatch.join(", ") || "nenhum nesta rodada"}):
 - Se o produto sugerir o atributo, "Sim". Se sugerir o oposto, "Não". Se não fizer sentido, "Não se aplica". Senão "Não".
 
-Para LINE (Linha do produto):
-- Se o nome sugerir uma linha comercial (ex.: "Calvície Zero", "Pós-Banho"), use-a. Senão, use o tipo do produto ou "Não se aplica".
+REGRA — atributos opcionais que claramente NÃO se aplicam ao produto:
+- Use "NAO_SE_APLICA". Exemplos: Dosador num shampoo simples, Voltagem em cosmético, Fragrância em produto sem perfume, Tipo de couro em produto não-couro.
 
 Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
 
-Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string (vírgula entre múltiplos).`;
+Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como string.`;
 
         try {
           const { data } = await aiChatCompletionJSON(
@@ -658,9 +658,15 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             continue;
           }
 
+          // v1.9.0 — IA marcou explicitamente "NAO_SE_APLICA"
+          const isNotApplicableAnswer = (val: string) => {
+            const n = val.toLowerCase().trim().replace(/[^a-z]/g, "");
+            return n === "naoseaplica" || n === "noaplica" || n === "na" || n === "nse" || n === "notapplicable";
+          };
+          const aiSaysNotApplicable = !!suggested && isNotApplicableAnswer(suggested);
+
           // Anti-repetição preguiçosa: descritivos opcionais que apenas repetem o nome.
-          if (!isCosmeticTriState && !required && suggested && !hasClosedList && isJustRepeatingName(suggested)) {
-            // Descarta sugestão fraca para opcionais livres.
+          if (!isCosmeticTriState && !required && suggested && !aiSaysNotApplicable && !hasClosedList && isJustRepeatingName(suggested)) {
             suggested = "";
           }
 
@@ -668,12 +674,12 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
           if (isCosmeticTriState) {
             const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
             const norm = (v: string) => v.toLowerCase().trim();
-            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            const hit = suggested && !aiSaysNotApplicable ? allowed.find(v => norm(v) === norm(suggested)) : null;
             suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
           }
 
           // Fallback determinístico por tokens para obrigatórios de lista fechada.
-          if (required && hasClosedList && !isCosmeticTriState) {
+          if (required && hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
             const allowed = a.values!;
             const norm = (v: string) => v.toLowerCase().trim();
             let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
@@ -698,6 +704,37 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
                 console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
               }
             }
+          }
+
+          // v1.9.0 — Marca obrigatórios sem valor como missing (continua).
+          // Para opcionais sem valor OU marcados "NAO_SE_APLICA": emite como "Não se aplica".
+          const emitNotApplicable = () => {
+            // Procura opção "Não se aplica" na lista oficial da categoria
+            const naHit = a.values?.find(v => {
+              const n = v.name.toLowerCase().trim();
+              return n === "não se aplica" || n === "nao se aplica" || n === "no aplica" || n === "n/a";
+            });
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: naHit?.name ?? "Não se aplica",
+              value_id: naHit?.id,
+              status: "filled", source: "ai", required,
+              not_applicable: true,
+            });
+          };
+
+          if (aiSaysNotApplicable) {
+            if (required && !isCosmeticTriState) {
+              // Obrigatório não pode ser N/A — vira missing para o lojista resolver.
+              resolved.push({
+                id: a.id, name: a.name,
+                status: "missing", source: "none", required: true,
+                message: friendlyMissingMessage(a),
+              });
+            } else {
+              emitNotApplicable();
+            }
+            continue;
           }
 
           if (suggested) {
@@ -726,6 +763,8 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
                   status: "missing", source: "none", required: true,
                   message: friendlyMissingMessage(a),
                 });
+              } else {
+                emitNotApplicable();
               }
               continue;
             }
@@ -743,7 +782,11 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             } else if (required && hasClosedList && !value_id) {
               continue;
             } else {
-              if (!required && a.values?.length && !value_id) continue;
+              if (!required && a.values?.length && !value_id) {
+                // Valor sugerido fora da lista oficial → trata como N/A
+                emitNotApplicable();
+                continue;
+              }
               resolved.push({
                 id: a.id, name: a.name, value_name: suggested, value_id,
                 status: "filled",
@@ -757,8 +800,10 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
               status: "missing", source: "none", required: true,
               message: friendlyMissingMessage(a),
             });
+          } else {
+            // v1.9.0 — opcional sem valor: marca "Não se aplica" para enviar ao ML
+            emitNotApplicable();
           }
-          // não-obrigatório sem valor: silenciosamente ignorado
         } catch (e) {
           console.error(`[meli-resolve-attributes] falha ao processar atributo ${a.id}:`, (e as Error).message);
           // Não derruba o produto inteiro — segue para o próximo atributo.

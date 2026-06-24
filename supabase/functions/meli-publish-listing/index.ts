@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.5.0"; // LINE autofill from products.line; manual-only push policy documented
+const VERSION = "3.6.0"; // v1.9.0 — envia marcador "Não se aplica" ao ML para atributos sem valor real
 // ===================
 
 const corsHeaders = {
@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
         }
 
         // ===== Sanitize attributes against fixed-value lists =====
-        // Suporta tanto single-value (value_name) quanto multi-value (values: [{id,name}]).
+        // Suporta single-value, multi-value e marcador "Não se aplica" (v1.9.0).
         const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU", "WARRANTY_TIME"]);
         const specById = new Map<string, any>();
         for (const s of attrSpecs) specById.set(s.id, s);
@@ -340,11 +340,34 @@ Deno.serve(async (req) => {
           const vmq = s.value_max_quantity;
           return typeof vmq === "number" && vmq > 1;
         };
+        const isNaName = (n: any) => {
+          const x = norm(n).replace(/[^a-z]/g, "");
+          return x === "naoseaplica" || x === "noaplica" || x === "na";
+        };
+        // ML aceita marcador oficial via value_id: "-1" / value_name: "N/A" para grande parte dos atributos.
+        const naMarker = (spec: any) => {
+          if (spec && Array.isArray(spec.values)) {
+            const hit = spec.values.find((v: any) => isNaName(v.name));
+            if (hit) return { id: spec.id, value_id: hit.id, value_name: hit.name };
+          }
+          // Fallback universal aceito pelo ML
+          return { id: spec?.id, value_id: "-1", value_name: "N/A" };
+        };
+
         const cleaned: any[] = [];
         for (const attr of attributes) {
           const spec = specById.get(attr.id);
+          if (!spec) {
+            console.log(`[meli-publish-listing] Dropping attr ${attr.id} (no spec in category)`);
+            continue;
+          }
+          // Marcador "Não se aplica" (v1.9.0) — vem do painel
+          if ((attr as any).not_applicable === true || isNaName(attr.value_name)) {
+            cleaned.push(naMarker(spec));
+            continue;
+          }
           // Caso multi: usar attr.values (array) e casar cada um contra a lista.
-          if (spec && Array.isArray((attr as any).values) && (attr as any).values.length > 0) {
+          if (Array.isArray((attr as any).values) && (attr as any).values.length > 0) {
             const out: any[] = [];
             const allowed = Array.isArray(spec.values) ? spec.values : [];
             for (const v of (attr as any).values) {
@@ -355,11 +378,11 @@ Deno.serve(async (req) => {
             if (out.length > 0) {
               cleaned.push({ id: attr.id, values: out });
             } else {
-              console.log(`[meli-publish-listing] Dropping multi attr ${attr.id} (no allowed match)`);
+              cleaned.push(naMarker(spec));
             }
             continue;
           }
-          if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+          if (Array.isArray(spec.values) && spec.values.length > 0) {
             // Se for multi-valued mas veio só value_name com vírgulas, expandir
             if (isMulti(spec) && typeof attr.value_name === "string" && attr.value_name.includes(",")) {
               const pieces = attr.value_name.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -380,14 +403,11 @@ Deno.serve(async (req) => {
               console.log(`[meli-publish-listing] Keeping free-form attr ${attr.id}="${attr.value_name}"`);
               cleaned.push({ id: attr.id, value_name: attr.value_name });
             } else {
-              console.log(`[meli-publish-listing] Dropping invalid attr ${attr.id}="${attr.value_name}" (not in category allowed_values)`);
-              continue;
+              console.log(`[meli-publish-listing] Replacing invalid attr ${attr.id}="${attr.value_name}" with N/A marker`);
+              cleaned.push(naMarker(spec));
             }
-          } else if (spec) {
-            cleaned.push(attr);
           } else {
-            // ID não existe na categoria → descartar para evitar erro do ML.
-            console.log(`[meli-publish-listing] Dropping attr ${attr.id} (no spec in category)`);
+            cleaned.push(attr);
           }
         }
         attributes.length = 0;

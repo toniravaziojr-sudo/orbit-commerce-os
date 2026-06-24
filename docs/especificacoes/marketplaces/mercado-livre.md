@@ -1127,3 +1127,45 @@ Esta onda fecha as 4 lacunas detectadas após a 1ª remessa de 21 anúncios:
 
 ### Aplicar nos 21 anúncios já publicados
 Os atributos não são reenviados automaticamente. Para atualizar, abrir Anúncios → selecionar os 21 → "Recalcular todos" no painel → "Salvar e publicar".
+
+---
+
+## v1.9.0 — Cobertura Total da Categoria + "Não se aplica" (2026-06-24)
+
+**Problema resolvido:** depois da v1.8.0 ainda restavam campos opcionais da categoria do ML em branco (Dosador, Efeitos, Apresentação, Fragrância etc.). Resultado: barra "Corrija as características" continuava aparecendo no anúncio publicado.
+
+### Regra de negócio
+A categoria escolhida na Etapa 1 do dialog é a **única fonte** dos atributos. O sistema busca **todos** os atributos da categoria no ML e, para cada um, faz uma das três coisas:
+
+1. **Preenche com valor real** — quando o cadastro do produto, a derivação determinística ou a IA com certeza conhecem o valor.
+2. **Marca "Não se aplica"** — quando o atributo não faz sentido para o produto (ex.: Dosador num shampoo simples, Voltagem em cosmético) ou quando a IA está em dúvida.
+3. **Marca "Faltando"** — apenas para atributos **obrigatórios** sem valor confiável. Bloqueia publicação até o lojista preencher.
+
+### O que mudou no resolvedor (`meli-resolve-attributes` v1.9.0)
+- Opcionais sem valor agora viram `not_applicable: true` no payload, em vez de serem omitidos.
+- IA recebe instrução explícita para devolver `"NAO_SE_APLICA"` quando o atributo não faz sentido para o produto.
+- Quando a IA devolve `""` (vazio) para opcional, o sistema converte automaticamente em "Não se aplica" — melhor enviar marcador oficial do que omitir.
+- `WARRANTY_TYPE` ganha fallback determinístico `"Sem garantia"` quando o cadastro do produto está vazio (garantia é exigida por lei no ML).
+
+### O que mudou no publicador (`meli-publish-listing` v3.6.0)
+- Atributos com `not_applicable: true` viajam ao ML com o **marcador oficial**:
+  - Se a categoria tiver opção `"Não se aplica"` / `"N/A"` na lista, usa o `value_id` correspondente.
+  - Senão, envia `{ id, value_id: "-1", value_name: "N/A" }` (fallback universal aceito pelo ML).
+- Valores fora da lista oficial da categoria são automaticamente substituídos pelo marcador "Não se aplica" (antes eram descartados — gerando o alerta "Corrija características").
+
+### O que mudou no painel (`MeliAttributesPanel`)
+- Nova seção colapsada **"Não se aplica"** em cinza, separada dos preenchidos.
+- Cada linha "Não se aplica" tem botão de edição manual (lápis) para o lojista corrigir quando a IA errar.
+- Cada linha preenchida tem botão **"N/A"** para o lojista marcar manualmente como "Não se aplica" (quando o cadastro estiver errado).
+- Resumo no topo agora mostra 4 contadores: ✓ preenchidos, — não se aplica, ⚠ para revisar, ✗ faltando.
+
+### Garantia
+Todo produto tem WARRANTY_TYPE preenchido:
+- `vendor` → "Garantia do vendedor"
+- `factory` → "Garantia de fábrica"
+- `none` / vazio → "Sem garantia"
+WARRANTY_TIME usa o texto do cadastro (`30 dias`, `3 meses` etc.) ou nada quando vazio.
+
+### Aplicar nos anúncios existentes
+Anúncios já publicados não recebem retroativamente. Para corrigir os 21 da remessa anterior: Anúncios → selecionar todos → "Recalcular todos" → "Salvar e publicar".
+
