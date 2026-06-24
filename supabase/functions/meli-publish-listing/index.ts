@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.6.0"; // v1.9.0 — envia marcador "Não se aplica" ao ML para atributos sem valor real
+const VERSION = "3.7.0"; // v2.0.0 — números regulatórios (ANVISA/AFE/CONAMA) auto-preenchidos por nome do atributo
 // ===================
 
 const corsHeaders = {
