@@ -233,7 +233,8 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
     });
   };
 
-  const filled = attrs.filter(a => a.status === "filled");
+  const filledReal = attrs.filter(a => a.status === "filled" && !a.not_applicable);
+  const notApplicable = attrs.filter(a => a.status === "filled" && a.not_applicable);
   const review = attrs.filter(a => a.status === "review");
   const missing = attrs.filter(a => a.status === "missing");
 
@@ -285,13 +286,20 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
       {!loading && !queued && !error && attrs.length > 0 && (
         <>
           {/* Resumo */}
-          <div className="flex gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="outline" className="border-green-500/40 text-green-700 dark:text-green-400">
-              ✓ {filled.length} preenchido{filled.length === 1 ? "" : "s"}
+              ✓ {filledReal.length} preenchido{filledReal.length === 1 ? "" : "s"}
             </Badge>
-            <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
-              ⚠ {review.length} para revisar
-            </Badge>
+            {notApplicable.length > 0 && (
+              <Badge variant="outline" className="border-slate-400/40 text-slate-600 dark:text-slate-300">
+                — {notApplicable.length} não se aplica
+              </Badge>
+            )}
+            {review.length > 0 && (
+              <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
+                ⚠ {review.length} para revisar
+              </Badge>
+            )}
             <Badge variant="outline" className={missing.length > 0 ? "border-destructive/50 text-destructive" : "border-muted"}>
               ✗ {missing.length} faltando
             </Badge>
@@ -301,7 +309,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           {missing.length > 0 && (
             <Section title="Precisa preencher para publicar" tone="missing">
               {missing.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} />
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} />
               ))}
             </Section>
           )}
@@ -310,16 +318,25 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           {review.length > 0 && (
             <Section title="Sugestões da IA — revise antes de publicar" tone="review">
               {review.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} />
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} />
               ))}
             </Section>
           )}
 
           {/* Preenchido — colapsado */}
-          {filled.length > 0 && (
-            <Section title={`Já preenchidos (${filled.length})`} tone="filled" collapsible>
-              {filled.map(a => (
-                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} compact />
+          {filledReal.length > 0 && (
+            <Section title={`Já preenchidos (${filledReal.length})`} tone="filled" collapsible>
+              {filledReal.map(a => (
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} compact />
+              ))}
+            </Section>
+          )}
+
+          {/* Não se aplica — colapsado */}
+          {notApplicable.length > 0 && (
+            <Section title={`Não se aplica (${notApplicable.length})`} tone="na" collapsible>
+              {notApplicable.map(a => (
+                <AttrRow key={a.id} attr={a} onEdit={(v) => handleEdit(a.id, v)} onMarkNA={() => handleMarkNotApplicable(a.id)} compact />
               ))}
             </Section>
           )}
