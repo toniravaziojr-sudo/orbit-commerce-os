@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, depth,
         brand, model, line, gtin, warranty_duration, warranty_type, product_format,
-        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
+        regulatory_regime, regulatory_category, regulatory_info,
+        universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
         fragrance_name, recommended_hair_types, treatment_types, expected_effects
