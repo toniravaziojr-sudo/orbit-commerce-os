@@ -84,6 +84,8 @@ interface ResolvedAttr {
   source: "product" | "derivation" | "dictionary" | "ai" | "none";
   required: boolean;
   message?: string;
+  /** v1.9.0: marcador "Não se aplica" — vai ao ML com o marcador oficial da categoria. */
+  not_applicable?: boolean;
 }
 
 // Detecta atributos do ML que aceitam múltiplos valores (multi-seleção).
