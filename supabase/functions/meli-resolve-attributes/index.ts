@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "1.9.0";
+const VERSION = "2.0.0";
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
       .select(`
         id, name, sku, description, short_description, price, weight, width, height, depth,
         brand, model, line, gtin, warranty_duration, warranty_type, product_format,
-        regulatory_regime, universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
+        regulatory_regime, regulatory_category, regulatory_info,
+        universal_category_id, net_content_value, net_content_unit, gender_audience, product_type,
         ai_product_type, ai_main_function,
         dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance,
         fragrance_name, recommended_hair_types, treatment_types, expected_effects
@@ -430,6 +431,27 @@ Deno.serve(async (req) => {
           value_name = "ANVISA";
           source = "product";
         }
+        // --- Números regulatórios (ANVISA / AFE / CONAMA) por NOME do atributo da categoria ---
+        // ML usa IDs diferentes por categoria (ex.: ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER,
+        // ANVISA_PRODUCT_REGISTRATION_NUMBER, AFE_CERTIFICATION_NUMBER, CONAMA_LICENSE_NUMBER).
+        // Casamos pelo nome humano para cobrir todas as variações.
+        else {
+          const regInfo = (product as any).regulatory_info || {};
+          const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+          const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
+          const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
+          const nameNorm = normalizeText(a.name || "");
+          const isAnvisaNumber = nameNorm.includes("anvisa") && (
+            nameNorm.includes("numero") || nameNorm.includes("notifica") ||
+            nameNorm.includes("comunica") || nameNorm.includes("registro") ||
+            nameNorm.includes("documento")
+          );
+          const isAfeNumber = nameNorm.includes("afe") && (nameNorm.includes("certificad") || nameNorm.includes("numero") || nameNorm.includes("autorizac"));
+          const isConamaNumber = nameNorm.includes("conama");
+          if (isAnvisaNumber && anvisaNum) { value_name = anvisaNum; source = "product"; }
+          else if (isAfeNumber && afeNum) { value_name = afeNum; source = "product"; }
+          else if (isConamaNumber && conamaNum) { value_name = conamaNum; source = "product"; }
+        }
       }
 
       // Atributo multi-valor: monta lista de valores em vez de string única.
@@ -498,15 +520,31 @@ Deno.serve(async (req) => {
     // ---- 6. Pergunta à IA para cobrir TODOS os atributos sem valor ------
     // Processa em lotes de 25 para não estourar contexto e dar melhor qualidade.
     if (aiPending.length > 0) {
+      const regInfo: any = (product as any).regulatory_info || {};
       const productContext = {
         nome: product.name,
-        descricao: (product.short_description || product.description || "").slice(0, 800),
-        marca: product.brand, gtin: product.gtin, sku: product.sku,
-        peso_g: netWeightG, conteudo: product.net_content_value ? `${product.net_content_value}${product.net_content_unit ?? ""}` : null,
-        tipo: product.ai_product_type, funcao: product.ai_main_function,
-        publico: product.gender_audience, regime: regulatoryRegime,
+        descricao_curta: (product.short_description || "").slice(0, 600),
+        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 1500),
+        marca: product.brand, linha: product.line, modelo: product.model,
+        gtin: product.gtin, sku: product.sku,
+        peso_g: netWeightG,
+        dimensoes_cm: { largura: product.width, altura: product.height, profundidade: product.depth },
+        conteudo: product.net_content_value ? `${product.net_content_value} ${product.net_content_unit ?? ""}`.trim() : null,
+        tipo_cadastro: product.product_type,
+        tipo_ia: product.ai_product_type,
+        funcao_principal: product.ai_main_function,
+        publico: product.gender_audience,
+        regime_regulatorio: regulatoryRegime,
+        categoria_regulatoria: (product as any).regulatory_category,
+        numeros_regulatorios: {
+          anvisa: regInfo.anvisa || null,
+          afe: regInfo.afe || null,
+          conama: regInfo.conama || null,
+        },
+        garantia: warrantyText,
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
+        composicao: compArr.length > 0 ? compArr.map(c => ({ qtd: c.quantity, peso_g: c.component?.weight, conteudo: c.component?.net_content_value })) : null,
         cosmetico: {
           dermatologicamente_testado: product.dermatologically_tested,
           hipoalergenico: product.hypoallergenic,
@@ -571,6 +609,16 @@ REGRA OBRIGATÓRIA — cosméticos tri-state Sim/Não/Não se aplica (${cosmetic
 
 REGRA — atributos opcionais que claramente NÃO se aplicam ao produto:
 - Use "NAO_SE_APLICA". Exemplos: Dosador num shampoo simples, Voltagem em cosmético, Fragrância em produto sem perfume, Tipo de couro em produto não-couro.
+
+REGRA OBRIGATÓRIA — usar a FICHA COMPLETA do cadastro antes de marcar "NAO_SE_APLICA":
+- Cruze NOME + descricao_curta + descricao_longa + tipo_cadastro + tipo_ia + funcao_principal + tratamentos + efeitos + tipos_cabelo + categoria_universal.
+- Se QUALQUER um desses campos tem evidência sobre o atributo, RESPONDA com base nele. Só use "NAO_SE_APLICA" quando a ficha inteira não der pista alguma.
+- Para "Tipo de produto" / "Tipo de tratamento" / "Tipo de cuidado": SEMPRE escolha a opção da lista oficial que mais se aproxima de tipo_cadastro/tipo_ia/funcao_principal/tratamentos. Nunca "NAO_SE_APLICA" se o cadastro tem o tipo do produto.
+
+REGRA OBRIGATÓRIA — números regulatórios (ANVISA / AFE / CONAMA):
+- Quando o atributo pedir "Número de notificação/comunicação prévia na Anvisa" ou "Número de registro de produto na Anvisa", use exatamente o valor de numeros_regulatorios.anvisa do cadastro (mantenha o formato original).
+- Para "Certificado AFE": use numeros_regulatorios.afe. Para "Licença CONAMA": use numeros_regulatorios.conama.
+- Só responda "NAO_SE_APLICA" quando o campo correspondente do cadastro estiver vazio.
 
 Produto: ${JSON.stringify(productContext)}
 
@@ -678,30 +726,42 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
           }
 
-          // Fallback determinístico por tokens para obrigatórios de lista fechada.
-          if (required && hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
+          // Fallback determinístico por tokens para QUALQUER atributo de lista fechada
+          // (obrigatório OU opcional) quando o cadastro do produto tem pista clara.
+          // Garante que campos como "Tipo de produto" não caiam em "Não se aplica"
+          // quando o cadastro tem product_type/ai_product_type preenchido.
+          if (hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
             const allowed = a.values!;
             const norm = (v: string) => v.toLowerCase().trim();
             let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
             if (!hit) {
-              const seeds = [
-                product.name, product.product_type, product.ai_product_type,
-                product.ai_main_function, universalCategory?.name, suggested,
-              ].filter(Boolean).join(" ").toLowerCase();
-              const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-              let best: { v: { id: string; name: string }; score: number } | null = null;
-              for (const v of allowed) {
-                const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
-                let score = 0;
-                for (const vt of vTokens) {
-                  if (tokens.includes(vt)) score += 2;
-                  else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+              const cadastroSeeds = [
+                product.product_type, product.ai_product_type, product.ai_main_function,
+                product.line, product.model,
+              ].filter(Boolean).join(" ");
+              const hasCadastroEvidence = cadastroSeeds.trim().length > 0;
+              // Para opcional sem evidência no cadastro e sem sugestão da IA, não força match.
+              if (required || hasCadastroEvidence || suggested) {
+                const seeds = [
+                  product.name, cadastroSeeds, universalCategory?.name, suggested,
+                ].filter(Boolean).join(" ").toLowerCase();
+                const tokens = seeds.split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                let best: { v: { id: string; name: string }; score: number } | null = null;
+                for (const v of allowed) {
+                  const vTokens = v.name.toLowerCase().split(/[^a-záàâãéêíïóôõöúüç0-9]+/i).filter(t => t.length >= 3);
+                  let score = 0;
+                  for (const vt of vTokens) {
+                    if (tokens.includes(vt)) score += 2;
+                    else if (tokens.some(t => t.includes(vt) || vt.includes(t))) score += 1;
+                  }
+                  if (score > 0 && (!best || score > best.score)) best = { v, score };
                 }
-                if (score > 0 && (!best || score > best.score)) best = { v, score };
-              }
-              if (best) {
-                suggested = best.v.name;
-                console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
+                // Para opcional, exige score mínimo 2 (uma correspondência exata) — evita N/A indevido sem inventar.
+                const minScore = required ? 1 : 2;
+                if (best && best.score >= minScore) {
+                  suggested = best.v.name;
+                  console.log(`[meli-resolve-attributes] token-match (${required ? "obrig" : "opc"}): ${a.id}="${best.v.name}" (score=${best.score})`);
+                }
               }
             }
           }

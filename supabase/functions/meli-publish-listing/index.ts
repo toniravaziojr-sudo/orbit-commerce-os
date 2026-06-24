@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.6.0"; // v1.9.0 — envia marcador "Não se aplica" ao ML para atributos sem valor real
+const VERSION = "3.7.0"; // v2.0.0 — números regulatórios (ANVISA/AFE/CONAMA) auto-preenchidos por nome do atributo
 // ===================
 
 const corsHeaders = {
@@ -324,6 +324,30 @@ Deno.serve(async (req) => {
             attributes.push({ id: spec.id, value_name: "ANVISA" });
             attrIds.add(spec.id);
             console.log(`[meli-publish-listing] Auto-filled ANVISA in ${spec.id}`);
+          }
+        }
+
+        // Números regulatórios (ANVISA / AFE / CONAMA) — match por NOME do atributo
+        // (IDs variam por categoria do ML). Fonte: products.regulatory_info.
+        const regInfo: any = (listing.product as any)?.regulatory_info || {};
+        const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+        const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
+        const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
+        const normName = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        for (const spec of attrSpecs) {
+          if (attrIds.has(spec.id)) continue;
+          const nm = normName(spec.name || "");
+          const isAnvisaNumber = nm.includes("anvisa") && (nm.includes("numero") || nm.includes("notifica") || nm.includes("comunica") || nm.includes("registro") || nm.includes("documento"));
+          const isAfeNumber = nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac"));
+          const isConamaNumber = nm.includes("conama");
+          let val: string | null = null;
+          if (isAnvisaNumber && anvisaNum) val = anvisaNum;
+          else if (isAfeNumber && afeNum) val = afeNum;
+          else if (isConamaNumber && conamaNum) val = conamaNum;
+          if (val) {
+            attributes.push({ id: spec.id, value_name: val });
+            attrIds.add(spec.id);
+            console.log(`[meli-publish-listing] Auto-filled regulatory number ${spec.id}="${val}"`);
           }
         }
 

@@ -1169,3 +1169,27 @@ WARRANTY_TIME usa o texto do cadastro (`30 dias`, `3 meses` etc.) ou nada quando
 ### Aplicar nos anúncios existentes
 Anúncios já publicados não recebem retroativamente. Para corrigir os 21 da remessa anterior: Anúncios → selecionar todos → "Recalcular todos" → "Salvar e publicar".
 
+---
+
+## v2.0.0 — Cadastro Completo como Ficha Primária + Números Regulatórios (2026-06-24)
+
+**Problema resolvido:** mesmo com a v1.9.0, campos que existiam no cadastro (Número ANVISA, Tipo de produto) ainda viravam "Não se aplica" porque (a) o motor não lia o número regulatório do produto, (b) a ficha enviada à IA era resumida demais e (c) o fallback por tokens só funcionava para atributos obrigatórios.
+
+### Regra de negócio
+O **cadastro completo do produto** é a ficha primária. A IA passa a receber TUDO que é útil do cadastro: tipo cadastrado, tipo IA, função principal, descrição curta E longa, marca, linha, modelo, conteúdo líquido, garantia, regime regulatório, números ANVISA/AFE/CONAMA, atributos cosméticos, tipos de cabelo, tratamentos, efeitos esperados e composição quando existir. A IA atua como intérprete que escolhe a opção da lista oficial do ML mais próxima do cadastro; "Não se aplica" só é usado quando a ficha inteira não dá nenhuma pista.
+
+### Números regulatórios automáticos
+Quando a categoria do ML expõe um atributo com nome contendo "Anvisa + Número/Notificação/Comunicação/Registro/Documento", "AFE + Certificado/Número/Autorização" ou "CONAMA", o sistema preenche automaticamente com o valor salvo em `products.regulatory_info.anvisa` / `.afe` / `.conama`. O match é por **nome do atributo** (não por ID), porque o ML usa IDs diferentes em cada categoria (ex.: `ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER`, `ANVISA_PRODUCT_REGISTRATION_NUMBER`). Implementado em paralelo no resolver e no publish — mesmo valor, dois caminhos seguros.
+
+### Fallback por tokens estendido a opcionais
+Antes, o casamento determinístico por palavras-chave entre o cadastro e a lista oficial do ML só rodava em atributos obrigatórios. Agora roda também em **opcionais de lista fechada** quando há evidência clara no cadastro (`product_type`, `ai_product_type`, `ai_main_function`, `line`, `model`). Para opcional, exige score mínimo 2 — evita N/A indevido sem inventar valor.
+
+### Limite reconhecido — categoria do ML sem o tipo do produto
+Se a categoria escolhida no Mercado Livre **não tem** o tipo do produto na lista oficial (ex.: produto "Shampoo" cadastrado em uma categoria de "Tratamentos Capilares" cuja lista oficial só aceita Máscara, Botox, Leave-in etc.), o motor não inventa — marca o atributo como "Não se aplica". A correção é **trocar a categoria do anúncio** no Mercado Livre para uma que aceite o tipo do produto. Esse caso é responsabilidade do lojista na etapa Categorias do assistente.
+
+### Anti-regressão
+- Proibido omitir `regulatory_info`, `product_type`, `ai_product_type`, `ai_main_function`, `line`, `model`, `description`, `short_description` do SELECT do resolver — esses campos compõem a ficha primária da IA.
+- Proibido remover o casamento por nome do atributo para números regulatórios — IDs do ML variam por categoria.
+- Proibido reduzir o fallback por tokens a apenas obrigatórios sem nova auditoria.
+
+
