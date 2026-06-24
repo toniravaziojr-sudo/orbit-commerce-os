@@ -610,6 +610,16 @@ REGRA OBRIGATÓRIA — cosméticos tri-state Sim/Não/Não se aplica (${cosmetic
 REGRA — atributos opcionais que claramente NÃO se aplicam ao produto:
 - Use "NAO_SE_APLICA". Exemplos: Dosador num shampoo simples, Voltagem em cosmético, Fragrância em produto sem perfume, Tipo de couro em produto não-couro.
 
+REGRA OBRIGATÓRIA — usar a FICHA COMPLETA do cadastro antes de marcar "NAO_SE_APLICA":
+- Cruze NOME + descricao_curta + descricao_longa + tipo_cadastro + tipo_ia + funcao_principal + tratamentos + efeitos + tipos_cabelo + categoria_universal.
+- Se QUALQUER um desses campos tem evidência sobre o atributo, RESPONDA com base nele. Só use "NAO_SE_APLICA" quando a ficha inteira não der pista alguma.
+- Para "Tipo de produto" / "Tipo de tratamento" / "Tipo de cuidado": SEMPRE escolha a opção da lista oficial que mais se aproxima de tipo_cadastro/tipo_ia/funcao_principal/tratamentos. Nunca "NAO_SE_APLICA" se o cadastro tem o tipo do produto.
+
+REGRA OBRIGATÓRIA — números regulatórios (ANVISA / AFE / CONAMA):
+- Quando o atributo pedir "Número de notificação/comunicação prévia na Anvisa" ou "Número de registro de produto na Anvisa", use exatamente o valor de numeros_regulatorios.anvisa do cadastro (mantenha o formato original).
+- Para "Certificado AFE": use numeros_regulatorios.afe. Para "Licença CONAMA": use numeros_regulatorios.conama.
+- Só responda "NAO_SE_APLICA" quando o campo correspondente do cadastro estiver vazio.
+
 Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
