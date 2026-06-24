@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.5.0"; // LINE autofill from products.line; manual-only push policy documented
+const VERSION = "3.6.0"; // v1.9.0 — envia marcador "Não se aplica" ao ML para atributos sem valor real
 // ===================
 
 const corsHeaders = {
