@@ -99,13 +99,14 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
   const persistToListing = async (next: ResolvedAttr[]) => {
     if (!listingId) return;
     const payload = next
-      .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (a.values && a.values.length > 0)))
+      .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (a.values && a.values.length > 0) || a.not_applicable))
       .map(a => ({
         id: a.id,
         name: a.name,
         ...(a.value_id ? { value_id: a.value_id } : {}),
         ...(a.value_name ? { value_name: a.value_name } : {}),
         ...(a.values && a.values.length > 0 ? { values: a.values } : {}),
+        ...(a.not_applicable ? { not_applicable: true } : {}),
         source: a.source,
       }));
     try {
