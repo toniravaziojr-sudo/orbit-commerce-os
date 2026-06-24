@@ -520,15 +520,31 @@ Deno.serve(async (req) => {
     // ---- 6. Pergunta à IA para cobrir TODOS os atributos sem valor ------
     // Processa em lotes de 25 para não estourar contexto e dar melhor qualidade.
     if (aiPending.length > 0) {
+      const regInfo: any = (product as any).regulatory_info || {};
       const productContext = {
         nome: product.name,
-        descricao: (product.short_description || product.description || "").slice(0, 800),
-        marca: product.brand, gtin: product.gtin, sku: product.sku,
-        peso_g: netWeightG, conteudo: product.net_content_value ? `${product.net_content_value}${product.net_content_unit ?? ""}` : null,
-        tipo: product.ai_product_type, funcao: product.ai_main_function,
-        publico: product.gender_audience, regime: regulatoryRegime,
+        descricao_curta: (product.short_description || "").slice(0, 600),
+        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 1500),
+        marca: product.brand, linha: product.line, modelo: product.model,
+        gtin: product.gtin, sku: product.sku,
+        peso_g: netWeightG,
+        dimensoes_cm: { largura: product.width, altura: product.height, profundidade: product.depth },
+        conteudo: product.net_content_value ? `${product.net_content_value} ${product.net_content_unit ?? ""}`.trim() : null,
+        tipo_cadastro: product.product_type,
+        tipo_ia: product.ai_product_type,
+        funcao_principal: product.ai_main_function,
+        publico: product.gender_audience,
+        regime_regulatorio: regulatoryRegime,
+        categoria_regulatoria: (product as any).regulatory_category,
+        numeros_regulatorios: {
+          anvisa: regInfo.anvisa || null,
+          afe: regInfo.afe || null,
+          conama: regInfo.conama || null,
+        },
+        garantia: warrantyText,
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
+        composicao: compArr.length > 0 ? compArr.map(c => ({ qtd: c.quantity, peso_g: c.component?.weight, conteudo: c.component?.net_content_value })) : null,
         cosmetico: {
           dermatologicamente_testado: product.dermatologically_tested,
           hipoalergenico: product.hypoallergenic,
