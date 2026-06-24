@@ -362,7 +362,7 @@ function friendlyError(e: any): string {
 
 function Section({ title, tone, collapsible, children }: {
   title: string;
-  tone: "filled" | "review" | "missing";
+  tone: "filled" | "review" | "missing" | "na";
   collapsible?: boolean;
   children: React.ReactNode;
 }) {
@@ -371,6 +371,8 @@ function Section({ title, tone, collapsible, children }: {
     ? "border-destructive/40 bg-destructive/5"
     : tone === "review"
     ? "border-amber-500/40 bg-amber-500/5"
+    : tone === "na"
+    ? "border-slate-400/30 bg-slate-500/5"
     : "border-green-500/30 bg-green-500/5";
   return (
     <div className={`rounded-md border ${toneClass} p-2`}>
@@ -387,9 +389,10 @@ function Section({ title, tone, collapsible, children }: {
   );
 }
 
-function AttrRow({ attr, onEdit, compact }: {
+function AttrRow({ attr, onEdit, onMarkNA, compact }: {
   attr: ResolvedAttr;
   onEdit: (v: string) => void;
+  onMarkNA?: () => void;
   compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -399,7 +402,9 @@ function AttrRow({ attr, onEdit, compact }: {
     if (!editing) setDraft(attr.value_name ?? "");
   }, [attr.value_name, editing]);
 
-  const icon = attr.status === "filled"
+  const icon = attr.not_applicable
+    ? <span className="h-3.5 w-3.5 inline-flex items-center justify-center text-[10px] text-slate-500 shrink-0">—</span>
+    : attr.status === "filled"
     ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
     : attr.status === "review"
     ? <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
