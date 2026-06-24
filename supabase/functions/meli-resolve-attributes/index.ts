@@ -657,9 +657,15 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             continue;
           }
 
+          // v1.9.0 — IA marcou explicitamente "NAO_SE_APLICA"
+          const isNotApplicableAnswer = (val: string) => {
+            const n = val.toLowerCase().trim().replace(/[^a-z]/g, "");
+            return n === "naoseaplica" || n === "noaplica" || n === "na" || n === "nse" || n === "notapplicable";
+          };
+          const aiSaysNotApplicable = !!suggested && isNotApplicableAnswer(suggested);
+
           // Anti-repetição preguiçosa: descritivos opcionais que apenas repetem o nome.
-          if (!isCosmeticTriState && !required && suggested && !hasClosedList && isJustRepeatingName(suggested)) {
-            // Descarta sugestão fraca para opcionais livres.
+          if (!isCosmeticTriState && !required && suggested && !aiSaysNotApplicable && !hasClosedList && isJustRepeatingName(suggested)) {
             suggested = "";
           }
 
@@ -667,12 +673,12 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
           if (isCosmeticTriState) {
             const allowed = a.values?.map(v => v.name) ?? ["Sim", "Não", "Não se aplica"];
             const norm = (v: string) => v.toLowerCase().trim();
-            const hit = suggested ? allowed.find(v => norm(v) === norm(suggested)) : null;
+            const hit = suggested && !aiSaysNotApplicable ? allowed.find(v => norm(v) === norm(suggested)) : null;
             suggested = hit ?? (allowed.find(v => norm(v) === "não") || "Não");
           }
 
           // Fallback determinístico por tokens para obrigatórios de lista fechada.
-          if (required && hasClosedList && !isCosmeticTriState) {
+          if (required && hasClosedList && !isCosmeticTriState && !aiSaysNotApplicable) {
             const allowed = a.values!;
             const norm = (v: string) => v.toLowerCase().trim();
             let hit = suggested ? allowed.find(v => norm(v.name) === norm(suggested)) : null;
@@ -697,6 +703,37 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
                 console.log(`[meli-resolve-attributes] fallback token-match: ${a.id}="${best.v.name}" (score=${best.score})`);
               }
             }
+          }
+
+          // v1.9.0 — Marca obrigatórios sem valor como missing (continua).
+          // Para opcionais sem valor OU marcados "NAO_SE_APLICA": emite como "Não se aplica".
+          const emitNotApplicable = () => {
+            // Procura opção "Não se aplica" na lista oficial da categoria
+            const naHit = a.values?.find(v => {
+              const n = v.name.toLowerCase().trim();
+              return n === "não se aplica" || n === "nao se aplica" || n === "no aplica" || n === "n/a";
+            });
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: naHit?.name ?? "Não se aplica",
+              value_id: naHit?.id,
+              status: "filled", source: "ai", required,
+              not_applicable: true,
+            });
+          };
+
+          if (aiSaysNotApplicable) {
+            if (required && !isCosmeticTriState) {
+              // Obrigatório não pode ser N/A — vira missing para o lojista resolver.
+              resolved.push({
+                id: a.id, name: a.name,
+                status: "missing", source: "none", required: true,
+                message: friendlyMissingMessage(a),
+              });
+            } else {
+              emitNotApplicable();
+            }
+            continue;
           }
 
           if (suggested) {
@@ -725,6 +762,8 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
                   status: "missing", source: "none", required: true,
                   message: friendlyMissingMessage(a),
                 });
+              } else {
+                emitNotApplicable();
               }
               continue;
             }
@@ -742,7 +781,11 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
             } else if (required && hasClosedList && !value_id) {
               continue;
             } else {
-              if (!required && a.values?.length && !value_id) continue;
+              if (!required && a.values?.length && !value_id) {
+                // Valor sugerido fora da lista oficial → trata como N/A
+                emitNotApplicable();
+                continue;
+              }
               resolved.push({
                 id: a.id, name: a.name, value_name: suggested, value_id,
                 status: "filled",
@@ -756,8 +799,10 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
               status: "missing", source: "none", required: true,
               message: friendlyMissingMessage(a),
             });
+          } else {
+            // v1.9.0 — opcional sem valor: marca "Não se aplica" para enviar ao ML
+            emitNotApplicable();
           }
-          // não-obrigatório sem valor: silenciosamente ignorado
         } catch (e) {
           console.error(`[meli-resolve-attributes] falha ao processar atributo ${a.id}:`, (e as Error).message);
           // Não derruba o produto inteiro — segue para o próximo atributo.
