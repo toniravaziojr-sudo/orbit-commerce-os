@@ -169,6 +169,22 @@ Deno.serve(async (req) => {
       universalCategory = uc;
     }
 
+    // ---- Memória de ajustes manuais do lojista para este produto -------
+    // Regra: 1 linha por (tenant, produto, nome da característica). A última
+    // edição manual vence. Carregamos aqui e aplicamos ANTES de chamar a IA.
+    const { data: pamRows } = await supabase
+      .from("meli_product_attribute_memory")
+      .select("attribute_name, attribute_id_last_seen, value_name, value_id, values_struct, not_applicable")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", productId);
+    const tenantMemoryByName = new Map<string, any>();
+    const tenantMemoryById = new Map<string, any>();
+    for (const r of (pamRows ?? [])) {
+      const key = String(r.attribute_name || "").toLowerCase().trim();
+      if (key) tenantMemoryByName.set(key, r);
+      if (r.attribute_id_last_seen) tenantMemoryById.set(String(r.attribute_id_last_seen).toUpperCase(), r);
+    }
+
     // ---- 2. Buscar specs da categoria no ML ----------------------------
     const { data: connection } = await supabase
       .from("marketplace_connections")
