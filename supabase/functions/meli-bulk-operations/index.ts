@@ -890,9 +890,13 @@ Retorne APENAS o texto da descrição.`,
                   const bestFb = pickBestCategory(fbData, productName, brandName, fbPathMap);
                   if (bestFb) {
                     const categoryId = bestFb.category_id;
-                    await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
                     const catPath = fbPathMap.get(categoryId) || "";
                     const catName = catPath ? catPath.split(" > ").pop()! : (bestFb.category_name || bestFb.domain_name || categoryId);
+                    await supabase.from("meli_listings").update({
+                      category_id: categoryId,
+                      category_name: catName || null,
+                      category_path_text: catPath || null,
+                    }).eq("id", listing.id);
                     resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
                     updated++;
                     categoryFound = true;
