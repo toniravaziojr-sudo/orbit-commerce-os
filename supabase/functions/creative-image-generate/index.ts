@@ -52,6 +52,7 @@ import {
   loadLiveServiceKeys,
 } from "../_shared/credits/live-v2.ts";
 import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { loadProductContext, buildProductBriefing } from "../_shared/product-context-loader.ts";
 
 const VERSION = '10.1'; // Catálogo Fal alinhado: square/portrait/landscape, quality medium default
 
