@@ -762,7 +762,7 @@ Retorne APENAS o texto da descrição.`,
     if (action === "bulk_auto_categories") {
       let query = supabase
         .from("meli_listings")
-        .select("id, title, category_id, product_id, products(name, description, short_description, brand)")
+        .select("id, title, category_id, category_name, category_path_text, product_id, products(name, description, short_description, brand)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
