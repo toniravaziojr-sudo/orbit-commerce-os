@@ -52,6 +52,7 @@ import {
   loadLiveServiceKeys,
 } from "../_shared/credits/live-v2.ts";
 import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { loadProductContext, buildProductBriefing } from "../_shared/product-context-loader.ts";
 
 const VERSION = '10.1'; // Catálogo Fal alinhado: square/portrait/landscape, quality medium default
 
@@ -675,15 +676,38 @@ Deno.serve(async (req) => {
           return;
         }
 
-        const descriptionContext = product_description 
-          ? `\n\n📋 DESCRIÇÃO DO PRODUTO: ${product_description}` 
+        // === Contexto completo do cadastro do produto (Fonte Única) ===
+        // Lê produto + payload comercial + composição de kit + dores + memória
+        // de ajustes manuais em uma única passagem. Sem chamadas extras de IA.
+        let productBriefing = '';
+        try {
+          const ctx = await loadProductContext(supabase, tenant_id, product_id);
+          productBriefing = buildProductBriefing(ctx);
+          console.log('[creative-image.context]', JSON.stringify({
+            product_id,
+            briefing_chars: productBriefing.length,
+            has_kit: ctx.components.length > 0,
+            has_pains: ctx.painPoints.length > 0,
+            has_manual_memory: ctx.manualMemory.length > 0,
+          }));
+        } catch (e: any) {
+          console.warn('[creative-image.context] load_failed', e?.message || e);
+        }
+
+        const userBrief = (prompt || '').trim();
+        const descriptionFallback = !productBriefing && product_description
+          ? `\n\n📋 DESCRIÇÃO DO PRODUTO: ${product_description}`
           : '';
+        const contextBrief = [
+          userBrief ? `📝 DIREÇÃO DO USUÁRIO:\n${userBrief}` : '',
+          productBriefing ? `\n\n================ CADASTRO COMPLETO DO PRODUTO ================\n${productBriefing}\n================================================================` : descriptionFallback,
+        ].filter(Boolean).join('');
 
         const finalPrompt = buildPromptForStyle({
           productName: product_name || 'Produto',
           style: generation_style,
           styleConfig: style_config,
-          contextBrief: (prompt || '') + descriptionContext,
+          contextBrief,
           format,
         });
 

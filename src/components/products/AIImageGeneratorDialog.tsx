@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Sparkles, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, AlertCircle, MessageSquare, AlertTriangle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { fetchImageContextReadiness, type ImageContextReadinessResult } from '@/lib/ai/productImageReadiness';
 
 interface AIImageGeneratorDialogProps {
   open: boolean;
@@ -41,6 +42,7 @@ export function AIImageGeneratorDialog({
   const [jobPhase, setJobPhase] = useState<JobPhase>('idle');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
+  const [readiness, setReadiness] = useState<ImageContextReadinessResult | null>(null);
 
   const maxImages = 5;
 
@@ -51,6 +53,16 @@ export function AIImageGeneratorDialog({
       abortRef.current = true;
     };
   }, []);
+
+  // Avalia o cadastro ao abrir o diálogo (uma leitura, sem chamada de IA)
+  useEffect(() => {
+    if (!open || !currentTenant?.id || !productId) return;
+    let cancelled = false;
+    fetchImageContextReadiness(currentTenant.id, productId)
+      .then((r) => { if (!cancelled) setReadiness(r); })
+      .catch(() => { if (!cancelled) setReadiness(null); });
+    return () => { cancelled = true; };
+  }, [open, currentTenant?.id, productId]);
 
   /**
    * Poll creative_jobs until status is 'succeeded' or 'failed'.
@@ -279,6 +291,22 @@ export function AIImageGeneratorDialog({
               <p className="text-xs text-muted-foreground">Imagem de referência</p>
             </div>
           </div>
+
+          {readiness && readiness.severity === 'warning' && !isGenerating && (
+            <div className="flex gap-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  A IA pode gerar uma imagem genérica
+                </p>
+                <p className="text-amber-800 dark:text-amber-300">
+                  Faltam informações no cadastro deste produto:{' '}
+                  <span className="font-semibold">{readiness.missing.join(', ')}</span>.
+                  Você pode gerar mesmo assim, mas o resultado tende a ser melhor com o cadastro completo.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Quantidade de imagens</Label>

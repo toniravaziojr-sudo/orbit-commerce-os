@@ -87,3 +87,24 @@ Em paralelo ao evento principal foi gravado um evento informativo de A2.1 (`reco
 - **v10.0** (2026-04): UI prompt-only, formatos 1:1/9:16/16:9 com sizes 1024x1024/1024x1792/1792x1024. Hardcodes espalhados no edge.
 - **v10.1** (2026-05-06): este contrato. Formatos alinhados ao catálogo, normalização centralizada, badge de qualidade, LIVE_TARGET_KEY dinâmica. Validação shadow aprovada; fallback.unpriced classificado como observabilidade segura.
 - **A3.3 LIVE validada** (2026-05-06 20:03–20:04 UTC): job `13fc7782-593b-4218-aa0a-05775cd5a30c` (tenant Respeite o Homem) — `succeeded`, format=portrait, 1024x1536, medium, pipeline 10.1. Ledger v2: reserve `126248b7…` + capture `d861bced…` (`credits_delta=-8`, `service_key=fal.gpt-image-1.5.per_image.medium_1024x1536`, `balance 494→486`). Wallet final 486/0/14, `cost_owner=tenant`. `fallback.unpriced` **suprimido em live** (não houve evento). Rollback executado: `live_service_keys=[]`, `motor_v2_enabled=false`. **GO** para próxima etapa de rollout.
+
+## Contexto de produto v1 (2026-06-25)
+
+A geração de imagem de produto recebe agora o **cadastro completo do produto** como briefing estruturado. Sem mudança de fluxo, sem mudança de UI, sem nova chamada de IA.
+
+### Fonte única
+- Loader em `supabase/functions/_shared/product-context-loader.ts` (`loadProductContext` + `buildProductBriefing`).
+- Lê em uma única passagem: `products` (todos os 75 campos), `ai_product_commercial_payload`, `product_components` (com nome do filho via join), `product_pain_points`, `meli_product_attribute_memory`, `tenants.name`, `system_universal_categories.name`.
+- O briefing é montado em blocos pt-BR (Identidade, Ficha técnica, Atributos cosméticos, Regulatório, Público/Garantia, Descrições literais, Visão IA, Composição do kit, Dores, Ajustes manuais aprovados, Restrições) e injetado no `contextBrief` do `buildPromptForStyle` em `creative-image-generate/index.ts`.
+- Blocos vazios são omitidos. Nenhum campo é inventado.
+
+### Trava anti-alucinação
+Bloco "Restrições obrigatórias" instrui a IA a não inventar texto de rótulo, selos, certificações nem ingredientes — só usar o que está no briefing. Kits exigem cena com os itens exatos da composição.
+
+### Aviso de cadastro incompleto (UI)
+- Checker espelho em `src/lib/ai/productImageReadiness.ts`.
+- `AIImageGeneratorDialog` consulta o checker ao abrir e exibe banner amarelo listando os campos faltantes (Marca, Tipo, Descrição, Benefícios, Público, Conteúdo líquido, Composição do kit, Características capilares, Registro regulatório).
+- Apenas aviso — **nunca bloqueia** a geração.
+
+### Custo
+Zero chamada extra de IA. Acréscimo: 5 leituras paralelas no banco por geração (com RLS já aplicada).
