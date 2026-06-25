@@ -53,6 +53,8 @@ export interface ExistingDraft {
   title: string | null;
   description: string | null;
   category_id: string | null;
+  category_name?: string | null;
+  category_path_text?: string | null;
   condition?: string | null;
   listing_type?: string | null;
   shipping?: Record<string, any> | null;
@@ -298,8 +300,10 @@ export function MeliListingCreator({
       title: d.title || "",
       description: d.description || "",
       categoryId: d.category_id || "",
-      categoryName: d.category_id || "",
-      categoryPath: "",
+      // Hydrate friendly name/path from the draft itself when persisted — eliminates
+      // the visible delay when reopening drafts whose category was already resolved.
+      categoryName: d.category_name || d.category_id || "",
+      categoryPath: d.category_path_text || "",
       price: Number(d.price ?? d.product?.price ?? 0),
       productPrice: Number(d.product?.price ?? d.price ?? 0),
     }));
@@ -324,7 +328,7 @@ export function MeliListingCreator({
       try {
         const { data: fresh } = await supabase
           .from("meli_listings")
-          .select("id, title, description, category_id, condition, listing_type, shipping, price")
+          .select("id, title, description, category_id, category_name, category_path_text, condition, listing_type, shipping, price")
           .in("id", ids);
         if (!fresh) return;
         const byId = new Map(fresh.map((r: any) => [r.id, r]));
@@ -336,7 +340,9 @@ export function MeliListingCreator({
             title: r.title || i.title,
             description: r.description || i.description,
             categoryId: r.category_id || i.categoryId,
-            categoryName: r.category_id ? i.categoryName : "",
+            // Prefer persisted friendly fields; keep current value otherwise.
+            categoryName: r.category_name || i.categoryName || (r.category_id || ""),
+            categoryPath: r.category_path_text || i.categoryPath || "",
             price: Number(r.price ?? i.price),
           };
         }));
@@ -347,44 +353,60 @@ export function MeliListingCreator({
           setFreeShipping(!!f.shipping.free_shipping);
           setLocalPickup(!!f.shipping.local_pick_up);
         }
-      } catch { /* skip */ }
-    })();
 
-    // Resolve friendly names for already-saved category IDs using the currently hydrated state.
-    (async () => {
-      const uniqueIds = Array.from(new Set(items.map(d => d.categoryId).filter(Boolean) as string[]));
-      if (uniqueIds.length === 0) return;
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const headers = {
-          "Authorization": `Bearer ${session?.access_token}`,
-          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        };
-        const results = await Promise.all(uniqueIds.map(async (cid) => {
-          try {
-            const res = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meli-search-categories?categoryId=${cid}`,
-              { headers }
-            );
-            if (!res.ok) return null;
-            const data = await res.json();
-            return {
-              id: cid,
-              name: data.name as string | undefined,
-              path: normalizeCategoryPath(data.path || data.path_from_root),
-            };
-          } catch { return null; }
-        }));
-        const byId = new Map(results.filter(Boolean).map(r => [r!.id, r!]));
-        setGeneratedItems(prev => prev.map(i => {
-          const info = i.categoryId ? byId.get(i.categoryId) : null;
-          if (!info) return i;
-          return {
-            ...i,
-            categoryName: info.name || i.categoryName,
-            categoryPath: info.path || i.categoryPath,
+        // Lazy backfill: only resolve & persist category name/path for drafts that
+        // don't have them yet. This makes the very first open of a legacy draft pay
+        // the API cost ONCE; subsequent opens are instant.
+        const needsBackfill = (fresh as any[]).filter(r => r.category_id && (!r.category_name || !r.category_path_text));
+        if (needsBackfill.length > 0) {
+          const session = (await supabase.auth.getSession()).data.session;
+          const headers = {
+            "Authorization": `Bearer ${session?.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           };
-        }));
+          // De-dup by categoryId so each ML category is resolved at most once.
+          const uniqueIds = Array.from(new Set(needsBackfill.map(r => r.category_id as string)));
+          const resolvedById = new Map<string, { name: string; path: string }>();
+          await Promise.all(uniqueIds.map(async (cid) => {
+            try {
+              const res = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meli-search-categories?categoryId=${cid}`,
+                { headers }
+              );
+              if (!res.ok) return;
+              const data = await res.json();
+              const name = data?.categories?.[0]?.name || data?.name || "";
+              const path = normalizeCategoryPath(data?.path || data?.path_from_root);
+              if (name || path) resolvedById.set(cid, { name, path });
+            } catch { /* skip */ }
+          }));
+          if (resolvedById.size > 0) {
+            // Reflect in UI
+            setGeneratedItems(prev => prev.map(i => {
+              const info = i.categoryId ? resolvedById.get(i.categoryId) : null;
+              if (!info) return i;
+              return {
+                ...i,
+                categoryName: info.name || i.categoryName,
+                categoryPath: info.path || i.categoryPath,
+              };
+            }));
+            // Persist so we never re-fetch these again.
+            await Promise.all(needsBackfill.map(async (r: any) => {
+              const info = resolvedById.get(r.category_id);
+              if (!info) return;
+              try {
+                await supabase
+                  .from("meli_listings")
+                  .update({
+                    category_name: info.name || null,
+                    category_path_text: info.path || null,
+                  })
+                  .eq("id", r.id);
+              } catch { /* skip */ }
+            }));
+          }
+        }
       } catch { /* skip */ }
     })();
   }, [open, isConfigureMode, existingDrafts]);
@@ -756,24 +778,35 @@ export function MeliListingCreator({
       );
       if (res.ok) {
         const data = await res.json();
-        const normalizedPath = normalizeCategoryPath(data.path || data.path_from_root);
+        const resolvedName = data?.categories?.[0]?.name || data?.name;
+        const normalizedPath = normalizeCategoryPath(data?.path || data?.path_from_root);
         if (normalizedPath) categoryPath = normalizedPath;
-        if (data.name) categoryName = data.name;
+        if (resolvedName) categoryName = resolvedName;
       }
     } catch { /* skip */ }
+
+    const finalName = categoryName || categoryId;
+    const finalPath = normalizeCategoryPath(categoryPath);
 
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId
         ? {
             ...i,
             categoryId,
-            categoryName: categoryName || categoryId,
-            categoryPath: normalizeCategoryPath(categoryPath),
+            categoryName: finalName,
+            categoryPath: finalPath,
           }
         : i
     ));
-    // Update in DB
-    await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listingId);
+    // Persist code + friendly name + full path so the next dialog open is instant.
+    await supabase
+      .from("meli_listings")
+      .update({
+        category_id: categoryId,
+        category_name: finalName || null,
+        category_path_text: finalPath || null,
+      })
+      .eq("id", listingId);
   };
 
   // ====== Apply category from one item to all others ======
@@ -800,7 +833,11 @@ export function MeliListingCreator({
     try {
       await supabase
         .from("meli_listings")
-        .update({ category_id: source.categoryId })
+        .update({
+          category_id: source.categoryId,
+          category_name: source.categoryName || null,
+          category_path_text: source.categoryPath || null,
+        })
         .in("id", targets.map(t => t.listingId));
       toast.success(`Categoria aplicada a ${targets.length} produto(s).`);
     } catch (err) {

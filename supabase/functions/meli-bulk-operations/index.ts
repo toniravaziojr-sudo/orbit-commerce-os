@@ -762,7 +762,7 @@ Retorne APENAS o texto da descrição.`,
     if (action === "bulk_auto_categories") {
       let query = supabase
         .from("meli_listings")
-        .select("id, title, category_id, product_id, products(name, description, short_description, brand)")
+        .select("id, title, category_id, category_name, category_path_text, product_id, products(name, description, short_description, brand)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -782,17 +782,24 @@ Retorne APENAS o texto da descrição.`,
         try {
           // Skip if already has category
           if (listing.category_id) {
-            // Still resolve name/path for frontend display
-            let catName = "";
-            let catPath = "";
-            try {
-              const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, { headers: mlHeaders });
-              if (catRes.ok) {
-                const catData = await catRes.json();
-                catName = catData.name || listing.category_id;
-                catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
-              }
-            } catch { /* skip */ }
+            // Reuse persisted friendly name/path when present; only hit ML if missing.
+            let catName = (listing as any).category_name || "";
+            let catPath = (listing as any).category_path_text || "";
+            if (!catName || !catPath) {
+              try {
+                const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, { headers: mlHeaders });
+                if (catRes.ok) {
+                  const catData = await catRes.json();
+                  catName = catData.name || listing.category_id;
+                  catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+                  // Persist for next time.
+                  await supabase.from("meli_listings").update({
+                    category_name: catName || null,
+                    category_path_text: catPath || null,
+                  }).eq("id", listing.id);
+                }
+              } catch { /* skip */ }
+            }
             resolvedCategories.push({
               listingId: listing.id,
               categoryId: listing.category_id,
@@ -842,9 +849,13 @@ Retorne APENAS o texto da descrição.`,
               const bestMatch = pickBestCategory(discoveryData, productName, brandName, pathMap);
               if (bestMatch) {
                 const categoryId = bestMatch.category_id;
-                await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
                 const catPath = pathMap.get(categoryId) || "";
                 const catName = catPath ? catPath.split(" > ").pop()! : (bestMatch.category_name || bestMatch.domain_name || categoryId);
+                await supabase.from("meli_listings").update({
+                  category_id: categoryId,
+                  category_name: catName || null,
+                  category_path_text: catPath || null,
+                }).eq("id", listing.id);
                 resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
                 updated++;
                 categoryFound = true;
@@ -879,9 +890,13 @@ Retorne APENAS o texto da descrição.`,
                   const bestFb = pickBestCategory(fbData, productName, brandName, fbPathMap);
                   if (bestFb) {
                     const categoryId = bestFb.category_id;
-                    await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
                     const catPath = fbPathMap.get(categoryId) || "";
                     const catName = catPath ? catPath.split(" > ").pop()! : (bestFb.category_name || bestFb.domain_name || categoryId);
+                    await supabase.from("meli_listings").update({
+                      category_id: categoryId,
+                      category_name: catName || null,
+                      category_path_text: catPath || null,
+                    }).eq("id", listing.id);
                     resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
                     updated++;
                     categoryFound = true;

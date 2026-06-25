@@ -211,18 +211,34 @@ export function MeliListingsTab() {
 
   const handleEditListing = async (listing: MeliListing) => {
     const attrs = listing.attributes || [];
-    let categoryName = listing.category_id || "";
-    
-    // Resolve category name from ML API
-    if (listing.category_id && currentTenant?.id) {
+    let categoryName = listing.category_path_text || listing.category_name || listing.category_id || "";
+
+    // Only hit ML if no friendly name was ever persisted on this listing (legacy backfill).
+    if (!listing.category_path_text && !listing.category_name && listing.category_id && currentTenant?.id) {
       try {
         const { data } = await supabase.functions.invoke("meli-search-categories", {
           body: { tenantId: currentTenant.id, categoryId: listing.category_id },
         });
+        let resolvedPath = "";
+        let resolvedName = "";
         if (data?.success && data.path?.length) {
-          categoryName = data.path.map((p: any) => p.name).join(" > ");
-        } else if (data?.success && data.categories?.[0]?.name) {
-          categoryName = data.categories[0].name;
+          resolvedPath = data.path.map((p: any) => p.name).join(" > ");
+        }
+        if (data?.success && data.categories?.[0]?.name) {
+          resolvedName = data.categories[0].name;
+        }
+        categoryName = resolvedPath || resolvedName || listing.category_id;
+        // Persist so we never re-fetch for this listing again.
+        if (resolvedPath || resolvedName) {
+          try {
+            await supabase
+              .from("meli_listings")
+              .update({
+                category_name: resolvedName || null,
+                category_path_text: resolvedPath || null,
+              })
+              .eq("id", listing.id);
+          } catch { /* skip */ }
         }
       } catch {
         categoryName = listing.category_id;
@@ -810,6 +826,8 @@ export function MeliListingsTab() {
           title: l.title,
           description: l.description,
           category_id: l.category_id,
+          category_name: l.category_name,
+          category_path_text: l.category_path_text,
           condition: l.condition,
           listing_type: l.listing_type,
           shipping: l.shipping,
