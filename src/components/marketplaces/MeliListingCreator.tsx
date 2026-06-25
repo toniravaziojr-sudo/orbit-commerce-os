@@ -53,6 +53,8 @@ export interface ExistingDraft {
   title: string | null;
   description: string | null;
   category_id: string | null;
+  category_name?: string | null;
+  category_path_text?: string | null;
   condition?: string | null;
   listing_type?: string | null;
   shipping?: Record<string, any> | null;
