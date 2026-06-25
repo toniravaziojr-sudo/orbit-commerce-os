@@ -42,6 +42,7 @@ export function AIImageGeneratorDialog({
   const [jobPhase, setJobPhase] = useState<JobPhase>('idle');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
+  const [readiness, setReadiness] = useState<ImageContextReadinessResult | null>(null);
 
   const maxImages = 5;
 
@@ -52,6 +53,16 @@ export function AIImageGeneratorDialog({
       abortRef.current = true;
     };
   }, []);
+
+  // Avalia o cadastro ao abrir o diálogo (uma leitura, sem chamada de IA)
+  useEffect(() => {
+    if (!open || !currentTenant?.id || !productId) return;
+    let cancelled = false;
+    fetchImageContextReadiness(currentTenant.id, productId)
+      .then((r) => { if (!cancelled) setReadiness(r); })
+      .catch(() => { if (!cancelled) setReadiness(null); });
+    return () => { cancelled = true; };
+  }, [open, currentTenant?.id, productId]);
 
   /**
    * Poll creative_jobs until status is 'succeeded' or 'failed'.
