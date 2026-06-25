@@ -13022,6 +13022,8 @@ export type Database = {
           attributes: Json | null
           available_quantity: number
           category_id: string | null
+          category_name: string | null
+          category_path_text: string | null
           condition: string
           created_at: string
           currency_id: string
@@ -13049,6 +13051,8 @@ export type Database = {
           attributes?: Json | null
           available_quantity?: number
           category_id?: string | null
+          category_name?: string | null
+          category_path_text?: string | null
           condition?: string
           created_at?: string
           currency_id?: string
@@ -13076,6 +13080,8 @@ export type Database = {
           attributes?: Json | null
           available_quantity?: number
           category_id?: string | null
+          category_name?: string | null
+          category_path_text?: string | null
           condition?: string
           created_at?: string
           currency_id?: string
