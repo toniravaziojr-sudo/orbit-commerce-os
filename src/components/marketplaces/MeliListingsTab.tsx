@@ -826,6 +826,8 @@ export function MeliListingsTab() {
           title: l.title,
           description: l.description,
           category_id: l.category_id,
+          category_name: l.category_name,
+          category_path_text: l.category_path_text,
           condition: l.condition,
           listing_type: l.listing_type,
           shipping: l.shipping,
