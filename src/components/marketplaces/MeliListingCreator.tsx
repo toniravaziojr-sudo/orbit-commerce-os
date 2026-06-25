@@ -833,7 +833,11 @@ export function MeliListingCreator({
     try {
       await supabase
         .from("meli_listings")
-        .update({ category_id: source.categoryId })
+        .update({
+          category_id: source.categoryId,
+          category_name: source.categoryName || null,
+          category_path_text: source.categoryPath || null,
+        })
         .in("id", targets.map(t => t.listingId));
       toast.success(`Categoria aplicada a ${targets.length} produto(s).`);
     } catch (err) {
