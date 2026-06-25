@@ -347,6 +347,16 @@ GET (sem params)         → Lista categorias raiz do MLB
 2. Filtro de categoria dos resultados de busca (`available_filters`)
 3. Extração de categorias únicas dos resultados de busca
 
+### Resolução e Persistência de Categoria (v2026-06-25)
+
+Cada anúncio guarda no banco, junto com o código da categoria (`category_id`), o nome amigável (`category_name`) e o caminho completo (`category_path_text`, formato "Pai > Filho > Neto"). Regras:
+
+- **Abertura do diálogo (rascunho):** a tela hidrata o caminho completo direto do banco. Sem flicker, sem chamada à API do ML.
+- **Backfill lazy (uma única vez):** se um anúncio antigo ainda estiver com `category_name`/`category_path_text` nulos, na primeira abertura o sistema resolve via `meli-search-categories` e persiste o resultado. Reaberturas seguintes ficam instantâneas.
+- **Reconsulta ao ML só sob demanda:** ocorre apenas quando o usuário (a) troca a categoria manualmente, (b) aciona o botão "Auto" de categorização, ou (c) usa "Categorizar em massa". Todos esses caminhos gravam o nome e o caminho resolvidos junto com o novo `category_id`.
+- **Operações em lote:** `meli-bulk-operations` (`bulk_auto_categories`) persiste `category_name` + `category_path_text` na mesma escrita do `category_id`; itens já categorizados que ainda não tenham nome amigável também recebem o backfill nesta passada.
+- **Proibido:** resolver o nome da categoria em tempo de render sem persistir o resultado — isso reintroduz o flicker e gasta chamada de API a cada abertura.
+
 ### Política de Envio ao ML: 100% Manual (v2.5.0 — OBRIGATÓRIO)
 
 > **Não existe nenhum mecanismo automático (cron, gatilho ou job) que envie atualizações ao Mercado Livre.** Todo `POST` ou `PUT` para a API do ML é disparado exclusivamente por ação manual do usuário (publicar, atualizar, pausar, reativar, excluir).
