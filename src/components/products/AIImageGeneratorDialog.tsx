@@ -292,6 +292,22 @@ export function AIImageGeneratorDialog({
             </div>
           </div>
 
+          {readiness && readiness.severity === 'warning' && !isGenerating && (
+            <div className="flex gap-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  A IA pode gerar uma imagem genérica
+                </p>
+                <p className="text-amber-800 dark:text-amber-300">
+                  Faltam informações no cadastro deste produto:{' '}
+                  <span className="font-semibold">{readiness.missing.join(', ')}</span>.
+                  Você pode gerar mesmo assim, mas o resultado tende a ser melhor com o cadastro completo.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Quantidade de imagens</Label>
             <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
