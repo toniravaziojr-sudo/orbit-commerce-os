@@ -213,12 +213,36 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
     // eslint-disable-next-line
   }, [attrs, loading, queued, error]);
 
+  // Grava o ajuste manual na memória do produto.
+  // Regra: 1 linha por (tenant, produto, nome da característica). Edição mais recente vence.
+  const upsertMemory = async (attr: ResolvedAttr) => {
+    if (!tenantId || !productId || !attr.name) return;
+    try {
+      await supabase.from("meli_product_attribute_memory").upsert({
+        tenant_id: tenantId,
+        product_id: productId,
+        attribute_name: attr.name,
+        attribute_id_last_seen: attr.id,
+        value_name: attr.value_name ?? null,
+        value_id: attr.value_id ?? null,
+        values_struct: attr.values && attr.values.length > 0 ? (attr.values as any) : null,
+        not_applicable: !!attr.not_applicable,
+        category_id_last_seen: categoryId,
+        updated_at: new Date().toISOString(),
+      } as any, { onConflict: "tenant_id,product_id,attribute_name" });
+    } catch {
+      /* silencioso — não bloqueia a edição */
+    }
+  };
+
   const handleEdit = (id: string, value: string) => {
     setAttrs(prev => {
       const next = prev.map(a => a.id === id
         ? { ...a, value_name: value, value_id: undefined, values: undefined, not_applicable: false, status: (value.trim() ? "filled" : "missing") as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
         : a);
       void persistToListing(next);
+      const edited = next.find(a => a.id === id);
+      if (edited && edited.status === "filled") void upsertMemory(edited);
       return next;
     });
   };
@@ -229,6 +253,8 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
         ? { ...a, value_name: "Não se aplica", value_id: undefined, values: undefined, not_applicable: true, status: "filled" as ResolvedAttr["status"], source: "manual" as ResolvedAttr["source"] }
         : a);
       void persistToListing(next);
+      const edited = next.find(a => a.id === id);
+      if (edited) void upsertMemory(edited);
       return next;
     });
   };
