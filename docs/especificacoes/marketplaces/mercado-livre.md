@@ -1205,3 +1205,55 @@ Se a categoria escolhida no Mercado Livre **não tem** o tipo do produto na list
 - Proibido reduzir o fallback por tokens a apenas obrigatórios sem nova auditoria.
 
 
+
+---
+
+## v2.1.0 — Memória de Ajustes Manuais por Produto (2026-06-25)
+
+**Problema resolvido:** o lojista corrigia um campo do anúncio (ex.: Tipo de produto → "Kit de tratamento capilar") e, da próxima vez que abrisse o painel de características do **mesmo produto**, a IA voltava a sugerir do zero. Mesmas correções se repetiam a cada anúncio.
+
+### Regra de negócio
+Toda edição manual do lojista (incluindo marcar "Não se aplica") é gravada como **preferência da loja para aquele produto + aquela característica**. Da próxima vez que o painel for aberto para o mesmo produto, o valor lembrado já entra preenchido sem chamar a IA.
+
+- Chave: `(tenant, produto, nome da característica)`. Match por **nome** (ML troca IDs entre categorias) com fallback por ID.
+- **Última edição vence.** Sem histórico, sem versionamento. Se o lojista corrigir de novo, sobrescreve.
+- **Por produto.** Edição em produto A não influencia produto B.
+- **Sem mudança de UI/UX.** O rótulo "Editado manualmente" (roxo) já existente continua aparecendo.
+- **Limpeza em cascata.** Excluir o produto remove a memória.
+
+### Cascata atualizada do motor de características
+```
+Cadastro do produto
+   ↓
+Derivação automática
+   ↓
+Dicionário universal
+   ↓
+👉 Memória de ajustes manuais da loja (este produto)   ← NOVO
+   ↓
+Heurística determinística
+   ↓
+IA
+   ↓
+"Não se aplica" (opcionais)
+```
+
+A memória entra **antes** da chamada de IA. Match positivo pula a IA inteira para aquela característica — economia de crédito e processamento.
+
+### Compatibilidade com a categoria atual
+- **Texto livre** (Marca, Modelo, números regulatórios): aplica direto.
+- **Lista fechada**: valida se o valor lembrado existe na lista oficial da categoria atual. Se não existir, a memória é **ignorada** para aquela característica nessa categoria e segue a cascata.
+- **Multi-valor**: aplica cada item; só os que casarem com a lista da categoria entram.
+- **"Não se aplica"**: usa a opção oficial da categoria quando existe; fallback "Não se aplica".
+
+### Anti-regressão
+- Proibido criar UI de listagem/remoção/edição dessa memória sem aprovação explícita.
+- Proibido compartilhar memória entre produtos diferentes.
+- Proibido versionar/manter histórico — a regra é "última edição vence".
+- Proibido aplicar memória da loja **acima** do cadastro/derivação/dicionário (o cadastro do produto continua sendo fonte primária).
+- Proibido forçar valor lembrado em lista fechada que não tem o item — sempre validar antes.
+
+### Onde está implementado
+- Armazenamento: tabela `meli_product_attribute_memory` (RLS por tenant; ON DELETE CASCADE em `products.id`).
+- Captura: `MeliAttributesPanel.handleEdit` e `handleMarkNotApplicable` fazem upsert direto no banco.
+- Leitura/aplicação: `supabase/functions/meli-resolve-attributes/index.ts` carrega `tenantMemoryByName`/`tenantMemoryById` no início e aplica como nova etapa **5.0** do loop por atributo, antes da heurística determinística e da IA.

@@ -13122,6 +13122,59 @@ export type Database = {
           },
         ]
       }
+      meli_product_attribute_memory: {
+        Row: {
+          attribute_id_last_seen: string | null
+          attribute_name: string
+          category_id_last_seen: string | null
+          created_at: string
+          id: string
+          not_applicable: boolean
+          product_id: string
+          tenant_id: string
+          updated_at: string
+          value_id: string | null
+          value_name: string | null
+          values_struct: Json | null
+        }
+        Insert: {
+          attribute_id_last_seen?: string | null
+          attribute_name: string
+          category_id_last_seen?: string | null
+          created_at?: string
+          id?: string
+          not_applicable?: boolean
+          product_id: string
+          tenant_id: string
+          updated_at?: string
+          value_id?: string | null
+          value_name?: string | null
+          values_struct?: Json | null
+        }
+        Update: {
+          attribute_id_last_seen?: string | null
+          attribute_name?: string
+          category_id_last_seen?: string | null
+          created_at?: string
+          id?: string
+          not_applicable?: boolean
+          product_id?: string
+          tenant_id?: string
+          updated_at?: string
+          value_id?: string | null
+          value_name?: string | null
+          values_struct?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meli_pam_product_fk"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           created_at: string

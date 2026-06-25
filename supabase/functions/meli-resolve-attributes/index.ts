@@ -81,7 +81,7 @@ interface ResolvedAttr {
   /** Valores múltiplos quando o atributo do ML é multivalorado (ex.: Tipos de cabelo, Formatos de tratamento). */
   values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
-  source: "product" | "derivation" | "dictionary" | "ai" | "none";
+  source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
   message?: string;
   /** v1.9.0: marcador "Não se aplica" — vai ao ML com o marcador oficial da categoria. */
@@ -167,6 +167,22 @@ Deno.serve(async (req) => {
         .select("id, slug, name, regulatory_regime")
         .eq("id", product.universal_category_id).maybeSingle();
       universalCategory = uc;
+    }
+
+    // ---- Memória de ajustes manuais do lojista para este produto -------
+    // Regra: 1 linha por (tenant, produto, nome da característica). A última
+    // edição manual vence. Carregamos aqui e aplicamos ANTES de chamar a IA.
+    const { data: pamRows } = await supabase
+      .from("meli_product_attribute_memory")
+      .select("attribute_name, attribute_id_last_seen, value_name, value_id, values_struct, not_applicable")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", productId);
+    const tenantMemoryByName = new Map<string, any>();
+    const tenantMemoryById = new Map<string, any>();
+    for (const r of (pamRows ?? [])) {
+      const key = String(r.attribute_name || "").toLowerCase().trim();
+      if (key) tenantMemoryByName.set(key, r);
+      if (r.attribute_id_last_seen) tenantMemoryById.set(String(r.attribute_id_last_seen).toUpperCase(), r);
     }
 
     // ---- 2. Buscar specs da categoria no ML ----------------------------
@@ -279,6 +295,71 @@ Deno.serve(async (req) => {
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
       let source: ResolvedAttr["source"] = "none";
+
+      // 5.0 Memória da loja: ajuste manual anterior do lojista para este produto.
+      // Match preferencial por NOME (ML troca IDs entre categorias). Fallback por ID.
+      const memHit = tenantMemoryByName.get(String(a.name || "").toLowerCase().trim())
+        || tenantMemoryById.get(String(a.id).toUpperCase());
+      if (memHit) {
+        const multi = isMultiValuedSpec(a);
+        // Caso "Não se aplica"
+        if (memHit.not_applicable) {
+          const naHit = a.values?.find(v => {
+            const n = v.name.toLowerCase().trim();
+            return n === "não se aplica" || n === "nao se aplica" || n === "n/a";
+          });
+          resolved.push({
+            id: a.id, name: a.name,
+            value_name: naHit?.name ?? "Não se aplica",
+            value_id: naHit?.id,
+            status: "filled", source: "manual" as any, required,
+            not_applicable: true,
+          });
+          continue;
+        }
+        // Multi-valor lembrado
+        if (multi && Array.isArray(memHit.values_struct) && memHit.values_struct.length > 0) {
+          const valuesArr: Array<{ id?: string; name: string }> = [];
+          for (const p of memHit.values_struct as any[]) {
+            const pn = String(p?.name || "").trim();
+            if (!pn) continue;
+            if (a.values?.length) {
+              const hit = matchAllowedValue(a, pn);
+              if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+            } else {
+              valuesArr.push({ name: pn });
+            }
+          }
+          if (valuesArr.length > 0) {
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: valuesArr.map(v => v.name).join(", "),
+              values: valuesArr,
+              status: "filled", source: "manual" as any, required,
+            });
+            continue;
+          }
+        }
+        // Valor único lembrado
+        const memValue = typeof memHit.value_name === "string" ? memHit.value_name.trim() : "";
+        if (memValue) {
+          let mvId: string | undefined;
+          if (a.values?.length) {
+            const hit = matchAllowedValue(a, memValue);
+            if (hit) mvId = hit.id;
+          }
+          // Texto livre OU lista fechada com match → aplica
+          if (!a.values?.length || mvId) {
+            resolved.push({
+              id: a.id, name: a.name, value_name: memValue, value_id: mvId,
+              status: "filled", source: "manual" as any, required,
+            });
+            continue;
+          }
+          // Lista fechada sem match na categoria atual → ignora memória e segue cascata normal.
+        }
+      }
+
 
       // 5.1 dicionário universal
       const dictEntry = dictByMeliId.get(a.id);
