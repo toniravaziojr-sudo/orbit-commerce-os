@@ -296,6 +296,71 @@ Deno.serve(async (req) => {
       let value_name: string | undefined;
       let source: ResolvedAttr["source"] = "none";
 
+      // 5.0 Memória da loja: ajuste manual anterior do lojista para este produto.
+      // Match preferencial por NOME (ML troca IDs entre categorias). Fallback por ID.
+      const memHit = tenantMemoryByName.get(String(a.name || "").toLowerCase().trim())
+        || tenantMemoryById.get(String(a.id).toUpperCase());
+      if (memHit) {
+        const multi = isMultiValuedSpec(a);
+        // Caso "Não se aplica"
+        if (memHit.not_applicable) {
+          const naHit = a.values?.find(v => {
+            const n = v.name.toLowerCase().trim();
+            return n === "não se aplica" || n === "nao se aplica" || n === "n/a";
+          });
+          resolved.push({
+            id: a.id, name: a.name,
+            value_name: naHit?.name ?? "Não se aplica",
+            value_id: naHit?.id,
+            status: "filled", source: "manual" as any, required,
+            not_applicable: true,
+          });
+          continue;
+        }
+        // Multi-valor lembrado
+        if (multi && Array.isArray(memHit.values_struct) && memHit.values_struct.length > 0) {
+          const valuesArr: Array<{ id?: string; name: string }> = [];
+          for (const p of memHit.values_struct as any[]) {
+            const pn = String(p?.name || "").trim();
+            if (!pn) continue;
+            if (a.values?.length) {
+              const hit = matchAllowedValue(a, pn);
+              if (hit) valuesArr.push({ id: hit.id, name: hit.name });
+            } else {
+              valuesArr.push({ name: pn });
+            }
+          }
+          if (valuesArr.length > 0) {
+            resolved.push({
+              id: a.id, name: a.name,
+              value_name: valuesArr.map(v => v.name).join(", "),
+              values: valuesArr,
+              status: "filled", source: "manual" as any, required,
+            });
+            continue;
+          }
+        }
+        // Valor único lembrado
+        const memValue = typeof memHit.value_name === "string" ? memHit.value_name.trim() : "";
+        if (memValue) {
+          let mvId: string | undefined;
+          if (a.values?.length) {
+            const hit = matchAllowedValue(a, memValue);
+            if (hit) mvId = hit.id;
+          }
+          // Texto livre OU lista fechada com match → aplica
+          if (!a.values?.length || mvId) {
+            resolved.push({
+              id: a.id, name: a.name, value_name: memValue, value_id: mvId,
+              status: "filled", source: "manual" as any, required,
+            });
+            continue;
+          }
+          // Lista fechada sem match na categoria atual → ignora memória e segue cascata normal.
+        }
+      }
+
+
       // 5.1 dicionário universal
       const dictEntry = dictByMeliId.get(a.id);
       if (dictEntry?.universal_key) {
