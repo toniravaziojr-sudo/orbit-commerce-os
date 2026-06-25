@@ -15,6 +15,8 @@ export interface MeliListing {
   price: number;
   available_quantity: number;
   category_id: string | null;
+  category_name: string | null;
+  category_path_text: string | null;
   listing_type: string;
   condition: string;
   currency_id: string;
