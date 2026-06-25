@@ -782,17 +782,24 @@ Retorne APENAS o texto da descrição.`,
         try {
           // Skip if already has category
           if (listing.category_id) {
-            // Still resolve name/path for frontend display
-            let catName = "";
-            let catPath = "";
-            try {
-              const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, { headers: mlHeaders });
-              if (catRes.ok) {
-                const catData = await catRes.json();
-                catName = catData.name || listing.category_id;
-                catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
-              }
-            } catch { /* skip */ }
+            // Reuse persisted friendly name/path when present; only hit ML if missing.
+            let catName = (listing as any).category_name || "";
+            let catPath = (listing as any).category_path_text || "";
+            if (!catName || !catPath) {
+              try {
+                const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, { headers: mlHeaders });
+                if (catRes.ok) {
+                  const catData = await catRes.json();
+                  catName = catData.name || listing.category_id;
+                  catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+                  // Persist for next time.
+                  await supabase.from("meli_listings").update({
+                    category_name: catName || null,
+                    category_path_text: catPath || null,
+                  }).eq("id", listing.id);
+                }
+              } catch { /* skip */ }
+            }
             resolvedCategories.push({
               listingId: listing.id,
               categoryId: listing.category_id,
