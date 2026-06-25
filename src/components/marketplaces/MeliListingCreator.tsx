@@ -778,24 +778,35 @@ export function MeliListingCreator({
       );
       if (res.ok) {
         const data = await res.json();
-        const normalizedPath = normalizeCategoryPath(data.path || data.path_from_root);
+        const resolvedName = data?.categories?.[0]?.name || data?.name;
+        const normalizedPath = normalizeCategoryPath(data?.path || data?.path_from_root);
         if (normalizedPath) categoryPath = normalizedPath;
-        if (data.name) categoryName = data.name;
+        if (resolvedName) categoryName = resolvedName;
       }
     } catch { /* skip */ }
+
+    const finalName = categoryName || categoryId;
+    const finalPath = normalizeCategoryPath(categoryPath);
 
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId
         ? {
             ...i,
             categoryId,
-            categoryName: categoryName || categoryId,
-            categoryPath: normalizeCategoryPath(categoryPath),
+            categoryName: finalName,
+            categoryPath: finalPath,
           }
         : i
     ));
-    // Update in DB
-    await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listingId);
+    // Persist code + friendly name + full path so the next dialog open is instant.
+    await supabase
+      .from("meli_listings")
+      .update({
+        category_id: categoryId,
+        category_name: finalName || null,
+        category_path_text: finalPath || null,
+      })
+      .eq("id", listingId);
   };
 
   // ====== Apply category from one item to all others ======
