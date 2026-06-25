@@ -849,9 +849,13 @@ Retorne APENAS o texto da descrição.`,
               const bestMatch = pickBestCategory(discoveryData, productName, brandName, pathMap);
               if (bestMatch) {
                 const categoryId = bestMatch.category_id;
-                await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
                 const catPath = pathMap.get(categoryId) || "";
                 const catName = catPath ? catPath.split(" > ").pop()! : (bestMatch.category_name || bestMatch.domain_name || categoryId);
+                await supabase.from("meli_listings").update({
+                  category_id: categoryId,
+                  category_name: catName || null,
+                  category_path_text: catPath || null,
+                }).eq("id", listing.id);
                 resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
                 updated++;
                 categoryFound = true;
