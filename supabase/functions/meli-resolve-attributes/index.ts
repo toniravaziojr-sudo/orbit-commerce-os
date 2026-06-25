@@ -81,7 +81,7 @@ interface ResolvedAttr {
   /** Valores múltiplos quando o atributo do ML é multivalorado (ex.: Tipos de cabelo, Formatos de tratamento). */
   values?: Array<{ id?: string; name: string }>;
   status: "filled" | "review" | "missing";
-  source: "product" | "derivation" | "dictionary" | "ai" | "none";
+  source: "product" | "derivation" | "dictionary" | "ai" | "manual" | "none";
   required: boolean;
   message?: string;
   /** v1.9.0: marcador "Não se aplica" — vai ao ML com o marcador oficial da categoria. */
