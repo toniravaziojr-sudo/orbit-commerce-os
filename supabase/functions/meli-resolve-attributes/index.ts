@@ -751,6 +751,16 @@ REGRA OBRIGATÓRIA — números regulatórios (ANVISA / AFE / CONAMA):
 - Para "Certificado AFE": use numeros_regulatorios.afe. Para "Licença CONAMA": use numeros_regulatorios.conama.
 - Só responda "NAO_SE_APLICA" quando o campo correspondente do cadastro estiver vazio.
 
+REGRA OBRIGATÓRIA — INGREDIENTES / ATIVOS / COMPONENTES / MATERIAIS (v2.2.0):
+- A natureza correta das substâncias deste produto é "${'$'}{rotuloSubstancias}" (use esse rótulo para raciocinar — não confunda "ingredientes" com "componentes" em produtos não-cosméticos).
+- Para qualquer atributo cujo NOME (ou id) contenha "ingrediente", "ativo", "composição", "componente", "material", "compostos", "fórmula" — ou ids como ACTIVE_INGREDIENTS, INGREDIENTS, MATERIALS, COMPONENTS:
+  • Use ingredientes_extraidos_texto como fonte primária; cruze CADA item com a lista oficial "values" do atributo.
+  • Normalize antes de comparar: minúsculas, sem acento, sem espaço extra. Aceite sinônimos óbvios: "AloeVera"="Aloe vera", "B5"="Pantenol", "Vit E"="Vitamina E", "Vit C"="Vitamina C", "Cafeína"="Cafeina", "Karité"="Manteiga de Karité".
+  • Se o atributo é MULTI (multi=true), devolva TODOS os itens que casarem, separados por vírgula. Não pare no primeiro.
+  • Itens da descrição que NÃO estão na lista oficial são IGNORADOS — proibido inventar opção fora de "values".
+  • Se ingredientes_extraidos_texto for nulo/vazio, varra mesmo assim descricao_curta + descricao_longa procurando ocorrências dos itens da lista oficial.
+  • Só responda "NAO_SE_APLICA" se nenhum item da lista oficial aparecer em lugar nenhum do cadastro.
+
 Produto: ${JSON.stringify(productContext)}
 
 Atributos a preencher: ${JSON.stringify(compact)}
