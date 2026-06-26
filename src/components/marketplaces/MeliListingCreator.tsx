@@ -655,6 +655,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      descriptionsDoneRef.current = true;
     } catch (error) {
       console.error("Generate descriptions error:", error);
       toast.error("Erro ao gerar descrições");
