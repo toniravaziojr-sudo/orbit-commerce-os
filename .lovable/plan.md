@@ -1,95 +1,53 @@
 ## Como funciona hoje
-
-Quando você clica em "Gerar com IA" no cadastro do produto, o sistema envia para a IA de imagem **apenas 3 coisas**: nome do produto, descrição curta e a foto principal. Todo o resto que está no cadastro — marca, tipo, benefícios, público, ingredientes, regulatório, composição de kit, características capilares, etc. — **fica de fora**. Por isso a IA inventa palavras no rótulo e cria benefícios genéricos.
+No resolvedor de atributos do Mercado Livre, o contexto do produto enviado à IA contém apenas `descricao_longa` truncada em 1500 caracteres. Não existe um campo dedicado de "ingredientes/ativos/componentes". Resultado: quando a IA precisa responder atributos multi-valor como `ACTIVE_INGREDIENTS` (lista fechada de 13 valores oficiais do ML: Aloe vera, Cafeína, Pantenol, Queratina, Proteína, Karité etc.), ela acaba escolhendo apenas um ingrediente óbvio ("Aloe vera") e ignora os demais que estão na descrição (Cafeína, Proteína etc.).
 
 ## O problema
-
-Falta contexto. A IA recebe nome + foto e tem que adivinhar o resto.
+1. A descrição é jogada inteira no prompt, sem destacar a seção de ingredientes/ativos.
+2. A IA não recebe orientação explícita de varrer toda a lista da descrição e cruzar com a lista oficial do ML.
+3. Não há diferenciação por tipo de produto — em cosméticos chama-se "ingredientes/ativos", em eletrônicos "componentes", em suplementos "compostos". A IA precisa saber qual rótulo é o correto antes de extrair.
 
 ## O que eu faria
 
-Dar à IA **acesso a todo o cadastro do produto**, sem alterar o fluxo nem a tela, e avisar quando faltar informação importante (sem bloquear).
+### 1. Extração estruturada na origem (loader)
+No fluxo do resolver, antes de montar o `productContext`, extrair da descrição (longa + curta + ficha técnica) as seções rotuladas como **Ingredientes / Ingredientes ativos / Ativos / Composição / Fórmula / Componentes / Compostos / Tecnologia**. Heurística simples por regex de cabeçalho/linha (sem custo de IA): captura o bloco entre o rótulo e o próximo cabeçalho/parágrafo.
 
-### 1. Coleta automática de TUDO que existe no cadastro
+Resultado vira um array bruto `ingredientes_extraidos_texto: string[]` (ex.: `["Cafeína", "Aloe vera", "Alecrim", "Mentol", "Cetoconazol", "BPantol", "BIOEX", "Proteção UV"]`). Se nada for capturado, manda `null` — sem invenção.
 
-Ao gerar a imagem, o sistema lê do banco o produto inteiro — **todos os 75 campos do cadastro** mais os dados relacionados — e monta um briefing organizado. Isso inclui:
+### 2. Rótulo correto por tipo de produto
+Anexar ao contexto um campo `rotulo_de_substancias` derivado de `universal_category_id` / `ai_product_type`:
+- cosmético / capilar / pele → "ingredientes ativos"
+- suplemento / alimento → "compostos / nutrientes"
+- eletrônico / equipamento → "componentes / materiais"
+- default → "componentes"
 
-- **Identidade:** nome, marca, linha, modelo, SKU, GTIN, tipo de produto, formato (simples/kit/combo).
-- **Comercial:** preço, preço comparado, promoção ativa, destaque, tags, categoria.
-- **Descrições:** descrição completa, descrição curta, palavras-chave, SEO.
-- **Ficha técnica:** peso, dimensões, conteúdo líquido (valor + unidade), unidade de medida, código de barras.
-- **Cosmético / capilar (quando preenchido):** dermatologicamente testado, hipoalergênico, cruelty-free, vegano, com fragrância, nome da fragrância, tipos de cabelo recomendados, tipos de tratamento, efeitos esperados.
-- **Regulatório:** regime (cosmético/medicamento/etc.), categoria regulatória, números ANVISA/AFE, restrições comerciais.
-- **Público:** gênero/audiência, garantia.
-- **Visão IA do produto (já existe):** papel comercial, "quando recomendar", "quando NÃO indicar", notas de recomendação, tipo IA, função principal.
-- **Composição (quando for kit):** os itens reais que compõem o kit, com nome e quantidade.
-- **Pontos de dor que o produto resolve** (quando cadastrados).
-- **Memória de ajustes anteriores** (correções manuais já feitas para esse produto).
+Isso vai junto no contexto para a IA usar a palavra certa nos campos descritivos e não confundir naturezas.
 
-Tudo isso vira um briefing estruturado entregue à IA junto com a foto de referência.
+### 3. Regra explícita no prompt para atributos de lista fechada multi-valor
+Adicionar bloco de regra dedicado para `ACTIVE_INGREDIENTS`, `INGREDIENTS`, `MATERIALS`, `COMPONENTS` (e quaisquer atributos cujo nome contenha "ingrediente", "ativo", "composição", "componente", "material"):
+- Quando `multi=true` e há lista fechada `values`, **cruzar TODOS os itens de `ingredientes_extraidos_texto` com a lista oficial** usando normalização (case-insensitive, sem acento, sem espaço extra; tratar sinônimos óbvios como "AloeVera"→"Aloe vera", "B5"→"Pantenol", "Vit E"→"Vitamina E").
+- Devolver **todos** os que casarem, separados por vírgula.
+- Ingredientes que não estão na lista oficial do ML são **ignorados** (não inventar opção fora da lista — já é regra v2.0.0).
 
-### 2. Briefing organizado em blocos
+### 4. Memória manual continua precedendo
+Se o usuário já editou manualmente `ACTIVE_INGREDIENTS` para esse produto (v2.1.0 — `meli_product_attribute_memory`), ela continua tendo prioridade absoluta. A nova extração só roda quando o atributo está pendente.
 
-Em vez de jogar texto solto, o sistema entrega à IA blocos curtos:
-**Produto** · **Identidade visual / rótulo** · **Benefícios reais** · **Público** · **Cena recomendada** · **Restrições (o que NÃO mostrar)**.
+### 5. Custo
+Zero chamadas extras de IA. Apenas mais ~200 caracteres no prompt já existente (lista de ingredientes extraídos + 1 regra nova). Sem impacto em latência ou tokens significativos.
 
-Reduz alucinação porque a IA passa a copiar do briefing em vez de inventar.
-
-### 3. Trava anti-texto inventado
-
-Quando o pedido envolver texto na imagem ("destaque benefícios", "mostre selo X"):
-- Os benefícios e selos vêm **literalmente do cadastro**, entre aspas, como texto a ser usado.
-- Se o cadastro não tiver aquela informação, o sistema **não deixa a IA inventar** — usa apenas o que existe.
-
-### 4. Regras de cena coerentes com o tipo
-
-- Produto simples → 1 unidade na cena.
-- Kit/combo → mostra os itens reais da composição, na quantidade certa.
-- Cosmético com ANVISA → não inventa selos.
-- Público definido → cena coerente com gênero/idade.
-
-### 5. Aviso na tela (sem bloquear)
-
-Na hora de gerar, se faltarem campos importantes para a qualidade da imagem, aparece um aviso amarelo discreto no diálogo de geração:
-
-> ⚠️ A IA pode gerar uma imagem genérica porque faltam algumas informações no cadastro deste produto: **Benefícios, Público-alvo, Composição do kit**. [Abrir cadastro] · [Gerar mesmo assim]
-
-O usuário pode gerar do mesmo jeito. Apenas fica avisado.
-
-**Quais campos disparam o aviso (lista resumida):** marca, tipo de produto, benefícios/quando recomendar, público-alvo, conteúdo líquido, composição do kit (se for kit), tipos de cabelo/efeitos (se for cosmético capilar), regulatório (se a categoria exigir).
-
-### 6. Eficiência (sem gasto extra)
-
-- A consulta ao cadastro é **uma única leitura** do banco por geração — produto + relacionados em uma chamada só.
-- Nada de chamadas extras de IA: o enriquecimento de contexto acontece **no mesmo prompt** já enviado.
-- Memória de ajustes manuais continua sendo aproveitada (já existe).
-
-### 7. Sem mudança no fluxo nem na UI
-
-- Mesmo botão "Gerar com IA".
-- Mesma tela.
-- Mesmo modelo (Fal.ai — mantido conforme sua decisão).
-- Único elemento novo na tela: o aviso amarelo quando faltar informação.
+### 6. Documentação
+- Atualizar `.lovable/memory/constraints/meli-resolve-attributes-hardening.md` com nova regra 16 (Extração de ingredientes/componentes).
+- Atualizar `docs/especificacoes/marketplaces/mercado-livre.md` com seção "v2.2.0 — Extração de Ingredientes/Componentes da Descrição".
 
 ## Resultado final
+No produto "Balm Pós-Banho Calvície Zero", o painel passa a sugerir em `Ingredientes Ativos`: **"Aloe vera, Cafeína, Proteína"** (os 3 itens da lista oficial do ML que aparecem na descrição), em vez de só "Aloe vera". Em produtos de outra natureza (eletrônico, suplemento) a mesma lógica funciona usando o rótulo correto, sem confundir ingredientes com componentes.
 
-- IA gera imagens fiéis ao produto real, com a identidade visual correta.
-- Para de inventar palavras no rótulo e benefícios fantasma.
-- Kits saem com os itens certos.
-- Lojista é orientado a completar o cadastro quando faltar algo, sem ser bloqueado.
-- Zero custo extra de processamento — uma leitura a mais no banco, nada de IA adicional.
+## Detalhes técnicos
+- Arquivo afetado: `supabase/functions/meli-resolve-attributes/index.ts` (sem mudança de schema, sem nova tabela, sem nova edge function).
+- Função utilitária nova `extractSubstancesFromDescription(text, productKind)` no mesmo arquivo.
+- Mapa `SUBSTANCE_LABEL_BY_KIND` com 4 categorias e default.
+- Sem mudança de UI/UX, sem mudança de contrato de negócio.
 
-## Confirmação
+## Pendências de confirmação
+Nenhuma — escopo já confirmado pela sua mensagem (extrair ingredientes via IA, garantindo que o sistema saiba o tipo correto de substância por categoria de produto). Mudanças são só técnicas, sem alterar UI.
 
-Pode seguir com a implementação assim?
-
----
-
-### Detalhes técnicos (referência interna)
-
-- Helper compartilhado em `_shared/product-context-loader.ts` lê `products` (todos os 75 campos), `ai_product_commercial_payload`, `ai_product_relations`, `product_components` (+ join no produto-componente), `product_pain_points`, `product_images`, `meli_product_attribute_memory`, `system_universal_categories` (nome amigável), `tenants` (marca da loja) — em uma única função, com `select` único por tabela.
-- Builder `buildProductBriefing(productContext)` monta o bloco estruturado em texto, omitindo seções vazias.
-- `creative-image-generate` substitui `product_description` cru por esse briefing dentro de `buildPrompt → contextBrief`. O `product_image_url` continua sendo a referência visual.
-- Checagem de completude para o aviso: helper `evaluateImageContextReadiness(productContext)` retorna `{ missing: string[], severity: 'ok'|'warning' }`. Consumido no `AIImageGeneratorDialog` para o banner amarelo.
-- Sem alteração de schema, sem alteração no fluxo de jobs/polling, sem alteração de modelo/Fal.
-- Cobertura: doc `docs/especificacoes/criativos/contrato-format-size-quality.md` ganha seção "Contexto de produto v1" e nova memória `mem://features/ai/image-generation-product-context-v1`.
+Confirma que eu sigo com o ajuste?
