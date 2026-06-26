@@ -290,6 +290,9 @@ export function MeliListingCreator({
       setAttrValuesByListing({});
       setPriceAdjustmentPercent("10");
       configureInitRef.current = null;
+      categorizeDoneRef.current = false;
+      titlesDoneRef.current = false;
+      descriptionsDoneRef.current = false;
     }
   }, [open]);
 
