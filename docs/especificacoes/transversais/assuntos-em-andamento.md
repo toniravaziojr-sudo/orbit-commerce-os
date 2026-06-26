@@ -147,7 +147,7 @@
 
 ---
 
-### 6. Tráfego Pago com IA — Política de Execução Segura do Autopilot (Execution Policy Engine)
+### 6. Tráfego Pago com IA — Política de Execução Segura + Gestor de Tráfego IA (Propostas, Editor e Versionamento)
 
 **Docs oficiais:**
 - `docs/especificacoes/marketing/gestor-trafego.md` (seções da Fase B e Fase B.1)
@@ -210,38 +210,7 @@ Tornar o Autopilot de tráfego pago seguro o suficiente para evoluir gradualment
 
 ---
 
-### Integração WMS Pratika — NF/rastreio aparentemente não chegando do lado do parceiro
-
-**Aberto em:** 08/06/2026
-**Status:** ⏳ Aguardando retorno do time Pratika/DDS Informática.
-
-**Resumo executivo:**
-- Emissão real (NF 406, chave `35260663269917000106550010000000171066772642`, rastreio `AP054191935BR`) foi enviada do nosso lado para o webservice da Pratika em 08/06/2026 17:35 BRT.
-- O webservice respondeu com sucesso no envio original ("NF-e recepcionada com sucesso!" e "Código atualizado com sucesso").
-- Reenvio manual posterior pelo nosso time retornou "Duplicidade", o que **confirma que a NF está gravada no banco do parceiro**.
-- Time da Pratika afirma que a nota não aparece na operação interna deles.
-
-**Hipóteses ainda abertas no lado do parceiro:**
-1. Job/rotina interna deles ainda não promoveu a nota da camada de recepção para a tela operacional (fila/latência).
-2. Estão olhando filial/CNPJ diferente do que o webservice grava (CNPJ correto: 63.269.917/0001-06).
-3. Filtro de busca pelo número do pedido/cliente em vez da chave da NF.
-
-**Próximos passos previstos:**
-- Aguardar o time da Pratika consultar pela chave completa da NF no banco interno deles.
-- Se confirmarem ausência, escalar para o suporte técnico da DDS Informática para investigar a fila de importação.
-- Do nosso lado, nenhuma ação de código pendente — integração validada ponta a ponta.
-
-**Restrições firmes:**
-- Não alterar o endpoint, credenciais ou envelope SOAP da integração Pratika com base apenas em "não chegou lá".
-- Não reemitir NF nem gerar novo rastreio sem evidência concreta de falha no nosso envio.
-- Reenvio manual só para diagnóstico; não usar como rotina.
-
-
-
-
----
-
-### Gestor de Tráfego IA — Modal de proposta, editor estruturado e versionamento (Frentes 4.2 / 4.3 / 4.4)
+#### Gestor de Tráfego IA — Modal de proposta, editor estruturado e versionamento (Frentes 4.2 / 4.3 / 4.4)
 
 **Aberto em:** 08/06/2026
 **Status:** ⏸️ Pausado por decisão do usuário em 09/06/2026 — ajuste técnico aplicado, pendente de validação visual no painel `/ads`.
