@@ -368,14 +368,18 @@ Deno.serve(async (req) => {
           const x = norm(n).replace(/[^a-z]/g, "");
           return x === "naoseaplica" || x === "noaplica" || x === "na";
         };
-        // ML aceita marcador oficial via value_id: "-1" / value_name: "N/A" para grande parte dos atributos.
+        // ML exige value_name = null em "not applicable". Enviamos apenas value_id.
         const naMarker = (spec: any) => {
           if (spec && Array.isArray(spec.values)) {
             const hit = spec.values.find((v: any) => isNaName(v.name));
-            if (hit) return { id: spec.id, value_id: hit.id, value_name: hit.name };
+            if (hit) return { id: spec.id, value_id: hit.id };
           }
           // Fallback universal aceito pelo ML
-          return { id: spec?.id, value_id: "-1", value_name: "N/A" };
+          return { id: spec?.id, value_id: "-1" };
+        };
+        // Atributos onde "Não se aplica" não é aceito — usar fallback determinístico.
+        const NA_FORBIDDEN_DEFAULTS: Record<string, () => string | null> = {
+          UNITS_PER_PACK: () => String(Math.max(1, Number((listing.product as any)?.units_per_package) || 1)),
         };
 
         const cleaned: any[] = [];
@@ -385,8 +389,20 @@ Deno.serve(async (req) => {
             console.log(`[meli-publish-listing] Dropping attr ${attr.id} (no spec in category)`);
             continue;
           }
+          const idUp = String(attr.id).toUpperCase();
           // Marcador "Não se aplica" (v1.9.0) — vem do painel
           if ((attr as any).not_applicable === true || isNaName(attr.value_name)) {
+            const forced = NA_FORBIDDEN_DEFAULTS[idUp]?.();
+            if (forced) {
+              // Tenta casar contra a lista oficial; se não houver lista, vai como texto livre.
+              if (Array.isArray(spec.values) && spec.values.length > 0) {
+                const hit = spec.values.find((v: any) => norm(v.name) === norm(forced));
+                cleaned.push(hit ? { id: spec.id, value_id: hit.id, value_name: hit.name } : { id: spec.id, value_name: forced });
+              } else {
+                cleaned.push({ id: spec.id, value_name: forced });
+              }
+              continue;
+            }
             cleaned.push(naMarker(spec));
             continue;
           }
@@ -479,20 +495,21 @@ Deno.serve(async (req) => {
         const causeMessages = causes.map((c: any) => c.message || c.code || JSON.stringify(c)).join("; ");
         errorMsg = `${errorMsg}: ${causeMessages}`;
       }
+      const friendlyMsg = humanizeMeliError(errorMsg, causes);
       console.error(`[meli-publish-listing] ML API error ${publishRes.status}:`, JSON.stringify(responseData).slice(0, 1000));
 
       await supabase
         .from("meli_listings")
         .update({
           status: "error",
-          error_message: errorMsg.slice(0, 500),
+          error_message: friendlyMsg.slice(0, 500),
           meli_response: responseData,
         })
         .eq("id", listingId);
 
       return jsonResponse({
         success: false,
-        error: errorMsg,
+        error: friendlyMsg,
         details: causes.length > 0 ? causes : undefined,
       });
     }
@@ -550,6 +567,66 @@ Deno.serve(async (req) => {
 });
 
 // ===================== Helper Functions =====================
+
+/**
+ * Converte mensagens técnicas do ML em texto amigável em PT-BR para o lojista.
+ */
+function humanizeMeliError(raw: string, causes: any[]): string {
+  const all = [
+    raw,
+    ...(Array.isArray(causes) ? causes.map((c) => c?.message || c?.code || "").filter(Boolean) : []),
+  ].join(" \n ");
+
+  const bullets: string[] = [];
+  const seen = new Set<string>();
+  const add = (msg: string) => {
+    if (msg && !seen.has(msg)) { seen.add(msg); bullets.push(msg); }
+  };
+
+  if (/value name must be null in not applicable attribute\s+([A-Z_]+)/i.test(all)) {
+    const matches = [...all.matchAll(/value name must be null in not applicable attribute\s+([A-Z_]+)/gi)];
+    for (const m of matches) {
+      add(`A característica "${prettyAttrName(m[1])}" foi marcada como "Não se aplica" mas o Mercado Livre exige um valor real. Edite a característica no painel ou preencha no cadastro do produto.`);
+    }
+  }
+  if (/UNITS_PER_PACK/i.test(all) && /(Unidade|sale_format|formato de venda)/i.test(all)) {
+    add('A característica "Unidades por kit" precisa ser pelo menos 1 quando o "Formato de venda" é "Unidade". Ajuste no painel de características.');
+  }
+  if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all)) {
+    add('O número da ANVISA do produto está em formato inválido para o Mercado Livre. Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
+  }
+  if (/Número de certificado da AFE.*incorreto/i.test(all)) {
+    add('O número do certificado AFE está em formato inválido. Revise no cadastro do produto.');
+  }
+  if (/missing required attribute|atributo obrigat[oó]rio/i.test(all)) {
+    add('Faltam características obrigatórias da categoria. Reabra o anúncio e revise o painel de características.');
+  }
+  if (/title.*(too long|invalid|exceeds)/i.test(all)) {
+    add('O título do anúncio é inválido ou ultrapassa o limite de 60 caracteres.');
+  }
+  if (/price.*(invalid|missing)/i.test(all)) {
+    add('O preço do anúncio é inválido ou está faltando.');
+  }
+
+  if (bullets.length === 0) {
+    return "Não foi possível publicar o anúncio. Revise o cadastro do produto e as características antes de tentar de novo.";
+  }
+  return `Não foi possível publicar:\n• ${bullets.join("\n• ")}`;
+}
+
+function prettyAttrName(id: string): string {
+  const dict: Record<string, string> = {
+    FRAGRANCE: "Fragrância",
+    HAIR_TREATMENT_PRESENTATION: "Formato de tratamento capilar",
+    UNITS_PER_PACK: "Unidades por kit",
+    ACTIVE_INGREDIENTS: "Ingredientes ativos",
+    BRAND: "Marca",
+    MODEL: "Modelo",
+    GTIN: "Código de barras",
+  };
+  return dict[id.toUpperCase()] || id.toLowerCase().replace(/_/g, " ");
+}
+
 
 /**
  * Sanitiza atributos contra os values fixos da categoria do ML.

@@ -105,12 +105,19 @@ function isMultiValuedSpec(spec: MeliAttrSpec): boolean {
 // Heurística por regex (zero IA). Captura blocos rotulados como
 // "Ingredientes / Ativos / Composição / Fórmula / Componentes / Tecnologia"
 // e devolve uma lista plana de itens. Quando nada bate, devolve [].
+// Aceita variações como "Ativos especiais:", "Ativo Exclusivo:", "Ingredientes principais:",
+// "Composição:", "Fórmula:", "Componentes:", "Materiais:", etc.
 const SUBSTANCE_HEADER_REGEX =
-  /(?:^|\n|\.)\s*(?:ingredientes\s+ativos|ingredientes|ativos|composi[cç][aã]o|f[oó]rmula|componentes|compostos|tecnologia|materiais)\s*[:\-–]\s*([\s\S]*?)(?:\n\s*\n|\n\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n:]{0,40}:|$)/gi;
+  /(?:^|\n|>|\.)\s*(?:ingredientes?(?:\s+\w+){0,3}|ativos?(?:\s+\w+){0,3}|composi[cç][aã]o(?:\s+\w+){0,2}|f[oó]rmula(?:\s+\w+){0,2}|componentes?(?:\s+\w+){0,2}|compostos(?:\s+\w+){0,2}|tecnologia(?:\s+\w+){0,2}|materiais(?:\s+\w+){0,2})\s*[:\-–]\s*([\s\S]*?)(?:\n\s*\n|\n\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n:]{0,40}:|$)/gi;
 
 function extractSubstancesFromDescription(text: string | null | undefined): string[] {
   if (!text) return [];
-  const clean = String(text).replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ");
+  // Normaliza HTML para texto: <br>, <li>, <p> viram quebra de linha — preserva bullets.
+  const clean = String(text)
+    .replace(/<\/(li|p|h[1-6]|div|br)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ");
   const found = new Set<string>();
   let m: RegExpExecArray | null;
   SUBSTANCE_HEADER_REGEX.lastIndex = 0;
@@ -652,8 +659,8 @@ Deno.serve(async (req) => {
       const rotuloSubstancias = substanceLabelForProduct(product, universalCategory?.name ?? null);
       const productContext = {
         nome: product.name,
-        descricao_curta: (product.short_description || "").slice(0, 600),
-        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 1500),
+        descricao_curta: (product.short_description || "").slice(0, 800),
+        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 4000),
         marca: product.brand, linha: product.line, modelo: product.model,
         gtin: product.gtin, sku: product.sku,
         peso_g: netWeightG,
