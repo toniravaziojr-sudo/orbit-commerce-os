@@ -15,7 +15,135 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "2.2.0";
+const VERSION = "2.4.0";
+
+// ---------- v2.4.0: ANVISA — atributo único por categoria -----------
+// O ML expõe até dois atributos de Anvisa por categoria, mas no cadastro
+// do produto só existe UM número (a fonte de verdade do lojista). Por isso
+// escolhemos UM atributo do ML para receber o número e ignoramos o outro.
+const ANVISA_NUMBER_ATTR_IDS = new Set([
+  "ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER",
+  "ANVISA_NOTIFICATION_NUMBER",
+  "ANVISA_PRODUCT_REGISTRATION_NUMBER",
+  "ANVISA_REGISTRATION_NUMBER",
+]);
+
+function isAnvisaNumberAttrName(name: string): boolean {
+  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return n.includes("anvisa") && (
+    n.includes("numero") || n.includes("notifica") || n.includes("comunica") ||
+    n.includes("registro") || n.includes("documento")
+  );
+}
+
+// Escolhe UM dos atributos Anvisa da categoria para receber o número.
+// Hierarquia: obrigatório → notificação → registro.
+function pickAnvisaAttrId(attrs: MeliAttrSpec[]): string | null {
+  const anvisaAttrs = attrs.filter(a =>
+    ANVISA_NUMBER_ATTR_IDS.has(a.id.toUpperCase()) || isAnvisaNumberAttrName(a.name || "")
+  );
+  if (anvisaAttrs.length === 0) return null;
+  // 1) qualquer um obrigatório
+  const req = anvisaAttrs.find(a => a.tags?.required || a.tags?.catalog_required);
+  if (req) return req.id;
+  // 2) notificação/comunicação prévia
+  const notif = anvisaAttrs.find(a => {
+    const n = (a.id + " " + (a.name || "")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return n.includes("notifica") || n.includes("comunica") || n.includes("prior");
+  });
+  if (notif) return notif.id;
+  // 3) primeiro disponível (geralmente registro)
+  return anvisaAttrs[0].id;
+}
+
+// ---------- v2.4.0: Dicionário de sinônimos de substâncias -----------
+// Chave = canônico (será comparado contra a lista oficial do ML por igualdade
+// normalizada). Valores = grafias aceitas na descrição. Tudo case-insensitive
+// e sem acento. Tokens com 3+ chars; "vit" e "b5" são exceções controladas.
+const SUBSTANCE_SYNONYMS: Record<string, string[]> = {
+  "Pantenol": ["pantenol", "d-pantenol", "dpantenol", "bpantol", "b-pantol", "vitamina b5", "vit b5", "b5", "provitamina b5", "pro-vitamina b5"],
+  "Aloe vera": ["aloe vera", "aloevera", "aloe", "babosa"],
+  "Cafeína": ["cafeina", "cafeína", "cafeina anidra", "caffeine"],
+  "Mentol": ["mentol", "menthol"],
+  "Cetoconazol": ["cetoconazol", "ketoconazole"],
+  "Minoxidil": ["minoxidil"],
+  "Biotina": ["biotina", "vitamina b7", "vit b7", "vitamina h"],
+  "Queratina": ["queratina", "keratin", "queratina hidrolisada"],
+  "Colágeno": ["colageno", "colágeno", "collagen", "colageno hidrolisado"],
+  "Argan": ["argan", "óleo de argan", "oleo de argan"],
+  "Coco": ["oleo de coco", "óleo de coco", "coco"],
+  "Manteiga de Karité": ["karite", "karité", "manteiga de karite", "manteiga de karité", "shea butter"],
+  "Vitamina E": ["vitamina e", "vit e", "tocoferol", "alfa-tocoferol"],
+  "Vitamina C": ["vitamina c", "vit c", "acido ascorbico", "ácido ascórbico", "ascorbic acid"],
+  "Vitamina A": ["vitamina a", "vit a", "retinol"],
+  "Niacinamida": ["niacinamida", "niacinamide", "vitamina b3", "vit b3"],
+  "Ácido Hialurônico": ["acido hialuronico", "ácido hialurônico", "hialuronico", "hyaluronic acid"],
+  "Ácido Salicílico": ["acido salicilico", "ácido salicílico", "salicylic acid"],
+  "Alecrim": ["alecrim", "rosemary", "rosmarinus"],
+  "Camomila": ["camomila", "chamomile"],
+  "Lavanda": ["lavanda", "lavender"],
+  "Glicerina": ["glicerina", "glycerin"],
+  "Ureia": ["ureia", "uréia", "urea"],
+  "Silicone": ["silicone", "dimeticona", "dimethicone"],
+  "Proteína de Seda": ["proteina de seda", "proteína de seda", "silk protein"],
+  "Óleo de Rícino": ["oleo de ricino", "óleo de rícino", "castor oil"],
+  "Açaí": ["acai", "açai", "açaí"],
+  "Própolis": ["propolis", "própolis"],
+  "Mel": ["mel", "honey"],
+  "Aveia": ["aveia", "oats"],
+};
+
+function normalizeForMatch(v: string): string {
+  return v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+}
+
+// Para um atributo de lista fechada (ex.: ACTIVE_INGREDIENTS), cruza
+// o texto disponível (extraídos + descrição) contra a lista oficial do ML
+// usando o dicionário de sinônimos. Retorna os valores oficiais casados.
+function crossReferenceClosedList(
+  attr: MeliAttrSpec,
+  texts: string[],
+): Array<{ id: string; name: string }> {
+  if (!attr.values?.length) return [];
+  const hay = " " + normalizeForMatch(texts.filter(Boolean).join("  ")) + " ";
+  if (hay.trim().length === 0) return [];
+  const out: Array<{ id: string; name: string }> = [];
+  const seen = new Set<string>();
+  for (const v of attr.values) {
+    const canon = normalizeForMatch(v.name);
+    // Lista de grafias aceitas: nome oficial + sinônimos cadastrados (se houver).
+    const aliases = new Set<string>([canon]);
+    // Procura entrada do dicionário cuja chave normalizada bata com o nome oficial.
+    for (const [k, syns] of Object.entries(SUBSTANCE_SYNONYMS)) {
+      if (normalizeForMatch(k) === canon) {
+        for (const s of syns) aliases.add(normalizeForMatch(s));
+      }
+    }
+    let hit = false;
+    for (const alias of aliases) {
+      if (alias.length < 2) continue;
+      // Casamento por palavra: cerca por espaços para não casar substring acidental.
+      // "b5" precisa casar como token isolado.
+      const re = new RegExp(`(?:^|[^a-z0-9])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^a-z0-9]|$)`, "i");
+      if (re.test(hay)) { hit = true; break; }
+    }
+    if (hit && !seen.has(v.id)) {
+      seen.add(v.id);
+      out.push({ id: v.id, name: v.name });
+    }
+  }
+  return out;
+}
+
+// Identifica atributos de natureza "substância" (ingrediente/ativo/composição
+// /componente/material/fórmula/composto) — onde o pipeline determinístico
+// deve atuar antes da IA.
+function isSubstanceAttribute(a: MeliAttrSpec): boolean {
+  const idUp = a.id.toUpperCase();
+  if (idUp === "ACTIVE_INGREDIENTS" || idUp === "INGREDIENTS" || idUp === "MATERIALS" || idUp === "COMPONENTS" || idUp === "MAIN_INGREDIENTS") return true;
+  const n = normalizeForMatch(a.name || "");
+  return /(ingredient|ativo|composi[cs]ao|componente|material|formula|composto)/.test(n);
+}
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
