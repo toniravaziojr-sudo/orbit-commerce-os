@@ -17,7 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
+
 import { MeliListingsTab } from "@/components/marketplaces/MeliListingsTab";
 import { MeliMetricsTab } from "@/components/marketplaces/MeliMetricsTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
