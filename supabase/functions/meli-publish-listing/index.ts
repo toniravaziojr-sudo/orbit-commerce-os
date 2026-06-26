@@ -368,14 +368,18 @@ Deno.serve(async (req) => {
           const x = norm(n).replace(/[^a-z]/g, "");
           return x === "naoseaplica" || x === "noaplica" || x === "na";
         };
-        // ML aceita marcador oficial via value_id: "-1" / value_name: "N/A" para grande parte dos atributos.
+        // ML exige value_name = null em "not applicable". Enviamos apenas value_id.
         const naMarker = (spec: any) => {
           if (spec && Array.isArray(spec.values)) {
             const hit = spec.values.find((v: any) => isNaName(v.name));
-            if (hit) return { id: spec.id, value_id: hit.id, value_name: hit.name };
+            if (hit) return { id: spec.id, value_id: hit.id };
           }
           // Fallback universal aceito pelo ML
-          return { id: spec?.id, value_id: "-1", value_name: "N/A" };
+          return { id: spec?.id, value_id: "-1" };
+        };
+        // Atributos onde "Não se aplica" não é aceito — usar fallback determinístico.
+        const NA_FORBIDDEN_DEFAULTS: Record<string, () => string | null> = {
+          UNITS_PER_PACK: () => String(Math.max(1, Number((listing.product as any)?.units_per_package) || 1)),
         };
 
         const cleaned: any[] = [];
@@ -385,8 +389,20 @@ Deno.serve(async (req) => {
             console.log(`[meli-publish-listing] Dropping attr ${attr.id} (no spec in category)`);
             continue;
           }
+          const idUp = String(attr.id).toUpperCase();
           // Marcador "Não se aplica" (v1.9.0) — vem do painel
           if ((attr as any).not_applicable === true || isNaName(attr.value_name)) {
+            const forced = NA_FORBIDDEN_DEFAULTS[idUp]?.();
+            if (forced) {
+              // Tenta casar contra a lista oficial; se não houver lista, vai como texto livre.
+              if (Array.isArray(spec.values) && spec.values.length > 0) {
+                const hit = spec.values.find((v: any) => norm(v.name) === norm(forced));
+                cleaned.push(hit ? { id: spec.id, value_id: hit.id, value_name: hit.name } : { id: spec.id, value_name: forced });
+              } else {
+                cleaned.push({ id: spec.id, value_name: forced });
+              }
+              continue;
+            }
             cleaned.push(naMarker(spec));
             continue;
           }
