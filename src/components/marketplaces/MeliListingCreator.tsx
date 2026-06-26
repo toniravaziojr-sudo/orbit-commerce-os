@@ -551,6 +551,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      categorizeDoneRef.current = true;
     } catch (error) {
       console.error("Create drafts + categorize error:", error);
       toast.error("Erro ao criar rascunhos");
