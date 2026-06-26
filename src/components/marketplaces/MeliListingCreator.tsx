@@ -841,6 +841,12 @@ export function MeliListingCreator({
     const targets = generatedItems.filter(i => i.listingId !== sourceListingId);
     if (targets.length === 0) return;
 
+    // Alvos cuja categoria realmente mudará — só esses têm o cache de
+    // características invalidado (mesma regra do handleCategoryChange).
+    const changedTargetIds = targets
+      .filter(t => t.categoryId !== source.categoryId)
+      .map(t => t.listingId);
+
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === sourceListingId
         ? i
@@ -853,6 +859,7 @@ export function MeliListingCreator({
     ));
 
     try {
+      // Atualização do código/nome/caminho para todos os alvos.
       await supabase
         .from("meli_listings")
         .update({
@@ -861,6 +868,15 @@ export function MeliListingCreator({
           category_path_text: source.categoryPath || null,
         })
         .in("id", targets.map(t => t.listingId));
+
+      // Invalida o cache de características apenas dos alvos cuja categoria mudou.
+      if (changedTargetIds.length > 0) {
+        await supabase
+          .from("meli_listings")
+          .update({ attributes: null })
+          .in("id", changedTargetIds);
+      }
+
       toast.success(`Categoria aplicada a ${targets.length} produto(s).`);
     } catch (err) {
       console.error("Apply category to all error:", err);
