@@ -145,10 +145,6 @@ export default function MercadoLivre() {
               Conexão
             </TabsTrigger>
           )}
-          <TabsTrigger value="pedidos" className="gap-2" disabled={!isConnected}>
-            <ShoppingBag className="h-4 w-4" />
-            Pedidos
-          </TabsTrigger>
           <TabsTrigger value="anuncios" className="gap-2" disabled={!isConnected}>
             <Package className="h-4 w-4" />
             Anúncios
@@ -203,7 +199,7 @@ export default function MercadoLivre() {
                     <div>
                       <h4 className="font-medium text-sm">Pedidos</h4>
                       <p className="text-xs text-muted-foreground">
-                        Receba pedidos automaticamente e processe-os junto com os da sua loja virtual
+                        Os pedidos do Mercado Livre entram automaticamente no módulo <strong>Pedidos</strong> da sua loja, junto com os pedidos da loja virtual. Use o filtro de origem para visualizar apenas os do ML.
                       </p>
                     </div>
                   </div>
@@ -237,9 +233,6 @@ export default function MercadoLivre() {
           </div>
         </TabsContent>
 
-        <TabsContent value="pedidos" className="mt-6">
-          <MeliOrdersTab />
-        </TabsContent>
 
         <TabsContent value="anuncios" className="mt-6">
           <MeliListingsTab />
