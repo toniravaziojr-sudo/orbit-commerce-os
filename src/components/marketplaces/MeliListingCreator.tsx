@@ -800,6 +800,12 @@ export function MeliListingCreator({
     const finalName = categoryName || categoryId;
     const finalPath = normalizeCategoryPath(categoryPath);
 
+    // Descobre se a categoria realmente mudou — só nesse caso invalidamos
+    // o cache de características (regra anti-regressão: troca de categoria
+    // sempre exige nova resolução, pois ML define os atributos por categoria).
+    const prevCategoryId = generatedItems.find(i => i.listingId === listingId)?.categoryId || "";
+    const categoryChanged = prevCategoryId !== categoryId;
+
     setGeneratedItems(prev => prev.map(i =>
       i.listingId === listingId
         ? {
@@ -811,12 +817,16 @@ export function MeliListingCreator({
         : i
     ));
     // Persist code + friendly name + full path so the next dialog open is instant.
+    // Quando a categoria muda, zera `attributes` para forçar o motor a rodar
+    // novamente na próxima abertura do painel (mostrando os campos corretos
+    // da nova categoria, sem resíduo da anterior).
     await supabase
       .from("meli_listings")
       .update({
         category_id: categoryId,
         category_name: finalName || null,
         category_path_text: finalPath || null,
+        ...(categoryChanged ? { attributes: null } : {}),
       })
       .eq("id", listingId);
   };
