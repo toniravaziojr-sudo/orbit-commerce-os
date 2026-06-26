@@ -231,6 +231,12 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 - Os marcadores são resetados **apenas no fechamento do diálogo**. Falhas em uma etapa não setam o marcador — permitindo retry natural ao Continuar novamente.
 - Regerar individualmente continua disponível via botões "Regerar" do próprio painel de cada etapa (ato consciente do lojista, gasto autorizado).
 
+**Troca de categoria invalida características (anti-regressão, 2026-06-26):**
+- Toda vez que a categoria de um anúncio muda — manualmente pelo seletor ou via **"Aplicar a todos"** — o cache de características daquele anúncio é zerado (`meli_listings.attributes = null`).
+- Motivo: o Mercado Livre define o conjunto de atributos **por categoria**. Manter atributos da categoria anterior faria o painel exibir campos que não pertencem mais à categoria atual e ocultar campos novos (ex.: "Ingredientes Ativos" aparecendo em uma categoria e sumindo em outra).
+- Efeito: na próxima abertura do painel, o motor de características roda uma única vez para a nova categoria e exibe exatamente os campos que o ML define para ela. A memória de ajustes manuais por produto (v2.1.0) continua sendo aplicada quando o nome da característica casa.
+- A invalidação só ocorre quando o código da categoria realmente muda — selecionar a mesma categoria não dispara reprocessamento.
+
 **Sincronização com o Mercado Livre:**
 - **Títulos:** Prompt IA gera com tipo de produto primeiro, limite dinâmico por categoria (`max_title_length` da API ML), sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
 - **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars

@@ -17,6 +17,7 @@ A função `checkMlReadiness` em `src/lib/marketplaces/mlReadiness.ts` é a **ú
 - Alterar a lista de campos obrigatórios sem atualizar `checkMlReadiness` + doc `mercado-livre.md` v3.8 + esta memória.
 - Pular a checagem do wizard "porque o painel já está verde" — o cadastro pode ter mudado entre o resolve e o publish.
 - Reprocessar Categorias/Títulos/Descrições no wizard ao clicar Voltar→Continuar: cada etapa só roda uma vez por abertura do diálogo (refs `categorizeDoneRef`/`titlesDoneRef`/`descriptionsDoneRef`, reset apenas no close). Regerar é exclusivamente via botões explícitos do painel.
+- Trocar categoria de um anúncio (seletor manual ou "Aplicar a todos") **sempre zera `meli_listings.attributes`** quando o código da categoria realmente muda. ML define atributos por categoria — manter o cache antigo faria o painel mostrar campos errados. A invalidação roda em `handleCategoryChange` e `handleApplyCategoryToAll` (`MeliListingCreator.tsx`); na reabertura o painel chama o motor uma única vez para a nova categoria.
 
 **Campos obrigatórios atuais (v3.8):** brand, gtin, model, weight, width, height, depth, universal_category_id, net_content_value+unit. Para `regulatory_regime = anvisa_cosmetic`, adicionar: dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance.
 
