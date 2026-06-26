@@ -603,6 +603,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      titlesDoneRef.current = true;
     } catch (error) {
       console.error("Generate titles error:", error);
       toast.error("Erro ao gerar títulos");
