@@ -646,6 +646,10 @@ Deno.serve(async (req) => {
     // Processa em lotes de 25 para não estourar contexto e dar melhor qualidade.
     if (aiPending.length > 0) {
       const regInfo: any = (product as any).regulatory_info || {};
+      // v2.2.0: extração estruturada de ingredientes/componentes da descrição.
+      const substancesText = [product.description, product.short_description].filter(Boolean).join("\n\n");
+      const ingredientesExtraidos = extractSubstancesFromDescription(substancesText);
+      const rotuloSubstancias = substanceLabelForProduct(product, universalCategory?.name ?? null);
       const productContext = {
         nome: product.name,
         descricao_curta: (product.short_description || "").slice(0, 600),
