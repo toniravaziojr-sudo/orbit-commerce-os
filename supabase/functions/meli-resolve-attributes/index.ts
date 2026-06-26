@@ -101,7 +101,49 @@ function isMultiValuedSpec(spec: MeliAttrSpec): boolean {
   return false;
 }
 
-Deno.serve(async (req) => {
+// --------- v2.2.0: Extração de ingredientes/componentes da descrição -------
+// Heurística por regex (zero IA). Captura blocos rotulados como
+// "Ingredientes / Ativos / Composição / Fórmula / Componentes / Tecnologia"
+// e devolve uma lista plana de itens. Quando nada bate, devolve [].
+const SUBSTANCE_HEADER_REGEX =
+  /(?:^|\n|\.)\s*(?:ingredientes\s+ativos|ingredientes|ativos|composi[cç][aã]o|f[oó]rmula|componentes|compostos|tecnologia|materiais)\s*[:\-–]\s*([\s\S]*?)(?:\n\s*\n|\n\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n:]{0,40}:|$)/gi;
+
+function extractSubstancesFromDescription(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const clean = String(text).replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ");
+  const found = new Set<string>();
+  let m: RegExpExecArray | null;
+  SUBSTANCE_HEADER_REGEX.lastIndex = 0;
+  while ((m = SUBSTANCE_HEADER_REGEX.exec(clean)) !== null) {
+    const block = (m[1] || "").trim();
+    if (!block) continue;
+    // separa por vírgula, ponto-e-vírgula, " e ", " / ", bullets, quebras de linha
+    block
+      .split(/[,;\n•·]|(?:\s+e\s+)|(?:\s*\/\s*)|(?:\s*\+\s*)/i)
+      .map((s) => s.replace(/^[\s\-–*]+|[\s\.\,]+$/g, "").trim())
+      .filter((s) => s.length >= 2 && s.length <= 60 && /[a-zA-ZÀ-ÿ]/.test(s))
+      .forEach((s) => found.add(s));
+  }
+  return Array.from(found).slice(0, 40);
+}
+
+// Rótulo correto da natureza das substâncias por tipo de produto.
+function substanceLabelForProduct(p: any, universalCategoryName: string | null): string {
+  const hay = [
+    p?.product_type, p?.ai_product_type, p?.ai_main_function,
+    p?.regulatory_category, universalCategoryName,
+  ].filter(Boolean).join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/(cosmet|capilar|cabelo|pele|skin|barba|shampoo|condiciona|balm|locao|locão|creme|serum|sérum|perfume|maquiag)/.test(hay))
+    return "ingredientes ativos";
+  if (/(suplement|vitamin|protein|whey|aminoacid|aminoácid|nutric|alimentar)/.test(hay))
+    return "compostos / nutrientes";
+  if (/(eletron|equipament|aparelho|dispositivo|gadget|smartphone|notebook)/.test(hay))
+    return "componentes / materiais";
+  if (/(roupa|tecid|vestu|cal[cç]ad|bolsa|acess[oó]rio)/.test(hay))
+    return "materiais";
+  return "componentes";
+}
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
