@@ -1055,22 +1055,23 @@ export function MeliListingCreator({
       setProcessingLabel("");
       setProcessingProgress(0);
       if (idx === 0) {
-        // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
+        // Select → Categories: cria rascunhos + auto-categoriza (1ª vez apenas).
+        // Em configure mode nunca recria; em creation mode, só se ainda não rodou.
         setStep("categories");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !categorizeDoneRef.current) {
           setTimeout(() => handleCreateDraftsAndCategorize(), 100);
         }
       } else if (idx === 1) {
-        // Categories → Titles: generate titles only on first pass (creation mode)
+        // Categories → Titles: gera títulos apenas na 1ª passagem (creation mode).
         setStep("titles");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !titlesDoneRef.current) {
           setTimeout(() => handleGenerateTitles(), 100);
         }
       } else if (idx === 2) {
-        // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
+        // Titles → Descriptions: salva títulos; gera descrições apenas na 1ª passagem.
         await handleSaveTitles();
         setStep("descriptions");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !descriptionsDoneRef.current) {
           setTimeout(() => handleGenerateDescriptions(), 100);
         }
       } else if (idx === 3) {
