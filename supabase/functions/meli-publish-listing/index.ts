@@ -495,20 +495,21 @@ Deno.serve(async (req) => {
         const causeMessages = causes.map((c: any) => c.message || c.code || JSON.stringify(c)).join("; ");
         errorMsg = `${errorMsg}: ${causeMessages}`;
       }
+      const friendlyMsg = humanizeMeliError(errorMsg, causes);
       console.error(`[meli-publish-listing] ML API error ${publishRes.status}:`, JSON.stringify(responseData).slice(0, 1000));
 
       await supabase
         .from("meli_listings")
         .update({
           status: "error",
-          error_message: errorMsg.slice(0, 500),
+          error_message: friendlyMsg.slice(0, 500),
           meli_response: responseData,
         })
         .eq("id", listingId);
 
       return jsonResponse({
         success: false,
-        error: errorMsg,
+        error: friendlyMsg,
         details: causes.length > 0 ? causes : undefined,
       });
     }
