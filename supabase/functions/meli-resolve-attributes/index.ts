@@ -380,6 +380,12 @@ Deno.serve(async (req) => {
     }
     const meliAttrs: MeliAttrSpec[] = await attrRes.json();
 
+    // v2.4.0 — escolhe UM atributo Anvisa para receber o número (evita duplicação).
+    const selectedAnvisaAttrId = pickAnvisaAttrId(meliAttrs);
+    if (selectedAnvisaAttrId) {
+      console.log(`[meli-resolve-attributes] ANVISA: atributo selecionado = ${selectedAnvisaAttrId}`);
+    }
+
     // ---- 3. Dicionário universal ---------------------------------------
     const { data: dict } = await supabase
       .from("system_marketplace_attribute_dictionary")
