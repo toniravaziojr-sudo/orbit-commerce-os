@@ -1,53 +1,42 @@
 ## Como funciona hoje
-No resolvedor de atributos do Mercado Livre, o contexto do produto enviado à IA contém apenas `descricao_longa` truncada em 1500 caracteres. Não existe um campo dedicado de "ingredientes/ativos/componentes". Resultado: quando a IA precisa responder atributos multi-valor como `ACTIVE_INGREDIENTS` (lista fechada de 13 valores oficiais do ML: Aloe vera, Cafeína, Pantenol, Queratina, Proteína, Karité etc.), ela acaba escolhendo apenas um ingrediente óbvio ("Aloe vera") e ignora os demais que estão na descrição (Cafeína, Proteína etc.).
+
+1. Ao abrir o diálogo a primeira vez, o sistema sugere uma categoria automática para cada produto e o motor de características roda para essa categoria. O resultado é salvo no anúncio junto com o código da categoria.
+2. Quando o lojista troca a categoria manualmente no seletor, o sistema atualiza o **código da categoria** no anúncio, mas **não limpa as características antigas** que ficaram salvas da categoria anterior.
+3. Na próxima abertura do painel, a lógica de hidratação verifica: "a categoria salva é a mesma da atual? Sim. Tem características salvas? Sim. Então pula o motor e mostra o que está salvo." Resultado: **mostra as características da categoria antiga**, e campos que existem só na nova categoria (como "Ingredientes Ativos") nunca aparecem, enquanto campos que só existiam na antiga (como "Tipo de Tratamento") continuam aparecendo.
 
 ## O problema
-1. A descrição é jogada inteira no prompt, sem destacar a seção de ingredientes/ativos.
-2. A IA não recebe orientação explícita de varrer toda a lista da descrição e cruzar com a lista oficial do ML.
-3. Não há diferenciação por tipo de produto — em cosméticos chama-se "ingredientes/ativos", em eletrônicos "componentes", em suplementos "compostos". A IA precisa saber qual rótulo é o correto antes de extrair.
+
+Trocar a categoria manualmente persiste só o código novo, sem invalidar as características anteriores. O painel acredita que está tudo coerente e nunca pede nova resolução para a categoria escolhida pelo lojista. Mesmo "escolhendo a mesma categoria de antes", se em algum momento a auto-categorização original ficou diferente da escolha manual, o anúncio fica preso ao primeiro conjunto resolvido.
+
+Há ainda um caso espelho: o botão **"Aplicar categoria a todos"** também atualiza só o código da categoria nos demais anúncios, sem invalidar as características que cada um tinha antes.
 
 ## O que eu faria
 
-### 1. Extração estruturada na origem (loader)
-No fluxo do resolver, antes de montar o `productContext`, extrair da descrição (longa + curta + ficha técnica) as seções rotuladas como **Ingredientes / Ingredientes ativos / Ativos / Composição / Fórmula / Componentes / Compostos / Tecnologia**. Heurística simples por regex de cabeçalho/linha (sem custo de IA): captura o bloco entre o rótulo e o próximo cabeçalho/parágrafo.
+Ajuste pontual, sem mudar UX nem fluxo:
 
-Resultado vira um array bruto `ingredientes_extraidos_texto: string[]` (ex.: `["Cafeína", "Aloe vera", "Alecrim", "Mentol", "Cetoconazol", "BPantol", "BIOEX", "Proteção UV"]`). Se nada for capturado, manda `null` — sem invenção.
+1. **Toda vez que a categoria de um anúncio mudar** (manualmente ou via "Aplicar a todos"), a persistência também **zera as características salvas** desse anúncio. Resultado: na próxima abertura do painel, o motor roda novamente para a categoria correta — uma única vez — e o conteúdo passa a refletir exatamente o que o Mercado Livre define para a categoria escolhida pelo lojista.
 
-### 2. Rótulo correto por tipo de produto
-Anexar ao contexto um campo `rotulo_de_substancias` derivado de `universal_category_id` / `ai_product_type`:
-- cosmético / capilar / pele → "ingredientes ativos"
-- suplemento / alimento → "compostos / nutrientes"
-- eletrônico / equipamento → "componentes / materiais"
-- default → "componentes"
+2. **Limpeza do estado em memória do item** logo após a troca, para evitar "piscar" o conjunto antigo enquanto o painel está sendo reaberto.
 
-Isso vai junto no contexto para a IA usar a palavra certa nos campos descritivos e não confundir naturezas.
+3. **Reforço de coerência na leitura:** a regra de hidratação rápida ("só aproveita o cache se o código da categoria salva for igual ao atual") já existe. Com o cache zerado na troca, ela passa a ser efetiva — hoje os dois ficam iguais artificialmente após a troca manual e por isso ela nunca dispara.
 
-### 3. Regra explícita no prompt para atributos de lista fechada multi-valor
-Adicionar bloco de regra dedicado para `ACTIVE_INGREDIENTS`, `INGREDIENTS`, `MATERIALS`, `COMPONENTS` (e quaisquer atributos cujo nome contenha "ingrediente", "ativo", "composição", "componente", "material"):
-- Quando `multi=true` e há lista fechada `values`, **cruzar TODOS os itens de `ingredientes_extraidos_texto` com a lista oficial** usando normalização (case-insensitive, sem acento, sem espaço extra; tratar sinônimos óbvios como "AloeVera"→"Aloe vera", "B5"→"Pantenol", "Vit E"→"Vitamina E").
-- Devolver **todos** os que casarem, separados por vírgula.
-- Ingredientes que não estão na lista oficial do ML são **ignorados** (não inventar opção fora da lista — já é regra v2.0.0).
-
-### 4. Memória manual continua precedendo
-Se o usuário já editou manualmente `ACTIVE_INGREDIENTS` para esse produto (v2.1.0 — `meli_product_attribute_memory`), ela continua tendo prioridade absoluta. A nova extração só roda quando o atributo está pendente.
-
-### 5. Custo
-Zero chamadas extras de IA. Apenas mais ~200 caracteres no prompt já existente (lista de ingredientes extraídos + 1 regra nova). Sem impacto em latência ou tokens significativos.
-
-### 6. Documentação
-- Atualizar `.lovable/memory/constraints/meli-resolve-attributes-hardening.md` com nova regra 16 (Extração de ingredientes/componentes).
-- Atualizar `docs/especificacoes/marketplaces/mercado-livre.md` com seção "v2.2.0 — Extração de Ingredientes/Componentes da Descrição".
+4. **Anti-regressão:** registrar nas regras do módulo Mercado Livre que **trocar categoria = invalidar características anteriores**. Assim qualquer evolução futura (troca via API, troca em massa, importador) respeita a mesma regra.
 
 ## Resultado final
-No produto "Balm Pós-Banho Calvície Zero", o painel passa a sugerir em `Ingredientes Ativos`: **"Aloe vera, Cafeína, Proteína"** (os 3 itens da lista oficial do ML que aparecem na descrição), em vez de só "Aloe vera". Em produtos de outra natureza (eletrônico, suplemento) a mesma lógica funciona usando o rótulo correto, sem confundir ingredientes com componentes.
+
+- Trocar a categoria no diálogo, manualmente ou via "Aplicar a todos", sempre dispara nova resolução das características para a categoria escolhida.
+- Campos da nova categoria aparecem (ex.: "Ingredientes Ativos"), campos da categoria anterior somem (ex.: "Tipo de Tratamento") — o painel passa a ser fiel ao que o ML define para aquela categoria.
+- Reabrir o diálogo continua instantâneo se nada mudou (o cache continua valendo), só perde o atalho quando há razão real (categoria diferente).
+- A memória de ajustes manuais por produto continua valendo: o que o lojista já editou em outras categorias continua aprendido e é reaplicado pelo motor quando o nome da característica casa.
+- Custo de IA: igual ou menor (para de exibir o conjunto errado, evita o lojista pedir "Recalcular" como contorno).
 
 ## Detalhes técnicos
-- Arquivo afetado: `supabase/functions/meli-resolve-attributes/index.ts` (sem mudança de schema, sem nova tabela, sem nova edge function).
-- Função utilitária nova `extractSubstancesFromDescription(text, productKind)` no mesmo arquivo.
-- Mapa `SUBSTANCE_LABEL_BY_KIND` com 4 categorias e default.
-- Sem mudança de UI/UX, sem mudança de contrato de negócio.
 
-## Pendências de confirmação
-Nenhuma — escopo já confirmado pela sua mensagem (extrair ingredientes via IA, garantindo que o sistema saiba o tipo correto de substância por categoria de produto). Mudanças são só técnicas, sem alterar UI.
+- `src/components/marketplaces/MeliListingCreator.tsx`, funções `handleCategoryChange` e `handleApplyCategoryToAll`: incluir `attributes: null` no `update` em `meli_listings`. Também limpar o estado local do item para evitar flicker.
+- `src/components/marketplaces/MeliAttributesPanel.tsx`, `loadSavedOrResolve`: nenhuma mudança lógica — com o cache zerado a função cai naturalmente no caminho do resolver.
+- Doc: `docs/especificacoes/marketplaces/mercado-livre.md` — adicionar nota "Troca de categoria invalida características" na seção de Idempotência.
+- Memória: `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — adicionar bullet "Toda troca de categoria zera o cache de características do anúncio".
 
-Confirma que eu sigo com o ajuste?
+## Pendência
+
+Confirma que posso ajustar?
