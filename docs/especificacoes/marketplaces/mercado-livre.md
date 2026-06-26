@@ -1257,3 +1257,31 @@ A memória entra **antes** da chamada de IA. Match positivo pula a IA inteira pa
 - Armazenamento: tabela `meli_product_attribute_memory` (RLS por tenant; ON DELETE CASCADE em `products.id`).
 - Captura: `MeliAttributesPanel.handleEdit` e `handleMarkNotApplicable` fazem upsert direto no banco.
 - Leitura/aplicação: `supabase/functions/meli-resolve-attributes/index.ts` carrega `tenantMemoryByName`/`tenantMemoryById` no início e aplica como nova etapa **5.0** do loop por atributo, antes da heurística determinística e da IA.
+
+## v2.2.0 — Extração de Ingredientes/Componentes da Descrição (2026-06-26)
+
+### Problema
+Em atributos multi-valor de lista fechada como `ACTIVE_INGREDIENTS` (13 opções oficiais: Aloe vera, Cafeína, Pantenol, Queratina, Proteína, Karité etc.), a IA escolhia apenas um item óbvio ("Aloe vera") e ignorava os demais que apareciam na descrição. O contexto enviado à IA não destacava a seção de ingredientes nem orientava o cruzamento sistemático com a lista oficial.
+
+### Solução
+1. **Extração estruturada (zero IA).** Helper `extractSubstancesFromDescription` faz regex sobre `description` + `short_description` procurando blocos rotulados como **Ingredientes / Ingredientes ativos / Ativos / Composição / Fórmula / Componentes / Compostos / Tecnologia / Materiais**. Splita por vírgula, ponto-e-vírgula, " e ", "/", "+", bullets e quebras de linha. Resultado: array `ingredientes_extraidos_texto`.
+2. **Rótulo correto por natureza do produto.** Helper `substanceLabelForProduct` mapeia `product_type`/`ai_product_type`/`regulatory_category`/categoria universal para o rótulo certo:
+   - cosmético/capilar/pele → "ingredientes ativos"
+   - suplemento/alimento → "compostos / nutrientes"
+   - eletrônico/equipamento → "componentes / materiais"
+   - roupa/tecido → "materiais"
+   - default → "componentes"
+3. **Regra explícita no prompt.** Para qualquer atributo cujo NOME ou ID contenha ingrediente/ativo/composição/componente/material/compostos/fórmula (inclusive `ACTIVE_INGREDIENTS`, `INGREDIENTS`, `MATERIALS`, `COMPONENTS`), a IA deve:
+   - Cruzar CADA item de `ingredientes_extraidos_texto` com a lista oficial `values`.
+   - Normalizar antes (case, acento, espaço, sinônimos óbvios: AloeVera↔Aloe vera, B5↔Pantenol, Vit E↔Vitamina E, Karité↔Manteiga de Karité).
+   - Quando `multi=true`, devolver TODOS os matches separados por vírgula — nunca parar no primeiro.
+   - Ignorar itens da descrição que não estão na lista oficial. Proibido inventar opção fora de `values`.
+   - Fallback: se `ingredientes_extraidos_texto` for nulo, varrer descrições inteiras procurando ocorrências da lista oficial.
+
+### Onde está implementado
+- `supabase/functions/meli-resolve-attributes/index.ts` (helpers `extractSubstancesFromDescription` e `substanceLabelForProduct`; campos `ingredientes_extraidos_texto` e `rotulo_de_substancias` no `productContext`; regra no prompt da etapa 6).
+- Memória manual por produto (v2.1.0) continua tendo prioridade absoluta — a extração só roda quando o atributo está pendente após cadastro/derivação/dicionário/memória.
+
+### Resultado esperado
+Em "Balm Pós-Banho Calvície Zero" (descrição com Cafeína, Aloe vera, Alecrim, Mentol, Cetoconazol, BPantol, BIOEX, Proteção UV), `ACTIVE_INGREDIENTS` passa a sugerir **"Aloe vera, Cafeína, Proteína"** (os 3 itens que casam com a lista oficial do ML) em vez de só "Aloe vera". Em produtos não-cosméticos, o mesmo motor funciona usando o rótulo correto para a natureza do produto.
+
