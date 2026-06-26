@@ -78,6 +78,23 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error("[meli-webhook] syncItemFromWebhook error:", e);
       }
+    } else if (topic === "orders_v2" || topic === "orders" || topic === "shipments") {
+      // Entrada automática de pedidos no módulo central — dispara sync do pedido específico
+      try {
+        const orderId = String(resource).split("/").pop();
+        if (orderId) {
+          await fetch(`${supabaseUrl}/functions/v1/meli-sync-orders`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ tenantId: connection.tenant_id, orderId }),
+          });
+        }
+      } catch (e) {
+        console.error("[meli-webhook] orders sync trigger error:", e);
+      }
     }
 
     return new Response(

@@ -17,7 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
+
 import { MeliListingsTab } from "@/components/marketplaces/MeliListingsTab";
 import { MeliMetricsTab } from "@/components/marketplaces/MeliMetricsTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
@@ -39,13 +39,20 @@ export default function MercadoLivre() {
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
   
   const tabFromUrl = searchParams.get("tab");
-  const resolvedDefault = tabFromUrl || (isConnected ? "pedidos" : "conexao");
+  const resolvedDefault = tabFromUrl && tabFromUrl !== "pedidos" ? tabFromUrl : (isConnected ? "anuncios" : "conexao");
   const [activeTab, setActiveTab] = useState(resolvedDefault);
+
+  // Aba "Pedidos" foi unificada no módulo central de Pedidos — redirecionar links antigos
+  useEffect(() => {
+    if (tabFromUrl === "pedidos") {
+      navigate("/orders?channel=mercadolivre", { replace: true });
+    }
+  }, [tabFromUrl, navigate]);
 
   // When loading finishes and connection status is known, switch tab
   useEffect(() => {
     if (!isLoading && !tabFromUrl) {
-      setActiveTab(isConnected ? "pedidos" : "conexao");
+      setActiveTab(isConnected ? "anuncios" : "conexao");
     }
   }, [isLoading, isConnected, tabFromUrl]);
 
@@ -138,10 +145,6 @@ export default function MercadoLivre() {
               Conexão
             </TabsTrigger>
           )}
-          <TabsTrigger value="pedidos" className="gap-2" disabled={!isConnected}>
-            <ShoppingBag className="h-4 w-4" />
-            Pedidos
-          </TabsTrigger>
           <TabsTrigger value="anuncios" className="gap-2" disabled={!isConnected}>
             <Package className="h-4 w-4" />
             Anúncios
@@ -196,7 +199,7 @@ export default function MercadoLivre() {
                     <div>
                       <h4 className="font-medium text-sm">Pedidos</h4>
                       <p className="text-xs text-muted-foreground">
-                        Receba pedidos automaticamente e processe-os junto com os da sua loja virtual
+                        Os pedidos do Mercado Livre entram automaticamente no módulo <strong>Pedidos</strong> da sua loja, junto com os pedidos da loja virtual. Use o filtro de origem para visualizar apenas os do ML.
                       </p>
                     </div>
                   </div>
@@ -230,9 +233,6 @@ export default function MercadoLivre() {
           </div>
         </TabsContent>
 
-        <TabsContent value="pedidos" className="mt-6">
-          <MeliOrdersTab />
-        </TabsContent>
 
         <TabsContent value="anuncios" className="mt-6">
           <MeliListingsTab />
