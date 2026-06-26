@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "2.0.0";
+const VERSION = "2.2.0";
 
 // --------- Sanitização universal de valores vindos da IA ------------
 // A IA pode devolver string, array, objeto, número, null ou undefined.
@@ -101,8 +101,52 @@ function isMultiValuedSpec(spec: MeliAttrSpec): boolean {
   return false;
 }
 
+// --------- v2.2.0: Extração de ingredientes/componentes da descrição -------
+// Heurística por regex (zero IA). Captura blocos rotulados como
+// "Ingredientes / Ativos / Composição / Fórmula / Componentes / Tecnologia"
+// e devolve uma lista plana de itens. Quando nada bate, devolve [].
+const SUBSTANCE_HEADER_REGEX =
+  /(?:^|\n|\.)\s*(?:ingredientes\s+ativos|ingredientes|ativos|composi[cç][aã]o|f[oó]rmula|componentes|compostos|tecnologia|materiais)\s*[:\-–]\s*([\s\S]*?)(?:\n\s*\n|\n\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n:]{0,40}:|$)/gi;
+
+function extractSubstancesFromDescription(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const clean = String(text).replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ");
+  const found = new Set<string>();
+  let m: RegExpExecArray | null;
+  SUBSTANCE_HEADER_REGEX.lastIndex = 0;
+  while ((m = SUBSTANCE_HEADER_REGEX.exec(clean)) !== null) {
+    const block = (m[1] || "").trim();
+    if (!block) continue;
+    // separa por vírgula, ponto-e-vírgula, " e ", " / ", bullets, quebras de linha
+    block
+      .split(/[,;\n•·]|(?:\s+e\s+)|(?:\s*\/\s*)|(?:\s*\+\s*)/i)
+      .map((s) => s.replace(/^[\s\-–*]+|[\s\.\,]+$/g, "").trim())
+      .filter((s) => s.length >= 2 && s.length <= 60 && /[a-zA-ZÀ-ÿ]/.test(s))
+      .forEach((s) => found.add(s));
+  }
+  return Array.from(found).slice(0, 40);
+}
+
+// Rótulo correto da natureza das substâncias por tipo de produto.
+function substanceLabelForProduct(p: any, universalCategoryName: string | null): string {
+  const hay = [
+    p?.product_type, p?.ai_product_type, p?.ai_main_function,
+    p?.regulatory_category, universalCategoryName,
+  ].filter(Boolean).join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/(cosmet|capilar|cabelo|pele|skin|barba|shampoo|condiciona|balm|locao|locão|creme|serum|sérum|perfume|maquiag)/.test(hay))
+    return "ingredientes ativos";
+  if (/(suplement|vitamin|protein|whey|aminoacid|aminoácid|nutric|alimentar)/.test(hay))
+    return "compostos / nutrientes";
+  if (/(eletron|equipament|aparelho|dispositivo|gadget|smartphone|notebook)/.test(hay))
+    return "componentes / materiais";
+  if (/(roupa|tecid|vestu|cal[cç]ad|bolsa|acess[oó]rio)/.test(hay))
+    return "materiais";
+  return "componentes";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -602,6 +646,10 @@ Deno.serve(async (req) => {
     // Processa em lotes de 25 para não estourar contexto e dar melhor qualidade.
     if (aiPending.length > 0) {
       const regInfo: any = (product as any).regulatory_info || {};
+      // v2.2.0: extração estruturada de ingredientes/componentes da descrição.
+      const substancesText = [product.description, product.short_description].filter(Boolean).join("\n\n");
+      const ingredientesExtraidos = extractSubstancesFromDescription(substancesText);
+      const rotuloSubstancias = substanceLabelForProduct(product, universalCategory?.name ?? null);
       const productContext = {
         nome: product.name,
         descricao_curta: (product.short_description || "").slice(0, 600),
@@ -626,6 +674,8 @@ Deno.serve(async (req) => {
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
         composicao: compArr.length > 0 ? compArr.map(c => ({ qtd: c.quantity, peso_g: c.component?.weight, conteudo: c.component?.net_content_value })) : null,
+        rotulo_de_substancias: rotuloSubstancias,
+        ingredientes_extraidos_texto: ingredientesExtraidos.length > 0 ? ingredientesExtraidos : null,
         cosmetico: {
           dermatologicamente_testado: product.dermatologically_tested,
           hipoalergenico: product.hypoallergenic,
@@ -700,6 +750,16 @@ REGRA OBRIGATÓRIA — números regulatórios (ANVISA / AFE / CONAMA):
 - Quando o atributo pedir "Número de notificação/comunicação prévia na Anvisa" ou "Número de registro de produto na Anvisa", use exatamente o valor de numeros_regulatorios.anvisa do cadastro (mantenha o formato original).
 - Para "Certificado AFE": use numeros_regulatorios.afe. Para "Licença CONAMA": use numeros_regulatorios.conama.
 - Só responda "NAO_SE_APLICA" quando o campo correspondente do cadastro estiver vazio.
+
+REGRA OBRIGATÓRIA — INGREDIENTES / ATIVOS / COMPONENTES / MATERIAIS (v2.2.0):
+- A natureza correta das substâncias deste produto é "${rotuloSubstancias}" (use esse rótulo para raciocinar — não confunda "ingredientes" com "componentes" em produtos não-cosméticos).
+- Para qualquer atributo cujo NOME (ou id) contenha "ingrediente", "ativo", "composição", "componente", "material", "compostos", "fórmula" — ou ids como ACTIVE_INGREDIENTS, INGREDIENTS, MATERIALS, COMPONENTS:
+  • Use ingredientes_extraidos_texto como fonte primária; cruze CADA item com a lista oficial "values" do atributo.
+  • Normalize antes de comparar: minúsculas, sem acento, sem espaço extra. Aceite sinônimos óbvios: "AloeVera"="Aloe vera", "B5"="Pantenol", "Vit E"="Vitamina E", "Vit C"="Vitamina C", "Cafeína"="Cafeina", "Karité"="Manteiga de Karité".
+  • Se o atributo é MULTI (multi=true), devolva TODOS os itens que casarem, separados por vírgula. Não pare no primeiro.
+  • Itens da descrição que NÃO estão na lista oficial são IGNORADOS — proibido inventar opção fora de "values".
+  • Se ingredientes_extraidos_texto for nulo/vazio, varra mesmo assim descricao_curta + descricao_longa procurando ocorrências dos itens da lista oficial.
+  • Só responda "NAO_SE_APLICA" se nenhum item da lista oficial aparecer em lugar nenhum do cadastro.
 
 Produto: ${JSON.stringify(productContext)}
 
