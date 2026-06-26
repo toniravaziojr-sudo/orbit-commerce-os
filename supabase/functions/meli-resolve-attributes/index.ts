@@ -752,7 +752,7 @@ REGRA OBRIGATÓRIA — números regulatórios (ANVISA / AFE / CONAMA):
 - Só responda "NAO_SE_APLICA" quando o campo correspondente do cadastro estiver vazio.
 
 REGRA OBRIGATÓRIA — INGREDIENTES / ATIVOS / COMPONENTES / MATERIAIS (v2.2.0):
-- A natureza correta das substâncias deste produto é "${'$'}{rotuloSubstancias}" (use esse rótulo para raciocinar — não confunda "ingredientes" com "componentes" em produtos não-cosméticos).
+- A natureza correta das substâncias deste produto é "${rotuloSubstancias}" (use esse rótulo para raciocinar — não confunda "ingredientes" com "componentes" em produtos não-cosméticos).
 - Para qualquer atributo cujo NOME (ou id) contenha "ingrediente", "ativo", "composição", "componente", "material", "compostos", "fórmula" — ou ids como ACTIVE_INGREDIENTS, INGREDIENTS, MATERIALS, COMPONENTS:
   • Use ingredientes_extraidos_texto como fonte primária; cruze CADA item com a lista oficial "values" do atributo.
   • Normalize antes de comparar: minúsculas, sem acento, sem espaço extra. Aceite sinônimos óbvios: "AloeVera"="Aloe vera", "B5"="Pantenol", "Vit E"="Vitamina E", "Vit C"="Vitamina C", "Cafeína"="Cafeina", "Karité"="Manteiga de Karité".
