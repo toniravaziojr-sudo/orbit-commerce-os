@@ -200,6 +200,12 @@ export function MeliListingCreator({
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
 
+  // Idempotência por step (criação): impede que clicar Voltar→Continuar reprocesse
+  // categorização/títulos/descrições. Reset apenas no fechamento do diálogo.
+  const categorizeDoneRef = useRef(false);
+  const titlesDoneRef = useRef(false);
+  const descriptionsDoneRef = useRef(false);
+
   // Debounced persistence buffers for inline title/description edits
   const pendingEditsRef = useRef<Map<string, { title?: string; description?: string }>>(new Map());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
