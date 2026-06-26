@@ -697,24 +697,21 @@ Deno.serve(async (req) => {
           value_name = "ANVISA";
           source = "product";
         }
-        // --- Números regulatórios (ANVISA / AFE / CONAMA) por NOME do atributo da categoria ---
-        // ML usa IDs diferentes por categoria (ex.: ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER,
-        // ANVISA_PRODUCT_REGISTRATION_NUMBER, AFE_CERTIFICATION_NUMBER, CONAMA_LICENSE_NUMBER).
-        // Casamos pelo nome humano para cobrir todas as variações.
+        // --- Números regulatórios (ANVISA / AFE / CONAMA) ---
+        // v2.4.0: ANVISA usa atributo único pré-selecionado por categoria
+        // (evita duplicação entre notificação e registro). AFE/CONAMA seguem
+        // por nome — não têm o mesmo problema de duplicidade.
         else {
           const regInfo = (product as any).regulatory_info || {};
           const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
           const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
           const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
           const nameNorm = normalizeText(a.name || "");
-          const isAnvisaNumber = nameNorm.includes("anvisa") && (
-            nameNorm.includes("numero") || nameNorm.includes("notifica") ||
-            nameNorm.includes("comunica") || nameNorm.includes("registro") ||
-            nameNorm.includes("documento")
-          );
           const isAfeNumber = nameNorm.includes("afe") && (nameNorm.includes("certificad") || nameNorm.includes("numero") || nameNorm.includes("autorizac"));
           const isConamaNumber = nameNorm.includes("conama");
-          if (isAnvisaNumber && anvisaNum) { value_name = anvisaNum; source = "product"; }
+          if (selectedAnvisaAttrId && a.id === selectedAnvisaAttrId && anvisaNum) {
+            value_name = anvisaNum; source = "product";
+          }
           else if (isAfeNumber && afeNum) { value_name = afeNum; source = "product"; }
           else if (isConamaNumber && conamaNum) { value_name = conamaNum; source = "product"; }
         }
