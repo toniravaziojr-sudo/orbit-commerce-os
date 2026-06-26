@@ -569,6 +569,66 @@ Deno.serve(async (req) => {
 // ===================== Helper Functions =====================
 
 /**
+ * Converte mensagens técnicas do ML em texto amigável em PT-BR para o lojista.
+ */
+function humanizeMeliError(raw: string, causes: any[]): string {
+  const all = [
+    raw,
+    ...(Array.isArray(causes) ? causes.map((c) => c?.message || c?.code || "").filter(Boolean) : []),
+  ].join(" \n ");
+
+  const bullets: string[] = [];
+  const seen = new Set<string>();
+  const add = (msg: string) => {
+    if (msg && !seen.has(msg)) { seen.add(msg); bullets.push(msg); }
+  };
+
+  if (/value name must be null in not applicable attribute\s+([A-Z_]+)/i.test(all)) {
+    const matches = [...all.matchAll(/value name must be null in not applicable attribute\s+([A-Z_]+)/gi)];
+    for (const m of matches) {
+      add(`A característica "${prettyAttrName(m[1])}" foi marcada como "Não se aplica" mas o Mercado Livre exige um valor real. Edite a característica no painel ou preencha no cadastro do produto.`);
+    }
+  }
+  if (/UNITS_PER_PACK/i.test(all) && /(Unidade|sale_format|formato de venda)/i.test(all)) {
+    add('A característica "Unidades por kit" precisa ser pelo menos 1 quando o "Formato de venda" é "Unidade". Ajuste no painel de características.');
+  }
+  if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all)) {
+    add('O número da ANVISA do produto está em formato inválido para o Mercado Livre. Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
+  }
+  if (/Número de certificado da AFE.*incorreto/i.test(all)) {
+    add('O número do certificado AFE está em formato inválido. Revise no cadastro do produto.');
+  }
+  if (/missing required attribute|atributo obrigat[oó]rio/i.test(all)) {
+    add('Faltam características obrigatórias da categoria. Reabra o anúncio e revise o painel de características.');
+  }
+  if (/title.*(too long|invalid|exceeds)/i.test(all)) {
+    add('O título do anúncio é inválido ou ultrapassa o limite de 60 caracteres.');
+  }
+  if (/price.*(invalid|missing)/i.test(all)) {
+    add('O preço do anúncio é inválido ou está faltando.');
+  }
+
+  if (bullets.length === 0) {
+    return "Não foi possível publicar o anúncio. Revise o cadastro do produto e as características antes de tentar de novo.";
+  }
+  return `Não foi possível publicar:\n• ${bullets.join("\n• ")}`;
+}
+
+function prettyAttrName(id: string): string {
+  const dict: Record<string, string> = {
+    FRAGRANCE: "Fragrância",
+    HAIR_TREATMENT_PRESENTATION: "Formato de tratamento capilar",
+    UNITS_PER_PACK: "Unidades por kit",
+    ACTIVE_INGREDIENTS: "Ingredientes ativos",
+    BRAND: "Marca",
+    MODEL: "Modelo",
+    GTIN: "Código de barras",
+  };
+  return dict[id.toUpperCase()] || id.toLowerCase().replace(/_/g, " ");
+}
+
+
+/**
  * Sanitiza atributos contra os values fixos da categoria do ML.
  * Remove atributos cujo value_name não existe na lista oficial.
  * Quando bate, normaliza para usar o value_id oficial do ML.
