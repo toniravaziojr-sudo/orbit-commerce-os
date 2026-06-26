@@ -200,6 +200,12 @@ export function MeliListingCreator({
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
 
+  // Idempotência por step (criação): impede que clicar Voltar→Continuar reprocesse
+  // categorização/títulos/descrições. Reset apenas no fechamento do diálogo.
+  const categorizeDoneRef = useRef(false);
+  const titlesDoneRef = useRef(false);
+  const descriptionsDoneRef = useRef(false);
+
   // Debounced persistence buffers for inline title/description edits
   const pendingEditsRef = useRef<Map<string, { title?: string; description?: string }>>(new Map());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -284,6 +290,9 @@ export function MeliListingCreator({
       setAttrValuesByListing({});
       setPriceAdjustmentPercent("10");
       configureInitRef.current = null;
+      categorizeDoneRef.current = false;
+      titlesDoneRef.current = false;
+      descriptionsDoneRef.current = false;
     }
   }, [open]);
 
@@ -542,6 +551,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      categorizeDoneRef.current = true;
     } catch (error) {
       console.error("Create drafts + categorize error:", error);
       toast.error("Erro ao criar rascunhos");
@@ -593,6 +603,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      titlesDoneRef.current = true;
     } catch (error) {
       console.error("Generate titles error:", error);
       toast.error("Erro ao gerar títulos");
@@ -644,6 +655,7 @@ export function MeliListingCreator({
 
       setIsProcessing(false);
       setProcessingProgress(100);
+      descriptionsDoneRef.current = true;
     } catch (error) {
       console.error("Generate descriptions error:", error);
       toast.error("Erro ao gerar descrições");
@@ -1043,22 +1055,23 @@ export function MeliListingCreator({
       setProcessingLabel("");
       setProcessingProgress(0);
       if (idx === 0) {
-        // Select → Categories: create drafts + auto-categorize (skipped in configure mode)
+        // Select → Categories: cria rascunhos + auto-categoriza (1ª vez apenas).
+        // Em configure mode nunca recria; em creation mode, só se ainda não rodou.
         setStep("categories");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !categorizeDoneRef.current) {
           setTimeout(() => handleCreateDraftsAndCategorize(), 100);
         }
       } else if (idx === 1) {
-        // Categories → Titles: generate titles only on first pass (creation mode)
+        // Categories → Titles: gera títulos apenas na 1ª passagem (creation mode).
         setStep("titles");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !titlesDoneRef.current) {
           setTimeout(() => handleGenerateTitles(), 100);
         }
       } else if (idx === 2) {
-        // Titles → Descriptions: save titles, then generate descriptions (creation mode only)
+        // Titles → Descriptions: salva títulos; gera descrições apenas na 1ª passagem.
         await handleSaveTitles();
         setStep("descriptions");
-        if (!isConfigureMode) {
+        if (!isConfigureMode && !descriptionsDoneRef.current) {
           setTimeout(() => handleGenerateDescriptions(), 100);
         }
       } else if (idx === 3) {

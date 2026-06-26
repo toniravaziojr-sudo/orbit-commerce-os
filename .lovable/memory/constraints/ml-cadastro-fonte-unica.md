@@ -16,6 +16,7 @@ A função `checkMlReadiness` em `src/lib/marketplaces/mlReadiness.ts` é a **ú
 - Permitir IA preencher BRAND, MODEL, GTIN/EAN, dimensões, peso, categoria universal, conteúdo líquido — todos esses vêm do cadastro.
 - Alterar a lista de campos obrigatórios sem atualizar `checkMlReadiness` + doc `mercado-livre.md` v3.8 + esta memória.
 - Pular a checagem do wizard "porque o painel já está verde" — o cadastro pode ter mudado entre o resolve e o publish.
+- Reprocessar Categorias/Títulos/Descrições no wizard ao clicar Voltar→Continuar: cada etapa só roda uma vez por abertura do diálogo (refs `categorizeDoneRef`/`titlesDoneRef`/`descriptionsDoneRef`, reset apenas no close). Regerar é exclusivamente via botões explícitos do painel.
 
 **Campos obrigatórios atuais (v3.8):** brand, gtin, model, weight, width, height, depth, universal_category_id, net_content_value+unit. Para `regulatory_regime = anvisa_cosmetic`, adicionar: dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance.
 

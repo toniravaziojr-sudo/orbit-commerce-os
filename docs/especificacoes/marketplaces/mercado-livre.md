@@ -225,6 +225,12 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 - Barra de progresso de geração em massa exibe contador `X/Y` em tempo real e é **resetada ao trocar de etapa**, eliminando o bug visual da tarja azul aparecendo numa etapa diferente da atual.
 - Gravação de títulos e descrições é feita em **paralelo** (batch), acelerando lotes grandes.
 
+**Idempotência de etapas (anti-regressão, 2026-06-26):**
+- No modo criação (Novo Anúncio), as etapas que envolvem chamadas à API do ML ou à IA — **Categorias**, **Títulos** e **Descrições** — só rodam **uma única vez por abertura do diálogo**. Cada etapa tem um marcador interno (`categorizeDoneRef`, `titlesDoneRef`, `descriptionsDoneRef`) que é setado no fim da execução bem-sucedida.
+- Clicar **Voltar** e depois **Continuar** dentro do mesmo diálogo **não dispara reprocessamento**: o sistema apenas avança a tela, mantendo categoria, título e descrição já preenchidos.
+- Os marcadores são resetados **apenas no fechamento do diálogo**. Falhas em uma etapa não setam o marcador — permitindo retry natural ao Continuar novamente.
+- Regerar individualmente continua disponível via botões "Regerar" do próprio painel de cada etapa (ato consciente do lojista, gasto autorizado).
+
 **Sincronização com o Mercado Livre:**
 - **Títulos:** Prompt IA gera com tipo de produto primeiro, limite dinâmico por categoria (`max_title_length` da API ML), sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
 - **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars
