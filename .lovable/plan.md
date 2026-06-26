@@ -1,42 +1,83 @@
-## Como funciona hoje
+📋 CHECKLIST DE CONFORMIDADE:
+- Doc de Regras do Sistema: lido
+- Doc formal do tema: `docs/especificacoes/marketplaces/mercado-livre.md`
+- Memória relevante: `ml-cadastro-fonte-unica.md`
+- Fluxo afetado: Wizard ML → resolução de características (Edge Function `meli-resolve-attributes`)
+- Fonte de verdade: cadastro do produto (`products.regulatory_info.anvisa` + `products.description`)
+- Módulos impactados: Marketplaces → Mercado Livre
+- UI impactada: **não** (mesmo painel, mesmo comportamento — só passa a mostrar 1 Anvisa e mais ingredientes)
+- Validação técnica feita: leitura das linhas 540–820 do motor confirma as duas causas-raiz
+- Situação: **Aguardando confirmação do usuário**
 
-1. Ao abrir o diálogo a primeira vez, o sistema sugere uma categoria automática para cada produto e o motor de características roda para essa categoria. O resultado é salvo no anúncio junto com o código da categoria.
-2. Quando o lojista troca a categoria manualmente no seletor, o sistema atualiza o **código da categoria** no anúncio, mas **não limpa as características antigas** que ficaram salvas da categoria anterior.
-3. Na próxima abertura do painel, a lógica de hidratação verifica: "a categoria salva é a mesma da atual? Sim. Tem características salvas? Sim. Então pula o motor e mostra o que está salvo." Resultado: **mostra as características da categoria antiga**, e campos que existem só na nova categoria (como "Ingredientes Ativos") nunca aparecem, enquanto campos que só existiam na antiga (como "Tipo de Tratamento") continuam aparecendo.
+---
 
-## O problema
+# Confirmação do diagnóstico (auditoria executada)
 
-Trocar a categoria manualmente persiste só o código novo, sem invalidar as características anteriores. O painel acredita que está tudo coerente e nunca pede nova resolução para a categoria escolhida pelo lojista. Mesmo "escolhendo a mesma categoria de antes", se em algum momento a auto-categorização original ficou diferente da escolha manual, o anúncio fica preso ao primeiro conjunto resolvido.
+**ANVISA — confirmado:** a heurística no motor casa pelo nome do atributo (`"anvisa"` + `numero|notifica|comunica|registro|documento`). Em categorias como cosmético, isso casa **nos dois atributos** que o ML expõe, recebendo o mesmo número. É exatamente o "duplicado e mau pareado" que você viu.
 
-Há ainda um caso espelho: o botão **"Aplicar categoria a todos"** também atualiza só o código da categoria nos demais anúncios, sem invalidar as características que cada um tinha antes.
+**Ingredientes — confirmado:** o motor extrai os blocos da descrição por regex e injeta no contexto, mas o cruzamento contra a lista oficial do ML é **instrução de prompt** entregue à IA. Não há passo determinístico em código que garanta o casamento. Resultado: a IA escolhe 1, descarta os outros, e como o dicionário de sinônimos vive só no prompt, ela ignora silenciosamente.
 
-## O que eu faria
+**Pesquisa técnica:** para vocabulário fechado e curto (13 valores), o padrão de produção é casamento por dicionário + sinônimos em código. LLM fica como reforço, nunca como fonte primária. Mais preciso, mais barato, auditável.
 
-Ajuste pontual, sem mudar UX nem fluxo:
+---
 
-1. **Toda vez que a categoria de um anúncio mudar** (manualmente ou via "Aplicar a todos"), a persistência também **zera as características salvas** desse anúncio. Resultado: na próxima abertura do painel, o motor roda novamente para a categoria correta — uma única vez — e o conteúdo passa a refletir exatamente o que o Mercado Livre define para a categoria escolhida pelo lojista.
+# Decisões aprovadas por você
 
-2. **Limpeza do estado em memória do item** logo após a troca, para evitar "piscar" o conjunto antigo enquanto o painel está sendo reaberto.
+1. **ANVISA = um número único do cadastro, vai em um único atributo do ML.** Sem distinção grau 1/2, sem distinção notificado/registrado. O cadastro é a única fonte.
+2. **Ingredientes = caminho técnico mais inteligente.** Decisão técnica minha (autonomia que você me deu): **híbrido com dicionário primeiro e IA só como reforço** — é o caminho com maior precisão, menor custo e menor dependência de modelo.
 
-3. **Reforço de coerência na leitura:** a regra de hidratação rápida ("só aproveita o cache se o código da categoria salva for igual ao atual") já existe. Com o cache zerado na troca, ela passa a ser efetiva — hoje os dois ficam iguais artificialmente após a troca manual e por isso ela nunca dispara.
+---
 
-4. **Anti-regressão:** registrar nas regras do módulo Mercado Livre que **trocar categoria = invalidar características anteriores**. Assim qualquer evolução futura (troca via API, troca em massa, importador) respeita a mesma regra.
+# O que muda no motor de características
 
-## Resultado final
+**Bloco ANVISA (substitui a heurística atual):**
+- Detecta na categoria, por id canônico do ML, quais atributos Anvisa existem (notificação e/ou registro).
+- Regra de escolha, nessa ordem:
+  1. Se um deles estiver marcado obrigatório pela categoria → o número vai nele; o outro fica vazio.
+  2. Se ambos opcionais → o número vai no de **Notificação/Comunicação prévia** (cobre cosmético, o mais comum); o de Registro fica vazio.
+  3. Se só um dos dois existir na categoria → vai nele.
+- Fim da duplicidade. O painel deixa de mostrar o mesmo número em dois campos.
 
-- Trocar a categoria no diálogo, manualmente ou via "Aplicar a todos", sempre dispara nova resolução das características para a categoria escolhida.
-- Campos da nova categoria aparecem (ex.: "Ingredientes Ativos"), campos da categoria anterior somem (ex.: "Tipo de Tratamento") — o painel passa a ser fiel ao que o ML define para aquela categoria.
-- Reabrir o diálogo continua instantâneo se nada mudou (o cache continua valendo), só perde o atalho quando há razão real (categoria diferente).
-- A memória de ajustes manuais por produto continua valendo: o que o lojista já editou em outras categorias continua aprendido e é reaplicado pelo motor quando o nome da característica casa.
-- Custo de IA: igual ou menor (para de exibir o conjunto errado, evita o lojista pedir "Recalcular" como contorno).
+**Bloco Ingredientes/Componentes/Materiais (pipeline determinístico):**
+- Mantém a extração de blocos da descrição que já existe (regex de "Ativos/Composição/Ingredientes/etc.").
+- Adiciona um passo de **cruzamento por código**: para cada valor oficial da lista do ML (campo `values` do atributo), procura ocorrências no texto extraído **e** na descrição inteira, normalizando (minúsculas, sem acento, tolerância a colado/separado).
+- Adiciona um **dicionário de sinônimos versionado em código** (BPantol/B5/D-Pantenol → Pantenol; AloeVera/Babosa → Aloe vera; Cafeína anidra → Cafeína; Vit E → Vitamina E; etc.). Cresce sem mexer em prompt.
+- **Quando o atributo é multivalorado**, devolve **todos** os matches encontrados (até o limite que o ML aceita).
+- **IA como reforço**, só quando o cruzamento determinístico retornar 0 itens E houver texto disponível — para captar grafia atípica. Cobre o canto longo sem virar fonte primária.
+- Aplicação universal: todo atributo de lista fechada com natureza "ingrediente/componente/material/fórmula/compostos" usa esse pipeline antes de chamar IA.
 
-## Detalhes técnicos
+**Anti-regressão:**
+- Atributo de lista fechada nunca mais é resolvido só pela IA — sempre passa pelo cruzamento determinístico primeiro.
+- Troca de categoria continua zerando cache (regra já existente).
+- Memória de ajustes manuais do lojista continua tendo prioridade máxima.
 
-- `src/components/marketplaces/MeliListingCreator.tsx`, funções `handleCategoryChange` e `handleApplyCategoryToAll`: incluir `attributes: null` no `update` em `meli_listings`. Também limpar o estado local do item para evitar flicker.
-- `src/components/marketplaces/MeliAttributesPanel.tsx`, `loadSavedOrResolve`: nenhuma mudança lógica — com o cache zerado a função cai naturalmente no caminho do resolver.
-- Doc: `docs/especificacoes/marketplaces/mercado-livre.md` — adicionar nota "Troca de categoria invalida características" na seção de Idempotência.
-- Memória: `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — adicionar bullet "Toda troca de categoria zera o cache de características do anúncio".
+---
 
-## Pendência
+# Resultado para o lojista
 
-Confirma que posso ajustar?
+- ANVISA aparece **uma única vez** no painel, com o número do cadastro.
+- "Ingredientes ativos" passa a vir com **todos os itens** identificáveis na descrição (Aloe Vera, Cafeína, Pantenol, Mentol, etc.), respeitando o limite do ML.
+- O lojista pode continuar editando manualmente; a memória de ajustes manuais segue prevalecendo na próxima execução do mesmo produto.
+- Custo de IA cai: menos atributos passam pela IA, e quando passam é com lista menor.
+
+---
+
+# Detalhe técnico (para registro)
+
+- `supabase/functions/meli-resolve-attributes/index.ts`:
+  - Substituir heurística ANVISA (linhas ~570–586) por seleção por id canônico + regra obrigatório/opcional/fallback notificação.
+  - Criar função `crossReferenceClosedList(attribute, extractedItems, productText, synonymMap)` que devolve `values[]` casados com a lista oficial.
+  - Criar `SUBSTANCE_SYNONYMS` (Record) no escopo do módulo.
+  - No laço principal: antes de adicionar o atributo ao batch da IA, se for lista fechada de substância, aplicar o cruzamento; só joga para IA se vier vazio.
+  - Manter `isMultiValuedSpec` e a montagem de `valuesArr` que já existe.
+- Sem migração de banco. Sem alteração de UI. Sem alteração de contrato com `MeliAttributesPanel.tsx`.
+
+---
+
+📝 DOCUMENTAÇÃO NECESSÁRIA:
+- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Motor de Atributos": adicionar regra ANVISA única + pipeline determinístico de listas fechadas.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — adicionar bullets: "ANVISA do cadastro vai num único atributo do ML" e "Atributos de lista fechada usam casamento determinístico antes de IA".
+- Motivo: regra estrutural nova do motor; precisa virar anti-regressão.
+- Aguardando sua confirmação para executar.
+
+**Posso seguir com a implementação por esse caminho?**

@@ -1302,3 +1302,39 @@ Em atributos multi-valor de lista fechada como `ACTIVE_INGREDIENTS` (13 opções
 ### Resultado esperado
 Em "Balm Pós-Banho Calvície Zero" (descrição com Cafeína, Aloe vera, Alecrim, Mentol, Cetoconazol, BPantol, BIOEX, Proteção UV), `ACTIVE_INGREDIENTS` passa a sugerir **"Aloe vera, Cafeína, Proteína"** (os 3 itens que casam com a lista oficial do ML) em vez de só "Aloe vera". Em produtos não-cosméticos, o mesmo motor funciona usando o rótulo correto para a natureza do produto.
 
+## v2.4.0 — ANVISA Único + Pipeline Determinístico de Substâncias (2026-06-27)
+
+### Problemas resolvidos
+1. **ANVISA duplicada.** Em categorias que expõem dois atributos Anvisa (`ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER` + `ANVISA_PRODUCT_REGISTRATION_NUMBER`), a heurística por nome casava com ambos e o mesmo número era enviado duas vezes — confundindo o lojista no painel.
+2. **Ingredientes incompletos.** O cruzamento contra a lista oficial dependia 100% do prompt da IA. A IA agia de forma conservadora e devolvia só 1 item ("Aloe vera"), ignorando Cafeína, Pantenol, etc. que estavam claramente na descrição.
+
+### Solução
+**ANVISA — atributo único por categoria.** Antes do loop de resolução, `pickAnvisaAttrId(meliAttrs)` escolhe **UM** atributo da categoria para receber o número, na hierarquia: (1) qualquer obrigatório → (2) notificação/comunicação prévia → (3) primeiro disponível (geralmente registro). O atributo escolhido recebe `regulatory_info.anvisa`; o outro fica vazio e segue a cascata normal (vira "Não se aplica" no final). Isso reflete a realidade do negócio: no Brasil, o número de notificação e o de registro são o **mesmo identificador** após registrado — basta um campo preenchido.
+
+**Substâncias — dicionário determinístico antes da IA.** Para qualquer atributo de natureza substância (`ACTIVE_INGREDIENTS`, `INGREDIENTS`, `MATERIALS`, `COMPONENTS`, `MAIN_INGREDIENTS` ou cujo nome contenha ingrediente/ativo/composição/componente/material/fórmula/composto) **com lista fechada**, antes de mandar à IA o motor executa `crossReferenceClosedList`:
+- Para cada valor oficial da categoria, monta um conjunto de aliases a partir de `SUBSTANCE_SYNONYMS` (Pantenol ↔ B5/BPantol/Vitamina B5/D-Pantenol; Aloe vera ↔ AloeVera/Babosa; Vitamina E ↔ Tocoferol; etc. — ~30 ativos cobertos).
+- Casa cada alias contra `description + short_description + name + ingredientes_extraidos_texto` usando regex com fronteira de token (não casa substring acidental).
+- Quando casa ≥1 valores, preenche o atributo direto com `source: "derivation"` (sem chamar a IA). Multi-valor pega todos; mono-valor pega o primeiro.
+
+A IA continua sendo o fallback quando o dicionário não casa nada — útil para sinônimos novos que ainda não estão no dicionário.
+
+### Ordem final de prioridade (atributos de substância com lista fechada)
+1. Memória manual do lojista (v2.1.0).
+2. Dicionário universal por `universal_key` (v2.0.0).
+3. Heurísticas por ID/nome do atributo (BRAND, GTIN, MODEL, ANVISA único, etc.).
+4. **Dicionário de sinônimos de substâncias (novo v2.4.0).**
+5. IA (com prompt orientado a cruzamento + extração estruturada da v2.2.0).
+6. "Não se aplica" / "missing" para opcionais/obrigatórios sem evidência.
+
+### Onde está implementado
+- `supabase/functions/meli-resolve-attributes/index.ts`:
+  - Constantes `ANVISA_NUMBER_ATTR_IDS` e `SUBSTANCE_SYNONYMS` no topo.
+  - `pickAnvisaAttrId(attrs)`, `crossReferenceClosedList(attr, texts)`, `isSubstanceAttribute(a)`.
+  - Loop principal usa `selectedAnvisaAttrId` no bloco regulatório.
+  - Pipeline determinístico de substâncias roda imediatamente antes de `aiPending.push(a)`.
+
+### Resultado esperado
+- "Balm Pós-Banho Calvície Zero" (descrição com BPantol, Cafeína, AloeVera, Alecrim) → `ACTIVE_INGREDIENTS` preenchido com **"Pantenol, Cafeína, Aloe vera, Alecrim"** sem depender da IA.
+- ANVISA aparece **uma única vez** no painel, no atributo escolhido pela categoria.
+- Redução de chamadas à IA para atributos de substância → custo menor e resultado determinístico (mesma entrada → mesma saída).
+
