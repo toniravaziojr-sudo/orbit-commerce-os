@@ -39,13 +39,20 @@ export default function MercadoLivre() {
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
   
   const tabFromUrl = searchParams.get("tab");
-  const resolvedDefault = tabFromUrl || (isConnected ? "pedidos" : "conexao");
+  const resolvedDefault = tabFromUrl && tabFromUrl !== "pedidos" ? tabFromUrl : (isConnected ? "anuncios" : "conexao");
   const [activeTab, setActiveTab] = useState(resolvedDefault);
+
+  // Aba "Pedidos" foi unificada no módulo central de Pedidos — redirecionar links antigos
+  useEffect(() => {
+    if (tabFromUrl === "pedidos") {
+      navigate("/orders?channel=mercadolivre", { replace: true });
+    }
+  }, [tabFromUrl, navigate]);
 
   // When loading finishes and connection status is known, switch tab
   useEffect(() => {
     if (!isLoading && !tabFromUrl) {
-      setActiveTab(isConnected ? "pedidos" : "conexao");
+      setActiveTab(isConnected ? "anuncios" : "conexao");
     }
   }, [isLoading, isConnected, tabFromUrl]);
 
