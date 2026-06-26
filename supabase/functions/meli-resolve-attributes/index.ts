@@ -659,8 +659,8 @@ Deno.serve(async (req) => {
       const rotuloSubstancias = substanceLabelForProduct(product, universalCategory?.name ?? null);
       const productContext = {
         nome: product.name,
-        descricao_curta: (product.short_description || "").slice(0, 600),
-        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 1500),
+        descricao_curta: (product.short_description || "").slice(0, 800),
+        descricao_longa: (product.description || "").replace(/<[^>]*>/g, " ").slice(0, 4000),
         marca: product.brand, linha: product.line, modelo: product.model,
         gtin: product.gtin, sku: product.sku,
         peso_g: netWeightG,
