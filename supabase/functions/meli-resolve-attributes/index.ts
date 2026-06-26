@@ -768,6 +768,44 @@ Deno.serve(async (req) => {
         });
       } else {
         if (a.tags?.hidden && !required && !isCosmeticTriState) continue;
+
+        // v2.4.0 — Pipeline determinístico de substâncias (ingredientes/ativos/materiais/etc).
+        // Para atributos de natureza "substância" com lista fechada, cruza descrição
+        // + ingredientes extraídos contra a lista oficial do ML via dicionário de sinônimos.
+        // Quando casa ≥1 valores, preenche sem chamar a IA (mais barato e determinístico).
+        if (isSubstanceAttribute(a) && (a.values?.length ?? 0) > 0) {
+          const extra = extractSubstancesFromDescription(
+            [product.description, product.short_description].filter(Boolean).join("\n\n")
+          );
+          const texts: string[] = [
+            product.description || "",
+            product.short_description || "",
+            product.name || "",
+            ...(Array.isArray(extra) ? extra : []),
+          ];
+          const matches = crossReferenceClosedList(a, texts);
+          if (matches.length > 0) {
+            const multi = isMultiValuedSpec(a);
+            if (multi) {
+              resolved.push({
+                id: a.id, name: a.name,
+                value_name: matches.map(m => m.name).join(", "),
+                values: matches,
+                status: "filled", source: "derivation", required,
+              });
+            } else {
+              const first = matches[0];
+              resolved.push({
+                id: a.id, name: a.name,
+                value_name: first.name, value_id: first.id,
+                status: "filled", source: "derivation", required,
+              });
+            }
+            console.log(`[meli-resolve-attributes] substância determinística: ${a.id} = ${matches.map(m => m.name).join(", ")}`);
+            continue;
+          }
+        }
+
         // Envia TODOS os atributos sem valor determinístico para a IA tentar preencher.
         // Inclui opcionais — essencial para nota de qualidade do anúncio (características
         // secundárias). IA retorna "" quando não há base e o atributo é descartado.
