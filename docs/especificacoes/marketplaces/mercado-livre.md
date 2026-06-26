@@ -22,7 +22,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios, Métricas) — aba Conexão exibe botão "Ir para Integrações" quando desconectado |
+| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Anúncios, Métricas) — aba **Pedidos foi removida**; pedidos ML aparecem no módulo central `/orders` |
 | `supabase/functions/meli-bulk-operations/` | Operações em massa (enviar produtos, gerar títulos/descrições, auto-categorizar) |
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
@@ -656,12 +656,18 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > Se falhar (status != 200, sem resultados, ou todos os scores negativos), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
 > Resolve o path completo da categoria via `/categories/{id}` para exibição ao usuário.
 
-## Regra: Aba de Pedidos — Auto-Refresh (OBRIGATÓRIO)
+## Regra: Pedidos do ML são unificados no módulo central de Pedidos (OBRIGATÓRIO — v3.3)
 
-> A aba de pedidos (`MeliOrdersTab`) **NÃO deve ter botões manuais** de "Atualizar" ou "Sincronizar".
-> Os dados são recarregados automaticamente via `refetchOnWindowFocus: true` e `staleTime: 30_000` no hook `useMeliOrders`.
-> Durante o carregamento, exibe apenas um badge "Atualizando..." com `animate-pulse`.
-> A sincronização com a API do ML ocorre via webhook/cron, não via ação manual do usuário.
+> A aba "Pedidos" do dashboard `/marketplaces/mercadolivre` foi **removida**. Pedidos do Mercado Livre entram no mesmo módulo de Pedidos da loja (`/orders`), no mesmo fluxo (fiscal → logística → cliente).
+> A diferenciação visual é feita pelo `OrderSourceBadge` (logo do ML) e pelo filtro de Origem em `/orders` (`channel=mercadolivre`).
+> Acessos antigos a `?tab=pedidos` no dashboard ML são redirecionados automaticamente para `/orders?channel=mercadolivre`.
+> O dashboard ML mantém apenas **Conexão, Anúncios e Métricas**.
+
+### Entrada automática de pedidos
+> 1. **Webhook em tempo real** — `meli-webhook` trata os topics `orders_v2`, `orders` e `shipments`, extraindo o `orderId` do `resource` e chamando `meli-sync-orders` para aquele pedido específico.
+> 2. **Reconciliação a cada 15 min** — `meli-orders-reconcile` (cron `*/15 * * * *`) percorre todas as conexões ML ativas e dispara `meli-sync-orders` em modo incremental (últimos 10 pedidos) como fallback de webhook perdido.
+> 3. **Carimbo canônico** — todo pedido ML é gravado em `orders` com `sales_channel = 'marketplace'` + `marketplace_source = 'mercadolivre'`, conforme `_padrao-canonico-marketplaces.md`.
+> 4. **Mesmo fluxo da loja** — após o upsert, triggers existentes (`enqueue_fiscal_draft`, gateway/local shipping routing, customer metrics, etc.) atuam normalmente. Nada de fluxo paralelo.
 
 ## Regra: Parâmetro `listingIds` na Edge Function (OBRIGATÓRIO)
 
