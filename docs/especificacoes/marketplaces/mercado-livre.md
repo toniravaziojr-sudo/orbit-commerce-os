@@ -26,7 +26,6 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `supabase/functions/meli-bulk-operations/` | Operações em massa (enviar produtos, gerar títulos/descrições, auto-categorizar) |
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
-| `src/hooks/useMeliOrders.ts` | Pedidos |
 | `src/hooks/useMeliListings.ts` | CRUD + publicação + criação em massa (`createBulkListings`) + sincronização (`syncListings`) |
 | `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (lista + ações em massa + creator/wizard) |
 | `src/components/marketplaces/MeliListingCreator.tsx` | Dialog multi-produto de 3 etapas para criação em massa com IA |
@@ -34,15 +33,15 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/components/marketplaces/MeliCategoryPicker.tsx` | Seletor de categorias ML com busca, navegação hierárquica e auto-suggest |
 | `src/components/marketplaces/MeliMetricsTab.tsx` | UI da aba Métricas (KPIs + desempenho) |
 | `src/components/marketplaces/MeliConnectionCard.tsx` | Card de conexão OAuth |
-| `src/components/marketplaces/MeliOrdersTab.tsx` | Aba de pedidos |
 | `supabase/functions/meli-oauth-*` | Fluxo OAuth |
 | `supabase/functions/meli-publish-listing/` | Publicação de anúncios na API do ML |
 | `supabase/functions/meli-search-categories/` | Busca de categorias ML (predictor + search fallback + children_count) |
 | `supabase/functions/meli-generate-description/` | Geração IA de descrição/título para ML via ai-router (texto plano, sem HTML/links/contato) |
-| `supabase/functions/meli-sync-orders/` | Sincronização de pedidos |
+| `supabase/functions/meli-sync-orders/` | Sincronização de pedidos do ML para `orders` (canal central) |
+| `supabase/functions/meli-orders-reconcile/` | Cron `*/15 * * * *` — reconciliação de pedidos por conexão ativa (fallback de webhook) |
 | `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
 | `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
-| `supabase/functions/meli-webhook/` | Notificações do ML |
+| `supabase/functions/meli-webhook/` | Notificações do ML (topics: `orders_v2`, `orders`, `shipments`, `items`, `items_prices`, `questions`) |
 | `supabase/functions/meli-sync-listings/` | Sincronização de status dos anúncios com o ML (detecta excluídos/pausados/encerrados) |
 
 ## Fluxo OAuth
