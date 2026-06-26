@@ -200,7 +200,10 @@ Deno.serve(async (req) => {
           shipping_total: shipping.cost || 0,
           total: (meliOrder.total_amount || 0) + (shipping.cost || 0),
           currency: meliOrder.currency_id || "BRL",
-          
+
+          // Canal de venda canônico — marketplace (diferencia da loja própria nos relatórios)
+          sales_channel: "marketplace",
+
           // Dados do marketplace
           marketplace_source: "mercadolivre",
           marketplace_order_id: meliOrderId,

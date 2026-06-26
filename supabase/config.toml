@@ -439,6 +439,10 @@ verify_jwt = false
 [functions.meli-sync-orders]
 verify_jwt = false
 
+[functions.meli-orders-reconcile]
+verify_jwt = false
+schedule = "*/15 * * * *"
+
 [functions.meli-webhook]
 verify_jwt = false
 
