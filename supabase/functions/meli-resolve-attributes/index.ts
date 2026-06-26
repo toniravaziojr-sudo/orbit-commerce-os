@@ -674,6 +674,8 @@ Deno.serve(async (req) => {
         categoria_universal: universalCategory?.name,
         is_kit: isKit, unidades_por_embalagem: unitsPerPackage,
         composicao: compArr.length > 0 ? compArr.map(c => ({ qtd: c.quantity, peso_g: c.component?.weight, conteudo: c.component?.net_content_value })) : null,
+        rotulo_de_substancias: rotuloSubstancias,
+        ingredientes_extraidos_texto: ingredientesExtraidos.length > 0 ? ingredientesExtraidos : null,
         cosmetico: {
           dermatologicamente_testado: product.dermatologically_tested,
           hipoalergenico: product.hypoallergenic,
