@@ -345,19 +345,38 @@ Deno.serve(async (req) => {
 
         // Números regulatórios (ANVISA / AFE / CONAMA) — match por NOME do atributo
         // (IDs variam por categoria do ML). Fonte: products.regulatory_info.
+        // v2.4.2: ANVISA usa UM único atributo por categoria (notificação OU registro,
+        // nunca os dois). Se o painel já preencheu um, não inunda os demais.
         const regInfo: any = (listing.product as any)?.regulatory_info || {};
         const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
         const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
         const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
         const normName = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const ANVISA_NUMBER_IDS = new Set([
+          "ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER",
+          "ANVISA_NOTIFICATION_NUMBER",
+          "ANVISA_PRODUCT_REGISTRATION_NUMBER",
+          "ANVISA_REGISTRATION_NUMBER",
+        ]);
+        const isAnvisaNumberById = (id: string) => ANVISA_NUMBER_IDS.has(String(id).toUpperCase());
+        const isAnvisaNumberByName = (n: string) => {
+          const x = normName(n);
+          return x.includes("anvisa") && (x.includes("numero") || x.includes("notifica") || x.includes("comunica") || x.includes("registro") || x.includes("documento"));
+        };
+        // Já existe algum ANVISA-number preenchido pelo painel? Então NÃO espalhar.
+        const anvisaAlreadyFilled = attributes.some((a: any) =>
+          isAnvisaNumberById(a.id) || isAnvisaNumberByName(
+            (attrSpecs.find((s: any) => s.id === a.id)?.name) || ""
+          )
+        );
         for (const spec of attrSpecs) {
           if (attrIds.has(spec.id)) continue;
           const nm = normName(spec.name || "");
-          const isAnvisaNumber = nm.includes("anvisa") && (nm.includes("numero") || nm.includes("notifica") || nm.includes("comunica") || nm.includes("registro") || nm.includes("documento"));
+          const isAnvisaNumber = isAnvisaNumberById(spec.id) || isAnvisaNumberByName(spec.name || "");
           const isAfeNumber = nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac"));
           const isConamaNumber = nm.includes("conama");
           let val: string | null = null;
-          if (isAnvisaNumber && anvisaNum) val = anvisaNum;
+          if (isAnvisaNumber && anvisaNum && !anvisaAlreadyFilled) val = anvisaNum;
           else if (isAfeNumber && afeNum) val = afeNum;
           else if (isConamaNumber && conamaNum) val = conamaNum;
           if (val) {
@@ -397,6 +416,20 @@ Deno.serve(async (req) => {
         const NA_FORBIDDEN_DEFAULTS: Record<string, () => string | null> = {
           UNITS_PER_PACK: () => String(Math.max(1, Number((listing.product as any)?.units_per_package) || 1)),
         };
+        // Atributos de número regulatório (ANVISA/AFE/CONAMA) NÃO podem ir como
+        // "Não se aplica" — ML responde "valor incorreto". A opção correta é
+        // simplesmente OMITIR o atributo do payload.
+        const isRegulatoryNumberAttr = (spec: any) => {
+          const idUp = String(spec?.id || "").toUpperCase();
+          if (ANVISA_NUMBER_IDS.has(idUp)) return true;
+          if (idUp.includes("AFE") && (idUp.includes("CERTIF") || idUp.includes("NUMBER") || idUp.includes("AUTH"))) return true;
+          if (idUp.includes("CONAMA")) return true;
+          const nm = normName(spec?.name || "");
+          if (isAnvisaNumberByName(spec?.name || "")) return true;
+          if (nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac"))) return true;
+          if (nm.includes("conama")) return true;
+          return false;
+        };
 
         const cleaned: any[] = [];
         for (const attr of attributes) {
@@ -408,6 +441,11 @@ Deno.serve(async (req) => {
           const idUp = String(attr.id).toUpperCase();
           // Marcador "Não se aplica" (v1.9.0) — vem do painel
           if ((attr as any).not_applicable === true || isNaName(attr.value_name)) {
+            // Regulatórios: DROP (omitir do payload). ML rejeita N/A nesses campos.
+            if (isRegulatoryNumberAttr(spec)) {
+              console.log(`[meli-publish-listing] Dropping regulatory N/A attr ${attr.id}`);
+              continue;
+            }
             const forced = NA_FORBIDDEN_DEFAULTS[idUp]?.();
             if (forced) {
               // Tenta casar contra a lista oficial; se não houver lista, vai como texto livre.
