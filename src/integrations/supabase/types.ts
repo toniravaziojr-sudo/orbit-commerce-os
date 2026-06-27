@@ -17661,6 +17661,8 @@ export type Database = {
           manage_stock: boolean | null
           meta_keywords: string | null
           meta_retailer_id: string | null
+          ml_search_summary: string | null
+          ml_search_summary_signature: string | null
           model: string | null
           name: string
           ncm: string | null
@@ -17740,6 +17742,8 @@ export type Database = {
           manage_stock?: boolean | null
           meta_keywords?: string | null
           meta_retailer_id?: string | null
+          ml_search_summary?: string | null
+          ml_search_summary_signature?: string | null
           model?: string | null
           name: string
           ncm?: string | null
@@ -17819,6 +17823,8 @@ export type Database = {
           manage_stock?: boolean | null
           meta_keywords?: string | null
           meta_retailer_id?: string | null
+          ml_search_summary?: string | null
+          ml_search_summary_signature?: string | null
           model?: string | null
           name?: string
           ncm?: string | null
