@@ -1017,7 +1017,7 @@ export function MeliListingCreator({
             listing_type: listingType,
             shipping: {
               mode: "me2",
-              free_shipping: mandatory ? true : freeShipping,
+              free_shipping: mandatory ? true : !!freeShippingByListing[item.listingId],
               local_pick_up: localPickup,
             },
           })
