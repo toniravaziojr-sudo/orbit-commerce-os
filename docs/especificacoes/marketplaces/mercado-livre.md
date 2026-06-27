@@ -680,6 +680,15 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > **Anti-padrão corrigido (v1.7.0):** Antes o sistema usava `limit=1` e aceitava cegamente o primeiro resultado da API, causando "Balm Pós-Banho" → "Nutrientes para Hidroponia" e "Balm Capilar" → "Pet Shop > Gatos".
 
+**Regra: Cascata determinística do termo de busca (v1.11.0 — OBRIGATÓRIO):**
+> A função `bulk_auto_categories` NÃO concatena mais "primeiros 150 caracteres da descrição" ao termo — isso introduzia ruído de marketing e quebrava nomes de marca proprietária. O `_shared/meli/search-term-builder.ts` aplica a cascata:
+> 1. **Primário (sem IA):** `buildPrimarySearchTerm` = `product_type` (ou `ai_product_type` como auxiliar) + `name` sanitizado. Custo zero, executa sempre primeiro.
+> 2. **Fallback IA cacheado:** `getOrGenerateSearchSummary` lê `products.ml_search_summary`. Se a `ml_search_summary_signature` (SHA-256 de nome + marca + tipos + formato + linha + descrições + volume) bate com o cadastro atual, devolve o resumo cacheado sem custo. Caso contrário, gera novo resumo via `google/gemini-2.5-flash-lite` (formato fixo "TIPO + atributo + volume", máx 80 caracteres, sem marca/slogan), persiste resumo+assinatura e devolve. **Não há cron de pré-geração:** o resumo é criado sob demanda na primeira categorização que precisar dele, e regerado automaticamente na próxima execução após qualquer mudança nos campos do cadastro.
+> 3. **Fallback marca:** `nome + marca` sanitizados (último recurso, comportamento histórico).
+> A cada tentativa, o resultado passa por `pickBestCategory`; a primeira que devolver um match válido encerra a cascata.
+> **Invalidação:** alterações no cadastro do produto (nome, marca, tipo, formato, linha, descrições, volume) regeram a assinatura na próxima leitura e descartam o cache automaticamente — não exige hook explícito no `ProductForm`.
+
+
 **Regra: Auto-fill GTIN e Marca na Edição (OBRIGATÓRIO):**
 > Ao abrir o `MeliListingWizard` para edição, se os atributos `BRAND` e `GTIN` não existem nos `attributes` do anúncio, o `MeliListingsTab.handleEditListing` DEVE buscar esses dados diretamente do produto (`products.brand`, `products.gtin`, `products.barcode`) como fallback.
 
