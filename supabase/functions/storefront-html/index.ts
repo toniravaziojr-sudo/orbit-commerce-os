@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.32.0"; // Meta v8.32.0: _sfEnsureFbp seed (parity Pixel+CAPI), delivery_category in AddToCart/InitiateCheckout, beacon-first pre-navigation
+const VERSION = "v8.36.0"; // Meta v8.36.0: pré-hidratação do cofre _sf_identity via ?ah= (email click → SHA-256 bundle)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -297,6 +297,30 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
     window._sfGetVid=function(){return window._sfVid||undefined};
     window._sfGetAM=function(){var r={};try{var em=localStorage.getItem('_sf_am_em');var ph=localStorage.getItem('_sf_am_ph');if(em)r.email=em;if(ph)r.phone=ph;}catch(e){}return r;};
+    // v8.36.0 — Pré-hidratação do cofre _sf_identity via ?ah=<token> emitido por email-track.
+    // Não sobrescreve cofre existente; falha silenciosa; consumo single-use server-side.
+    window._sfHydrationPromise=(function(){
+      try{
+        var ahMatch=location.search.match(/[?&]ah=([^&#]+)/);
+        if(!ahMatch)return Promise.resolve(false);
+        var ah=ahMatch[1];
+        // Limpa o parâmetro da URL imediatamente para evitar replays/SEO
+        try{var u=new URL(location.href);u.searchParams.delete('ah');history.replaceState(null,'',u.toString());}catch(e){}
+        // Não sobrescreve cofre populado
+        try{
+          var existing=localStorage.getItem('_sf_identity');
+          if(existing){var parsed=JSON.parse(existing);if(parsed&&(parsed.em_hash||parsed.ph_hash))return Promise.resolve(false);}
+        }catch(e){}
+        return fetch('${ctxUrl}/functions/v1/identity-prehydrate?token='+encodeURIComponent(ah),{
+          method:'GET',headers:{'apikey':'${ctxKey}'}
+        }).then(function(r){return r.ok?r.json():null;}).then(function(d){
+          if(!d||!d.ok||!d.bundle)return false;
+          try{localStorage.setItem('_sf_identity',JSON.stringify(d.bundle));}catch(e){}
+          return true;
+        }).catch(function(){return false;});
+      }catch(e){return Promise.resolve(false);}
+    })();
+
     // v8.35.0 — Onda 7: read full persistent identity vault (_sf_identity) so
     // edge-emitted CAPI events (PageView, ViewContent, AddToCart, InitiateCheckout,
     // ViewCategory) inherit name/city/state/zip/country/dob/gender hashes and
@@ -383,9 +407,17 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
         }).catch(function(){});
       };
       // v8.32.0: _sfEnsureFbp already guarantees _fbp — fire synchronously
+      // v8.36.0: aguarda até 800ms a hidratação do cofre (?ah=) para enriquecer o 1º evento.
       var fbp=window.__sfFbp||(document.cookie.match(/(?:^|;\\s*)_fbp=([^;]+)/)||[])[1]||null;
-      _doSend(fbp);
+      var _hp=window._sfHydrationPromise;
+      if(_hp&&typeof _hp.then==='function'){
+        var _done=false;
+        var _go=function(){if(_done)return;_done=true;_doSend(fbp);};
+        _hp.then(_go,_go);
+        setTimeout(_go,800);
+      }else{_doSend(fbp);}
     };
+
     </script>`);
   }
 

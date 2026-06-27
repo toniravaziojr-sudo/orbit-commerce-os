@@ -11206,6 +11206,64 @@ export type Database = {
         }
         Relationships: []
       }
+      identity_prehydration_tokens: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          expires_at: string
+          identity_bundle: Json
+          source: string
+          subscriber_id: string | null
+          tenant_id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          expires_at: string
+          identity_bundle: Json
+          source?: string
+          subscriber_id?: string | null
+          tenant_id: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          expires_at?: string
+          identity_bundle?: Json
+          source?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "identity_prehydration_tokens_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "identity_prehydration_tokens_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "identity_prehydration_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_items: {
         Row: {
           created_at: string
