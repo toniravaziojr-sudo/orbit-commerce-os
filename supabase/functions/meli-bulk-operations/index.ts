@@ -126,6 +126,88 @@ function sanitizeCategorySearchTerm(raw: string): string {
     .trim();
 }
 
+/**
+ * Cascata 4 — IA Decisora.
+ * Recebe candidatas reais devolvidas pelo ML em cascatas anteriores e pede para
+ * a IA escolher a melhor com base no cadastro completo do produto.
+ * Retorna { chosen_category_id, confidence, reason } ou { chosen_category_id: null }.
+ * Resultado deve passar pelo gate de domínio antes de ser persistido.
+ */
+async function aiPickBestCategory(
+  candidates: Array<{ category_id: string; category_name: string; path: string; sources: string[] }>,
+  product: {
+    name: string;
+    brand: string;
+    product_type: string;
+    ai_product_type: string;
+    ai_main_function: string;
+    product_format: string;
+    short_description: string;
+    description: string;
+    ml_search_summary: string;
+  },
+): Promise<{ chosen_category_id: string | null; confidence?: number; reason?: string } | null> {
+  if (!candidates.length) return null;
+
+  const candidatesList = candidates
+    .map((c, i) => `${i + 1}. id=${c.category_id} | caminho="${c.path || c.category_name}"`)
+    .join("\n");
+
+  const productBlock = [
+    `Nome: ${product.name || "-"}`,
+    `Marca: ${product.brand || "-"}`,
+    `Tipo (cadastro): ${product.product_type || "-"}`,
+    `Tipo (IA): ${product.ai_product_type || "-"}`,
+    `Função principal: ${product.ai_main_function || "-"}`,
+    `Formato: ${product.product_format || "-"}`,
+    `Resumo curto: ${product.short_description || "-"}`,
+    `Resumo IA (busca ML): ${product.ml_search_summary || "-"}`,
+    `Descrição (trecho): ${product.description || "-"}`,
+  ].join("\n");
+
+  const systemPrompt =
+    "Você é um classificador de categorias do Mercado Livre Brasil. " +
+    "Receberá os dados de um produto e uma lista de categorias candidatas que o próprio ML devolveu. " +
+    "Sua tarefa é escolher a categoria mais apropriada ENTRE AS CANDIDATAS LISTADAS. " +
+    "Você NÃO pode inventar uma categoria que não esteja na lista. " +
+    "Se nenhuma candidata for razoavelmente compatível com o produto, retorne chosen_category_id=null. " +
+    "Responda apenas em JSON válido no formato: " +
+    '{"chosen_category_id": "MLBxxxxx" | null, "confidence": 0..1, "reason": "texto curto em pt-BR"}';
+
+  const userPrompt = `PRODUTO:\n${productBlock}\n\nCANDIDATAS:\n${candidatesList}\n\nEscolha a melhor (ou null).`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const { data } = await aiChatCompletionJSON(
+      "google/gemini-2.5-flash",
+      {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      },
+      { logPrefix: "[meli-categories][ai-decider]" },
+    );
+    clearTimeout(timeoutId);
+    const content = data?.choices?.[0]?.message?.content || "";
+    if (!content) return null;
+    const cleaned = content.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+    const parsed = JSON.parse(cleaned);
+    const chosen = parsed?.chosen_category_id;
+    if (chosen && typeof chosen === "string" && candidates.find((c) => c.category_id === chosen)) {
+      return { chosen_category_id: chosen, confidence: parsed?.confidence, reason: parsed?.reason };
+    }
+    return { chosen_category_id: null, reason: parsed?.reason };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    console.warn("[meli-categories][ai-decider] erro:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 const DEFAULT_MAX_TITLE_LENGTH = 120;
 
 // Fetch the real max_title_length from ML category API
