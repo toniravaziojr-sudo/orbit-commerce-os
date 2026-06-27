@@ -1,8 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import {
+  buildPrimarySearchTerm,
+  buildAiFallbackSearchTerm,
+  getOrGenerateSearchSummary,
+  sanitizeCategorySearchTerm as sharedSanitize,
+  type ProductCadastro,
+} from "../_shared/meli/search-term-builder.ts";
 
-const VERSION = "v1.10.0"; // Sanitize pack-quantity markers from category search term to fix regression on kits (3x), (4x), etc.
+const VERSION = "v1.11.0"; // Cascata de termo: tipo do cadastro → resumo IA cacheado → marca. Resumo invalidado por assinatura SHA-256 do cadastro.
 
 /**
  * Remove marcadores de quantidade/multiplicador do termo de busca de categoria
