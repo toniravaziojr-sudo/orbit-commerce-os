@@ -187,7 +187,10 @@ export function MeliListingCreator({
   // Step 5, 6 & 7
   const [condition, setCondition] = useState("new");
   const [listingType, setListingType] = useState("gold_special");
-  const [freeShipping, setFreeShipping] = useState(false);
+  // Frete grátis por anúncio (v2.5.1). Map listingId -> boolean escolhido pelo usuário.
+  // Itens com preço >= MELI_FREE_SHIPPING_THRESHOLD_BRL são forçados a true tanto na UI
+  // quanto no envio — `meli-publish-listing` faz a defesa em profundidade.
+  const [freeShippingByListing, setFreeShippingByListing] = useState<Record<string, boolean>>({});
   const [localPickup, setLocalPickup] = useState(false);
 
   // Expanded descriptions
