@@ -135,10 +135,13 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           .maybeSingle();
         const savedAttrs = Array.isArray(saved?.attributes) ? (saved!.attributes as any[]) : [];
         const sameCategory = saved?.category_id === categoryId;
-        const cacheIsCurrent = savedAttrs.length > 0
-          && savedAttrs.every((a: any) => a?.resolver_version === ATTR_CACHE_VERSION);
-        if (sameCategory && cacheIsCurrent) {
-          // Reaproveita as características já resolvidas — sem custo de IA.
+        // v2.6.0 — Self-healing silencioso: se há atributos salvos para a MESMA categoria,
+        // reaproveita sem disparar IA (mesmo quando o cache vem sem resolver_version,
+        // como em anúncios publicados antes da v2.6.0). O usuário pode clicar em
+        // "Recalcular" se quiser reprocessar. Isso elimina o regen automático ao
+        // reabrir o diálogo de edição.
+        const hasSavedAttrs = savedAttrs.length > 0;
+        if (sameCategory && hasSavedAttrs) {
           const hydrated: ResolvedAttr[] = savedAttrs.map((a: any) => ({
             id: a.id,
             name: a.name || a.id,
@@ -146,12 +149,16 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             value_id: a.value_id,
             values: Array.isArray(a.values) ? a.values : undefined,
             not_applicable: a.not_applicable === true,
-            status: "filled",
+            status: (a.status as ResolvedAttr["status"]) || "filled",
             source: (a.source as ResolvedAttr["source"]) || "product",
-            required: false,
-            resolver_version: a.resolver_version,
+            required: a.required === true,
+            resolver_version: a.resolver_version || ATTR_CACHE_VERSION,
           }));
           setAttrs(hydrated);
+          // Re-grava com a versão atual para selar o cache (silencioso).
+          if (!savedAttrs.every((a: any) => a?.resolver_version === ATTR_CACHE_VERSION)) {
+            void persistToListing(hydrated);
+          }
           return;
         }
       }
