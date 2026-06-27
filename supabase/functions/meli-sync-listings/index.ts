@@ -215,7 +215,7 @@ async function syncTenantListings(
 
     try {
       const mlRes = await fetch(
-        `https://api.mercadolibre.com/items?ids=${itemIds}&attributes=id,status,sub_status,price,available_quantity,permalink`,
+        `https://api.mercadolibre.com/items?ids=${itemIds}&attributes=id,status,sub_status,price,available_quantity,permalink,shipping`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
