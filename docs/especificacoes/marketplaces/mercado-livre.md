@@ -1414,3 +1414,23 @@ O ajuste v2.4.0 estava correto no motor, mas rascunhos já existentes — caso r
 - Proibido enviar metadados internos do painel ao Mercado Livre.
 - Mudança estrutural no motor de atributos deve incrementar a versão do cache do painel quando alterar o significado do resultado salvo.
 
+
+---
+
+## Diagnóstico de falha de categorização (UI)
+
+**Onde:** `MeliListingCreator.tsx` (etapa de categorização).
+
+Quando a cascata de categorização termina e um item permanece sem `category_id`, a UI mostra:
+
+1. **Motivo** em linguagem de negócio, derivado de `diagnoseCategoryFailure` (`src/lib/marketplaces/mlReadiness.ts`):
+   - "Tipo de produto não preenchido no cadastro."
+   - "Tipo de produto pouco específico para o Mercado Livre."
+   - "Marca não preenchida no cadastro."
+   - "O Mercado Livre não encontrou categoria compatível."
+2. **Ação corretiva** — orienta a editar Tipo/Marca ou escolher categoria manualmente.
+3. **Link "Abrir cadastro do produto"** — atalho direto.
+
+Os campos críticos no cadastro (`ProductForm.tsx`) carregam o selo `MarketplaceFieldHint` indicando que o valor influencia a categorização nos marketplaces.
+
+> Regra de governança: `docs/REGRAS-DO-SISTEMA.md` §36 — "Guiar o Usuário".
