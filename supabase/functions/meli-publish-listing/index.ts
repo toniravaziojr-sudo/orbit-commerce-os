@@ -689,8 +689,8 @@ function humanizeMeliError(raw: string, causes: any[]): string {
   if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all)) {
     add('O número da ANVISA do produto está em formato inválido para o Mercado Livre. Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
   }
-  if (/Número de certificado da AFE.*incorreto/i.test(all)) {
-    add('O número do certificado AFE está em formato inválido. Revise no cadastro do produto.');
+  if (/Número de certificado da AFE.*incorreto/i.test(all) || /AFE.*formato.*inv[aá]lido/i.test(all)) {
+    add('Este produto não tem registro AFE no cadastro — o sistema vai omitir esse campo automaticamente na próxima tentativa. Se o erro persistir, tente publicar novamente.');
   }
   if (/missing required attribute|atributo obrigat[oó]rio/i.test(all)) {
     add('Faltam características obrigatórias da categoria. Reabra o anúncio e revise o painel de características.');
