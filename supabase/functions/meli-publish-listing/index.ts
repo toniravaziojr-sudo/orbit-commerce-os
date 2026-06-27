@@ -215,15 +215,23 @@ Deno.serve(async (req) => {
       pictures: images,
     };
 
-    // Shipping
+    // Shipping — reforça frete grátis obrigatório do ML acima do piso.
+    // O ML aplica a regra de qualquer forma; declarar antes evita divergência
+    // entre o anúncio salvo aqui e o anúncio publicado lá.
+    const freeShippingMandatory = isMeliFreeShippingMandatory(itemPayload.price);
     if (listing.shipping && Object.keys(listing.shipping).length > 0) {
-      itemPayload.shipping = listing.shipping;
+      itemPayload.shipping = { ...listing.shipping };
     } else {
       itemPayload.shipping = {
         mode: "me2",
         local_pick_up: false,
         free_shipping: false,
       };
+    }
+    if (freeShippingMandatory && !itemPayload.shipping.free_shipping) {
+      console.log(`[meli-publish-listing] Frete grátis forçado por piso ML (R$ ${MELI_FREE_SHIPPING_THRESHOLD_BRL}) — price=${itemPayload.price}`);
+      itemPayload.shipping.free_shipping = true;
+      itemPayload.shipping.mode = itemPayload.shipping.mode || "me2";
     }
 
     // Attributes - merge saved + product fallback
