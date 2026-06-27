@@ -370,10 +370,15 @@ export function MeliListingCreator({
         const f: any = fresh[0];
         if (f?.condition) setCondition(f.condition);
         if (f?.listing_type) setListingType(f.listing_type);
-        if (f?.shipping) {
-          setFreeShipping(!!f.shipping.free_shipping);
-          setLocalPickup(!!f.shipping.local_pick_up);
+        // Refresh per-listing free_shipping from DB (defesa contra cache parental).
+        const freshSeed: Record<string, boolean> = {};
+        for (const r of fresh as any[]) {
+          const price = Number(r.price ?? 0);
+          const mandatory = isMeliFreeShippingMandatory(price);
+          freshSeed[r.id] = mandatory ? true : !!r.shipping?.free_shipping;
         }
+        setFreeShippingByListing(prev => ({ ...prev, ...freshSeed }));
+        if (f?.shipping) setLocalPickup(!!f.shipping.local_pick_up);
 
         // Lazy backfill: only resolve & persist category name/path for drafts that
         // don't have them yet. This makes the very first open of a legacy draft pay
