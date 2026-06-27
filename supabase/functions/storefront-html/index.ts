@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.32.0"; // Meta v8.32.0: _sfEnsureFbp seed (parity Pixel+CAPI), delivery_category in AddToCart/InitiateCheckout, beacon-first pre-navigation
+const VERSION = "v8.36.0"; // Meta v8.36.0: pré-hidratação do cofre _sf_identity via ?ah= (email click → SHA-256 bundle)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
