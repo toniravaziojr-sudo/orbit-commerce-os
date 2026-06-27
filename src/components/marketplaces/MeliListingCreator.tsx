@@ -1849,7 +1849,8 @@ export function MeliListingCreator({
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Footer */}
         <DialogFooter className="gap-2 pt-4 border-t shrink-0">
