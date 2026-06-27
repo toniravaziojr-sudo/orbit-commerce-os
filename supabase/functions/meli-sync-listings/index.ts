@@ -303,9 +303,21 @@ async function syncTenantListings(
           continue;
         }
 
-        // Only update if status changed or error message changed
-        if (newStatus !== listing.status || errorMessage !== null) {
-          console.log(`[meli-sync-listings] ${listing.meli_item_id}: ${listing.status} → ${newStatus} (ML: ${mlStatus})`);
+        // Detecta mudança de shipping (free_shipping aplicado pelo ML, etc.)
+        const localShipping = (listing as any).shipping || {};
+        const mlShipping = mlItem.shipping || null;
+        const shippingChanged =
+          mlShipping &&
+          (typeof mlShipping.free_shipping === "boolean") &&
+          mlShipping.free_shipping !== !!localShipping.free_shipping;
+
+        if (newStatus !== listing.status || errorMessage !== null || shippingChanged) {
+          if (newStatus !== listing.status) {
+            console.log(`[meli-sync-listings] ${listing.meli_item_id}: ${listing.status} → ${newStatus} (ML: ${mlStatus})`);
+          }
+          if (shippingChanged) {
+            console.log(`[meli-sync-listings] ${listing.meli_item_id}: shipping.free_shipping ${!!localShipping.free_shipping} → ${mlShipping.free_shipping}`);
+          }
 
           const updateData: Record<string, any> = {
             status: newStatus,
@@ -318,6 +330,7 @@ async function syncTenantListings(
           if (mlItem.price !== undefined) updateData.price = mlItem.price;
           if (mlItem.available_quantity !== undefined) updateData.available_quantity = mlItem.available_quantity;
           if (mlItem.permalink) updateData.meli_response = { permalink: mlItem.permalink };
+          if (mlShipping) updateData.shipping = mlShipping;
 
           await supabase
             .from("meli_listings")
