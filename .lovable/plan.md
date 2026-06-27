@@ -1,73 +1,65 @@
 
-## Auditoria — 3 pontos do fluxo Mercado Livre (revisado)
+## Objetivo
+Aumentar a taxa de categorização automática no Mercado Livre sem desperdiçar processamento, usando o `tipo de produto` do cadastro como termo primário e, quando ele estiver vazio ou não bater, um resumo curto gerado por IA a partir da leitura completa do cadastro — gerado uma única vez e reaproveitado até que o cadastro mude.
 
-### Ponto 1 — Garantia não chega ao ML
+## Decisão técnica (revisada após releitura dos docs e histórico)
+Mantenho a direção que conversamos. Duas pequenas revisões em relação ao que tinha esboçado:
 
-**Como funciona hoje**
-- Fonte de verdade: cadastro do produto (`warranty_type` em {vendor|factory|none} + `warranty_duration` texto livre). O Balm publicado tem `vendor` + `30 dias`.
-- Criação em lote (`MeliListingCreator`): **não tem nenhuma menção a garantia**.
-- Edição (`MeliListingWizard`): tem um input "Garantia" de texto livre que, no submit, **não vira atributo do ML** — fica num campo solto que ninguém lê.
-- Publicação nova: o edge injeta `WARRANTY_TYPE`/`WARRANTY_TIME` a partir do cadastro **só se** o painel ainda não tiver `WARRANTY_TYPE`. Se o painel persistiu vazio/diferente, o cadastro perde.
-- Update (republicar): o sanitizador do update tem uma lista reduzida de campos livres (sem `WARRANTY_TIME`) → tempo de garantia é descartado antes do envio.
+1. **Resumo é pré-computado e cacheado por produto, não por anúncio.** O cadastro é a fonte única; o anúncio é só consumidor. Assim, vários anúncios do mesmo produto reaproveitam o mesmo resumo.
+2. **Invalidação por assinatura (hash) do cadastro, não por timestamp.** Mais robusto: se nada relevante mudou, não regera; se mudou qualquer campo de entrada, regera no próximo uso. Sem cron, sem trigger pesado.
 
-**Problema**
-- Em qualquer rota, a garantia do cadastro pode ser silenciosamente perdida; e o input do wizard de edição engana o lojista.
+## Como funcionará
 
-**O que vou fazer (decisão técnica)**
-- Em `meli-publish-listing`, nas duas rotas (publish novo e update):
-  - Cadastro sempre vence: remover do payload qualquer `WARRANTY_TYPE`/`WARRANTY_TIME` herdado e reinjetar a partir do cadastro (`vendor`→"Garantia do vendedor", `factory`→"Garantia de fábrica", `duration` direto).
-  - Se a categoria do ML não expõe esses atributos, omitir silenciosamente.
-  - Incluir `WARRANTY_TIME` no `FREE_FORM_IDS` do sanitizador do update.
+### Cascata de termo de busca enviado ao Mercado Livre
+1. **Primário:** `nome sanitizado + tipo de produto` (do cadastro). Sem IA, sem custo.
+2. **Fallback 1 (se primário não retornar categoria confiável):** `nome sanitizado + resumo IA cacheado` (≤ 80 caracteres, formato funcional).
+3. **Fallback 2 (último recurso):** `nome sanitizado + marca` (já existe hoje).
+4. Se tudo falhar → fica em **Pendências** para seleção manual (comportamento atual preservado).
 
-**Mudança de UI (preciso da sua aprovação)**
-- O input livre "Garantia" no `MeliListingWizard` (edit) hoje é decorativo. Proposta: substituir por uma linha read-only "Garantia: Garantia do vendedor — 30 dias (vem do cadastro)" com link "Ajustar no cadastro" — mesmo padrão de marca/GTIN já consolidado nos docs. Mantenho o input atual se você preferir.
-- No `MeliListingCreator` (criação em lote), proposta: exibir a mesma linha read-only no resumo de cada anúncio, sem adicionar nova etapa. Confirma?
+A sanitização atual (`(3x)`, `kit com 2`, etc.) continua aplicada em todas as etapas.
 
----
+### Geração e cache do resumo IA
+- Campo novo no cadastro do produto guarda dois valores: o resumo e a assinatura do conteúdo que o gerou.
+- Resumo é gerado **sob demanda**, na primeira vez que a categorização precisar do fallback. Não roda batch, não roda no save do produto.
+- Antes de gerar, calcula a assinatura atual do cadastro (nome + tipo + descrição curta + descrição longa + composição + marca). Se bater com a assinatura salva, reusa o resumo. Se diferir, regera uma vez e atualiza ambos.
+- Modelo: Gemini Flash-Lite via Lovable AI Gateway (barato, rápido, sem tools). Saída estruturada para garantir formato.
+- Prompt instrui a IA a ler todo o cadastro e devolver um resumo funcional curto no formato "TIPO + atributo essencial + volume/quantidade", sem adjetivos comerciais, sem nome da marca, sem benefícios. Exemplo do alvo: "Shampoo anticaspa masculino 250ml".
+- Limite duro de tamanho aplicado em código (corte seguro mesmo se a IA exceder).
 
-### Ponto 2 — Reabrir o edit dialog dispara IA de novo
+### Custo e segurança
+- Produto categorizado de primeira (cascata 1) **nunca** dispara IA.
+- Produto que precisa do fallback dispara IA **uma vez por versão do cadastro**.
+- Sem cron, sem fila, sem reprocessamento em massa.
+- Cadastro continua sendo fonte única (regra `ml-cadastro-fonte-unica`); o resumo é metadado derivado, não substitui campos.
 
-**Causa raiz (confirmada no banco)**
-- O painel só reaproveita o cache quando **todas** as características salvas trazem `resolver_version` igual ao atual.
-- O `MeliListingCreator.handleSaveAttributes` persiste o array enxugado (`{id, value_id, value_name}`) **sem** `resolver_version`, `name`, `source`, `values`, `not_applicable`.
-- Resultado: no Balm publicado, são 31 atributos persistidos e **0 com `resolver_version`** → o painel marca tudo como cache legado e roda IA de novo a cada abertura. Mesmo problema replicado nos 21 anúncios já publicados.
-
-**O que vou fazer (decisão técnica, sem mexer em UI)**
-- Padronizar a persistência de atributos para sempre carimbar o payload completo da v2.4.1 (`resolver_version`, `name`, `source`, suporte a `values`/`not_applicable`) em todos os pontos que escrevem `meli_listings.attributes`:
-  - `MeliListingCreator.handleSaveAttributes`.
-  - `MeliListingsTab.handleEditSubmit` (e qualquer caller equivalente).
-- Auto-cura silenciosa na leitura: ao abrir o painel, se o cache estiver completo mas faltando apenas `resolver_version`, carimbar localmente e regravar uma única vez — sem chamar IA, sem gasto. Resolve os 21 anúncios já publicados sem migração em massa.
-
----
-
-### Ponto 3 — Resposta sobre "Salvar Alterações" no edit + erro reportado
-
-**O que acontece quando você salva**
-1. Grava no nosso banco (`meli_listings`).
-2. Se o anúncio já está publicado, dispara **na hora** `meli-publish-listing` com `action=update`, que envia ao ML:
-   - PUT em `items/{id}` com título, preço, quantidade, imagens e atributos sanitizados.
-   - PUT separado em `items/{id}/description` com a descrição em texto puro.
-3. É síncrono — o sucesso/erro aparece imediatamente.
-
-**Sobre o erro**
-- Não há logs recentes do edge nem `error_message` registrado no Balm — o erro morreu no front sem rastro. Antes de prometer correção da causa raiz, preciso reproduzir após os fixes 1 e 2. O que já consigo endereçar com segurança agora:
-
-**O que vou fazer (decisão técnica)**
-- No `updateListing` do edge:
-  - Suportar atributos multi-valor (`values[]`) no sanitizador (hoje só trata `value_name` único).
-  - Ampliar `FREE_FORM_IDS` (inclui `WARRANTY_TIME`).
-  - Aplicar `humanizeMeliError` na resposta (já existe pro publish, falta no update) → mensagem em PT-BR amigável.
-  - Em falha, persistir `error_message` no anúncio para aparecer no card e nos logs do banco.
-
----
+## Arquivos técnicos (referência)
+- `supabase/functions/meli-bulk-operations/index.ts` — onde mora a categorização hoje. Vou inserir a cascata nova nos dois pontos que chamam `domain_discovery/search` (loop principal e `auto_suggest`).
+- Tabela `products` — duas colunas novas: resumo cacheado + assinatura. Migração simples, sem impacto em RLS existente.
+- Helper compartilhado novo em `supabase/functions/_shared/meli/` para: (a) calcular assinatura, (b) ler/gerar/persistir o resumo, (c) montar os termos de busca da cascata.
 
 ## Validação técnica obrigatória pós-entrega
-- Reabrir o edit do Balm: confirmar via consulta a `meli_listings.attributes` que `resolver_version` está preenchido e que o painel não dispara IA.
-- Republicar com `action=update`: confirmar via `GET items/{id}` no ML que `WARRANTY_TYPE` e `WARRANTY_TIME` aparecem.
-- Forçar erro controlado no update (ex.: título acima do limite) → validar mensagem amigável e `error_message` persistido.
+- Reprocessar os 13 produtos órfãos do tenant "Respeite o Homem" e medir quantos passam a categorizar.
+- Confirmar via log que produtos com `tipo de produto` preenchido **não** disparam IA.
+- Confirmar via banco que o resumo só é regerado quando a assinatura do cadastro muda (editar e re-categorizar).
+- Confirmar que produto novo recém-criado sem `tipo de produto` cai no fallback IA e categoriza.
 
 ## Documentação a atualizar
-- `docs/especificacoes/marketplaces/mercado-livre.md` — bloco Garantia (fonte única = cadastro), padrão de persistência de atributos com `resolver_version`, contrato síncrono do update e tradução de erros.
-- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — incluir garantia na lista de campos do cadastro e a regra "cache de atributos sempre carimbado com `resolver_version`".
+- `docs/especificacoes/marketplaces/mercado-livre.md` — nova seção descrevendo a cascata de termo de busca, o resumo cacheado e a regra de invalidação por assinatura.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que o resumo é metadado derivado (não viola fonte única) e que IA nunca preenche campos do cadastro.
 
-📌 STATUS DA ENTREGA: Diagnóstico fechado. Aguardando sua decisão sobre as duas mudanças de UI do Ponto 1 antes de implementar.
+## O que estou decidindo por conta (técnico/fluxo, dentro do seu critério)
+- Cache no próprio `products` em vez de tabela nova (menos joins, menos custo).
+- Invalidação por hash de conteúdo (mais barata que trigger no UPDATE; só recalcula quando alguém realmente vai usar).
+- Geração lazy sob demanda (evita gasto em produtos que nunca serão anunciados no ML).
+- Modelo barato com output estruturado (sem tools, sem multi-turn).
+
+## O que NÃO vou tocar sem você aprovar
+- Nenhuma mudança de UI/UX no cadastro do produto, no diálogo de anúncio ou no painel de atributos.
+- Nenhuma mudança nas regras de negócio do core (Produtos/Clientes/Pedidos).
+- Nenhuma mudança na lista de campos obrigatórios do `mlReadiness`.
+- Nenhuma alteração nos demais fallbacks já consolidados.
+
+## Dúvidas / limitações conhecidas
+- Nenhuma bloqueante. Único ponto de atenção: se o `tipo de produto` no cadastro estiver preenchido com algo genérico tipo "Cuidados pessoais", o primário pode falhar — mas é exatamente para isso que o fallback IA existe.
+
+📌 STATUS DA ENTREGA: Diagnóstico fechado. Plano pronto, aguardando sua aprovação para implementar.
