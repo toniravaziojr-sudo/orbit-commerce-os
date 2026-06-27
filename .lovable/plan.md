@@ -7,7 +7,7 @@
 - Módulos impactados: Marketplaces → Mercado Livre
 - UI impactada: **não** (mesmo painel, mesmo comportamento — só passa a mostrar 1 Anvisa e mais ingredientes)
 - Validação técnica feita: leitura das linhas 540–820 do motor confirma as duas causas-raiz
-- Situação: **Aguardando confirmação do usuário**
+- Situação: **Ajuste aplicado — pendente de validação técnica/deploy**
 
 ---
 
@@ -50,6 +50,8 @@
 - Atributo de lista fechada nunca mais é resolvido só pela IA — sempre passa pelo cruzamento determinístico primeiro.
 - Troca de categoria continua zerando cache (regra já existente).
 - Memória de ajustes manuais do lojista continua tendo prioridade máxima.
+- Características salvas em rascunho agora têm versão de cache. Cache legado não é mais considerado válido só por existir; recalcula uma única vez e persiste com versão atual.
+- Atributo ANVISA não escolhido pela categoria não entra no painel nem segue para IA/N/A.
 
 ---
 
@@ -71,6 +73,12 @@
   - No laço principal: antes de adicionar o atributo ao batch da IA, se for lista fechada de substância, aplicar o cruzamento; só joga para IA se vier vazio.
   - Manter `isMultiValuedSpec` e a montagem de `valuesArr` que já existe.
 - Sem migração de banco. Sem alteração de UI. Sem alteração de contrato com `MeliAttributesPanel.tsx`.
+- `MeliAttributesPanel.tsx`:
+  - Persistir `resolver_version` em cada atributo salvo.
+  - Reaproveitar cache somente quando todos os atributos salvos têm a versão atual.
+  - Cache antigo/incompatível força resolver uma vez, depois volta a abrir sem custo.
+- `meli-publish-listing`:
+  - Remover metadados internos (`source`, `resolver_version`, `not_applicable`) antes de montar o payload externo quando o atributo não passa por normalização de lista.
 
 ---
 
@@ -78,6 +86,6 @@
 - `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Motor de Atributos": adicionar regra ANVISA única + pipeline determinístico de listas fechadas.
 - `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — adicionar bullets: "ANVISA do cadastro vai num único atributo do ML" e "Atributos de lista fechada usam casamento determinístico antes de IA".
 - Motivo: regra estrutural nova do motor; precisa virar anti-regressão.
-- Aguardando sua confirmação para executar.
+- Documentação atualizada no manual do Mercado Livre e memória operacional do fluxo.
 
-**Posso seguir com a implementação por esse caminho?**
+**Status:** implementação aplicada; falta validação técnica e deploy das funções alteradas.

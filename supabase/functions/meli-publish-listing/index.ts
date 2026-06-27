@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.7.0"; // v2.0.0 — números regulatórios (ANVISA/AFE/CONAMA) auto-preenchidos por nome do atributo
+const VERSION = "3.7.1"; // v2.4.1 — sanitiza metadados internos do cache de atributos antes de enviar ao ML
 // ===================
 
 const corsHeaders = {
@@ -15,6 +15,22 @@ function jsonResponse(data: any) {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function cleanAttributePayload(attr: any) {
+  const out: any = { id: attr.id };
+  if (Array.isArray(attr.values) && attr.values.length > 0) {
+    out.values = attr.values
+      .map((v: any) => ({
+        ...(v?.id ? { id: v.id } : {}),
+        ...(v?.name ? { name: v.name } : {}),
+      }))
+      .filter((v: any) => v.id || v.name);
+    return out;
+  }
+  if (attr.value_id) out.value_id = attr.value_id;
+  if (attr.value_name) out.value_name = attr.value_name;
+  return out;
 }
 
 Deno.serve(async (req) => {
@@ -447,7 +463,7 @@ Deno.serve(async (req) => {
               cleaned.push(naMarker(spec));
             }
           } else {
-            cleaned.push(attr);
+            cleaned.push(cleanAttributePayload(attr));
           }
         }
         attributes.length = 0;
@@ -662,7 +678,7 @@ async function sanitizeAttributesForCategory(
           continue;
         }
       } else {
-        cleaned.push(attr);
+        cleaned.push(cleanAttributePayload(attr));
       }
     }
     return cleaned;

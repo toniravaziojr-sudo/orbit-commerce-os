@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
+const ATTR_CACHE_VERSION = "meli-attrs-v2.4.1";
+
 export interface ResolvedAttr {
   id: string;
   name: string;
@@ -28,6 +30,8 @@ export interface ResolvedAttr {
   message?: string;
   /** v1.9.0 — marcador "Não se aplica" enviado ao ML. */
   not_applicable?: boolean;
+  /** Versão interna do motor que gerou o cache salvo no rascunho. */
+  resolver_version?: string;
 }
 
 export interface MeliAttributesPanelValue {
@@ -108,6 +112,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
         ...(a.values && a.values.length > 0 ? { values: a.values } : {}),
         ...(a.not_applicable ? { not_applicable: true } : {}),
         source: a.source,
+        resolver_version: ATTR_CACHE_VERSION,
       }));
     try {
       await supabase.from("meli_listings").update({ attributes: payload as any }).eq("id", listingId);
@@ -130,7 +135,9 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
           .maybeSingle();
         const savedAttrs = Array.isArray(saved?.attributes) ? (saved!.attributes as any[]) : [];
         const sameCategory = saved?.category_id === categoryId;
-        if (sameCategory && savedAttrs.length > 0) {
+        const cacheIsCurrent = savedAttrs.length > 0
+          && savedAttrs.every((a: any) => a?.resolver_version === ATTR_CACHE_VERSION);
+        if (sameCategory && cacheIsCurrent) {
           // Reaproveita as características já resolvidas — sem custo de IA.
           const hydrated: ResolvedAttr[] = savedAttrs.map((a: any) => ({
             id: a.id,
@@ -142,6 +149,7 @@ export function MeliAttributesPanel({ tenantId, listingId, productId, categoryId
             status: "filled",
             source: (a.source as ResolvedAttr["source"]) || "product",
             required: false,
+            resolver_version: a.resolver_version,
           }));
           setAttrs(hydrated);
           return;

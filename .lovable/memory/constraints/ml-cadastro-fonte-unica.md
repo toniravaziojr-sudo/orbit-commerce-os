@@ -18,6 +18,9 @@ A função `checkMlReadiness` em `src/lib/marketplaces/mlReadiness.ts` é a **ú
 - Pular a checagem do wizard "porque o painel já está verde" — o cadastro pode ter mudado entre o resolve e o publish.
 - Reprocessar Categorias/Títulos/Descrições no wizard ao clicar Voltar→Continuar: cada etapa só roda uma vez por abertura do diálogo (refs `categorizeDoneRef`/`titlesDoneRef`/`descriptionsDoneRef`, reset apenas no close). Regerar é exclusivamente via botões explícitos do painel.
 - Trocar categoria de um anúncio (seletor manual ou "Aplicar a todos") **sempre zera `meli_listings.attributes`** quando o código da categoria realmente muda. ML define atributos por categoria — manter o cache antigo faria o painel mostrar campos errados. A invalidação roda em `handleCategoryChange` e `handleApplyCategoryToAll` (`MeliListingCreator.tsx`); na reabertura o painel chama o motor uma única vez para a nova categoria.
+- Reaproveitar características salvas sem versão é proibido. `MeliAttributesPanel` só usa cache quando cada atributo salvo tem `resolver_version` atual; cache legado recalcula uma única vez e persiste novamente. Isso evita rascunhos antigos mostrarem ANVISA duplicada/ativos incompletos após evolução do motor.
+- ANVISA do cadastro vai em um único atributo do ML. O atributo ANVISA não escolhido pela hierarquia do motor não aparece no painel, não vai para IA e não é enviado como N/A.
+- Atributos de lista fechada de substâncias usam casamento determinístico por dicionário antes da IA. Se o motor estrutural mudar, incrementar a versão do cache do painel na mesma entrega.
 
 **Campos obrigatórios atuais (v3.8):** brand, gtin, model, weight, width, height, depth, universal_category_id, net_content_value+unit. Para `regulatory_regime = anvisa_cosmetic`, adicionar: dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance.
 
