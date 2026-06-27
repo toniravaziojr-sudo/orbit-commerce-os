@@ -5,7 +5,6 @@ import {
   buildPrimarySearchTerm,
   buildAiFallbackSearchTerm,
   getOrGenerateSearchSummary,
-  sanitizeCategorySearchTerm as sharedSanitize,
   type ProductCadastro,
 } from "../_shared/meli/search-term-builder.ts";
 
