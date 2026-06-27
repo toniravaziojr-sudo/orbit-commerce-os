@@ -87,7 +87,15 @@ function categoryMatchesProductDomain(
     if (path.includes(f) && !blob.includes(f)) return false;
   }
 
-  // A categoria deve conter ao menos um token de UMA das famílias detectadas
+  // A categoria deve conter ao menos um token de UMA das famílias detectadas.
+  // Exceção: família "cabelo" (capilar) é exclusionária — se o cadastro indica capilar,
+  // o path do ML obrigatoriamente precisa conter um token capilar (evita kit capilar
+  // cair em "Kits para Barba" só porque também tem "balm").
+  if (families.includes("cabelo")) {
+    const tokens = PRODUCT_DOMAIN_TOKENS["cabelo"];
+    if (!tokens.some((t) => path.includes(normalizeForMatch(t)))) return false;
+    return true;
+  }
   for (const fam of families) {
     const tokens = PRODUCT_DOMAIN_TOKENS[fam] || [];
     if (tokens.some((t) => path.includes(normalizeForMatch(t)))) return true;
