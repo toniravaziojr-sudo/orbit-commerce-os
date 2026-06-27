@@ -205,6 +205,11 @@ export function MeliListingCreator({
   const [attrRecalcAllToken, setAttrRecalcAllToken] = useState(0);
   const [attrSeedByListing, setAttrSeedByListing] = useState<Record<string, { token: number; attributes: import("./MeliAttributesPanel").ResolvedAttr[] }>>({});
   const [priceAdjustmentPercent, setPriceAdjustmentPercent] = useState("10");
+  // Diagnóstico amigável de falhas de categorização — preenchido após cada rodada.
+  // Doc: REGRAS-DO-SISTEMA.md §36 (Guiar o Usuário).
+  const [categoryFailureByProductId, setCategoryFailureByProductId] = useState<
+    Record<string, { reason: string; hint: string }>
+  >({});
 
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
