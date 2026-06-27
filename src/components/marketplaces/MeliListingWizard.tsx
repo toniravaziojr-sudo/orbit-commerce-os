@@ -310,7 +310,8 @@ export function MeliListingWizard({
       shipping: {
         mode: "me2",
         local_pick_up: localPickup,
-        free_shipping: freeShipping,
+        // Frete grátis obrigatório acima do piso do ML — backend reforça também.
+        free_shipping: isMeliFreeShippingMandatory(parseFloat(price)) ? true : freeShipping,
       },
     };
 
