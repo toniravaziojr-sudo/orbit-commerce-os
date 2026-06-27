@@ -199,7 +199,7 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 | 6 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 7 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
 | 8 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
-| 9 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
+| 9 | Frete | Lista por anúncio com toggle individual de `free_shipping` (travado em `true` quando `preço ≥ R$ 79`, com badge "Obrigatório pelo Mercado Livre"). Ações em massa "Ativar/Desativar frete grátis em todos" agem somente sobre anúncios abaixo do piso. Toggle global de `local_pick_up` (Retirada no Local). |
 
 **Props:**
 
