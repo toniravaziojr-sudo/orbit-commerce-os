@@ -699,8 +699,12 @@ Deno.serve(async (req) => {
         query = query.in("id", filterIds);
       }
 
-      const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
+      query = query.order("id", { ascending: true });
+      const { data: listings, error: listErr } = filterIds?.length
+        ? await query
+        : await query.range(offset, offset + limit - 1);
       if (listErr) throw listErr;
+      console.log(`[meli-bulk-titles] received_ids=${filterIds?.length ?? 0} fetched=${(listings || []).length} offset=${offset} limit=${limit}`);
 
       let updated = 0;
       const errors: string[] = [];
@@ -855,7 +859,7 @@ Retorne APENAS o título, nada mais.`,
           updated,
           errors,
           processed: (listings || []).length,
-          hasMore: (listings || []).length === limit,
+          hasMore: filterIds?.length ? false : (listings || []).length === limit,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -875,8 +879,12 @@ Retorne APENAS o título, nada mais.`,
         query = query.in("id", filterIds);
       }
 
-      const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
+      query = query.order("id", { ascending: true });
+      const { data: listings, error: listErr } = filterIds?.length
+        ? await query
+        : await query.range(offset, offset + limit - 1);
       if (listErr) throw listErr;
+      console.log(`[meli-bulk-descriptions] received_ids=${filterIds?.length ?? 0} fetched=${(listings || []).length} offset=${offset} limit=${limit}`);
 
       let updated = 0;
       const errors: string[] = [];
@@ -956,7 +964,7 @@ Retorne APENAS o texto da descrição.`,
           updated,
           errors,
           processed: (listings || []).length,
-          hasMore: (listings || []).length === limit,
+          hasMore: filterIds?.length ? false : (listings || []).length === limit,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -974,15 +982,21 @@ Retorne APENAS o texto da descrição.`,
         query = query.in("id", filterIds);
       }
 
-      const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
+      query = query.order("id", { ascending: true });
+      const { data: listings, error: listErr } = filterIds?.length
+        ? await query
+        : await query.range(offset, offset + limit - 1);
       if (listErr) throw listErr;
+      console.log(`[meli-categories] received_ids=${filterIds?.length ?? 0} fetched=${(listings || []).length} offset=${offset} limit=${limit}`);
 
       let updated = 0;
       let skipped = 0;
       const errors: string[] = [];
       const resolvedCategories: Array<{ listingId: string; categoryId: string; categoryName: string; categoryPath: string }> = [];
+      const processedIds: string[] = [];
 
       for (const listing of (listings || [])) {
+        processedIds.push(listing.id);
         try {
           // Skip if already has category
           if (listing.category_id) {
@@ -1172,6 +1186,8 @@ Retorne APENAS o texto da descrição.`,
         }
       }
 
+      console.log(`[meli-categories] DONE processed=${processedIds.length} updated=${updated} skipped=${skipped} errors=${errors.length}`);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -1179,8 +1195,9 @@ Retorne APENAS o texto da descrição.`,
           skipped,
           errors,
           processed: (listings || []).length,
-          hasMore: (listings || []).length === limit,
+          hasMore: filterIds?.length ? false : (listings || []).length === limit,
           resolvedCategories,
+          processedIds,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

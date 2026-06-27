@@ -1,55 +1,76 @@
-## Objetivo
-Fechar a categorização automática do Mercado Livre adicionando uma **Cascata 4 — IA Decisora** como fallback inteligente antes de cair em "pendente para edição manual". Hoje o gate de confiança (v1.12.0) protege contra categorias absurdas, mas é binário: ou aceita o que o ML devolve, ou deixa em branco. Falta a etapa em que a IA realmente *escolhe* entre as candidatas reais do ML.
+## Diagnóstico real (causa raiz estrutural)
 
-## Fluxo final acordado
-1. **Cascata 1** — Nome sanitizado + Tipo de produto → ML decide. Se passar no gate → fim.
-2. **Cascata 2** — Nome + Resumo IA cacheado → ML decide. Se passar no gate → fim.
-3. **Cascata 3** — Nome + Marca → ML decide. Se passar no gate → fim.
-4. **Cascata 4 (NOVA) — IA Decisora**:
-   - Coletar **todas** as categorias candidatas que o ML devolveu nas 3 cascatas anteriores (mesmo as bloqueadas pelo gate), deduplicadas por `category_id`.
-   - Para cada candidata, hidratar o **caminho completo** (`path_from_root`) consultando `/categories/{id}` (com cache em memória por execução para evitar refetch).
-   - Pedir à IA (Gemini Flash via router padrão, JSON estruturado) que escolha a melhor `category_id` com base em: nome do produto, tipo, tipo IA, marca, descrição curta, composição, resumo cacheado. A IA recebe a lista enumerada de candidatas (id + caminho completo) e devolve `{ chosen_category_id, confidence, reason }` ou `{ chosen_category_id: null }` se nenhuma servir.
-   - O resultado da IA **ainda passa pelo mesmo gate de domínio** (`categoryMatchesProductDomain`). Defesa em profundidade: se a IA escolher algo incompatível com a família detectada, rejeita e cai para o passo 5.
-5. **Fallback final** — Pendente (`category_id = NULL`) para edição manual no diálogo. Comportamento preservado.
+Re-li o código e os dados. O problema NÃO é a lógica de categorização — ela está deterministicamente correta. O problema é estrutural na forma como o diálogo pagina o lote para o edge `bulk_auto_categories`.
 
-## Princípios de custo e segurança
-- Cascata 4 só roda quando 1, 2 e 3 falharam no gate. Produtos categorizados de primeira nunca disparam a IA decisora.
-- Reaproveita o resumo cacheado da v1.11.0 (sem regerar).
-- Sem novas tabelas, sem cron, sem fila. Chamada síncrona única por produto órfão.
-- Gate continua sendo última palavra (regra "pendente é melhor que errado").
-- Cadastro continua fonte única — IA escolhe categoria, nunca preenche campos do produto.
+### Causa raiz
+`supabase/functions/meli-bulk-operations/index.ts` na action `bulk_auto_categories` faz:
 
-## Arquivos técnicos impactados
-- `supabase/functions/meli-bulk-operations/index.ts` — adicionar coleta de candidatas em cada cascata, função `aiPickBestCategory(candidates, productContext)` e novo passo antes do "deixa em branco". Usar `aiChatCompletionJSON` do `_shared/ai-router.ts` (regra `ai-provider-router-standard`).
-- Nenhuma migração. Nenhuma mudança de UI/UX (diálogo de envio segue igual; produto pendente continua aparecendo como pendente até a IA escolher).
+```ts
+.eq("tenant_id", tenantId)
+.in("status", [...])
+.in("id", filterIds)
+.range(offset, offset + limit - 1)   // <-- sem .order()
+```
 
-## Validação técnica obrigatória pós-entrega
-1. Build OK e deploy da `meli-bulk-operations`.
-2. Limpar `category_id` dos 6 produtos órfãos do tenant Respeite o Homem (Fast Upgrade, Kits Banho, Kit Zero Falhas) via SQL controlado.
-3. Reprocessar via edge function e capturar log da cascata: quais candidatas vieram, qual a IA escolheu, se passou no gate.
-4. Confirmar no banco que produtos categorizados antes (Shampoos, Bálsamos, Suplementos) não sofreram regressão.
-5. Confirmar que produtos genuinamente sem encaixe continuam `NULL` (raríssimo, mas precisa funcionar).
-6. Reportar para o usuário a tabela: produto → categoria escolhida → caminho completo → fonte (cascata 1/2/3/4 ou pendente).
+**Não há `ORDER BY`**. Postgres pode devolver as linhas em ordem diferente entre páginas (depende do plano, do cache, da concorrência), o que faz `OFFSET/LIMIT` produzir **sobreposições e lacunas**:
 
-## Documentação a atualizar (mesma entrega)
-- `docs/especificacoes/marketplaces/mercado-livre.md` — adicionar a Cascata 4 ao fluxo de categorização, descrevendo: insumos para a IA, formato de resposta, fato de o gate de domínio se aplicar também à escolha da IA, e quando cai em pendente.
-- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que a IA pode escolher categoria entre candidatas reais do ML, mas nunca inventa categoria e nunca preenche campos do cadastro; gate continua soberano.
+- Página 1 (offset 0, limit 5) pode trazer um conjunto.
+- Página 2 (offset 5, limit 5) pode repetir 2 e perder 2.
+- Listings repetidos são pulados (`if (listing.category_id) continue`), e os perdidos **nunca são processados** — ficam com `category_id NULL` e `updated_at` no carimbo da criação do rascunho.
 
-## Decisões técnicas que tomo por conta (dentro do critério dado)
-- Modelo: Gemini Flash via `aiChatCompletionJSON` (router padrão, fallback automático).
-- Sem cache persistente da escolha — cada reprocessamento reavalia (volume é baixíssimo, só produtos órfãos, custo desprezível).
-- Hidratação de `path_from_root` em memória dentro da mesma execução (evita refetch quando vários produtos compartilham candidatas).
-- Limite de 8 candidatas enviadas à IA (suficiente; mais que isso = ruído).
-- Timeout curto (10s) na chamada da IA; se estourar, cai em pendente sem travar o batch.
+Confirma no banco: todos os órfãos do tenant "Respeite o Homem" estão exatamente no mesmo timestamp `21:57:18.494946` (carimbo da criação do lote). Todos os categorizados têm timestamp posterior. Não é falha do cascata — é página perdida.
 
-## O que NÃO vou tocar sem aprovação
-- UI do diálogo de envio, painel de atributos, cadastro do produto.
-- Lista de campos obrigatórios do `mlReadiness`.
-- Regras do gate de domínio (continua igual).
-- Geração/cache do resumo (v1.11.0 inalterado).
-- Núcleo Produtos/Clientes/Pedidos.
+### Por que (3x) Dia categoriza e (2x) Dia não
+Mesma família, mesmo `product_type` ("Shampoo, balm"), mesmo termo sanitizado ("Kit Banho Calvície Zero Dia"). Se a cascata rodasse para ambos, a saída seria idêntica. (3x) Dia caiu numa página que o Postgres devolveu; (2x) Dia caiu numa lacuna. Aleatório.
 
-## Dúvidas / limitações conhecidas
-- Nenhuma bloqueante. Único ponto de atenção: se as 3 cascatas anteriores não devolverem nenhuma candidata (ML retornar vazio em todas), a Cascata 4 não tem o que avaliar e cai direto em pendente — comportamento correto e desejado.
+Ponto adicional: as actions `bulk_generate_titles` e `bulk_generate_descriptions` têm o mesmo padrão `range()` sem `order()` — mesma classe de bug latente.
 
-📌 STATUS DA ENTREGA: Plano pronto, aguardando aprovação para implementar, validar tecnicamente e atualizar docs.
+## Plano estrutural (eficiente, sem mudança de UI nem de regra de negócio)
+
+### Fix 1 — Garantir cobertura determinística no edge
+Em `supabase/functions/meli-bulk-operations/index.ts`:
+
+1. Em `bulk_auto_categories`, `bulk_generate_titles` e `bulk_generate_descriptions`:
+   - Adicionar `.order("id", { ascending: true })` antes do `.range(...)`. Isso torna a paginação reprodutível.
+   - **Quando `filterIds?.length` for fornecido**, ignorar `offset/limit/range` e processar **todos os IDs do filtro de uma vez** (a lista já vem bounded do diálogo, tipicamente ≤ 50). Elimina pagination drift na origem.
+   - Manter `range()` apenas para a chamada sem `filterIds` (uso administrativo do botão "Recategorizar tudo").
+
+2. Em `bulk_auto_categories`, devolver no payload de resposta `processedIds: string[]` (lista dos listingIds efetivamente tratados — categorizados, pulados ou que falharam). Isso permite ao diálogo auditar cobertura e re-tentar só o que faltou, sem chutar.
+
+### Fix 2 — Diálogo audita cobertura e completa o que faltou
+Em `src/components/marketplaces/MeliListingCreator.tsx` (função `handleCreateAndCategorize`, linhas 517-551):
+
+1. Trocar o loop `while (hasMore) { offset += limit }` por **chunks explícitos do array `ids`** em JS:
+   - Fatiar `ids` em pedaços de 5 e mandar cada pedaço como `listingIds: chunk` (sem `offset/limit`).
+   - O edge processa exatamente esse pedaço (graças ao Fix 1).
+2. Ao final, fazer uma **passada de reconciliação**:
+   - Consultar `meli_listings` apenas pelos `ids` originais e isolar quem ainda está com `category_id IS NULL`.
+   - Se restou alguém, disparar **uma única retentativa** desses faltantes em chunks de 5. Limite de 1 retry para não criar loop infinito.
+   - O que sobrar após o retry segue como "não identificada" e o usuário continua podendo escolher manualmente no próprio diálogo (comportamento atual já cobre isso).
+3. Em caso de erro de rede/timeout num chunk, **não quebrar o loop inteiro**: registrar a falha, continuar com os próximos chunks, e o passo de reconciliação no fim pega o que ficou.
+
+### Fix 3 — Telemetria mínima para detectar recorrência
+- No edge, logar por listing: `listingId | cascada vencedora | category_id resultante | razão se NULL`.
+- Logar no início/fim de cada chamada: `received_ids_count`, `processed_ids_count`, `null_after_run_count`. Sem nova tabela; apenas `console.log` estruturado para investigação via `edge_function_logs`.
+
+### O que NÃO mudo (e por quê)
+- Cascata 1→4, gate de domínio, IA Decisora, sanitizador de termo, resumo cacheado — todos validados.
+- UI/UX do diálogo (sem novos botões, sem novas etapas) — comportamento visual idêntico para o lojista.
+- Schema do banco — sem migração.
+- Os outros endpoints do edge que já operam só com `filterIds` curtos (bulk_titles/bulk_descriptions) recebem a mesma `.order("id")` por segurança anti-regressão, mas mantenho a paginação por compatibilidade com chamadas sem filtro.
+
+### Validação técnica obrigatória pós-entrega
+1. Build OK e deploy de `meli-bulk-operations`.
+2. Limpar `category_id` dos órfãos atuais do Respeite o Homem (operação de saneamento, com aviso de "ação destrutiva controlada — só para limpar o estado residual deste bug", aguardando confirmação explícita antes de executar).
+3. Disparar um novo lote pelo diálogo selecionando os mesmos produtos e confirmar via SQL que **todos** os listingIds enviados acabam com `category_id` preenchido OU explicitamente `NULL` por decisão da Cascata 4 (com log "ai-decider declarou nenhuma compatível"). Zero casos por "página perdida".
+4. Reportar tabela final: listingId → produto → cascata vencedora → category_id.
+
+### Documentação a atualizar (mesma entrega)
+- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Cascata determinística do termo de busca": acrescentar que o fan-out por `filterIds` processa o conjunto completo sem pagination drift e que o diálogo faz reconciliação ao final.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar a regra: **"pagination drift proibido em ações em lote do MeLi; usar `filterIds` fan-out ou `.order('id')` + `.range()` deterministicamente"**.
+
+## Dúvida / limitação
+- **Ação destrutiva controlada**: para validar end-to-end com os mesmos produtos do tenant Respeite o Homem, preciso zerar `category_id`/`category_name`/`category_path_text` dos listings órfãos atuais antes de re-rodar o diálogo. Isso só roda após sua aprovação explícita. Sem essa limpeza, o cascata vai pular esses listings (porque já têm `category_id NULL` mas a categoria não foi salva — tudo bem, eles entram normal; na verdade não precisa limpar nada para os NULL. Só preciso confirmação para limpar **caso queira reprocessar listings que já foram categorizados errados**). Confirma?
+- Se você quiser, posso reaproveitar o lote atual sem nenhuma operação destrutiva: basta abrir o diálogo, selecionar os mesmos produtos, e o novo fluxo cobre todos. Diga qual caminho prefere.
+
+📌 STATUS DA ENTREGA: Plano pronto, aguardando aprovação para implementar e validar.
