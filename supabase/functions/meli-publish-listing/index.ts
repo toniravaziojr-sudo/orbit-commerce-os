@@ -772,6 +772,7 @@ async function sanitizeAttributesForCategory(
   accessToken: string,
   categoryId: string,
   attrs: any[],
+  productCtx?: any,
 ): Promise<any[]> {
   try {
     const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
@@ -781,12 +782,42 @@ async function sanitizeAttributesForCategory(
     const specs: any[] = await res.json();
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
+    const isNaName = (n: any) => {
+      const x = norm(n).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+      return x === "naoseaplica" || x === "noaplica" || x === "na";
+    };
+    const isRegulatory = (spec: any) => {
+      const idUp = String(spec?.id || "").toUpperCase();
+      if (ANVISA_NUMBER_IDS.has(idUp)) return true;
+      if (idUp.includes("AFE") && (idUp.includes("CERTIF") || idUp.includes("NUMBER") || idUp.includes("AUTH"))) return true;
+      if (idUp.includes("CONAMA")) return true;
+      if (isAnvisaNumberByName(spec?.name || "")) return true;
+      return false;
+    };
     // v2.6.0 — WARRANTY_TIME é texto livre obrigatório no fluxo de update;
     // sem isso o ML rejeita ou perde o tempo de garantia silenciosamente.
     const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU", "WARRANTY_TIME"]);
     const cleaned: any[] = [];
     for (const attr of attrs) {
       const spec = byId.get(attr.id);
+      const idUp = String(attr.id).toUpperCase();
+      // v2.6.1 — Trata "Não se aplica"/not_applicable como o publish faz:
+      // regulatório → drop; UNITS_PER_PACK → força valor do cadastro (>=1); demais → drop.
+      const isNA = (attr as any).not_applicable === true || isNaName(attr.value_name);
+      if (isNA) {
+        if (spec && isRegulatory(spec)) {
+          console.log(`[meli-publish-listing] sanitize(update): dropping regulatory N/A ${attr.id}`);
+          continue;
+        }
+        if (idUp === "UNITS_PER_PACK") {
+          const upk = Math.max(1, Number(productCtx?.units_per_package) || 1);
+          cleaned.push({ id: "UNITS_PER_PACK", value_name: String(upk) });
+          console.log(`[meli-publish-listing] sanitize(update): forced UNITS_PER_PACK=${upk} (was N/A)`);
+          continue;
+        }
+        console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (N/A not accepted)`);
+        continue;
+      }
       // v2.6.0 — suporte a multi-valor (values[]): normaliza contra a lista oficial.
       if (Array.isArray(attr.values) && attr.values.length > 0) {
         if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
@@ -798,7 +829,6 @@ async function sanitizeAttributesForCategory(
           if (out.length > 0) cleaned.push({ id: attr.id, values: out });
           else console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (no values matched)`);
         } else {
-          // sem spec ou sem lista fechada: mantém values cru já normalizado
           const out = attr.values
             .map((v: any) => ({ ...(v?.id ? { id: v.id } : {}), ...(v?.name ? { name: v.name } : {}) }))
             .filter((v: any) => v.id || v.name);
@@ -810,7 +840,7 @@ async function sanitizeAttributesForCategory(
         const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
         if (hit) {
           cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
-        } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
+        } else if (FREE_FORM_IDS.has(idUp)) {
           console.log(`[meli-publish-listing] sanitize(update): keeping free-form ${attr.id}="${attr.value_name}"`);
           cleaned.push({ id: attr.id, value_name: attr.value_name });
         } else {
@@ -819,6 +849,20 @@ async function sanitizeAttributesForCategory(
         }
       } else {
         cleaned.push(cleanAttributePayload(attr));
+      }
+    }
+    // v2.6.1 — Defesa em profundidade: se a categoria expõe UNITS_PER_PACK e ele não
+    // está no payload final (ou ficou inválido), injeta valor do cadastro (>=1).
+    const upkSpec = specs.find((s: any) => String(s.id).toUpperCase() === "UNITS_PER_PACK");
+    if (upkSpec) {
+      const idx = cleaned.findIndex((a: any) => String(a.id).toUpperCase() === "UNITS_PER_PACK");
+      const raw = idx >= 0 ? String(cleaned[idx].value_name ?? "") : "";
+      const n = Number(raw);
+      if (idx < 0 || !Number.isFinite(n) || n < 1) {
+        const upk = Math.max(1, Number(productCtx?.units_per_package) || 1);
+        if (idx >= 0) cleaned.splice(idx, 1);
+        cleaned.push({ id: "UNITS_PER_PACK", value_name: String(upk) });
+        console.log(`[meli-publish-listing] sanitize(update): forced UNITS_PER_PACK=${upk} (defesa)`);
       }
     }
     return cleaned;
