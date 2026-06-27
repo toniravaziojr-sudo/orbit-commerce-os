@@ -56,10 +56,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq("id", trackingToken.campaign_id);
 
       if (redirect) {
-        return Response.redirect(redirect, 302);
+        // v8.36.0 — Pré-hidratação de identidade no clique de e-mail.
+        // Anexa ?ah=<token> ao redirect quando o destino é do mesmo tenant
+        // (domínios verificados) e há ao menos email/telefone do subscriber.
+        // Falha silenciosamente — nunca bloqueia o redirect original.
+        const finalUrl = await maybeAttachPrehydrationToken(
+          supabase,
+          redirect,
+          trackingToken.tenant_id,
+          trackingToken.subscriber_id,
+        );
+        return Response.redirect(finalUrl, 302);
       }
       return new Response("OK", { status: 200 });
     } else {
+
       // Open tracking (pixel)
       await supabase
         .from("email_tracking_tokens")
