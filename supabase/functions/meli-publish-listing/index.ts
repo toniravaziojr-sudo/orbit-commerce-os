@@ -652,12 +652,28 @@ Deno.serve(async (req) => {
 
     console.log(`[meli-publish-listing] Published successfully: ${meliItemId}, permalink: ${permalink}`);
 
+    // Sincroniza o `shipping` real devolvido pelo ML (fonte de verdade
+    // pós-publicação). Captura também eventuais aplicações automáticas de
+    // frete grátis pelo piso do ML — mantém UI e backend alinhados.
+    const responseShipping = responseData?.shipping && typeof responseData.shipping === "object"
+      ? responseData.shipping
+      : itemPayload.shipping;
+
+    // Sinal passivo: ML aplicou frete grátis em anúncio abaixo do piso conhecido → registrar para revisão.
+    if (
+      responseShipping?.free_shipping === true &&
+      !isMeliFreeShippingMandatory(itemPayload.price)
+    ) {
+      console.warn(`[meli-publish-listing] DIVERGÊNCIA piso frete grátis: ML aplicou free_shipping=true em price=${itemPayload.price} (piso atual=${MELI_FREE_SHIPPING_THRESHOLD_BRL}). Revisar constante MELI_FREE_SHIPPING_THRESHOLD_BRL.`);
+    }
+
     await supabase
       .from("meli_listings")
       .update({
         status: "published",
         meli_item_id: meliItemId,
         meli_response: responseData,
+        shipping: responseShipping,
         error_message: null,
         published_at: new Date().toISOString(),
       })
