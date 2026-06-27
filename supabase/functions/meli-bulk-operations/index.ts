@@ -936,12 +936,25 @@ Retorne APENAS o texto da descrição.`,
           const productName = product?.name || listing.title;
           const brandName = product?.brand || "";
 
-          // Cascata determinística: tipo do cadastro → resumo IA cacheado → marca.
+          // Cascata determinística: tipo do cadastro → resumo IA cacheado → marca → IA Decisora.
           const primaryTerm = buildPrimarySearchTerm(product || ({ id: "", name: productName } as any));
-          const candidates: Array<{ label: string; term: string }> = [];
-          if (primaryTerm) candidates.push({ label: "primary(tipo+nome)", term: primaryTerm });
 
           let categoryFound = false;
+
+          // Coleta global de candidatas devolvidas pelo ML em qualquer cascata
+          // (mesmo as rejeitadas pelo gate), para alimentar a Cascata 4 (IA Decisora).
+          const candidatePool = new Map<string, { category_id: string; category_name: string; path: string; sources: string[] }>();
+
+          const fetchCategoryPath = async (catId: string): Promise<string> => {
+            try {
+              const catRes = await fetch(`https://api.mercadolibre.com/categories/${catId}`, { headers: mlHeaders });
+              if (catRes.ok) {
+                const catData = await catRes.json();
+                return (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+              }
+            } catch { /* skip */ }
+            return "";
+          };
 
           const tryDiscovery = async (term: string, label: string, enforceDomainGate: boolean): Promise<boolean> => {
             if (!term) return false;
@@ -955,13 +968,20 @@ Retorne APENAS o texto da descrição.`,
               if (!Array.isArray(data) || data.length === 0) return false;
               const pathMap = new Map<string, string>();
               for (const d of data) {
-                try {
-                  const catRes = await fetch(`https://api.mercadolibre.com/categories/${d.category_id}`, { headers: mlHeaders });
-                  if (catRes.ok) {
-                    const catData = await catRes.json();
-                    pathMap.set(d.category_id, (catData.path_from_root || []).map((p: any) => p.name).join(" > "));
-                  }
-                } catch { /* skip */ }
+                const path = await fetchCategoryPath(d.category_id);
+                if (path) pathMap.set(d.category_id, path);
+                // Acumula no pool global para potencial uso pela Cascata 4
+                const existing = candidatePool.get(d.category_id);
+                if (existing) {
+                  if (!existing.sources.includes(label)) existing.sources.push(label);
+                } else {
+                  candidatePool.set(d.category_id, {
+                    category_id: d.category_id,
+                    category_name: d.category_name || d.domain_name || d.category_id,
+                    path: path || "",
+                    sources: [label],
+                  });
+                }
               }
               const best = pickBestCategory(data, productName, brandName, pathMap);
               if (!best) return false;
@@ -969,12 +989,10 @@ Retorne APENAS o texto da descrição.`,
               const catPath = pathMap.get(categoryId) || "";
               const catName = catPath ? catPath.split(" > ").pop()! : (best.category_name || best.domain_name || categoryId);
 
-              // Gate de confiança: na tentativa primária, exige que o caminho da categoria
-              // case com a família funcional do cadastro. Mismatch → força fallback IA.
               if (enforceDomainGate) {
                 const ok = categoryMatchesProductDomain(catPath, product?.product_type, product?.ai_product_type, productName);
                 if (!ok) {
-                  console.log(`[meli-categories] ${label} REJEITADO por gate de domínio: "${term.slice(0, 80)}" → ${categoryId} (${catPath}). Forçando fallback.`);
+                  console.log(`[meli-categories] ${label} REJEITADO por gate de domínio: "${term.slice(0, 80)}" → ${categoryId} (${catPath}). Continuando cascata.`);
                   return false;
                 }
               }
@@ -994,23 +1012,25 @@ Retorne APENAS o texto da descrição.`,
             }
           };
 
-          // 1) Primário: nome + tipo do cadastro (sem IA) — com gate de confiança.
+          // 1) Primário: nome + tipo do cadastro (sem IA) — com gate.
           if (primaryTerm) {
             categoryFound = await tryDiscovery(primaryTerm, "primary", true);
           }
 
-          // 2) Fallback IA: nome + resumo funcional cacheado (gerado uma vez por versão do cadastro).
+          // 2) Fallback resumo IA cacheado — com gate.
+          let aiTermUsed = "";
           if (!categoryFound && product?.id) {
             const summary = await getOrGenerateSearchSummary(supabase, product);
             if (summary) {
               const aiTerm = buildAiFallbackSearchTerm(product, summary);
               if (aiTerm && aiTerm !== primaryTerm) {
+                aiTermUsed = aiTerm;
                 categoryFound = await tryDiscovery(aiTerm, "ai-summary", true);
               }
             }
           }
 
-          // 3) Fallback marca: nome + marca (último recurso, sem gate — aceita qualquer match).
+          // 3) Fallback marca — com gate.
           if (!categoryFound && brandName) {
             const brandTerm = buildPrimarySearchTerm({ ...(product || ({} as any)), product_type: brandName, ai_product_type: null });
             if (brandTerm && brandTerm !== primaryTerm) {
@@ -1018,6 +1038,49 @@ Retorne APENAS o texto da descrição.`,
             }
           }
 
+          // 4) Cascata IA Decisora: a IA escolhe entre as candidatas reais do ML,
+          //    usando o cadastro completo do produto como contexto.
+          //    Resultado ainda passa pelo gate de domínio (defesa em profundidade).
+          if (!categoryFound && candidatePool.size > 0) {
+            try {
+              const candidates = Array.from(candidatePool.values()).slice(0, 8);
+              const chosen = await aiPickBestCategory(candidates, {
+                name: productName,
+                brand: brandName,
+                product_type: product?.product_type || "",
+                ai_product_type: product?.ai_product_type || "",
+                ai_main_function: (product as any)?.ai_main_function || "",
+                product_format: (product as any)?.product_format || "",
+                short_description: (product as any)?.short_description || "",
+                description: ((product as any)?.description || "").slice(0, 600),
+                ml_search_summary: (product as any)?.ml_search_summary || "",
+              });
+              if (chosen?.chosen_category_id) {
+                const picked = candidatePool.get(chosen.chosen_category_id);
+                if (picked) {
+                  const ok = categoryMatchesProductDomain(picked.path, product?.product_type, product?.ai_product_type, productName);
+                  if (ok) {
+                    const catName = picked.path ? picked.path.split(" > ").pop()! : picked.category_name;
+                    await supabase.from("meli_listings").update({
+                      category_id: picked.category_id,
+                      category_name: catName || null,
+                      category_path_text: picked.path || null,
+                    }).eq("id", listing.id);
+                    resolvedCategories.push({ listingId: listing.id, categoryId: picked.category_id, categoryName: catName, categoryPath: picked.path });
+                    console.log(`[meli-categories] ai-decider matched → ${picked.category_id} (${picked.path}). Razão: ${chosen.reason || "-"}`);
+                    updated++;
+                    categoryFound = true;
+                  } else {
+                    console.log(`[meli-categories] ai-decider REJEITADO por gate: ${picked.category_id} (${picked.path})`);
+                  }
+                }
+              } else {
+                console.log(`[meli-categories] ai-decider declarou "nenhuma compatível" para "${productName}" (${candidatePool.size} candidatas).`);
+              }
+            } catch (e) {
+              console.warn(`[meli-categories] ai-decider falhou para "${productName}":`, e instanceof Error ? e.message : e);
+            }
+          }
 
           if (!categoryFound) {
             skipped++;
