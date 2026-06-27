@@ -993,19 +993,26 @@ export function MeliListingCreator({
     setProcessingProgress(0);
     setProcessingLabel(mode === 'publish' ? 'Salvando e publicando no Mercado Livre...' : 'Salvando anúncios...');
     try {
-      const { error } = await supabase
-        .from("meli_listings")
-        .update({
-          condition,
-          listing_type: listingType,
-          shipping: {
-            mode: "me2",
-            free_shipping: freeShipping,
-            local_pick_up: localPickup,
-          },
-        })
-        .in("id", listingIds)
-        .eq("tenant_id", currentTenant?.id);
+      // Per-listing: força free_shipping quando o preço cruza o piso do ML.
+      // Mantemos o toggle do usuário só para itens abaixo do piso.
+      const perListingOps = generatedItems.map((item) => {
+        const mandatory = isMeliFreeShippingMandatory(item.price);
+        return supabase
+          .from("meli_listings")
+          .update({
+            condition,
+            listing_type: listingType,
+            shipping: {
+              mode: "me2",
+              free_shipping: mandatory ? true : freeShipping,
+              local_pick_up: localPickup,
+            },
+          })
+          .eq("id", item.listingId)
+          .eq("tenant_id", currentTenant?.id);
+      });
+      const results = await Promise.all(perListingOps);
+      const error = results.find((r) => r.error)?.error;
 
       if (error) throw error;
 
