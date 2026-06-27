@@ -1802,64 +1802,181 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 9: Shipping ===== */}
+        {/* ===== STEP 9: Shipping (per-listing free shipping + global local pickup) ===== */}
         {step === "shipping" && (() => {
-          const itemsAboveThreshold = generatedItems.filter((it) => isMeliFreeShippingMandatory(it.price)).length;
-          const allMandatory = itemsAboveThreshold > 0 && itemsAboveThreshold === generatedItems.length;
+          const mandatoryItems = generatedItems.filter((it) => isMeliFreeShippingMandatory(it.price));
+          const eligibleItems = generatedItems.filter((it) => !isMeliFreeShippingMandatory(it.price));
+          const eligibleCount = eligibleItems.length;
+          const mandatoryCount = mandatoryItems.length;
+          const eligibleOnCount = eligibleItems.filter((it) => !!freeShippingByListing[it.listingId]).length;
+
+          const persistFreeShippingForListing = async (listingId: string, value: boolean) => {
+            const item = generatedItems.find((i) => i.listingId === listingId);
+            if (!item) return;
+            const mandatory = isMeliFreeShippingMandatory(item.price);
+            const effective = mandatory ? true : value;
+            try {
+              await supabase
+                .from("meli_listings")
+                .update({ shipping: { mode: "me2", free_shipping: effective, local_pick_up: localPickup } })
+                .eq("id", listingId)
+                .eq("tenant_id", currentTenant?.id);
+            } catch (err) {
+              console.error("Persist per-listing free shipping error:", err);
+            }
+          };
+
+          const setOneListing = (listingId: string, value: boolean) => {
+            setFreeShippingByListing((prev) => ({ ...prev, [listingId]: value }));
+            void persistFreeShippingForListing(listingId, value);
+          };
+
+          const applyToAllEligible = async (value: boolean) => {
+            if (eligibleCount === 0) return;
+            const ids = eligibleItems.map((i) => i.listingId);
+            setFreeShippingByListing((prev) => {
+              const next = { ...prev };
+              for (const id of ids) next[id] = value;
+              return next;
+            });
+            try {
+              await Promise.all(
+                ids.map((id) =>
+                  supabase
+                    .from("meli_listings")
+                    .update({ shipping: { mode: "me2", free_shipping: value, local_pick_up: localPickup } })
+                    .eq("id", id)
+                    .eq("tenant_id", currentTenant?.id)
+                )
+              );
+            } catch (err) {
+              console.error("Apply free shipping to all eligible error:", err);
+            }
+          };
+
+          const handleLocalPickupChange = async (v: boolean) => {
+            setLocalPickup(v);
+            // Mantém a escolha per-listing de frete grátis intacta ao atualizar retirada.
+            try {
+              await Promise.all(
+                generatedItems.map((it) => {
+                  const mandatory = isMeliFreeShippingMandatory(it.price);
+                  const fs = mandatory ? true : !!freeShippingByListing[it.listingId];
+                  return supabase
+                    .from("meli_listings")
+                    .update({ shipping: { mode: "me2", free_shipping: fs, local_pick_up: v } })
+                    .eq("id", it.listingId)
+                    .eq("tenant_id", currentTenant?.id);
+                })
+              );
+            } catch (err) {
+              console.error("Persist local_pick_up error:", err);
+            }
+          };
+
           return (
-          <div className="flex-1 flex flex-col gap-4 py-4">
+          <div className="flex-1 flex flex-col gap-4 py-4 overflow-hidden">
             <p className="text-sm text-muted-foreground">
-              Configure o frete para todos os {generatedItems.length} anúncios.
+              Configure o frete grátis individualmente para cada um dos {generatedItems.length} anúncios.
             </p>
-            {itemsAboveThreshold > 0 && (
+            {mandatoryCount > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200 flex gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium">
-                    {allMandatory
+                    {mandatoryCount === generatedItems.length
                       ? `Todos os ${generatedItems.length} anúncios têm frete grátis obrigatório`
-                      : `${itemsAboveThreshold} de ${generatedItems.length} anúncios terão frete grátis obrigatório`}
+                      : `${mandatoryCount} de ${generatedItems.length} anúncios terão frete grátis obrigatório`}
                   </p>
                   <p className="mt-0.5">
-                    O Mercado Livre exige frete grátis em anúncios a partir de R$ {MELI_FREE_SHIPPING_THRESHOLD_BRL}. Para esses, o custo é assumido pelo vendedor independente da escolha abaixo.
+                    O Mercado Livre exige frete grátis em anúncios a partir de R$ {MELI_FREE_SHIPPING_THRESHOLD_BRL}. Para esses, o toggle fica travado e o custo é assumido pelo vendedor.
                   </p>
                 </div>
               </div>
             )}
-            <div className="grid gap-3">
-              <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-                freeShipping ? "border-primary bg-primary/5" : "border-border"
-              }`}>
-                <div className="flex items-center gap-4">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
-                    freeShipping ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}>
-                    <Truck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Frete Grátis</p>
-                    <p className="text-xs text-muted-foreground">O vendedor assume o custo do frete</p>
-                  </div>
-                </div>
-                <Switch checked={allMandatory ? true : freeShipping} disabled={allMandatory} onCheckedChange={(v) => { setFreeShipping(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: v, local_pick_up: localPickup } }); }} />
-              </div>
 
-              <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-                localPickup ? "border-primary bg-primary/5" : "border-border"
-              }`}>
-                <div className="flex items-center gap-4">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
-                    localPickup ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}>
-                    <MapPin className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Retirada no Local</p>
-                    <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
-                  </div>
-                </div>
-                <Switch checked={localPickup} onCheckedChange={(v) => { setLocalPickup(v); void persistBulkSettings({ shipping: { mode: "me2", free_shipping: freeShipping, local_pick_up: v } }); }} />
+            {eligibleCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground mr-1">Ações em massa ({eligibleOnCount}/{eligibleCount} ativados):</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void applyToAllEligible(true)}
+                  disabled={eligibleCount === 0}
+                >
+                  <Truck className="h-3.5 w-3.5 mr-1" />
+                  Ativar frete grátis em todos ({eligibleCount})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void applyToAllEligible(false)}
+                  disabled={eligibleCount === 0}
+                >
+                  Desativar frete grátis em todos ({eligibleCount})
+                </Button>
               </div>
+            )}
+
+            <ScrollArea className="flex-1 min-h-0 -mx-1">
+              <div className="grid gap-2 px-1">
+                {generatedItems.map((item) => {
+                  const mandatory = isMeliFreeShippingMandatory(item.price);
+                  const checked = mandatory ? true : !!freeShippingByListing[item.listingId];
+                  return (
+                    <div
+                      key={item.listingId}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-lg border transition-all ${
+                        checked ? "border-primary/40 bg-primary/5" : "border-border"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
+                          checked ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                        }`}>
+                          <Truck className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate" title={item.title || item.productName}>
+                            {item.title || item.productName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatCurrency(item.price)}
+                            {mandatory && (
+                              <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-2 py-0.5 text-[10px] font-medium">
+                                Obrigatório pelo Mercado Livre
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={checked}
+                        disabled={mandatory}
+                        onCheckedChange={(v) => setOneListing(item.listingId, v)}
+                        aria-label={`Frete grátis para ${item.title || item.productName}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+
+            <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+              localPickup ? "border-primary bg-primary/5" : "border-border"
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+                  localPickup ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}>
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Retirada no Local</p>
+                  <p className="text-xs text-muted-foreground">Comprador retira pessoalmente — aplicado a todos os anúncios</p>
+                </div>
+              </div>
+              <Switch checked={localPickup} onCheckedChange={(v) => void handleLocalPickupChange(v)} />
             </div>
           </div>
           );
