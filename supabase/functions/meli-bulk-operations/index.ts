@@ -996,6 +996,7 @@ Retorne APENAS o texto da descrição.`,
       const processedIds: string[] = [];
 
       for (const listing of (listings || [])) {
+        processedIds.push(listing.id);
         try {
           // Skip if already has category
           if (listing.category_id) {
