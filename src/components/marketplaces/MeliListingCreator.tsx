@@ -927,12 +927,25 @@ export function MeliListingCreator({
     const ops = entries
       .filter(([, val]) => Array.isArray(val?.attributes) && val.attributes.length > 0)
       .map(([listingId, val]) => {
+        // v2.6.0 — Persistimos o payload completo do painel (com name, source,
+        // resolver_version, values[], not_applicable). Isso é o que permite o cache
+        // do MeliAttributesPanel reconhecer o rascunho como "já resolvido" e NÃO
+        // reprocessar IA ao reabrir o diálogo de edição. A publicação/atualização
+        // do ML continua lendo apenas {id, value_id, value_name, values}, então
+        // os campos extras são ignorados sem efeito colateral.
         const attrs = (val.attributes || [])
-          .filter(a => a.status !== "missing" && (a.value_name || a.value_id))
+          .filter(a => a.status !== "missing" && (a.value_name || a.value_id || (Array.isArray(a.values) && a.values.length > 0)))
           .map(a => ({
             id: a.id,
+            name: a.name,
+            status: a.status,
+            source: a.source,
+            required: a.required,
+            resolver_version: a.resolver_version,
+            ...(a.not_applicable ? { not_applicable: true } : {}),
             ...(a.value_id ? { value_id: a.value_id } : {}),
             ...(a.value_name ? { value_name: a.value_name } : {}),
+            ...(Array.isArray(a.values) && a.values.length > 0 ? { values: a.values } : {}),
           }));
         return supabase.from("meli_listings").update({ attributes: attrs as any }).eq("id", listingId);
       });
