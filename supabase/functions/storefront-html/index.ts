@@ -407,9 +407,17 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
         }).catch(function(){});
       };
       // v8.32.0: _sfEnsureFbp already guarantees _fbp — fire synchronously
+      // v8.36.0: aguarda até 800ms a hidratação do cofre (?ah=) para enriquecer o 1º evento.
       var fbp=window.__sfFbp||(document.cookie.match(/(?:^|;\\s*)_fbp=([^;]+)/)||[])[1]||null;
-      _doSend(fbp);
+      var _hp=window._sfHydrationPromise;
+      if(_hp&&typeof _hp.then==='function'){
+        var _done=false;
+        var _go=function(){if(_done)return;_done=true;_doSend(fbp);};
+        _hp.then(_go,_go);
+        setTimeout(_go,800);
+      }else{_doSend(fbp);}
     };
+
     </script>`);
   }
 
