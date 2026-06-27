@@ -416,6 +416,20 @@ Deno.serve(async (req) => {
         const NA_FORBIDDEN_DEFAULTS: Record<string, () => string | null> = {
           UNITS_PER_PACK: () => String(Math.max(1, Number((listing.product as any)?.units_per_package) || 1)),
         };
+        // Atributos de número regulatório (ANVISA/AFE/CONAMA) NÃO podem ir como
+        // "Não se aplica" — ML responde "valor incorreto". A opção correta é
+        // simplesmente OMITIR o atributo do payload.
+        const isRegulatoryNumberAttr = (spec: any) => {
+          const idUp = String(spec?.id || "").toUpperCase();
+          if (ANVISA_NUMBER_IDS.has(idUp)) return true;
+          if (idUp.includes("AFE") && (idUp.includes("CERTIF") || idUp.includes("NUMBER") || idUp.includes("AUTH"))) return true;
+          if (idUp.includes("CONAMA")) return true;
+          const nm = normName(spec?.name || "");
+          if (isAnvisaNumberByName(spec?.name || "")) return true;
+          if (nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac"))) return true;
+          if (nm.includes("conama")) return true;
+          return false;
+        };
 
         const cleaned: any[] = [];
         for (const attr of attributes) {
@@ -427,6 +441,11 @@ Deno.serve(async (req) => {
           const idUp = String(attr.id).toUpperCase();
           // Marcador "Não se aplica" (v1.9.0) — vem do painel
           if ((attr as any).not_applicable === true || isNaName(attr.value_name)) {
+            // Regulatórios: DROP (omitir do payload). ML rejeita N/A nesses campos.
+            if (isRegulatoryNumberAttr(spec)) {
+              console.log(`[meli-publish-listing] Dropping regulatory N/A attr ${attr.id}`);
+              continue;
+            }
             const forced = NA_FORBIDDEN_DEFAULTS[idUp]?.();
             if (forced) {
               // Tenta casar contra a lista oficial; se não houver lista, vai como texto livre.
