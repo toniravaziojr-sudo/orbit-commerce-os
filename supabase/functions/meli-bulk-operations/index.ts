@@ -835,12 +835,15 @@ Retorne APENAS o texto da descrição.`,
           const fullDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
           // Use product name + key terms from short description for better categorization
           const descKeywords = shortDesc.slice(0, 150) || fullDesc.slice(0, 150);
-          const searchTerm = descKeywords 
-            ? `${productName} ${descKeywords}`.slice(0, 200)
-            : productName;
+          // Remove pack multipliers like "(3x)", "(2x) Noite" — confundem o domain_discovery do ML
+          const cleanProductName = sanitizeCategorySearchTerm(productName);
+          const cleanDescKeywords = sanitizeCategorySearchTerm(descKeywords);
+          const searchTerm = cleanDescKeywords
+            ? `${cleanProductName} ${cleanDescKeywords}`.slice(0, 200)
+            : cleanProductName;
 
           const brandName = product?.brand || "";
-          console.log(`[meli-categories] Product: "${productName}", Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
+          console.log(`[meli-categories] Product: "${productName}" (clean: "${cleanProductName}"), Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
 
           let categoryFound = false;
 
