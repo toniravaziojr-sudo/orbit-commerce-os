@@ -1,8 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import {
+  buildPrimarySearchTerm,
+  buildAiFallbackSearchTerm,
+  getOrGenerateSearchSummary,
+  type ProductCadastro,
+} from "../_shared/meli/search-term-builder.ts";
 
-const VERSION = "v1.10.0"; // Sanitize pack-quantity markers from category search term to fix regression on kits (3x), (4x), etc.
+const VERSION = "v1.11.0"; // Cascata de termo: tipo do cadastro → resumo IA cacheado → marca. Resumo invalidado por assinatura SHA-256 do cadastro.
 
 /**
  * Remove marcadores de quantidade/multiplicador do termo de busca de categoria
@@ -780,7 +786,7 @@ Retorne APENAS o texto da descrição.`,
     if (action === "bulk_auto_categories") {
       let query = supabase
         .from("meli_listings")
-        .select("id, title, category_id, category_name, category_path_text, product_id, products(name, description, short_description, brand)")
+        .select("id, title, category_id, category_name, category_path_text, product_id, products(id, name, description, short_description, brand, product_type, ai_product_type, ai_main_function, product_format, line, net_content_value, net_content_unit, ml_search_summary, ml_search_summary_signature)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -828,36 +834,29 @@ Retorne APENAS o texto da descrição.`,
             continue;
           }
 
-          const product = (listing as any).products;
+          const product = (listing as any).products as ProductCadastro & { name: string | null; brand: string | null };
           const productName = product?.name || listing.title;
-          // Build smarter search term: extract key product function/type from description
-          const shortDesc = (product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-          const fullDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-          // Use product name + key terms from short description for better categorization
-          const descKeywords = shortDesc.slice(0, 150) || fullDesc.slice(0, 150);
-          // Remove pack multipliers like "(3x)", "(2x) Noite" — confundem o domain_discovery do ML
-          const cleanProductName = sanitizeCategorySearchTerm(productName);
-          const cleanDescKeywords = sanitizeCategorySearchTerm(descKeywords);
-          const searchTerm = cleanDescKeywords
-            ? `${cleanProductName} ${cleanDescKeywords}`.slice(0, 200)
-            : cleanProductName;
-
           const brandName = product?.brand || "";
-          console.log(`[meli-categories] Product: "${productName}" (clean: "${cleanProductName}"), Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
+
+          // Cascata determinística: tipo do cadastro → resumo IA cacheado → marca.
+          const primaryTerm = buildPrimarySearchTerm(product || ({ id: "", name: productName } as any));
+          const candidates: Array<{ label: string; term: string }> = [];
+          if (primaryTerm) candidates.push({ label: "primary(tipo+nome)", term: primaryTerm });
 
           let categoryFound = false;
 
-          const discoveryRes = await fetch(
-            `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(searchTerm)}`,
-            { headers: mlHeaders }
-          );
-
-          if (discoveryRes.ok) {
-            const discoveryData = await discoveryRes.json();
-            if (Array.isArray(discoveryData) && discoveryData.length > 0) {
-              // Resolve full paths for better scoring
+          const tryDiscovery = async (term: string, label: string): Promise<boolean> => {
+            if (!term) return false;
+            try {
+              const res = await fetch(
+                `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(term)}`,
+                { headers: mlHeaders }
+              );
+              if (!res.ok) { await res.text(); return false; }
+              const data = await res.json();
+              if (!Array.isArray(data) || data.length === 0) return false;
               const pathMap = new Map<string, string>();
-              for (const d of discoveryData) {
+              for (const d of data) {
                 try {
                   const catRes = await fetch(`https://api.mercadolibre.com/categories/${d.category_id}`, { headers: mlHeaders });
                   if (catRes.ok) {
@@ -866,66 +865,50 @@ Retorne APENAS o texto da descrição.`,
                   }
                 } catch { /* skip */ }
               }
+              const best = pickBestCategory(data, productName, brandName, pathMap);
+              if (!best) return false;
+              const categoryId = best.category_id;
+              const catPath = pathMap.get(categoryId) || "";
+              const catName = catPath ? catPath.split(" > ").pop()! : (best.category_name || best.domain_name || categoryId);
+              await supabase.from("meli_listings").update({
+                category_id: categoryId,
+                category_name: catName || null,
+                category_path_text: catPath || null,
+              }).eq("id", listing.id);
+              resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
+              console.log(`[meli-categories] ${label} matched "${term.slice(0, 80)}" → ${categoryId} (${catName})`);
+              updated++;
+              return true;
+            } catch (e) {
+              console.warn(`[meli-categories] ${label} failed for term "${term.slice(0, 80)}":`, e);
+              return false;
+            }
+          };
 
-              const bestMatch = pickBestCategory(discoveryData, productName, brandName, pathMap);
-              if (bestMatch) {
-                const categoryId = bestMatch.category_id;
-                const catPath = pathMap.get(categoryId) || "";
-                const catName = catPath ? catPath.split(" > ").pop()! : (bestMatch.category_name || bestMatch.domain_name || categoryId);
-                await supabase.from("meli_listings").update({
-                  category_id: categoryId,
-                  category_name: catName || null,
-                  category_path_text: catPath || null,
-                }).eq("id", listing.id);
-                resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
-                updated++;
-                categoryFound = true;
+          // 1) Primário: nome + tipo do cadastro (sem IA).
+          if (primaryTerm) {
+            categoryFound = await tryDiscovery(primaryTerm, "primary");
+          }
+
+          // 2) Fallback IA: nome + resumo funcional cacheado (gerado uma vez por versão do cadastro).
+          if (!categoryFound && product?.id) {
+            const summary = await getOrGenerateSearchSummary(supabase, product);
+            if (summary) {
+              const aiTerm = buildAiFallbackSearchTerm(product, summary);
+              if (aiTerm && aiTerm !== primaryTerm) {
+                categoryFound = await tryDiscovery(aiTerm, "ai-summary");
               }
             }
-          } else {
-            await discoveryRes.text();
           }
 
-          // Fallback: simpler search with product name + brand only
+          // 3) Fallback marca: nome + marca (último recurso, comportamento histórico).
           if (!categoryFound && brandName) {
-            const fallbackTerm = sanitizeCategorySearchTerm(`${productName} ${brandName}`).slice(0, 120);
-            console.log(`[meli-categories] Fallback search: "${fallbackTerm}"`);
-            try {
-              const fbRes = await fetch(
-                `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(fallbackTerm)}`,
-                { headers: mlHeaders }
-              );
-              if (fbRes.ok) {
-                const fbData = await fbRes.json();
-                if (Array.isArray(fbData) && fbData.length > 0) {
-                  const fbPathMap = new Map<string, string>();
-                  for (const d of fbData) {
-                    try {
-                      const catRes = await fetch(`https://api.mercadolibre.com/categories/${d.category_id}`, { headers: mlHeaders });
-                      if (catRes.ok) {
-                        const catData = await catRes.json();
-                        fbPathMap.set(d.category_id, (catData.path_from_root || []).map((p: any) => p.name).join(" > "));
-                      }
-                    } catch { /* skip */ }
-                  }
-                  const bestFb = pickBestCategory(fbData, productName, brandName, fbPathMap);
-                  if (bestFb) {
-                    const categoryId = bestFb.category_id;
-                    const catPath = fbPathMap.get(categoryId) || "";
-                    const catName = catPath ? catPath.split(" > ").pop()! : (bestFb.category_name || bestFb.domain_name || categoryId);
-                    await supabase.from("meli_listings").update({
-                      category_id: categoryId,
-                      category_name: catName || null,
-                      category_path_text: catPath || null,
-                    }).eq("id", listing.id);
-                    resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
-                    updated++;
-                    categoryFound = true;
-                  }
-                }
-              }
-            } catch { /* skip fallback */ }
+            const brandTerm = buildPrimarySearchTerm({ ...(product || ({} as any)), product_type: brandName, ai_product_type: null });
+            if (brandTerm && brandTerm !== primaryTerm) {
+              categoryFound = await tryDiscovery(brandTerm, "brand");
+            }
           }
+
 
           if (!categoryFound) {
             skipped++;
