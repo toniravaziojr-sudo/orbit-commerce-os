@@ -42,9 +42,13 @@ const PRODUCT_DOMAIN_TOKENS: Record<string, string[]> = {
   desodorante: ["desodorante", "antitranspirante"],
 };
 
-/** Detecta a família funcional a partir do tipo do cadastro. */
-function detectProductFamily(productType: string | null | undefined, productName: string | null | undefined): string[] {
-  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(productName)}`;
+/** Detecta a família funcional a partir do tipo do cadastro (manual + IA + nome). */
+function detectProductFamily(
+  productType: string | null | undefined,
+  aiProductType: string | null | undefined,
+  productName: string | null | undefined,
+): string[] {
+  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(aiProductType)} ${normalizeForMatch(productName)}`;
   const families: string[] = [];
   if (/\bshampoo\b|\bcondicionador\b|\bcapilar\b|\bcabelo\b/.test(blob)) families.push("cabelo");
   if (/\bbalm\b|\bpos barba\b/.test(blob)) families.push("balm");
@@ -68,15 +72,16 @@ function detectProductFamily(productType: string | null | undefined, productName
 function categoryMatchesProductDomain(
   categoryPath: string,
   productType: string | null | undefined,
+  aiProductType: string | null | undefined,
   productName: string | null | undefined,
 ): boolean {
   const path = normalizeForMatch(categoryPath);
   if (!path) return true; // sem caminho não há como avaliar — não bloqueia
-  const families = detectProductFamily(productType, productName);
+  const families = detectProductFamily(productType, aiProductType, productName);
   if (families.length === 0) return true; // cadastro sem sinal claro — não bloqueia
 
   // Domínios proibidos sem evidência no cadastro
-  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(productName)}`;
+  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(aiProductType)} ${normalizeForMatch(productName)}`;
   const forbidden = [
     "veiculo", "automotivo", "automoveis", "carro", "moto",
     "animais", "pet shop", "fazenda", "agro",
