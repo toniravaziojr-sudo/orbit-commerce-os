@@ -259,14 +259,24 @@ Deno.serve(async (req) => {
     // Note: PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH are NOT modifiable via attributes on ML
     // They must be set via shipping dimensions, not attributes
 
-    // Warranty via attributes (warranty field is deprecated on ML API)
-    if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
-      if (!attrIds.has("WARRANTY_TYPE")) {
-        const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
-        attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
-        attrIds.add("WARRANTY_TYPE");
+    // Warranty — cadastro sempre vence (v2.6.0).
+    // Remove qualquer WARRANTY_TYPE/WARRANTY_TIME herdado do painel/IA/memória
+    // e reinjeta a partir do cadastro do produto. Se cadastro estiver vazio/none,
+    // omite ambos os atributos (não envia "Sem garantia" — o ML mostra isso por default).
+    for (let i = attributes.length - 1; i >= 0; i--) {
+      const _id = String(attributes[i]?.id || "").toUpperCase();
+      if (_id === "WARRANTY_TYPE" || _id === "WARRANTY_TIME") {
+        attributes.splice(i, 1);
+        attrIds.delete(attributes[i]?.id);
       }
-      if (!attrIds.has("WARRANTY_TIME") && listing.product.warranty_duration) {
+    }
+    attrIds.delete("WARRANTY_TYPE");
+    attrIds.delete("WARRANTY_TIME");
+    if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
+      const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
+      attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
+      attrIds.add("WARRANTY_TYPE");
+      if (listing.product.warranty_duration) {
         attributes.push({ id: "WARRANTY_TIME", value_name: String(listing.product.warranty_duration).trim() });
         attrIds.add("WARRANTY_TIME");
       }
