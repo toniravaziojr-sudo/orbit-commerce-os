@@ -972,7 +972,7 @@ Retorne APENAS o texto da descrição.`,
               // Gate de confiança: na tentativa primária, exige que o caminho da categoria
               // case com a família funcional do cadastro. Mismatch → força fallback IA.
               if (enforceDomainGate) {
-                const ok = categoryMatchesProductDomain(catPath, product?.product_type || product?.ai_product_type, productName);
+                const ok = categoryMatchesProductDomain(catPath, product?.product_type, product?.ai_product_type, productName);
                 if (!ok) {
                   console.log(`[meli-categories] ${label} REJEITADO por gate de domínio: "${term.slice(0, 80)}" → ${categoryId} (${catPath}). Forçando fallback.`);
                   return false;
