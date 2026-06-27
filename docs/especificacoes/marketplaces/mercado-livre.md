@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-23 (v2.5.2: assistente em lote volta a ter etapa **Preços** antes de Frete; `meli-resolve-attributes` v1.4.0 corrige regressão de deploy antigo e amplia preenchimento útil de características recomendadas como formato, formato de venda, unidades por kit e conservação. v2.5.1: fallback determinístico por tokens para atributos obrigatórios de lista fechada.)
+> **Última atualização:** 2026-06-27 (v2.4.1: cache de características passa a ser versionado; rascunhos antigos com atributos resolvidos antes da regra ANVISA/substâncias recalculam uma única vez. ANVISA não escolhida sai do painel/payload, não vira IA/N/A. `meli-publish-listing` remove metadados internos antes de enviar ao ML.)
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
@@ -1078,7 +1078,7 @@ O assistente de criação/edição em lote de anúncios tem **9 etapas**, com **
 1. Produtos → 2. Categorias → 3. Títulos → 4. Descrições → **5. Características** → 6. Condição → 7. Tipo → **8. Preços** → 9. Frete.
 
 Comportamento da etapa:
-- Para cada anúncio em preparação, o painel **"Atributos para o anúncio"** primeiro carrega o que já está salvo no próprio anúncio (`meli_listings.attributes`). Só chama o motor `meli-resolve-attributes` (IA + dicionário) quando não há nada salvo para aquela categoria OU quando o lojista clica em **Recalcular** (v3.7 — 2026-06-23).
+- Para cada anúncio em preparação, o painel **"Atributos para o anúncio"** primeiro carrega o que já está salvo no próprio anúncio (`meli_listings.attributes`) **somente se o cache estiver na versão atual do motor**. Só chama o motor `meli-resolve-attributes` (IA + dicionário) quando não há nada salvo para aquela categoria, quando o cache salvo é legado/incompatível, ou quando o lojista clica em **Recalcular** (v3.7 — 2026-06-23; versionamento v2.4.1 — 2026-06-27).
 - Anti-regressão: reabrir o dialog, trocar de aba do navegador ou voltar do cadastro do produto **não dispara** nova resolução automática — o conteúdo já resolvido é reaproveitado sem custo de IA.
 - Se o lojista trocar a categoria do anúncio, as características salvas perdem validade e o motor é chamado novamente (categoria diferente = atributos diferentes).
 - Mostra contador "X faltando" e atalho "Abrir cadastro" por anúncio, abrindo o produto correspondente em nova aba.
@@ -1337,4 +1337,25 @@ A IA continua sendo o fallback quando o dicionário não casa nada — útil par
 - "Balm Pós-Banho Calvície Zero" (descrição com BPantol, Cafeína, AloeVera, Alecrim) → `ACTIVE_INGREDIENTS` preenchido com **"Pantenol, Cafeína, Aloe vera, Alecrim"** sem depender da IA.
 - ANVISA aparece **uma única vez** no painel, no atributo escolhido pela categoria.
 - Redução de chamadas à IA para atributos de substância → custo menor e resultado determinístico (mesma entrada → mesma saída).
+
+## v2.4.1 — Cache Versionado do Painel de Características (2026-06-27)
+
+### Problema resolvido
+O ajuste v2.4.0 estava correto no motor, mas rascunhos já existentes — caso real do **Balm Pós-Banho Calvície Zero** — continuavam mostrando o resultado antigo porque o painel reaproveitava `attributes` salvos no anúncio. Como esses dados antigos tinham sido persistidos antes da correção, a reabertura do diálogo não chamava o motor novo. Resultado: o lojista via dois números ANVISA e apenas um ingrediente ativo, mesmo após a atualização do classificador.
+
+### Regra nova
+- Todo cache salvo pelo painel recebe uma versão interna de resolução.
+- O motor `meli-resolve-attributes` também devolve `resolver_version` em cada atributo, garantindo que o resultado recém-calculado já chegue ao painel marcado como cache atual.
+- Ao reabrir um rascunho, o painel só reaproveita características salvas se a versão do cache for compatível com a versão atual do motor.
+- Cache legado/incompatível é recalculado **uma única vez**; depois o novo resultado é salvo com a versão atual e volta a abrir sem custo de IA.
+- Clicar em **Recalcular** continua sendo ação explícita do lojista e sempre força nova resolução.
+
+### Blindagens adicionais
+- Campo ANVISA não escolhido pela categoria é ignorado completamente: não aparece no painel, não vai para IA e não é enviado como "Não se aplica".
+- O publicador limpa metadados internos do cache antes de enviar atributos ao Mercado Livre. Somente `id`, `value_id`, `value_name` e `values` saem para a API externa.
+
+### Anti-regressão
+- Proibido tratar `attributes.length > 0` como cache válido sem verificar versão.
+- Proibido enviar metadados internos do painel ao Mercado Livre.
+- Mudança estrutural no motor de atributos deve incrementar a versão do cache do painel quando alterar o significado do resultado salvo.
 

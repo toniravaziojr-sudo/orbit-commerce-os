@@ -15,7 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
-const VERSION = "2.4.0";
+const VERSION = "2.4.1";
 
 // ---------- v2.4.0: ANVISA — atributo único por categoria -----------
 // O ML expõe até dois atributos de Anvisa por categoria, mas no cadastro
@@ -480,6 +480,14 @@ Deno.serve(async (req) => {
       const required = !!a.tags?.required || !!a.tags?.catalog_required;
       let value_name: string | undefined;
       let source: ResolvedAttr["source"] = "none";
+      const isAnvisaNumberAttr = ANVISA_NUMBER_ATTR_IDS.has(a.id.toUpperCase()) || isAnvisaNumberAttrName(a.name || "");
+
+      // v2.4.1 — evita duplicidade real: se a categoria expõe dois campos de
+      // número ANVISA, apenas o atributo canônico escolhido entra no painel e
+      // no payload. O outro não vai para IA nem vira "Não se aplica".
+      if (selectedAnvisaAttrId && isAnvisaNumberAttr && a.id !== selectedAnvisaAttrId) {
+        continue;
+      }
 
       // 5.0 Memória da loja: ajuste manual anterior do lojista para este produto.
       // Match preferencial por NOME (ML troca IDs entre categorias). Fallback por ID.
@@ -1195,18 +1203,19 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
       }
     }
 
+    const resolvedWithVersion = resolved.map((a: any) => ({ ...a, resolver_version: `meli-attrs-v${VERSION}` }));
 
     const summary = {
-      filled: resolved.filter(r => r.status === "filled").length,
-      review: resolved.filter(r => r.status === "review").length,
-      missing: resolved.filter(r => r.status === "missing").length,
+      filled: resolvedWithVersion.filter(r => r.status === "filled").length,
+      review: resolvedWithVersion.filter(r => r.status === "review").length,
+      missing: resolvedWithVersion.filter(r => r.status === "missing").length,
     };
 
     return json({
       success: true,
       version: VERSION,
       categoryId,
-      attributes: resolved,
+      attributes: resolvedWithVersion,
       summary,
       can_publish: summary.missing === 0,
     });
