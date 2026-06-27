@@ -345,19 +345,38 @@ Deno.serve(async (req) => {
 
         // Números regulatórios (ANVISA / AFE / CONAMA) — match por NOME do atributo
         // (IDs variam por categoria do ML). Fonte: products.regulatory_info.
+        // v2.4.2: ANVISA usa UM único atributo por categoria (notificação OU registro,
+        // nunca os dois). Se o painel já preencheu um, não inunda os demais.
         const regInfo: any = (listing.product as any)?.regulatory_info || {};
         const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
         const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
         const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
         const normName = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const ANVISA_NUMBER_IDS = new Set([
+          "ANVISA_PRIOR_NOTIFICATION_COMMUNICATION_DOCUMENT_NUMBER",
+          "ANVISA_NOTIFICATION_NUMBER",
+          "ANVISA_PRODUCT_REGISTRATION_NUMBER",
+          "ANVISA_REGISTRATION_NUMBER",
+        ]);
+        const isAnvisaNumberById = (id: string) => ANVISA_NUMBER_IDS.has(String(id).toUpperCase());
+        const isAnvisaNumberByName = (n: string) => {
+          const x = normName(n);
+          return x.includes("anvisa") && (x.includes("numero") || x.includes("notifica") || x.includes("comunica") || x.includes("registro") || x.includes("documento"));
+        };
+        // Já existe algum ANVISA-number preenchido pelo painel? Então NÃO espalhar.
+        const anvisaAlreadyFilled = attributes.some((a: any) =>
+          isAnvisaNumberById(a.id) || isAnvisaNumberByName(
+            (attrSpecs.find((s: any) => s.id === a.id)?.name) || ""
+          )
+        );
         for (const spec of attrSpecs) {
           if (attrIds.has(spec.id)) continue;
           const nm = normName(spec.name || "");
-          const isAnvisaNumber = nm.includes("anvisa") && (nm.includes("numero") || nm.includes("notifica") || nm.includes("comunica") || nm.includes("registro") || nm.includes("documento"));
+          const isAnvisaNumber = isAnvisaNumberById(spec.id) || isAnvisaNumberByName(spec.name || "");
           const isAfeNumber = nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac"));
           const isConamaNumber = nm.includes("conama");
           let val: string | null = null;
-          if (isAnvisaNumber && anvisaNum) val = anvisaNum;
+          if (isAnvisaNumber && anvisaNum && !anvisaAlreadyFilled) val = anvisaNum;
           else if (isAfeNumber && afeNum) val = afeNum;
           else if (isConamaNumber && conamaNum) val = conamaNum;
           if (val) {
