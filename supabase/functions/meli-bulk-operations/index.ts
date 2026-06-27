@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { aiChatCompletion, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import {
   buildPrimarySearchTerm,
@@ -8,7 +8,7 @@ import {
   type ProductCadastro,
 } from "../_shared/meli/search-term-builder.ts";
 
-const VERSION = "v1.12.0"; // Gate de confiança: rejeita categoria primária quando o caminho do ML não casa com o tipo do cadastro (força fallback IA).
+const VERSION = "v1.13.0"; // Cascata 4 — IA Decisora: quando cascatas 1/2/3 falham no gate, IA escolhe a melhor categoria entre as candidatas reais devolvidas pelo ML (resultado ainda passa pelo gate de domínio).
 
 /**
  * Normaliza string para casamento determinístico de domínio.
