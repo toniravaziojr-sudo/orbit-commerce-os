@@ -1186,6 +1186,8 @@ Retorne APENAS o texto da descrição.`,
         }
       }
 
+      console.log(`[meli-categories] DONE processed=${processedIds.length} updated=${updated} skipped=${skipped} errors=${errors.length}`);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -1193,8 +1195,9 @@ Retorne APENAS o texto da descrição.`,
           skipped,
           errors,
           processed: (listings || []).length,
-          hasMore: (listings || []).length === limit,
+          hasMore: filterIds?.length ? false : (listings || []).length === limit,
           resolvedCategories,
+          processedIds,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
