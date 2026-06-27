@@ -41,6 +41,7 @@ import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
 import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
 import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicker';
+import { MarketplaceFieldHint } from '@/components/marketplaces/MarketplaceFieldHint';
 import { validateSlugFormat } from '@/lib/slugPolicy';
 import { useAutoSlug } from '@/hooks/useAutoSlug';
 import { useToast } from '@/hooks/use-toast';
