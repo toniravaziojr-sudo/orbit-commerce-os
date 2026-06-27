@@ -46,6 +46,8 @@ import {
   MELI_FREE_SHIPPING_THRESHOLD_BRL,
   isMeliFreeShippingMandatory,
 } from "@/lib/marketplaces/meliFreeShipping";
+import { diagnoseCategoryFailure } from "@/lib/marketplaces/mlReadiness";
+import { ExternalLink } from "lucide-react";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
