@@ -1,119 +1,73 @@
-# Pré-hidratação do cofre `_sf_identity` — v1 (somente e-mail marketing)
 
-## Mudança em relação ao plano anterior
+## Auditoria — 3 pontos do fluxo Mercado Livre (revisado)
 
-Após auditar o pipeline real, percebi que **mintar token no momento do clique (dentro do `email-track`) é muito mais simples e seguro do que mintar no broadcast**. O `email-track` já recebe `subscriber_id` + `tenant_id` na hora do clique e faz redirect 302 para a URL final. Isso elimina:
-- Necessidade de pré-mintar milhões de tokens no broadcast
-- Mudanças no compositor de e-mail
-- TTL longo (passa a ser 5 min — clique→abertura é segundos)
-- Risco de token vazado por link compartilhado (single-use + TTL ultra-curto)
+### Ponto 1 — Garantia não chega ao ML
 
-WhatsApp fica para uma v2 — se a v1 entregar ganho de EMQ medível, replicamos o padrão lá com um redirect próprio.
+**Como funciona hoje**
+- Fonte de verdade: cadastro do produto (`warranty_type` em {vendor|factory|none} + `warranty_duration` texto livre). O Balm publicado tem `vendor` + `30 dias`.
+- Criação em lote (`MeliListingCreator`): **não tem nenhuma menção a garantia**.
+- Edição (`MeliListingWizard`): tem um input "Garantia" de texto livre que, no submit, **não vira atributo do ML** — fica num campo solto que ninguém lê.
+- Publicação nova: o edge injeta `WARRANTY_TYPE`/`WARRANTY_TIME` a partir do cadastro **só se** o painel ainda não tiver `WARRANTY_TYPE`. Se o painel persistiu vazio/diferente, o cadastro perde.
+- Update (republicar): o sanitizador do update tem uma lista reduzida de campos livres (sem `WARRANTY_TIME`) → tempo de garantia é descartado antes do envio.
 
-## Objetivo
+**Problema**
+- Em qualquer rota, a garantia do cadastro pode ser silenciosamente perdida; e o input do wizard de edição engana o lojista.
 
-Elevar EMQ do ViewContent (e demais eventos de funil) para visitantes vindos de campanhas de e-mail, pré-hidratando o cofre `_sf_identity` com hashes de PII antes do primeiro disparo.
+**O que vou fazer (decisão técnica)**
+- Em `meli-publish-listing`, nas duas rotas (publish novo e update):
+  - Cadastro sempre vence: remover do payload qualquer `WARRANTY_TYPE`/`WARRANTY_TIME` herdado e reinjetar a partir do cadastro (`vendor`→"Garantia do vendedor", `factory`→"Garantia de fábrica", `duration` direto).
+  - Se a categoria do ML não expõe esses atributos, omitir silenciosamente.
+  - Incluir `WARRANTY_TIME` no `FREE_FORM_IDS` do sanitizador do update.
 
-## Princípio anti-regressão (inalterado)
+**Mudança de UI (preciso da sua aprovação)**
+- O input livre "Garantia" no `MeliListingWizard` (edit) hoje é decorativo. Proposta: substituir por uma linha read-only "Garantia: Garantia do vendedor — 30 dias (vem do cadastro)" com link "Ajustar no cadastro" — mesmo padrão de marca/GTIN já consolidado nos docs. Mantenho o input atual se você preferir.
+- No `MeliListingCreator` (criação em lote), proposta: exibir a mesma linha read-only no resumo de cada anúncio, sem adicionar nova etapa. Confirma?
 
-- Não inventa parâmetro novo para a Meta
-- Só preenche mais cedo o cofre que já alimenta hoje todos os eventos CAPI
-- Mesma normalização e hashing SHA-256 já usados em `meta-capi-sender.ts`
+---
 
-## Salvaguardas
+### Ponto 2 — Reabrir o edit dialog dispara IA de novo
 
-1. **Token single-use**: marcado `used_at` na primeira leitura no edge `storefront-html`
-2. **TTL 5 minutos**: clique → carregamento de página é questão de segundos
-3. **Hidrata só se cofre vazio**: nunca sobrescreve identidade existente no navegador
-4. **Service-role only**: tabela bloqueada para anon; só `email-track` escreve e `storefront-html` lê
-5. **Hashes pré-computados server-side**: nunca passa PII em plaintext em URL/token
-6. **Falha silenciosa**: token inválido/expirado → fluxo normal, sem erro
+**Causa raiz (confirmada no banco)**
+- O painel só reaproveita o cache quando **todas** as características salvas trazem `resolver_version` igual ao atual.
+- O `MeliListingCreator.handleSaveAttributes` persiste o array enxugado (`{id, value_id, value_name}`) **sem** `resolver_version`, `name`, `source`, `values`, `not_applicable`.
+- Resultado: no Balm publicado, são 31 atributos persistidos e **0 com `resolver_version`** → o painel marca tudo como cache legado e roda IA de novo a cada abertura. Mesmo problema replicado nos 21 anúncios já publicados.
 
-## Fluxo final
+**O que vou fazer (decisão técnica, sem mexer em UI)**
+- Padronizar a persistência de atributos para sempre carimbar o payload completo da v2.4.1 (`resolver_version`, `name`, `source`, suporte a `values`/`not_applicable`) em todos os pontos que escrevem `meli_listings.attributes`:
+  - `MeliListingCreator.handleSaveAttributes`.
+  - `MeliListingsTab.handleEditSubmit` (e qualquer caller equivalente).
+- Auto-cura silenciosa na leitura: ao abrir o painel, se o cache estiver completo mas faltando apenas `resolver_version`, carimbar localmente e regravar uma única vez — sem chamar IA, sem gasto. Resolve os 21 anúncios já publicados sem migração em massa.
 
-```text
-1) Usuário clica em link no e-mail
-   → bate em email-track?type=click&t=<email_token>&url=<dest>
+---
 
-2) email-track (modificado):
-   - Marca clique como hoje
-   - Busca subscriber_id → lê email/telefone/nome/endereço hashed se houver
-   - Se há ao menos email_hashed OU phone_hashed:
-       mint identity_prehydration_tokens (TTL 5 min, single-use)
-       append ?ah=<token> em <dest> (apenas se <dest> for do mesmo tenant)
-   - 302 redirect para <dest>
+### Ponto 3 — Resposta sobre "Salvar Alterações" no edit + erro reportado
 
-3) storefront-html (modificado, mudança cirúrgica):
-   - Detecta ?ah= na query
-   - Lookup service-role na tabela
-   - Se válido + não usado + não expirado:
-       marca used_at = NOW()
-       injeta snippet que escreve _sf_identity em localStorage SE vazio
-   - Continua fluxo normal de _sfEnsureFbp + PageView
+**O que acontece quando você salva**
+1. Grava no nosso banco (`meli_listings`).
+2. Se o anúncio já está publicado, dispara **na hora** `meli-publish-listing` com `action=update`, que envia ao ML:
+   - PUT em `items/{id}` com título, preço, quantidade, imagens e atributos sanitizados.
+   - PUT separado em `items/{id}/description` com a descrição em texto puro.
+3. É síncrono — o sucesso/erro aparece imediatamente.
 
-4) Primeiro PageView, ViewContent, etc → cofre cheio → EMQ sobe
-```
+**Sobre o erro**
+- Não há logs recentes do edge nem `error_message` registrado no Balm — o erro morreu no front sem rastro. Antes de prometer correção da causa raiz, preciso reproduzir após os fixes 1 e 2. O que já consigo endereçar com segurança agora:
 
-## O que vou criar/alterar
+**O que vou fazer (decisão técnica)**
+- No `updateListing` do edge:
+  - Suportar atributos multi-valor (`values[]`) no sanitizador (hoje só trata `value_name` único).
+  - Ampliar `FREE_FORM_IDS` (inclui `WARRANTY_TIME`).
+  - Aplicar `humanizeMeliError` na resposta (já existe pro publish, falta no update) → mensagem em PT-BR amigável.
+  - Em falha, persistir `error_message` no anúncio para aparecer no card e nos logs do banco.
 
-### Banco
-- Migration: tabela `identity_prehydration_tokens` (token PK text, tenant_id uuid, subscriber_id uuid nullable, customer_id uuid nullable, identity_bundle jsonb, expires_at timestamptz, used_at timestamptz nullable, created_at)
-- Índices: `(token)`, `(expires_at)` para limpeza
-- RLS habilitada, sem policy para anon/authenticated; só service_role (GRANT ALL para service_role)
+---
 
-### `supabase/functions/email-track/index.ts` (mudança cirúrgica)
-- Após o update de click_count, antes do redirect:
-  - Buscar dados do subscriber (email/phone/name/addr) na tabela `email_marketing_subscribers` ou customer relacionado
-  - Se há pelo menos um dado útil: hashar via mesma função do `meta-capi-sender`, montar bundle, inserir token
-  - Validar que `redirect` aponta para domínio do mesmo tenant (via `tenant_domains`) antes de injetar `?ah=`
-  - Se URL externa ou sem dado útil: redirect intacto (zero mudança)
+## Validação técnica obrigatória pós-entrega
+- Reabrir o edit do Balm: confirmar via consulta a `meli_listings.attributes` que `resolver_version` está preenchido e que o painel não dispara IA.
+- Republicar com `action=update`: confirmar via `GET items/{id}` no ML que `WARRANTY_TYPE` e `WARRANTY_TIME` aparecem.
+- Forçar erro controlado no update (ex.: título acima do limite) → validar mensagem amigável e `error_message` persistido.
 
-### `supabase/functions/storefront-html/index.ts` (mudança cirúrgica)
-- Antes de montar o script `_sfEnsureFbp`, se `?ah=` presente:
-  - Lookup service-role + valida + marca usado
-  - Injeta snippet inicial:
-    ```js
-    try {
-      if (!localStorage.getItem('_sf_identity')) {
-        localStorage.setItem('_sf_identity', JSON.stringify(<bundle com expires_at +30d>));
-      }
-    } catch(e){}
-    ```
-- Snippet roda **antes** de qualquer outro tracking
+## Documentação a atualizar
+- `docs/especificacoes/marketplaces/mercado-livre.md` — bloco Garantia (fonte única = cadastro), padrão de persistência de atributos com `resolver_version`, contrato síncrono do update e tradução de erros.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — incluir garantia na lista de campos do cadastro e a regra "cache de atributos sempre carimbado com `resolver_version`".
 
-### Hash helper compartilhado
-- Extrair função `hashForMeta` de `_shared/meta-capi-sender.ts` para `_shared/meta-hashing.ts` (se já não estiver lá) e reusar em `email-track`
-- Garantir paridade exata: lowercase + trim + sha-256 hex
-
-### Cleanup
-- Adicionar ao job de manutenção existente (ou criar pg_cron simples): delete onde `expires_at < now() - interval '1 day'`
-- Procurar primeiro um job de limpeza já existente para não duplicar
-
-### Documentação
-- `docs/especificacoes/marketing/meta-tracking.md`: nova seção "Pré-hidratação de identidade via clique em e-mail"
-- `docs/meta-tracking-changelog.md`: entrada nova versão
-- Memória `.lovable/memory/constraints/`: regra "nunca sobrescrever `_sf_identity` existente; pré-hidratação tem TTL 5min single-use"
-
-## Validação técnica pós-implementação
-
-1. Disparar e-mail real para um subscriber com PII conhecida → clicar link → DevTools verificar `localStorage._sf_identity` preenchido antes de qualquer ViewContent
-2. Repetir clique no mesmo link → segunda vez deve ignorar (token já usado)
-3. Aguardar 6 min → clicar → token expirado, fluxo normal
-4. Clicar com cofre já existente (ex.: visitor que já comprou no device) → cofre NÃO sobrescrito
-5. Conferir logs `marketing-capi-track` mostrando hashes em ViewContent imediatamente após clique
-6. Conferir Gerenciador de Eventos Meta após 24-48h: variação positiva no EMQ de ViewContent para o segmento de tráfego de e-mail
-
-## O que NÃO faço
-
-- Não toco em `marketing-capi-track`, `meta-capi-sender`, `marketingTracker.ts` no pipeline de envio Meta
-- Não mudo Pixel browser-side
-- Não envio NENHUM campo novo para a Meta
-- Não mexo em WhatsApp/SMS nesta v1
-- Não mudo UI/UX em nada
-- Não toco no compositor de e-mail nem no broadcast
-
-## Esforço
-
-Médio-pequeno. 1 migration, 1 helper compartilhado, 2 funções editadas, 1 cron-cleanup, doc + memória.
-
-Confirma que sigo com a implementação?
+📌 STATUS DA ENTREGA: Diagnóstico fechado. Aguardando sua decisão sobre as duas mudanças de UI do Ponto 1 antes de implementar.

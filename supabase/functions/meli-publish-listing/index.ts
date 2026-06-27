@@ -3,7 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 
 // ===== VERSION =====
-const VERSION = "3.8.0"; // v2.5.0 — Frete grátis obrigatório do ML acima de R$ 79 + persistência do shipping real após publicação
+const VERSION = "3.9.0"; // v2.6.0 — Garantia do cadastro sempre vence + update síncrono robusto (humanizeMeliError + values[] + persistência de erro)
 // ===================
 
 const corsHeaders = {
@@ -259,14 +259,23 @@ Deno.serve(async (req) => {
     // Note: PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH are NOT modifiable via attributes on ML
     // They must be set via shipping dimensions, not attributes
 
-    // Warranty via attributes (warranty field is deprecated on ML API)
-    if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
-      if (!attrIds.has("WARRANTY_TYPE")) {
-        const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
-        attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
-        attrIds.add("WARRANTY_TYPE");
+    // Warranty — cadastro sempre vence (v2.6.0).
+    // Remove qualquer WARRANTY_TYPE/WARRANTY_TIME herdado do painel/IA/memória
+    // e reinjeta a partir do cadastro do produto. Se cadastro estiver vazio/none,
+    // omite ambos os atributos (não envia "Sem garantia" — o ML mostra isso por default).
+    for (let i = attributes.length - 1; i >= 0; i--) {
+      const _id = String(attributes[i]?.id || "").toUpperCase();
+      if (_id === "WARRANTY_TYPE" || _id === "WARRANTY_TIME") {
+        attributes.splice(i, 1);
       }
-      if (!attrIds.has("WARRANTY_TIME") && listing.product.warranty_duration) {
+    }
+    attrIds.delete("WARRANTY_TYPE");
+    attrIds.delete("WARRANTY_TIME");
+    if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
+      const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
+      attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
+      attrIds.add("WARRANTY_TYPE");
+      if (listing.product.warranty_duration) {
         attributes.push({ id: "WARRANTY_TIME", value_name: String(listing.product.warranty_duration).trim() });
         attrIds.add("WARRANTY_TIME");
       }
@@ -772,19 +781,40 @@ async function sanitizeAttributesForCategory(
     const specs: any[] = await res.json();
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
-    const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
+    // v2.6.0 — WARRANTY_TIME é texto livre obrigatório no fluxo de update;
+    // sem isso o ML rejeita ou perde o tempo de garantia silenciosamente.
+    const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU", "WARRANTY_TIME"]);
     const cleaned: any[] = [];
     for (const attr of attrs) {
       const spec = byId.get(attr.id);
+      // v2.6.0 — suporte a multi-valor (values[]): normaliza contra a lista oficial.
+      if (Array.isArray(attr.values) && attr.values.length > 0) {
+        if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+          const out: any[] = [];
+          for (const v of attr.values) {
+            const hit = spec.values.find((sv: any) => norm(sv.name) === norm(v?.name));
+            if (hit) out.push({ id: hit.id, name: hit.name });
+          }
+          if (out.length > 0) cleaned.push({ id: attr.id, values: out });
+          else console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (no values matched)`);
+        } else {
+          // sem spec ou sem lista fechada: mantém values cru já normalizado
+          const out = attr.values
+            .map((v: any) => ({ ...(v?.id ? { id: v.id } : {}), ...(v?.name ? { name: v.name } : {}) }))
+            .filter((v: any) => v.id || v.name);
+          if (out.length > 0) cleaned.push({ id: attr.id, values: out });
+        }
+        continue;
+      }
       if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
         const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
         if (hit) {
           cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
         } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
-          console.log(`[meli-publish-listing] sanitize: keeping free-form ${attr.id}="${attr.value_name}"`);
+          console.log(`[meli-publish-listing] sanitize(update): keeping free-form ${attr.id}="${attr.value_name}"`);
           cleaned.push({ id: attr.id, value_name: attr.value_name });
         } else {
-          console.log(`[meli-publish-listing] sanitize: dropping ${attr.id}="${attr.value_name}" (not allowed)`);
+          console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id}="${attr.value_name}" (not allowed)`);
           continue;
         }
       } else {
@@ -793,7 +823,7 @@ async function sanitizeAttributesForCategory(
     }
     return cleaned;
   } catch (e) {
-    console.log("[meli-publish-listing] sanitize skipped:", e);
+    console.log("[meli-publish-listing] sanitize(update) skipped:", e);
     return attrs;
   }
 }
@@ -884,12 +914,23 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     updatePayload.pictures = images;
   }
 
-  // Update attributes (MODEL, BRAND, etc.) if saved on the listing — sanitize against ML category specs
-  if (Array.isArray(listing.attributes) && listing.attributes.length > 0 && listing.category_id) {
-    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, listing.attributes);
-    if (sanitized.length > 0) {
-      updatePayload.attributes = sanitized;
+  // Attributes — sanitize + cadastro vence em WARRANTY_* (v2.6.0)
+  let attrsForUpdate: any[] = Array.isArray(listing.attributes) ? [...listing.attributes] : [];
+  // Remove warranty herdado e reinjeta a partir do cadastro
+  attrsForUpdate = attrsForUpdate.filter((a: any) => {
+    const id = String(a?.id || "").toUpperCase();
+    return id !== "WARRANTY_TYPE" && id !== "WARRANTY_TIME";
+  });
+  if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
+    const wt = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
+    attrsForUpdate.push({ id: "WARRANTY_TYPE", value_name: wt });
+    if (listing.product.warranty_duration) {
+      attrsForUpdate.push({ id: "WARRANTY_TIME", value_name: String(listing.product.warranty_duration).trim() });
     }
+  }
+  if (attrsForUpdate.length > 0 && listing.category_id) {
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate);
+    if (sanitized.length > 0) updatePayload.attributes = sanitized;
   }
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
@@ -900,7 +941,18 @@ async function updateListing(accessToken: string, listing: any, productImages: a
 
   const data = await res.json();
   if (!res.ok) {
-    return jsonResponse({ success: false, error: data.message || "Erro ao atualizar" });
+    const causes = Array.isArray(data?.cause) ? data.cause : [];
+    const rawMsg = data?.message || "Erro ao atualizar no Mercado Livre";
+    const friendly = humanizeMeliError(
+      causes.length > 0 ? `${rawMsg}: ${causes.map((c: any) => c.message || c.code || JSON.stringify(c)).join("; ")}` : rawMsg,
+      causes,
+    );
+    console.error(`[meli-publish-listing] updateListing ML error ${res.status}:`, JSON.stringify(data).slice(0, 1000));
+    await supabase
+      .from("meli_listings")
+      .update({ error_message: friendly.slice(0, 500), meli_response: data })
+      .eq("id", listing.id);
+    return jsonResponse({ success: false, error: friendly, details: causes.length > 0 ? causes : undefined });
   }
 
   // Also update description separately
