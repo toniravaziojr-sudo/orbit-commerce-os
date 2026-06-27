@@ -2,7 +2,25 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
-const VERSION = "v1.9.0"; // Relaxed hasSufficientProductCoverage to accept brand/type matches
+const VERSION = "v1.10.0"; // Sanitize pack-quantity markers from category search term to fix regression on kits (3x), (4x), etc.
+
+/**
+ * Remove marcadores de quantidade/multiplicador do termo de busca de categoria
+ * Ex: "Kit Banho Calvície Zero (3x) Dia" -> "Kit Banho Calvície Zero Dia"
+ *     "Shampoo Calvície Zero (2x)" -> "Shampoo Calvície Zero"
+ * O sufixo de pack confunde o domain_discovery do ML, que devolve resultados
+ * irrelevantes e o scorer descarta a sugestão (regressão observada 2026-06-27).
+ */
+function sanitizeCategorySearchTerm(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\(\s*\d+\s*x\s*\)/gi, " ")       // (3x), (2x), (10x)
+    .replace(/\b\d+\s*x\s+(?=\w)/gi, " ")       // "3x Shampoo"
+    .replace(/\bkit\s+com\s+\d+\b/gi, "kit")    // "kit com 3"
+    .replace(/\b\d+\s*unidades?\b/gi, " ")      // "3 unidades"
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const DEFAULT_MAX_TITLE_LENGTH = 120;
 
@@ -406,7 +424,7 @@ Deno.serve(async (req) => {
           let categoryName = "";
           try {
             const discoveryRes = await fetch(
-              `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(product.name)}`,
+              `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(sanitizeCategorySearchTerm(product.name))}`,
               { headers: mlHeaders }
             );
             if (discoveryRes.ok) {
@@ -817,12 +835,15 @@ Retorne APENAS o texto da descrição.`,
           const fullDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
           // Use product name + key terms from short description for better categorization
           const descKeywords = shortDesc.slice(0, 150) || fullDesc.slice(0, 150);
-          const searchTerm = descKeywords 
-            ? `${productName} ${descKeywords}`.slice(0, 200)
-            : productName;
+          // Remove pack multipliers like "(3x)", "(2x) Noite" — confundem o domain_discovery do ML
+          const cleanProductName = sanitizeCategorySearchTerm(productName);
+          const cleanDescKeywords = sanitizeCategorySearchTerm(descKeywords);
+          const searchTerm = cleanDescKeywords
+            ? `${cleanProductName} ${cleanDescKeywords}`.slice(0, 200)
+            : cleanProductName;
 
           const brandName = product?.brand || "";
-          console.log(`[meli-categories] Product: "${productName}", Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
+          console.log(`[meli-categories] Product: "${productName}" (clean: "${cleanProductName}"), Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
 
           let categoryFound = false;
 
@@ -867,7 +888,7 @@ Retorne APENAS o texto da descrição.`,
 
           // Fallback: simpler search with product name + brand only
           if (!categoryFound && brandName) {
-            const fallbackTerm = `${productName} ${brandName}`.slice(0, 120);
+            const fallbackTerm = sanitizeCategorySearchTerm(`${productName} ${brandName}`).slice(0, 120);
             console.log(`[meli-categories] Fallback search: "${fallbackTerm}"`);
             try {
               const fbRes = await fetch(
@@ -942,9 +963,11 @@ Retorne APENAS o texto da descrição.`,
       let categoryName = "";
       let pathStr = "";
 
-      // Build smarter search term using description context
-      const descKeywords = (productDescription || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
-      const searchTerm = descKeywords ? `${productName} ${descKeywords}`.slice(0, 200) : productName;
+      // Build smarter search term using description context (strip pack multipliers)
+      const cleanProductName = sanitizeCategorySearchTerm(productName);
+      const descKeywordsRaw = (productDescription || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
+      const descKeywords = sanitizeCategorySearchTerm(descKeywordsRaw);
+      const searchTerm = descKeywords ? `${cleanProductName} ${descKeywords}`.slice(0, 200) : cleanProductName;
 
       // Strategy 1: domain_discovery/search with enriched search term
       try {
@@ -957,7 +980,7 @@ Retorne APENAS o texto da descrição.`,
           const discoveryData = await discoveryRes.json();
           console.log(`[auto_suggest] Discovery result:`, JSON.stringify(discoveryData).slice(0, 500));
           if (Array.isArray(discoveryData) && discoveryData.length > 0) {
-            const bestMatch = pickBestCategory(discoveryData, productName);
+            const bestMatch = pickBestCategory(discoveryData, cleanProductName);
             if (bestMatch) {
               categoryId = bestMatch.category_id;
               categoryName = bestMatch.category_name || bestMatch.domain_name || categoryId;
@@ -974,7 +997,7 @@ Retorne APENAS o texto da descrição.`,
       // Strategy 2: Fallback via search API
       if (!categoryId) {
         try {
-          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(productName)}&limit=5`;
+          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(cleanProductName)}&limit=5`;
           console.log(`[auto_suggest] Trying search fallback: ${searchUrl}`);
           const searchRes = await fetch(searchUrl, { headers: mlHeaders });
           
