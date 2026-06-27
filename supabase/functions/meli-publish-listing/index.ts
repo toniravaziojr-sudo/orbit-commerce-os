@@ -400,7 +400,8 @@ Deno.serve(async (req) => {
           return typeof vmq === "number" && vmq > 1;
         };
         const isNaName = (n: any) => {
-          const x = norm(n).replace(/[^a-z]/g, "");
+          // Normaliza acentos antes de comparar: "Não se aplica" precisa virar "naoseaplica".
+          const x = norm(n).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
           return x === "naoseaplica" || x === "noaplica" || x === "na";
         };
         // ML exige value_name = null em "not applicable". Enviamos apenas value_id.
@@ -508,15 +509,21 @@ Deno.serve(async (req) => {
         attributes.push(...cleaned);
 
         // ===== v2.4.3 — Garantias finais antes do envio =====
-        // (A) UNITS_PER_PACK: quando a categoria expõe e o atributo está ausente,
-        // injetar valor do cadastro (units_per_package) com piso 1. Sem isso, ML
-        // rejeita venda avulsa com "Unidades por kit deve ser ≥ 1".
-        const _finalIds = new Set(attributes.map((a: any) => String(a.id).toUpperCase()));
+        // (A) UNITS_PER_PACK: quando a categoria expõe, garantir valor válido.
+        // Cobre 3 cenários: atributo ausente, atributo com value_name vazio, ou
+        // atributo com valor N/A residual (qualquer variação acentuada/não acentuada).
         const _upkSpec = attrSpecs.find((s: any) => String(s.id).toUpperCase() === "UNITS_PER_PACK");
-        if (_upkSpec && !_finalIds.has("UNITS_PER_PACK")) {
-          const _upk = Math.max(1, Number((listing.product as any)?.units_per_package) || 1);
-          attributes.push({ id: "UNITS_PER_PACK", value_name: String(_upk) });
-          console.log(`[meli-publish-listing][v2.4.3] Injected UNITS_PER_PACK=${_upk}`);
+        if (_upkSpec) {
+          const _upkIdx = attributes.findIndex((a: any) => String(a.id).toUpperCase() === "UNITS_PER_PACK");
+          const _upkRaw = _upkIdx >= 0 ? String(attributes[_upkIdx].value_name ?? "") : "";
+          const _upkNorm = _upkRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+          const _isBad = _upkRaw === "" || _upkNorm === "naoseaplica" || _upkNorm === "noaplica" || _upkNorm === "na" || _upkNorm === "0";
+          if (_upkIdx < 0 || _isBad) {
+            const _upk = Math.max(1, Number((listing.product as any)?.units_per_package) || 1);
+            if (_upkIdx >= 0) attributes.splice(_upkIdx, 1);
+            attributes.push({ id: "UNITS_PER_PACK", value_name: String(_upk) });
+            console.log(`[meli-publish-listing][v2.4.3] Forced UNITS_PER_PACK=${_upk} (was: "${_upkRaw}")`);
+          }
         }
 
         // (B) Drop universal: regulatório só vai ao ML se houver número no cadastro.
