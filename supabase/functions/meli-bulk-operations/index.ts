@@ -31,7 +31,7 @@ function normalizeForMatch(s: string | null | undefined): string {
  * pelo menos um destes tokens; caso contrário, a categoria é incompatível e força fallback.
  */
 const PRODUCT_DOMAIN_TOKENS: Record<string, string[]> = {
-  cabelo: ["shampoo", "condicionador", "cabelo", "capilar", "barbearia", "tratamento capilar", "cuidados com o cabelo"],
+  cabelo: ["shampoo", "condicionador", "cabelo", "capilar", "tratamento capilar", "cuidados com o cabelo"],
   barba: ["barba", "barbearia", "cuidados com a barba"],
   pele: ["pele", "facial", "skincare", "rosto", "cuidados com a pele", "corporal", "hidratante"],
   balm: ["balm", "pos barba", "cuidados com a barba", "cuidados com a pele", "hidratante"],
