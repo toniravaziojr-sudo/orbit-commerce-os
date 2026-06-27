@@ -964,7 +964,7 @@ Retorne APENAS o texto da descrição.`,
           updated,
           errors,
           processed: (listings || []).length,
-          hasMore: (listings || []).length === limit,
+          hasMore: filterIds?.length ? false : (listings || []).length === limit,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
