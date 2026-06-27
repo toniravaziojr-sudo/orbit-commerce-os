@@ -680,13 +680,17 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > **Anti-padrão corrigido (v1.7.0):** Antes o sistema usava `limit=1` e aceitava cegamente o primeiro resultado da API, causando "Balm Pós-Banho" → "Nutrientes para Hidroponia" e "Balm Capilar" → "Pet Shop > Gatos".
 
-**Regra: Cascata determinística do termo de busca (v1.11.0 — OBRIGATÓRIO):**
+**Regra: Cascata determinística do termo de busca (v1.13.0 — OBRIGATÓRIO):**
 > A função `bulk_auto_categories` NÃO concatena mais "primeiros 150 caracteres da descrição" ao termo — isso introduzia ruído de marketing e quebrava nomes de marca proprietária. O `_shared/meli/search-term-builder.ts` aplica a cascata:
 > 1. **Primário (sem IA):** `buildPrimarySearchTerm` = `product_type` (ou `ai_product_type` como auxiliar) + `name` sanitizado. Custo zero, executa sempre primeiro.
-> 2. **Fallback IA cacheado:** `getOrGenerateSearchSummary` lê `products.ml_search_summary`. Se a `ml_search_summary_signature` (SHA-256 de nome + marca + tipos + formato + linha + descrições + volume) bate com o cadastro atual, devolve o resumo cacheado sem custo. Caso contrário, gera novo resumo via `google/gemini-2.5-flash-lite` (formato fixo "TIPO + atributo + volume", máx 80 caracteres, sem marca/slogan), persiste resumo+assinatura e devolve. **Não há cron de pré-geração:** o resumo é criado sob demanda na primeira categorização que precisar dele, e regerado automaticamente na próxima execução após qualquer mudança nos campos do cadastro.
-> 3. **Fallback marca:** `nome + marca` sanitizados (último recurso, comportamento histórico).
-> A cada tentativa, o resultado passa por `pickBestCategory`; a primeira que devolver um match válido encerra a cascata.
-> **Invalidação:** alterações no cadastro do produto (nome, marca, tipo, formato, linha, descrições, volume) regeram a assinatura na próxima leitura e descartam o cache automaticamente — não exige hook explícito no `ProductForm`.
+> 2. **Fallback resumo IA cacheado:** `getOrGenerateSearchSummary` lê `products.ml_search_summary`. Se a `ml_search_summary_signature` (SHA-256 de nome + marca + tipos + formato + linha + descrições + volume) bate com o cadastro atual, devolve o resumo cacheado sem custo. Caso contrário, gera novo resumo via `google/gemini-2.5-flash-lite` (formato fixo "TIPO + atributo + volume", máx 80 caracteres, sem marca/slogan), persiste resumo+assinatura e devolve.
+> 3. **Fallback marca:** `nome + marca` sanitizados.
+> 4. **Cascata 4 — IA Decisora (v1.13.0):** quando as três tentativas anteriores foram REJEITADAS pelo `categoryMatchesProductDomain` (gate de confiança), o sistema agrega todas as categorias candidatas que o ML devolveu nas cascatas 1/2/3 (deduplicadas por `category_id`, com `path_from_root` hidratado), monta um briefing com o cadastro completo do produto (nome, marca, tipo, tipo IA, função principal, formato, resumos, descrição) e pede para `google/gemini-2.5-flash` (via `aiChatCompletionJSON`, JSON estruturado, temperatura 0.1, timeout 10s) escolher a melhor `category_id` **entre as candidatas listadas** (a IA NÃO pode inventar categoria fora da lista) ou devolver `null`. O resultado escolhido **ainda passa pelo gate de domínio** (defesa em profundidade): se incompatível, é rejeitado e cai em pendente. Limite de 8 candidatas enviadas à IA.
+> 5. **Fallback final:** se nada passar, `category_id` permanece `NULL` para o lojista escolher manualmente no diálogo (regra "pendente é melhor que errado").
+>
+> Cada tentativa de cascata 1/2/3 que devolve resultados popula o `candidatePool`, mesmo quando o gate rejeita. Sem isso a Cascata 4 não teria o que avaliar.
+>
+> **Invalidação:** alterações no cadastro do produto (nome, marca, tipo, formato, linha, descrições, volume) regeram a assinatura na próxima leitura e descartam o cache do resumo automaticamente — não exige hook explícito no `ProductForm`. A escolha da IA Decisora não é cacheada: cada reprocessamento reavalia (volume de órfãos é baixo e o custo desprezível).
 
 
 **Regra: Auto-fill GTIN e Marca na Edição (OBRIGATÓRIO):**
