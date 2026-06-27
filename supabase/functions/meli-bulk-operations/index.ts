@@ -930,7 +930,7 @@ Retorne APENAS o texto da descrição.`,
 
           let categoryFound = false;
 
-          const tryDiscovery = async (term: string, label: string): Promise<boolean> => {
+          const tryDiscovery = async (term: string, label: string, enforceDomainGate: boolean): Promise<boolean> => {
             if (!term) return false;
             try {
               const res = await fetch(
@@ -955,6 +955,17 @@ Retorne APENAS o texto da descrição.`,
               const categoryId = best.category_id;
               const catPath = pathMap.get(categoryId) || "";
               const catName = catPath ? catPath.split(" > ").pop()! : (best.category_name || best.domain_name || categoryId);
+
+              // Gate de confiança: na tentativa primária, exige que o caminho da categoria
+              // case com a família funcional do cadastro. Mismatch → força fallback IA.
+              if (enforceDomainGate) {
+                const ok = categoryMatchesProductDomain(catPath, product?.product_type || product?.ai_product_type, productName);
+                if (!ok) {
+                  console.log(`[meli-categories] ${label} REJEITADO por gate de domínio: "${term.slice(0, 80)}" → ${categoryId} (${catPath}). Forçando fallback.`);
+                  return false;
+                }
+              }
+
               await supabase.from("meli_listings").update({
                 category_id: categoryId,
                 category_name: catName || null,
@@ -970,9 +981,9 @@ Retorne APENAS o texto da descrição.`,
             }
           };
 
-          // 1) Primário: nome + tipo do cadastro (sem IA).
+          // 1) Primário: nome + tipo do cadastro (sem IA) — com gate de confiança.
           if (primaryTerm) {
-            categoryFound = await tryDiscovery(primaryTerm, "primary");
+            categoryFound = await tryDiscovery(primaryTerm, "primary", true);
           }
 
           // 2) Fallback IA: nome + resumo funcional cacheado (gerado uma vez por versão do cadastro).
@@ -981,16 +992,16 @@ Retorne APENAS o texto da descrição.`,
             if (summary) {
               const aiTerm = buildAiFallbackSearchTerm(product, summary);
               if (aiTerm && aiTerm !== primaryTerm) {
-                categoryFound = await tryDiscovery(aiTerm, "ai-summary");
+                categoryFound = await tryDiscovery(aiTerm, "ai-summary", true);
               }
             }
           }
 
-          // 3) Fallback marca: nome + marca (último recurso, comportamento histórico).
+          // 3) Fallback marca: nome + marca (último recurso, sem gate — aceita qualquer match).
           if (!categoryFound && brandName) {
             const brandTerm = buildPrimarySearchTerm({ ...(product || ({} as any)), product_type: brandName, ai_product_type: null });
             if (brandTerm && brandTerm !== primaryTerm) {
-              categoryFound = await tryDiscovery(brandTerm, "brand");
+              categoryFound = await tryDiscovery(brandTerm, "brand", false);
             }
           }
 
