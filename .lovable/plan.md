@@ -1,65 +1,55 @@
-
 ## Objetivo
-Aumentar a taxa de categorização automática no Mercado Livre sem desperdiçar processamento, usando o `tipo de produto` do cadastro como termo primário e, quando ele estiver vazio ou não bater, um resumo curto gerado por IA a partir da leitura completa do cadastro — gerado uma única vez e reaproveitado até que o cadastro mude.
+Fechar a categorização automática do Mercado Livre adicionando uma **Cascata 4 — IA Decisora** como fallback inteligente antes de cair em "pendente para edição manual". Hoje o gate de confiança (v1.12.0) protege contra categorias absurdas, mas é binário: ou aceita o que o ML devolve, ou deixa em branco. Falta a etapa em que a IA realmente *escolhe* entre as candidatas reais do ML.
 
-## Decisão técnica (revisada após releitura dos docs e histórico)
-Mantenho a direção que conversamos. Duas pequenas revisões em relação ao que tinha esboçado:
+## Fluxo final acordado
+1. **Cascata 1** — Nome sanitizado + Tipo de produto → ML decide. Se passar no gate → fim.
+2. **Cascata 2** — Nome + Resumo IA cacheado → ML decide. Se passar no gate → fim.
+3. **Cascata 3** — Nome + Marca → ML decide. Se passar no gate → fim.
+4. **Cascata 4 (NOVA) — IA Decisora**:
+   - Coletar **todas** as categorias candidatas que o ML devolveu nas 3 cascatas anteriores (mesmo as bloqueadas pelo gate), deduplicadas por `category_id`.
+   - Para cada candidata, hidratar o **caminho completo** (`path_from_root`) consultando `/categories/{id}` (com cache em memória por execução para evitar refetch).
+   - Pedir à IA (Gemini Flash via router padrão, JSON estruturado) que escolha a melhor `category_id` com base em: nome do produto, tipo, tipo IA, marca, descrição curta, composição, resumo cacheado. A IA recebe a lista enumerada de candidatas (id + caminho completo) e devolve `{ chosen_category_id, confidence, reason }` ou `{ chosen_category_id: null }` se nenhuma servir.
+   - O resultado da IA **ainda passa pelo mesmo gate de domínio** (`categoryMatchesProductDomain`). Defesa em profundidade: se a IA escolher algo incompatível com a família detectada, rejeita e cai para o passo 5.
+5. **Fallback final** — Pendente (`category_id = NULL`) para edição manual no diálogo. Comportamento preservado.
 
-1. **Resumo é pré-computado e cacheado por produto, não por anúncio.** O cadastro é a fonte única; o anúncio é só consumidor. Assim, vários anúncios do mesmo produto reaproveitam o mesmo resumo.
-2. **Invalidação por assinatura (hash) do cadastro, não por timestamp.** Mais robusto: se nada relevante mudou, não regera; se mudou qualquer campo de entrada, regera no próximo uso. Sem cron, sem trigger pesado.
+## Princípios de custo e segurança
+- Cascata 4 só roda quando 1, 2 e 3 falharam no gate. Produtos categorizados de primeira nunca disparam a IA decisora.
+- Reaproveita o resumo cacheado da v1.11.0 (sem regerar).
+- Sem novas tabelas, sem cron, sem fila. Chamada síncrona única por produto órfão.
+- Gate continua sendo última palavra (regra "pendente é melhor que errado").
+- Cadastro continua fonte única — IA escolhe categoria, nunca preenche campos do produto.
 
-## Como funcionará
-
-### Cascata de termo de busca enviado ao Mercado Livre
-1. **Primário:** `nome sanitizado + tipo de produto` (do cadastro). Sem IA, sem custo.
-2. **Fallback 1 (se primário não retornar categoria confiável):** `nome sanitizado + resumo IA cacheado` (≤ 80 caracteres, formato funcional).
-3. **Fallback 2 (último recurso):** `nome sanitizado + marca` (já existe hoje).
-4. Se tudo falhar → fica em **Pendências** para seleção manual (comportamento atual preservado).
-
-A sanitização atual (`(3x)`, `kit com 2`, etc.) continua aplicada em todas as etapas.
-
-### Geração e cache do resumo IA
-- Campo novo no cadastro do produto guarda dois valores: o resumo e a assinatura do conteúdo que o gerou.
-- Resumo é gerado **sob demanda**, na primeira vez que a categorização precisar do fallback. Não roda batch, não roda no save do produto.
-- Antes de gerar, calcula a assinatura atual do cadastro (nome + tipo + descrição curta + descrição longa + composição + marca). Se bater com a assinatura salva, reusa o resumo. Se diferir, regera uma vez e atualiza ambos.
-- Modelo: Gemini Flash-Lite via Lovable AI Gateway (barato, rápido, sem tools). Saída estruturada para garantir formato.
-- Prompt instrui a IA a ler todo o cadastro e devolver um resumo funcional curto no formato "TIPO + atributo essencial + volume/quantidade", sem adjetivos comerciais, sem nome da marca, sem benefícios. Exemplo do alvo: "Shampoo anticaspa masculino 250ml".
-- Limite duro de tamanho aplicado em código (corte seguro mesmo se a IA exceder).
-
-### Custo e segurança
-- Produto categorizado de primeira (cascata 1) **nunca** dispara IA.
-- Produto que precisa do fallback dispara IA **uma vez por versão do cadastro**.
-- Sem cron, sem fila, sem reprocessamento em massa.
-- Cadastro continua sendo fonte única (regra `ml-cadastro-fonte-unica`); o resumo é metadado derivado, não substitui campos.
-
-## Arquivos técnicos (referência)
-- `supabase/functions/meli-bulk-operations/index.ts` — onde mora a categorização hoje. Vou inserir a cascata nova nos dois pontos que chamam `domain_discovery/search` (loop principal e `auto_suggest`).
-- Tabela `products` — duas colunas novas: resumo cacheado + assinatura. Migração simples, sem impacto em RLS existente.
-- Helper compartilhado novo em `supabase/functions/_shared/meli/` para: (a) calcular assinatura, (b) ler/gerar/persistir o resumo, (c) montar os termos de busca da cascata.
+## Arquivos técnicos impactados
+- `supabase/functions/meli-bulk-operations/index.ts` — adicionar coleta de candidatas em cada cascata, função `aiPickBestCategory(candidates, productContext)` e novo passo antes do "deixa em branco". Usar `aiChatCompletionJSON` do `_shared/ai-router.ts` (regra `ai-provider-router-standard`).
+- Nenhuma migração. Nenhuma mudança de UI/UX (diálogo de envio segue igual; produto pendente continua aparecendo como pendente até a IA escolher).
 
 ## Validação técnica obrigatória pós-entrega
-- Reprocessar os 13 produtos órfãos do tenant "Respeite o Homem" e medir quantos passam a categorizar.
-- Confirmar via log que produtos com `tipo de produto` preenchido **não** disparam IA.
-- Confirmar via banco que o resumo só é regerado quando a assinatura do cadastro muda (editar e re-categorizar).
-- Confirmar que produto novo recém-criado sem `tipo de produto` cai no fallback IA e categoriza.
+1. Build OK e deploy da `meli-bulk-operations`.
+2. Limpar `category_id` dos 6 produtos órfãos do tenant Respeite o Homem (Fast Upgrade, Kits Banho, Kit Zero Falhas) via SQL controlado.
+3. Reprocessar via edge function e capturar log da cascata: quais candidatas vieram, qual a IA escolheu, se passou no gate.
+4. Confirmar no banco que produtos categorizados antes (Shampoos, Bálsamos, Suplementos) não sofreram regressão.
+5. Confirmar que produtos genuinamente sem encaixe continuam `NULL` (raríssimo, mas precisa funcionar).
+6. Reportar para o usuário a tabela: produto → categoria escolhida → caminho completo → fonte (cascata 1/2/3/4 ou pendente).
 
-## Documentação a atualizar
-- `docs/especificacoes/marketplaces/mercado-livre.md` — nova seção descrevendo a cascata de termo de busca, o resumo cacheado e a regra de invalidação por assinatura.
-- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que o resumo é metadado derivado (não viola fonte única) e que IA nunca preenche campos do cadastro.
+## Documentação a atualizar (mesma entrega)
+- `docs/especificacoes/marketplaces/mercado-livre.md` — adicionar a Cascata 4 ao fluxo de categorização, descrevendo: insumos para a IA, formato de resposta, fato de o gate de domínio se aplicar também à escolha da IA, e quando cai em pendente.
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que a IA pode escolher categoria entre candidatas reais do ML, mas nunca inventa categoria e nunca preenche campos do cadastro; gate continua soberano.
 
-## O que estou decidindo por conta (técnico/fluxo, dentro do seu critério)
-- Cache no próprio `products` em vez de tabela nova (menos joins, menos custo).
-- Invalidação por hash de conteúdo (mais barata que trigger no UPDATE; só recalcula quando alguém realmente vai usar).
-- Geração lazy sob demanda (evita gasto em produtos que nunca serão anunciados no ML).
-- Modelo barato com output estruturado (sem tools, sem multi-turn).
+## Decisões técnicas que tomo por conta (dentro do critério dado)
+- Modelo: Gemini Flash via `aiChatCompletionJSON` (router padrão, fallback automático).
+- Sem cache persistente da escolha — cada reprocessamento reavalia (volume é baixíssimo, só produtos órfãos, custo desprezível).
+- Hidratação de `path_from_root` em memória dentro da mesma execução (evita refetch quando vários produtos compartilham candidatas).
+- Limite de 8 candidatas enviadas à IA (suficiente; mais que isso = ruído).
+- Timeout curto (10s) na chamada da IA; se estourar, cai em pendente sem travar o batch.
 
-## O que NÃO vou tocar sem você aprovar
-- Nenhuma mudança de UI/UX no cadastro do produto, no diálogo de anúncio ou no painel de atributos.
-- Nenhuma mudança nas regras de negócio do core (Produtos/Clientes/Pedidos).
-- Nenhuma mudança na lista de campos obrigatórios do `mlReadiness`.
-- Nenhuma alteração nos demais fallbacks já consolidados.
+## O que NÃO vou tocar sem aprovação
+- UI do diálogo de envio, painel de atributos, cadastro do produto.
+- Lista de campos obrigatórios do `mlReadiness`.
+- Regras do gate de domínio (continua igual).
+- Geração/cache do resumo (v1.11.0 inalterado).
+- Núcleo Produtos/Clientes/Pedidos.
 
 ## Dúvidas / limitações conhecidas
-- Nenhuma bloqueante. Único ponto de atenção: se o `tipo de produto` no cadastro estiver preenchido com algo genérico tipo "Cuidados pessoais", o primário pode falhar — mas é exatamente para isso que o fallback IA existe.
+- Nenhuma bloqueante. Único ponto de atenção: se as 3 cascatas anteriores não devolverem nenhuma candidata (ML retornar vazio em todas), a Cascata 4 não tem o que avaliar e cai direto em pendente — comportamento correto e desejado.
 
-📌 STATUS DA ENTREGA: Diagnóstico fechado. Plano pronto, aguardando sua aprovação para implementar.
+📌 STATUS DA ENTREGA: Plano pronto, aguardando aprovação para implementar, validar tecnicamente e atualizar docs.
