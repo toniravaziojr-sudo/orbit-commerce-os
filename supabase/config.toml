@@ -800,3 +800,9 @@ verify_jwt = false
 
 [functions.ads-autopilot-feedback-record]
 verify_jwt = true
+
+[functions.email-track]
+verify_jwt = false
+
+[functions.identity-prehydrate]
+verify_jwt = false
