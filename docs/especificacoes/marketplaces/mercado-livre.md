@@ -1345,6 +1345,7 @@ O ajuste v2.4.0 estava correto no motor, mas rascunhos já existentes — caso r
 
 ### Regra nova
 - Todo cache salvo pelo painel recebe uma versão interna de resolução.
+- O motor `meli-resolve-attributes` também devolve `resolver_version` em cada atributo, garantindo que o resultado recém-calculado já chegue ao painel marcado como cache atual.
 - Ao reabrir um rascunho, o painel só reaproveita características salvas se a versão do cache for compatível com a versão atual do motor.
 - Cache legado/incompatível é recalculado **uma única vez**; depois o novo resultado é salvo com a versão atual e volta a abrir sem custo de IA.
 - Clicar em **Recalcular** continua sendo ação explícita do lojista e sempre força nova resolução.
