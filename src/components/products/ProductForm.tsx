@@ -1147,7 +1147,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="weight"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Peso (g) *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Peso (g) * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1174,7 +1174,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="width"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Largura (cm) *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Largura (cm) * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1201,7 +1201,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="height"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Altura (cm) *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Altura (cm) * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1228,7 +1228,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="depth"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Profundidade (cm) *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Profundidade (cm) * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1257,7 +1257,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="gtin"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>GTIN/EAN (Código de Barras) *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">GTIN/EAN (Código de Barras) * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input 
                               {...field} 
@@ -1662,7 +1662,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="brand"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Marca</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Marca <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -1680,7 +1680,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="model"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Modelo *</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Modelo * <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <div className="flex gap-2">
                               <Input
@@ -1751,7 +1751,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="product_type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Tipo de Produto</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Tipo de Produto <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -2027,7 +2027,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="ai_product_type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Tipo de produto</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Tipo de produto <MarketplaceFieldHint text="Decisivo para a categorização nos Marketplaces. Use termos funcionais (ex: 'Balm capilar', 'Shampoo anti-queda') em vez de termos genéricos." /></FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -2088,7 +2088,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           tree.filter((c: any) => c.parent_slug === parentSlug);
                         return (
                           <FormItem>
-                            <FormLabel>Categoria universal</FormLabel>
+                            <FormLabel className="flex items-center gap-1.5">Categoria universal <MarketplaceFieldHint /></FormLabel>
                             <Select
                               value={field.value || ''}
                               onValueChange={(val) => {
@@ -2172,7 +2172,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="net_content_value"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Conteúdo líquido</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Conteúdo líquido <MarketplaceFieldHint /></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -2194,7 +2194,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="net_content_unit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Unidade</FormLabel>
+                          <FormLabel className="flex items-center gap-1.5">Unidade <MarketplaceFieldHint /></FormLabel>
                           <Select onValueChange={field.onChange} value={field.value || ''}>
                             <FormControl>
                               <SelectTrigger>
