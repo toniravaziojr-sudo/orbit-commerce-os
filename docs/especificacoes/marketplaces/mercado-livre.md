@@ -199,7 +199,7 @@ Dialog de 9 etapas para criação em massa de anúncios com validação ML sincr
 | 6 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 7 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
 | 8 | Preços | Campo editável por produto, botões de desconto %, acréscimo % e restaurar preço do cadastro. Atualiza somente o preço do anúncio no ML. |
-| 9 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
+| 9 | Frete | Lista por anúncio com toggle individual de `free_shipping` (travado em `true` quando `preço ≥ R$ 79`, com badge "Obrigatório pelo Mercado Livre"). Ações em massa "Ativar/Desativar frete grátis em todos" agem somente sobre anúncios abaixo do piso. Toggle global de `local_pick_up` (Retirada no Local). |
 
 **Props:**
 
@@ -306,14 +306,16 @@ A mensagem de erro do ML para AFE em formato inválido foi traduzida em `humaniz
 
 **Anti-regressão:** qualquer evolução do adaptador deve manter as duas garantias acima e a regra de não alterar o cadastro.
 
-#### Frete Grátis Obrigatório (v2.5.0 — 2026-06-28)
+#### Frete Grátis Obrigatório (v2.5.1 — 2026-06-28)
 
 O Mercado Livre Brasil aplica **frete grátis obrigatório em todo anúncio com preço ≥ R$ 79**, independentemente da escolha do vendedor. Para evitar divergência entre o estado salvo no nosso banco e o anúncio publicado lá, alinhamos o fluxo em quatro pontos:
 
 1. **Constante única.** O piso vive em `src/lib/marketplaces/meliFreeShipping.ts` (frontend) e `supabase/functions/_shared/meli/freeShipping.ts` (backend) como `MELI_FREE_SHIPPING_THRESHOLD_BRL = 79`, com o helper `isMeliFreeShippingMandatory(price)`. Sem cron de verificação — o ML não publica API estável para esse valor; a detecção é passiva (item 4).
-2. **UI bloqueada acima do piso.** `MeliListingWizard` (edição unitária) e `MeliListingCreator` (criação em lote, Step 9) marcam o toggle de Frete Grátis como `checked` e `disabled`, com badge "Obrigatório pelo Mercado Livre" e mensagem explicativa. No lote, o bloqueio só ocorre quando **todos** os itens cruzam o piso; havendo mix, o toggle permanece editável mas um aviso âmbar informa quantos itens terão frete grátis forçado.
+2. **UI por anúncio (v2.5.1).** `MeliListingWizard` (edição unitária) mantém o toggle único bloqueado quando o preço cruza o piso. `MeliListingCreator` (criação/edição em lote, Step 9) agora exibe **uma linha por anúncio** com toggle individual de Frete Grátis: itens com `preço ≥ R$ 79` ficam `checked` e `disabled`, com badge "Obrigatório pelo Mercado Livre"; itens abaixo do piso ficam editáveis. Além disso, há duas ações em massa — "Ativar frete grátis em todos" e "Desativar frete grátis em todos" — que afetam **somente os anúncios elegíveis** (abaixo do piso); o contador exibe quantos estão ativos/elegíveis. O toggle "Retirada no local" continua global e é aplicado a todos.
 3. **Adaptador força no envio.** `meli-publish-listing` reforça `shipping.free_shipping=true` quando `price ≥ piso`, mesmo se o payload de origem trouxe `false`. Após resposta do ML, persiste em `meli_listings.shipping` o objeto `shipping` real devolvido — fonte de verdade pós-publicação.
 4. **Detecção passiva de mudança do piso.** `meli-sync-listings` e `meli-webhook` passam a buscar o atributo `shipping` do ML e atualizar o registro local quando o `free_shipping` divergir. Adicionalmente, `meli-publish-listing` emite `console.warn` "DIVERGÊNCIA piso frete grátis" sempre que o ML aplica frete grátis em item **abaixo** do piso conhecido — sinalizando que `MELI_FREE_SHIPPING_THRESHOLD_BRL` precisa ser revisto. Esse sinal usa o sync diário já existente; nenhum job adicional foi criado.
+
+**Persistência por anúncio (v2.5.1):** cada alternância do toggle individual e cada ação em massa grava `meli_listings.shipping = { mode, free_shipping (por item), local_pick_up }` diretamente no rascunho correspondente. `handleFinalSave` consome esse mapa por `listingId` ao publicar/atualizar no ML.
 
 **Anti-regressão:** o cadastro do produto continua intocável. Toda a regra de frete grátis vive no adaptador de envio e na UI do anúncio.
 
