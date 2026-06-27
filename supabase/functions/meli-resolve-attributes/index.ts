@@ -1203,18 +1203,19 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
       }
     }
 
+    const resolvedWithVersion = resolved.map((a: any) => ({ ...a, resolver_version: `meli-attrs-v${VERSION}` }));
 
     const summary = {
-      filled: resolved.filter(r => r.status === "filled").length,
-      review: resolved.filter(r => r.status === "review").length,
-      missing: resolved.filter(r => r.status === "missing").length,
+      filled: resolvedWithVersion.filter(r => r.status === "filled").length,
+      review: resolvedWithVersion.filter(r => r.status === "review").length,
+      missing: resolvedWithVersion.filter(r => r.status === "missing").length,
     };
 
     return json({
       success: true,
       version: VERSION,
       categoryId,
-      attributes: resolved,
+      attributes: resolvedWithVersion,
       summary,
       can_publish: summary.missing === 0,
     });
