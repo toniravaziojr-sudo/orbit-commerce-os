@@ -267,7 +267,6 @@ Deno.serve(async (req) => {
       const _id = String(attributes[i]?.id || "").toUpperCase();
       if (_id === "WARRANTY_TYPE" || _id === "WARRANTY_TIME") {
         attributes.splice(i, 1);
-        attrIds.delete(attributes[i]?.id);
       }
     }
     attrIds.delete("WARRANTY_TYPE");
