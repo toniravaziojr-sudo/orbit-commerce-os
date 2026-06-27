@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
           let categoryName = "";
           try {
             const discoveryRes = await fetch(
-              `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(product.name)}`,
+              `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(sanitizeCategorySearchTerm(product.name))}`,
               { headers: mlHeaders }
             );
             if (discoveryRes.ok) {
