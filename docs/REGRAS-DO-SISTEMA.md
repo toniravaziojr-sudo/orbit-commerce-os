@@ -893,4 +893,35 @@ As regras transversais que se aplicam a múltiplos módulos estão consolidadas 
 
 ---
 
+## 36. REGRA UNIVERSAL — GUIAR O USUÁRIO
+
+> **Toda funcionalidade que dependa de dado vindo do cadastro do usuário deve sinalizar a dependência no cadastro e, quando o fluxo falhar, mostrar motivo + ação corretiva em linguagem de negócio.**
+
+### Regra (obrigatória para todo módulo, novo ou existente)
+
+1. **Sinalização no cadastro** — todo campo cujo valor o sistema usa para classificar, publicar, calcular ou enriquecer dados em fluxos externos (marketplaces, fiscal, frete, ads, IA, e-mail, etc.) deve ter um indicador visual discreto (selo + tooltip curto) explicando para que serve.
+   - Implementação canônica para marketplaces: `src/components/marketplaces/MarketplaceFieldHint.tsx`. Padrões equivalentes devem ser criados para cada domínio (fiscal, frete, ads).
+2. **Mensagem de falha contextual** — quando um fluxo dependente do cadastro falhar ou ficar incompleto, exibir no ponto da falha:
+   - **Motivo provável** em linguagem de negócio (ex: "Tipo de produto pouco específico").
+   - **Ação corretiva** clara (ex: "Detalhe o Tipo de Produto no cadastro ou escolha manualmente abaixo").
+   - **Link direto** para o local de correção (ex: "Abrir cadastro do produto").
+3. **Proibido mostrar erro técnico cru** — nada de stack trace, código HTTP, nome de campo do banco, JSON ou termos como "null", "undefined", "trim is not a function" para o usuário final. Toda mensagem técnica é traduzida.
+4. **Aplica-se a todos os módulos** — marketplaces, fiscal, frete, ads, IA, e-mail, automações, builder, checkout. Implementações novas que ignorem esta regra são consideradas regressão.
+
+### Antipadrão
+
+- "Categoria não identificada" sem motivo nem ação.
+- Toast genérico "Erro ao processar" sem orientação.
+- Mostrar mensagem da API externa traduzida palavra a palavra.
+- Exigir que o usuário descubra sozinho qual campo do cadastro precisa preencher.
+
+### Referência de implementação
+
+- `src/components/marketplaces/MarketplaceFieldHint.tsx` — selo universal para campos críticos de marketplace.
+- `src/lib/marketplaces/mlReadiness.ts → diagnoseCategoryFailure` — exemplo canônico de diagnóstico amigável.
+- `src/components/marketplaces/MeliListingCreator.tsx` — exemplo canônico de aviso contextual com motivo + ação + link.
+
+---
+
 *Fim do documento.*
+
