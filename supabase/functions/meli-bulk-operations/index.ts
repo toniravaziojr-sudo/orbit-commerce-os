@@ -1009,7 +1009,7 @@ Retorne APENAS o texto da descrição.`,
           if (!categoryFound && brandName) {
             const brandTerm = buildPrimarySearchTerm({ ...(product || ({} as any)), product_type: brandName, ai_product_type: null });
             if (brandTerm && brandTerm !== primaryTerm) {
-              categoryFound = await tryDiscovery(brandTerm, "brand", false);
+              categoryFound = await tryDiscovery(brandTerm, "brand", true);
             }
           }
 
