@@ -980,7 +980,7 @@ Retorne APENAS o texto da descrição.`,
           const discoveryData = await discoveryRes.json();
           console.log(`[auto_suggest] Discovery result:`, JSON.stringify(discoveryData).slice(0, 500));
           if (Array.isArray(discoveryData) && discoveryData.length > 0) {
-            const bestMatch = pickBestCategory(discoveryData, productName);
+            const bestMatch = pickBestCategory(discoveryData, cleanProductName);
             if (bestMatch) {
               categoryId = bestMatch.category_id;
               categoryName = bestMatch.category_name || bestMatch.domain_name || categoryId;
