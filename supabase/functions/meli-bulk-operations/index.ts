@@ -963,9 +963,11 @@ Retorne APENAS o texto da descrição.`,
       let categoryName = "";
       let pathStr = "";
 
-      // Build smarter search term using description context
-      const descKeywords = (productDescription || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
-      const searchTerm = descKeywords ? `${productName} ${descKeywords}`.slice(0, 200) : productName;
+      // Build smarter search term using description context (strip pack multipliers)
+      const cleanProductName = sanitizeCategorySearchTerm(productName);
+      const descKeywordsRaw = (productDescription || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
+      const descKeywords = sanitizeCategorySearchTerm(descKeywordsRaw);
+      const searchTerm = descKeywords ? `${cleanProductName} ${descKeywords}`.slice(0, 200) : cleanProductName;
 
       // Strategy 1: domain_discovery/search with enriched search term
       try {
