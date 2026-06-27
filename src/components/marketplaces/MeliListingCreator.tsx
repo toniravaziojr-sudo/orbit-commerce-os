@@ -1398,9 +1398,33 @@ export function MeliListingCreator({
                       ) : item.categoryId ? (
                         <p className="text-xs text-muted-foreground">{item.categoryId}</p>
                       ) : (
-                        <p className="text-xs text-amber-500 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" /> Categoria não identificada
-                        </p>
+                        (() => {
+                          const diag = categoryFailureByProductId[item.productId];
+                          return (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-2 space-y-1">
+                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                {diag?.reason ?? "Categoria não identificada."}
+                              </p>
+                              {diag?.hint && (
+                                <p className="text-[11px] text-amber-700/80 dark:text-amber-200/70">
+                                  {diag.hint}
+                                </p>
+                              )}
+                              {item.productId && (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-[11px] text-amber-700 dark:text-amber-300"
+                                  onClick={() => window.open(`/products?edit=${item.productId}`, "_blank", "noopener")}
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-1" /> Abrir cadastro do produto
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })()
                       )}
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
