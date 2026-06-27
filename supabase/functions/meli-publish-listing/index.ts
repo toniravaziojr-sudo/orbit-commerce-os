@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 
 // ===== VERSION =====
-const VERSION = "3.7.2"; // v2.4.3 — UNITS_PER_PACK injetado quando ausente + drop universal de AFE/CONAMA/ANVISA quando cadastro vazio
+const VERSION = "3.8.0"; // v2.5.0 — Frete grátis obrigatório do ML acima de R$ 79 + persistência do shipping real após publicação
 // ===================
 
 const corsHeaders = {
