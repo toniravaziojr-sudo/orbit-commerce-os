@@ -888,7 +888,7 @@ Retorne APENAS o texto da descrição.`,
 
           // Fallback: simpler search with product name + brand only
           if (!categoryFound && brandName) {
-            const fallbackTerm = `${productName} ${brandName}`.slice(0, 120);
+            const fallbackTerm = sanitizeCategorySearchTerm(`${productName} ${brandName}`).slice(0, 120);
             console.log(`[meli-categories] Fallback search: "${fallbackTerm}"`);
             try {
               const fbRes = await fetch(
