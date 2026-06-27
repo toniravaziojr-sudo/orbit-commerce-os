@@ -692,6 +692,15 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > **Invalidação:** alterações no cadastro do produto (nome, marca, tipo, formato, linha, descrições, volume) regeram a assinatura na próxima leitura e descartam o cache do resumo automaticamente — não exige hook explícito no `ProductForm`. A escolha da IA Decisora não é cacheada: cada reprocessamento reavalia (volume de órfãos é baixo e o custo desprezível).
 
+**Regra: Cobertura determinística em lote (v1.14.0 — OBRIGATÓRIO):**
+> O fan-out de `bulk_auto_categories` (e dos análogos `bulk_generate_titles`/`bulk_generate_descriptions`) **não pode usar paginação OFFSET/LIMIT sem `ORDER BY`** — Postgres não garante ordem estável entre páginas e isso já causou listings perdidos em batches (lacunas e sobreposições). Regras vinculantes:
+> 1. Quando `listingIds` (alias interno: `filterIds`) é fornecido, a Edge Function processa **todos os IDs do filtro em uma única passada**, sem `range()`. A lista vem bounded do diálogo (tipicamente ≤ 50).
+> 2. Quando `listingIds` não é fornecido (uso administrativo "Recategorizar tudo"), pagina com `.order("id", { ascending: true })` antes do `.range(offset, offset + limit - 1)`.
+> 3. O diálogo (`MeliListingCreator.handleCreateAndCategorize`) **fatia em chunks JS de 5 IDs** e envia cada chunk com `listingIds: chunk` (sem `offset/limit`). Falha de rede num chunk não quebra os demais.
+> 4. Ao final dos chunks, executa **reconciliação obrigatória**: relê do banco, identifica listings que ficaram com `category_id IS NULL` e dispara **uma única retentativa** desses faltantes (limite de 1 retry para evitar loop). O que sobrar segue para escolha manual do lojista.
+> 5. Edge devolve `processedIds: string[]` e loga `received_ids / fetched / updated / skipped / errors` por chamada para auditoria via `edge_function_logs`.
+
+
 
 **Regra: Auto-fill GTIN e Marca na Edição (OBRIGATÓRIO):**
 > Ao abrir o `MeliListingWizard` para edição, se os atributos `BRAND` e `GTIN` não existem nos `attributes` do anúncio, o `MeliListingsTab.handleEditListing` DEVE buscar esses dados diretamente do produto (`products.brand`, `products.gtin`, `products.barcode`) como fallback.
