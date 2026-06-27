@@ -514,57 +514,79 @@ export function MeliListingCreator({
       }));
       setGeneratedItems(items);
 
-      // Auto-categorize
+      // Auto-categorize (chunks explícitos em JS para evitar pagination drift no edge)
       setProcessingLabel("Categorizando produtos via API do Mercado Livre...");
-      let offset = 0;
-      const limit = 5;
-      let hasMore = true;
-      let totalProcessed = 0;
+      const CHUNK_SIZE = 5;
 
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action: "bulk_auto_categories", offset, limit, listingIds: ids },
-        });
+      const applyResolved = (resolved: any[]) => {
+        if (!resolved?.length) return;
+        setGeneratedItems(prev => prev.map(item => {
+          const r = resolved.find((x: any) => x.listingId === item.listingId);
+          if (!r) return item;
+          return {
+            ...item,
+            categoryId: r.categoryId,
+            categoryName: r.categoryName || "",
+            categoryPath: normalizeCategoryPath(r.categoryPath),
+          };
+        }));
+      };
 
-        if (error || !data?.success) {
-          console.error("Bulk categories error:", data?.error || error);
-          break;
+      const runChunks = async (idsToProcess: string[]) => {
+        let done = 0;
+        for (let i = 0; i < idsToProcess.length; i += CHUNK_SIZE) {
+          const chunk = idsToProcess.slice(i, i + CHUNK_SIZE);
+          try {
+            const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+              body: { tenantId: currentTenant.id, action: "bulk_auto_categories", listingIds: chunk },
+            });
+            if (error || !data?.success) {
+              console.error("[categorize] chunk falhou, segue para o próximo:", data?.error || error);
+            } else {
+              applyResolved(data.resolvedCategories || []);
+            }
+          } catch (e) {
+            console.error("[categorize] erro de rede no chunk, segue para o próximo:", e);
+          }
+          done += chunk.length;
+          setProcessingProgress(Math.round((done / Math.max(1, idsToProcess.length)) * 100));
         }
+      };
 
-        hasMore = data.hasMore;
-        offset += limit;
-        totalProcessed += data.processed || 0;
-        setProcessingProgress(Math.round((totalProcessed / ids.length) * 100));
+      await runChunks(ids);
 
-        if (data.resolvedCategories?.length) {
-          setGeneratedItems(prev => prev.map(item => {
-            const resolved = data.resolvedCategories.find((r: any) => r.listingId === item.listingId);
-            if (!resolved) return item;
-            return {
-              ...item,
-              categoryId: resolved.categoryId,
-              categoryName: resolved.categoryName || "",
-              categoryPath: normalizeCategoryPath(resolved.categoryPath),
-            };
-          }));
-        }
-      }
-
-      // Sync from DB
-      const { data: updatedListings } = await supabase
+      // Reconciliação: re-tenta os que ficaram sem categoria (1x apenas)
+      const { data: afterFirst } = await supabase
         .from("meli_listings")
-        .select("id, category_id")
+        .select("id, category_id, category_name, category_path_text")
         .in("id", ids);
 
-      if (updatedListings) {
+      const missing = (afterFirst || []).filter(l => !l.category_id).map(l => l.id);
+      if (missing.length > 0) {
+        console.log(`[categorize] reconciliação: ${missing.length} listings sem categoria, re-tentando uma vez`);
+        setProcessingLabel(`Reconciliando ${missing.length} item(ns) pendente(s)...`);
+        await runChunks(missing);
+      }
+
+      // Sync final: hidrata UI com tudo que ficou no banco
+      const { data: finalListings } = await supabase
+        .from("meli_listings")
+        .select("id, category_id, category_name, category_path_text")
+        .in("id", ids);
+
+      if (finalListings) {
         setGeneratedItems(prev => prev.map(item => {
-          const updated = updatedListings.find(l => l.id === item.listingId);
-          if (updated?.category_id && !item.categoryId) {
-            return { ...item, categoryId: updated.category_id };
-          }
-          return item;
+          const u = finalListings.find(l => l.id === item.listingId);
+          if (!u) return item;
+          return {
+            ...item,
+            categoryId: u.category_id || item.categoryId,
+            categoryName: u.category_name || item.categoryName,
+            categoryPath: u.category_path_text ? normalizeCategoryPath(u.category_path_text) : item.categoryPath,
+          };
         }));
       }
+
 
       setIsProcessing(false);
       setProcessingProgress(100);
