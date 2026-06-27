@@ -61,6 +61,31 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 - Qualquer módulo periférico interage com o core via contratos definidos neste documento.
 - Write direto nas tabelas core por módulo externo ou integração é proibido sem contrato explícito.
 
+#### 3.2.1 Proteção dos Módulos Core (PROIBIDO MODIFICAR SEM AUTORIZAÇÃO EXPLÍCITA)
+Os módulos core — **Cadastro de Produtos, Cadastro de Clientes, Pedidos** — e seus esquemas, regras de obrigatoriedade, validações e UIs **não podem ser alterados** por iniciativa da IA. Mesmo quando um módulo periférico (marketplaces, fiscal, logística, marketing, etc.) apresenta limitação ou erro, a correção deve ficar **no adaptador/integração que consome o core**, nunca no core.
+
+**Regra:** o módulo periférico se adapta ao core. O core nunca se adapta ao periférico.
+
+**O que é proibido sem solicitação explícita do usuário:**
+- Adicionar/remover/renomear campos no cadastro de Produtos, Clientes ou Pedidos.
+- Alterar regras de obrigatoriedade, formato, máscara ou validação no formulário do core.
+- Mudar comportamento da UI do core (botões, banners, fluxos de salvar, listas).
+- Inserir lógica específica de um módulo periférico (ML, Shopee, fiscal, etc.) dentro do core.
+- Migrar/transformar dados existentes no core "para servir" um adaptador externo.
+
+**O que é permitido sem autorização:**
+- Ler do core e traduzir/sanitizar/formatar no adaptador antes de enviar para o sistema externo.
+- Omitir campos opcionais externos quando o cadastro não tem o dado correspondente.
+- Aplicar fallback no adaptador quando o ambiente externo exige valor que o core não fornece.
+
+**Como agir quando o core parecer "incompleto" para um caso periférico:**
+1. Confirmar que é realmente uma lacuna estrutural (não apenas falta de tradução no adaptador).
+2. Documentar a lacuna, o impacto e a alternativa em proposta formal.
+3. Pedir aprovação explícita do usuário **antes** de qualquer alteração no core.
+4. Implementar somente após o "pode mexer no cadastro".
+
+Anti-regressão: alterar o core para resolver um problema isolado de um módulo periférico costuma quebrar outros (loja, fiscal, logística, demais marketplaces). Esta regra existe para impedir esse padrão.
+
 ### 3.3 Segurança vs Velocidade
 - Core transacional, financeiro, fiscal, tenant, segurança e dados sensíveis: **segurança vence**.
 - Ajustes visuais, conforto operacional e melhorias não críticas: **velocidade pode vencer**.

@@ -21,6 +21,9 @@ A função `checkMlReadiness` em `src/lib/marketplaces/mlReadiness.ts` é a **ú
 - Reaproveitar características salvas sem versão é proibido. `MeliAttributesPanel` só usa cache quando cada atributo salvo tem `resolver_version` atual; cache legado recalcula uma única vez e persiste novamente. Isso evita rascunhos antigos mostrarem ANVISA duplicada/ativos incompletos após evolução do motor.
 - ANVISA do cadastro vai em um único atributo do ML. O atributo ANVISA não escolhido pela hierarquia do motor não aparece no painel, não vai para IA e não é enviado como N/A.
 - Atributos de lista fechada de substâncias usam casamento determinístico por dicionário antes da IA. Se o motor estrutural mudar, incrementar a versão do cache do painel na mesma entrega.
+- Adaptador de envio (`meli-publish-listing`) **nunca altera o cadastro**. Quando o cadastro não tem um número regulatório (AFE/CONAMA/ANVISA), o adaptador omite o atributo do payload — independentemente do que veio da memória do tenant, do painel ou da IA. Cadastro vazio = atributo omitido (v2.4.3).
+- Quando a categoria do ML expõe `UNITS_PER_PACK` e o atributo não está no payload final, o adaptador injeta o valor do cadastro com piso 1 (avulso) ou a quantidade do kit (v2.4.3). Sem essa garantia o ML rejeita venda avulsa.
+- Núcleo do sistema (Produtos/Clientes/Pedidos) é intocável por iniciativa da IA — ver Regras do Sistema seção 3.2.1. Periférico se adapta ao core, nunca o contrário.
 
 **Campos obrigatórios atuais (v3.8):** brand, gtin, model, weight, width, height, depth, universal_category_id, net_content_value+unit. Para `regulatory_regime = anvisa_cosmetic`, adicionar: dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance.
 

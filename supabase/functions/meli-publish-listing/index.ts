@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.7.1"; // v2.4.1 — sanitiza metadados internos do cache de atributos antes de enviar ao ML
+const VERSION = "3.7.2"; // v2.4.3 — UNITS_PER_PACK injetado quando ausente + drop universal de AFE/CONAMA/ANVISA quando cadastro vazio
 // ===================
 
 const corsHeaders = {
@@ -400,7 +400,8 @@ Deno.serve(async (req) => {
           return typeof vmq === "number" && vmq > 1;
         };
         const isNaName = (n: any) => {
-          const x = norm(n).replace(/[^a-z]/g, "");
+          // Normaliza acentos antes de comparar: "Não se aplica" precisa virar "naoseaplica".
+          const x = norm(n).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
           return x === "naoseaplica" || x === "noaplica" || x === "na";
         };
         // ML exige value_name = null em "not applicable". Enviamos apenas value_id.
@@ -506,6 +507,52 @@ Deno.serve(async (req) => {
         }
         attributes.length = 0;
         attributes.push(...cleaned);
+
+        // ===== v2.4.3 — Garantias finais antes do envio =====
+        // (A) UNITS_PER_PACK: quando a categoria expõe, garantir valor válido.
+        // Cobre 3 cenários: atributo ausente, atributo com value_name vazio, ou
+        // atributo com valor N/A residual (qualquer variação acentuada/não acentuada).
+        const _upkSpec = attrSpecs.find((s: any) => String(s.id).toUpperCase() === "UNITS_PER_PACK");
+        if (_upkSpec) {
+          const _upkIdx = attributes.findIndex((a: any) => String(a.id).toUpperCase() === "UNITS_PER_PACK");
+          const _upkRaw = _upkIdx >= 0 ? String(attributes[_upkIdx].value_name ?? "") : "";
+          const _upkNorm = _upkRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+          const _isBad = _upkRaw === "" || _upkNorm === "naoseaplica" || _upkNorm === "noaplica" || _upkNorm === "na" || _upkNorm === "0";
+          if (_upkIdx < 0 || _isBad) {
+            const _upk = Math.max(1, Number((listing.product as any)?.units_per_package) || 1);
+            if (_upkIdx >= 0) attributes.splice(_upkIdx, 1);
+            attributes.push({ id: "UNITS_PER_PACK", value_name: String(_upk) });
+            console.log(`[meli-publish-listing][v2.4.3] Forced UNITS_PER_PACK=${_upk} (was: "${_upkRaw}")`);
+          }
+        }
+
+        // (B) Drop universal: regulatório só vai ao ML se houver número no cadastro.
+        // Cobre qualquer valor herdado de memória do tenant / IA / painel quando o
+        // cadastro está vazio (cosmético notificado nunca tem AFE/CONAMA, p.ex.).
+        const _dropWhenCadastroEmpty = (matcher: (spec: any) => boolean, label: string) => {
+          for (let i = attributes.length - 1; i >= 0; i--) {
+            const spec = specById.get(attributes[i].id);
+            if (spec && matcher(spec)) {
+              console.log(`[meli-publish-listing][v2.4.3] Dropping ${label} (cadastro vazio): ${attributes[i].id}`);
+              attributes.splice(i, 1);
+            }
+          }
+        };
+        if (!afeNum) _dropWhenCadastroEmpty((s) => {
+          const nm = normName(s.name || "");
+          const idUp = String(s.id || "").toUpperCase();
+          return (idUp.includes("AFE") && (idUp.includes("CERTIF") || idUp.includes("NUMBER") || idUp.includes("AUTH")))
+            || (nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac")));
+        }, "AFE");
+        if (!conamaNum) _dropWhenCadastroEmpty((s) => {
+          const nm = normName(s.name || "");
+          const idUp = String(s.id || "").toUpperCase();
+          return idUp.includes("CONAMA") || nm.includes("conama");
+        }, "CONAMA");
+        if (!anvisaNum) _dropWhenCadastroEmpty(
+          (s) => isAnvisaNumberById(s.id) || isAnvisaNumberByName(s.name || ""),
+          "ANVISA-number"
+        );
       }
     } catch (specErr) {
       console.log(`[meli-publish-listing] Category attribute spec fetch skipped:`, specErr);
@@ -649,8 +696,8 @@ function humanizeMeliError(raw: string, causes: any[]): string {
   if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all)) {
     add('O número da ANVISA do produto está em formato inválido para o Mercado Livre. Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
   }
-  if (/Número de certificado da AFE.*incorreto/i.test(all)) {
-    add('O número do certificado AFE está em formato inválido. Revise no cadastro do produto.');
+  if (/Número de certificado da AFE.*incorreto/i.test(all) || /AFE.*formato.*inv[aá]lido/i.test(all)) {
+    add('Este produto não tem registro AFE no cadastro — o sistema vai omitir esse campo automaticamente na próxima tentativa. Se o erro persistir, tente publicar novamente.');
   }
   if (/missing required attribute|atributo obrigat[oó]rio/i.test(all)) {
     add('Faltam características obrigatórias da categoria. Reabra o anúncio e revise o painel de características.');
