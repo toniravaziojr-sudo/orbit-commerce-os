@@ -715,6 +715,7 @@ export function MeliListingWizard({
             {categoryId && productIdForPanel && currentTenant?.id && (
               <MeliAttributesPanel
                 tenantId={currentTenant.id}
+                listingId={mode === "edit" ? initialData?.id : undefined}
                 productId={productIdForPanel}
                 categoryId={categoryId}
                 onChange={setAttrPanel}
