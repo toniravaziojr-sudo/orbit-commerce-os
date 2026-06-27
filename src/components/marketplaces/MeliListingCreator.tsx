@@ -594,6 +594,26 @@ export function MeliListingCreator({
         }));
       }
 
+      // Diagnóstico das falhas de categorização (motivo + ação em linguagem de negócio).
+      const stillMissing = (finalListings || []).filter(l => !l.category_id).map(l => l.id);
+      if (stillMissing.length > 0) {
+        const productIdsMissing = generatedItems
+          .filter(i => stillMissing.includes(i.listingId))
+          .map(i => i.productId);
+        if (productIdsMissing.length > 0) {
+          const { data: prods } = await supabase
+            .from("products")
+            .select("id, product_type, brand")
+            .in("id", productIdsMissing);
+          if (prods) {
+            const diag: Record<string, { reason: string; hint: string }> = {};
+            for (const p of prods as any[]) {
+              diag[p.id] = diagnoseCategoryFailure({ product_type: p.product_type, brand: p.brand });
+            }
+            setCategoryFailureByProductId(prev => ({ ...prev, ...diag }));
+          }
+        }
+      }
 
       setIsProcessing(false);
       setProcessingProgress(100);
