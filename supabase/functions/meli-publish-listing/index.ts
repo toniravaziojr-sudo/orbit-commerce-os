@@ -782,19 +782,40 @@ async function sanitizeAttributesForCategory(
     const specs: any[] = await res.json();
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
-    const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU"]);
+    // v2.6.0 — WARRANTY_TIME é texto livre obrigatório no fluxo de update;
+    // sem isso o ML rejeita ou perde o tempo de garantia silenciosamente.
+    const FREE_FORM_IDS = new Set(["BRAND", "GTIN", "EAN", "MODEL", "SELLER_SKU", "WARRANTY_TIME"]);
     const cleaned: any[] = [];
     for (const attr of attrs) {
       const spec = byId.get(attr.id);
+      // v2.6.0 — suporte a multi-valor (values[]): normaliza contra a lista oficial.
+      if (Array.isArray(attr.values) && attr.values.length > 0) {
+        if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
+          const out: any[] = [];
+          for (const v of attr.values) {
+            const hit = spec.values.find((sv: any) => norm(sv.name) === norm(v?.name));
+            if (hit) out.push({ id: hit.id, name: hit.name });
+          }
+          if (out.length > 0) cleaned.push({ id: attr.id, values: out });
+          else console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (no values matched)`);
+        } else {
+          // sem spec ou sem lista fechada: mantém values cru já normalizado
+          const out = attr.values
+            .map((v: any) => ({ ...(v?.id ? { id: v.id } : {}), ...(v?.name ? { name: v.name } : {}) }))
+            .filter((v: any) => v.id || v.name);
+          if (out.length > 0) cleaned.push({ id: attr.id, values: out });
+        }
+        continue;
+      }
       if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
         const hit = spec.values.find((v: any) => norm(v.name) === norm(attr.value_name));
         if (hit) {
           cleaned.push({ id: attr.id, value_id: hit.id, value_name: hit.name });
         } else if (FREE_FORM_IDS.has(String(attr.id).toUpperCase())) {
-          console.log(`[meli-publish-listing] sanitize: keeping free-form ${attr.id}="${attr.value_name}"`);
+          console.log(`[meli-publish-listing] sanitize(update): keeping free-form ${attr.id}="${attr.value_name}"`);
           cleaned.push({ id: attr.id, value_name: attr.value_name });
         } else {
-          console.log(`[meli-publish-listing] sanitize: dropping ${attr.id}="${attr.value_name}" (not allowed)`);
+          console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id}="${attr.value_name}" (not allowed)`);
           continue;
         }
       } else {
@@ -803,7 +824,7 @@ async function sanitizeAttributesForCategory(
     }
     return cleaned;
   } catch (e) {
-    console.log("[meli-publish-listing] sanitize skipped:", e);
+    console.log("[meli-publish-listing] sanitize(update) skipped:", e);
     return attrs;
   }
 }
