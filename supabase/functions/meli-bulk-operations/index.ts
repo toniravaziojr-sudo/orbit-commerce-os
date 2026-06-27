@@ -8,7 +8,92 @@ import {
   type ProductCadastro,
 } from "../_shared/meli/search-term-builder.ts";
 
-const VERSION = "v1.11.0"; // Cascata de termo: tipo do cadastro → resumo IA cacheado → marca. Resumo invalidado por assinatura SHA-256 do cadastro.
+const VERSION = "v1.12.0"; // Gate de confiança: rejeita categoria primária quando o caminho do ML não casa com o tipo do cadastro (força fallback IA).
+
+/**
+ * Normaliza string para casamento determinístico de domínio.
+ * Remove acentos, baixa caixa, colapsa espaços.
+ */
+function normalizeForMatch(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Dicionário de tokens funcionais por família.
+ * Se o cadastro indica um tipo da família, o caminho da categoria do ML deve conter
+ * pelo menos um destes tokens; caso contrário, a categoria é incompatível e força fallback.
+ */
+const PRODUCT_DOMAIN_TOKENS: Record<string, string[]> = {
+  cabelo: ["shampoo", "condicionador", "cabelo", "capilar", "barbearia", "tratamento capilar", "cuidados com o cabelo"],
+  barba: ["barba", "barbearia", "cuidados com a barba"],
+  pele: ["pele", "facial", "skincare", "rosto", "cuidados com a pele", "corporal", "hidratante"],
+  balm: ["balm", "pos barba", "cuidados com a barba", "cuidados com a pele", "hidratante"],
+  locao: ["locao", "hidratante", "corporal", "cuidados com a pele"],
+  creme: ["creme", "hidratante", "cuidados com a pele", "cuidados com o cabelo"],
+  suplemento: ["suplemento", "vitamina", "nutricional", "proteina"],
+  perfume: ["perfume", "fragrancia", "colonia"],
+  desodorante: ["desodorante", "antitranspirante"],
+};
+
+/** Detecta a família funcional a partir do tipo do cadastro. */
+function detectProductFamily(productType: string | null | undefined, productName: string | null | undefined): string[] {
+  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(productName)}`;
+  const families: string[] = [];
+  if (/\bshampoo\b|\bcondicionador\b|\bcapilar\b|\bcabelo\b/.test(blob)) families.push("cabelo");
+  if (/\bbalm\b|\bpos barba\b/.test(blob)) families.push("balm");
+  if (/\bbarba\b/.test(blob)) families.push("barba");
+  if (/\blocao\b/.test(blob)) families.push("locao");
+  if (/\bcreme\b/.test(blob)) families.push("creme");
+  if (/\bsuplemento\b|\bvitamina\b|\bpolivitam/.test(blob)) families.push("suplemento");
+  if (/\bperfume\b|\bcolonia\b|\bfragrancia\b/.test(blob)) families.push("perfume");
+  if (/\bdesodorante\b/.test(blob)) families.push("desodorante");
+  if (/\bpele\b|\bfacial\b|\bskincare\b|\brosto\b/.test(blob)) families.push("pele");
+  return families;
+}
+
+/**
+ * Gate de confiança: dada a categoria escolhida pelo ML e o tipo do cadastro,
+ * decide se a categorização é confiável. Retorna false quando há mismatch claro
+ * (ex.: produto "Shampoo de tratamento" caindo em "Kits para Barba" ou
+ * "Pó mineral capilar" caindo em "Bases Faciais") — nesses casos o chamador
+ * deve forçar o fallback IA.
+ */
+function categoryMatchesProductDomain(
+  categoryPath: string,
+  productType: string | null | undefined,
+  productName: string | null | undefined,
+): boolean {
+  const path = normalizeForMatch(categoryPath);
+  if (!path) return true; // sem caminho não há como avaliar — não bloqueia
+  const families = detectProductFamily(productType, productName);
+  if (families.length === 0) return true; // cadastro sem sinal claro — não bloqueia
+
+  // Domínios proibidos sem evidência no cadastro
+  const blob = `${normalizeForMatch(productType)} ${normalizeForMatch(productName)}`;
+  const forbidden = [
+    "veiculo", "automotivo", "automoveis", "carro", "moto",
+    "animais", "pet shop", "fazenda", "agro",
+    "industria", "construcao", "ferramentas",
+    "bebes", "infantil",
+  ];
+  for (const f of forbidden) {
+    if (path.includes(f) && !blob.includes(f)) return false;
+  }
+
+  // A categoria deve conter ao menos um token de UMA das famílias detectadas
+  for (const fam of families) {
+    const tokens = PRODUCT_DOMAIN_TOKENS[fam] || [];
+    if (tokens.some((t) => path.includes(normalizeForMatch(t)))) return true;
+  }
+  return false;
+}
 
 /**
  * Remove marcadores de quantidade/multiplicador do termo de busca de categoria
