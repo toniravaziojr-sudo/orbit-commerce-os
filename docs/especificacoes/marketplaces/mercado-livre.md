@@ -1,7 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-27 (v2.4.1: cache de características passa a ser versionado; rascunhos antigos com atributos resolvidos antes da regra ANVISA/substâncias recalculam uma única vez. ANVISA não escolhida sai do painel/payload, não vira IA/N/A. `meli-publish-listing` remove metadados internos antes de enviar ao ML.)
+> **Última atualização:** 2026-06-27 (v2.4.3: adaptador de envio injeta `UNITS_PER_PACK=1` quando a categoria expõe o atributo e ele está ausente do payload; drop universal de AFE/CONAMA/ANVISA-number quando o cadastro do produto não tem o número correspondente — independente do que veio da memória do tenant, do painel ou da IA. Cadastro continua sendo a única fonte de verdade e nunca é alterado pelo adaptador.)
+> **Histórico v2.4.1 (2026-06-27):** cache de características versionado; rascunhos antigos recalculam uma única vez; ANVISA não escolhida sai do painel/payload; `meli-publish-listing` remove metadados internos antes de enviar ao ML.
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
 > **Histórico v2.4.0 (2026-06-21):** tela de Anúncios reorganizada em 3 abas — Rascunhos (padrão), Publicados, Pendências. Ações em massa reduzidas a **Editar em Lote** e **Excluir Selecionados**. Publicação movida para a última etapa do dialog de criação ("Salvar como rascunho" / "Salvar e publicar no Mercado Livre"). Editar em Lote, quando aplicado a anúncios já publicados, **atualiza** no ML em vez de publicar novos. Exclusão de anúncios publicados agora **encerra definitivamente no Mercado Livre** (status closed) antes de remover localmente.
@@ -292,6 +293,18 @@ POST /meli-publish-listing
 - **Características do anúncio:** A resolução automática deve usar somente campos reais do cadastro do produto; dimensões usam profundidade como comprimento, garantia usa duração/tipo cadastrados, e condição deve vir do rascunho do anúncio quando houver rascunho salvo. Se a consulta ao cadastro falhar por contrato quebrado, a UI não deve mascarar como produto inexistente.
 - **Dimensões de frete:** `PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH` **NÃO são enviados** como atributos (não modificáveis via API de itens, removidos na v3.1.0).
 - **Permalink:** Armazena `meli_response.permalink` para link "Ver no ML" funcional.
+
+#### Garantias Finais do Adaptador (v2.4.3 — 2026-06-27)
+
+Antes do envio ao ML, depois da sanitização contra a lista oficial da categoria, o adaptador aplica duas regras adicionais. Ambas operam **apenas sobre o payload de envio**; o cadastro do produto **não é tocado** (regra 3.2.1 das Regras do Sistema).
+
+1. **`UNITS_PER_PACK` garantido quando a categoria expõe.** Se o atributo `UNITS_PER_PACK` existe na spec da categoria e está **ausente** do payload final (não foi resolvido pelo motor, nem marcado N/A), o adaptador injeta o valor do cadastro com piso 1. Cobre venda avulsa (1) e kit (quantidade do cadastro). Sem isso o ML rejeita com "Unidades por kit deve ser ≥ 1 quando Formato de venda = Unidade".
+2. **Drop universal de regulatórios quando o cadastro não tem o número.** Para cada atributo regulatório (AFE, CONAMA, qualquer variante ANVISA-number) presente no payload: se o campo correspondente em `products.regulatory_info` está vazio, o atributo é **removido** do payload, **independentemente da origem** (memória do tenant, sugestão da IA, marcação manual no painel). Cadastro vazio = atributo omitido. Cosmético notificado, por definição, não tem AFE — esse campo nunca mais chega ao ML.
+
+A mensagem de erro do ML para AFE em formato inválido foi traduzida em `humanizeMeliError`: o lojista vê "Este produto não tem registro AFE no cadastro — o sistema vai omitir esse campo automaticamente na próxima tentativa." Sem termos técnicos.
+
+**Anti-regressão:** qualquer evolução do adaptador deve manter as duas garantias acima e a regra de não alterar o cadastro.
+
 
 ### Regras de Anúncio
 
