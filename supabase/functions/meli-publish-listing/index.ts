@@ -973,7 +973,7 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     }
   }
   if (attrsForUpdate.length > 0 && listing.category_id) {
-    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate);
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate, listing.product);
     if (sanitized.length > 0) updatePayload.attributes = sanitized;
   }
 
