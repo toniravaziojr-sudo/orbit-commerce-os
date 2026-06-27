@@ -1,7 +1,8 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-06-27 (v2.4.3: adaptador de envio injeta `UNITS_PER_PACK=1` quando a categoria expõe o atributo e ele está ausente do payload; drop universal de AFE/CONAMA/ANVISA-number quando o cadastro do produto não tem o número correspondente — independente do que veio da memória do tenant, do painel ou da IA. Cadastro continua sendo a única fonte de verdade e nunca é alterado pelo adaptador.)
+> **Última atualização:** 2026-06-28 (v2.5.0: alinhamento de **Frete Grátis** com a regra do Mercado Livre Brasil. Anúncios com preço ≥ R$ 79 têm `free_shipping=true` forçado no UI (toggle bloqueado + badge "Obrigatório"), no adaptador `meli-publish-listing` e persistido em `meli_listings.shipping` com o `shipping` real devolvido pelo ML após publicação. Sync/webhook passam a buscar `shipping` do ML e atualizar localmente, detectando divergências passivamente — sem cron dedicado.)
+> **Histórico v2.4.3 (2026-06-27):** adaptador de envio injeta `UNITS_PER_PACK=1` quando a categoria expõe o atributo e ele está ausente; drop universal de AFE/CONAMA/ANVISA-number quando o cadastro não tem o número correspondente.
 > **Histórico v2.4.1 (2026-06-27):** cache de características versionado; rascunhos antigos recalculam uma única vez; ANVISA não escolhida sai do painel/payload; `meli-publish-listing` remove metadados internos antes de enviar ao ML.
 > **Histórico v2.4.5 (2026-06-23):** novo campo `products.model` no cadastro; cascata `MODEL` no envio ao ML passa a ser model → product_type → ai_product_type → brand → "Genérico", **SKU nunca é usado como modelo**; ação `update` reenvia atributos saneados pela lista oficial da categoria.
 > **Histórico v2.4.3 (2026-06-22):** OAuth do Mercado Livre passa a usar PKCE obrigatório quando o app integrador exigir `code_verifier`; o estado da tentativa é salvo no backend por curta duração e consumido no callback.
