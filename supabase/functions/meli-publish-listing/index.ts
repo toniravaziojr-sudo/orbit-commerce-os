@@ -915,12 +915,23 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     updatePayload.pictures = images;
   }
 
-  // Update attributes (MODEL, BRAND, etc.) if saved on the listing — sanitize against ML category specs
-  if (Array.isArray(listing.attributes) && listing.attributes.length > 0 && listing.category_id) {
-    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, listing.attributes);
-    if (sanitized.length > 0) {
-      updatePayload.attributes = sanitized;
+  // Attributes — sanitize + cadastro vence em WARRANTY_* (v2.6.0)
+  let attrsForUpdate: any[] = Array.isArray(listing.attributes) ? [...listing.attributes] : [];
+  // Remove warranty herdado e reinjeta a partir do cadastro
+  attrsForUpdate = attrsForUpdate.filter((a: any) => {
+    const id = String(a?.id || "").toUpperCase();
+    return id !== "WARRANTY_TYPE" && id !== "WARRANTY_TIME";
+  });
+  if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
+    const wt = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
+    attrsForUpdate.push({ id: "WARRANTY_TYPE", value_name: wt });
+    if (listing.product.warranty_duration) {
+      attrsForUpdate.push({ id: "WARRANTY_TIME", value_name: String(listing.product.warranty_duration).trim() });
     }
+  }
+  if (attrsForUpdate.length > 0 && listing.category_id) {
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate);
+    if (sanitized.length > 0) updatePayload.attributes = sanitized;
   }
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
@@ -931,7 +942,18 @@ async function updateListing(accessToken: string, listing: any, productImages: a
 
   const data = await res.json();
   if (!res.ok) {
-    return jsonResponse({ success: false, error: data.message || "Erro ao atualizar" });
+    const causes = Array.isArray(data?.cause) ? data.cause : [];
+    const rawMsg = data?.message || "Erro ao atualizar no Mercado Livre";
+    const friendly = humanizeMeliError(
+      causes.length > 0 ? `${rawMsg}: ${causes.map((c: any) => c.message || c.code || JSON.stringify(c)).join("; ")}` : rawMsg,
+      causes,
+    );
+    console.error(`[meli-publish-listing] updateListing ML error ${res.status}:`, JSON.stringify(data).slice(0, 1000));
+    await supabase
+      .from("meli_listings")
+      .update({ error_message: friendly.slice(0, 500), meli_response: data })
+      .eq("id", listing.id);
+    return jsonResponse({ success: false, error: friendly, details: causes.length > 0 ? causes : undefined });
   }
 
   // Also update description separately
