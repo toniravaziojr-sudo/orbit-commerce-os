@@ -42,6 +42,10 @@ import { toast } from "sonner";
 import type { ProductWithImage } from "@/hooks/useProducts";
 import { MeliCategoryPicker } from "./MeliCategoryPicker";
 import { MeliAttributesPanel, type MeliAttributesPanelValue } from "./MeliAttributesPanel";
+import {
+  MELI_FREE_SHIPPING_THRESHOLD_BRL,
+  isMeliFreeShippingMandatory,
+} from "@/lib/marketplaces/meliFreeShipping";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
