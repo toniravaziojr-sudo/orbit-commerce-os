@@ -330,10 +330,15 @@ export function MeliListingCreator({
     const first = existingDrafts[0];
     if (first.condition) setCondition(first.condition);
     if (first.listing_type) setListingType(first.listing_type);
-    if (first.shipping) {
-      setFreeShipping(!!first.shipping.free_shipping);
-      setLocalPickup(!!first.shipping.local_pick_up);
+    // Hidrata frete grátis por anúncio a partir dos rascunhos (e local_pick_up global).
+    const seed: Record<string, boolean> = {};
+    for (const d of existingDrafts) {
+      const price = Number(d.price ?? d.product?.price ?? 0);
+      const mandatory = isMeliFreeShippingMandatory(price);
+      seed[d.id] = mandatory ? true : !!d.shipping?.free_shipping;
     }
+    setFreeShippingByListing(seed);
+    if (first.shipping) setLocalPickup(!!first.shipping.local_pick_up);
 
     // ALWAYS refresh from DB to avoid stale parent cache. Titles/descriptions/categories
     // generated/saved in a previous session of this dialog might not be reflected in the
