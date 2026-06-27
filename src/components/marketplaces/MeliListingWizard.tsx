@@ -287,14 +287,28 @@ export function MeliListingWizard({
     }
 
     // Merge brand/gtin manuais com atributos resolvidos pelo motor (Etapa 5B)
+    // v2.6.0 — Persistimos o payload completo (com metadados name/source/resolver_version/
+    // values[]/not_applicable). O backend de publicação ignora os campos extras, e o
+    // painel de atributos reconhece o cache como "já resolvido" ao reabrir o diálogo.
     const merged = new Map<string, any>();
     if (brand) merged.set("BRAND", { id: "BRAND", value_name: brand });
     if (gtin) merged.set("GTIN", { id: "GTIN", value_name: gtin });
     for (const a of attrPanel.attributes) {
-      if (a.status === "missing" || !a.value_name) continue;
-      merged.set(a.id, a.value_id
-        ? { id: a.id, value_id: a.value_id }
-        : { id: a.id, value_name: a.value_name });
+      if (a.status === "missing") continue;
+      const hasValues = Array.isArray(a.values) && a.values.length > 0;
+      if (!a.value_name && !a.value_id && !hasValues) continue;
+      merged.set(a.id, {
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        source: a.source,
+        required: a.required,
+        resolver_version: a.resolver_version,
+        ...(a.not_applicable ? { not_applicable: true } : {}),
+        ...(a.value_id ? { value_id: a.value_id } : {}),
+        ...(a.value_name ? { value_name: a.value_name } : {}),
+        ...(hasValues ? { values: a.values } : {}),
+      });
     }
     const attrs = Array.from(merged.values());
 
