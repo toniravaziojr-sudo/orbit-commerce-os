@@ -291,7 +291,7 @@ export function MeliListingCreator({
       setIsNavigating(false);
       setCondition("new");
       setListingType("gold_special");
-      setFreeShipping(false);
+      setFreeShippingByListing({});
       setLocalPickup(false);
       setExpandedDescs(new Set());
       setAttrValuesByListing({});
