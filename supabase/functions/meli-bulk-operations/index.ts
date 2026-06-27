@@ -2,7 +2,25 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
-const VERSION = "v1.9.0"; // Relaxed hasSufficientProductCoverage to accept brand/type matches
+const VERSION = "v1.10.0"; // Sanitize pack-quantity markers from category search term to fix regression on kits (3x), (4x), etc.
+
+/**
+ * Remove marcadores de quantidade/multiplicador do termo de busca de categoria
+ * Ex: "Kit Banho Calvície Zero (3x) Dia" -> "Kit Banho Calvície Zero Dia"
+ *     "Shampoo Calvície Zero (2x)" -> "Shampoo Calvície Zero"
+ * O sufixo de pack confunde o domain_discovery do ML, que devolve resultados
+ * irrelevantes e o scorer descarta a sugestão (regressão observada 2026-06-27).
+ */
+function sanitizeCategorySearchTerm(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\(\s*\d+\s*x\s*\)/gi, " ")       // (3x), (2x), (10x)
+    .replace(/\b\d+\s*x\s+(?=\w)/gi, " ")       // "3x Shampoo"
+    .replace(/\bkit\s+com\s+\d+\b/gi, "kit")    // "kit com 3"
+    .replace(/\b\d+\s*unidades?\b/gi, " ")      // "3 unidades"
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const DEFAULT_MAX_TITLE_LENGTH = 120;
 
