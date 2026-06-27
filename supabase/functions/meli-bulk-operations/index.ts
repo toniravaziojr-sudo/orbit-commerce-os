@@ -982,13 +982,18 @@ Retorne APENAS o texto da descrição.`,
         query = query.in("id", filterIds);
       }
 
-      const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
+      query = query.order("id", { ascending: true });
+      const { data: listings, error: listErr } = filterIds?.length
+        ? await query
+        : await query.range(offset, offset + limit - 1);
       if (listErr) throw listErr;
+      console.log(`[meli-categories] received_ids=${filterIds?.length ?? 0} fetched=${(listings || []).length} offset=${offset} limit=${limit}`);
 
       let updated = 0;
       let skipped = 0;
       const errors: string[] = [];
       const resolvedCategories: Array<{ listingId: string; categoryId: string; categoryName: string; categoryPath: string }> = [];
+      const processedIds: string[] = [];
 
       for (const listing of (listings || [])) {
         try {
