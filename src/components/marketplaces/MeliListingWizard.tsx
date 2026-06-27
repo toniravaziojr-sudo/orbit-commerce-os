@@ -28,6 +28,10 @@ import { MeliAttributesPanel, type MeliAttributesPanelValue } from "@/components
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  MELI_FREE_SHIPPING_THRESHOLD_BRL,
+  isMeliFreeShippingMandatory,
+} from "@/lib/marketplaces/meliFreeShipping";
 import type { ProductWithImage } from "@/hooks/useProducts";
 import { checkMlReadiness, formatMissingForToast } from "@/lib/marketplaces/mlReadiness";
 
@@ -306,7 +310,8 @@ export function MeliListingWizard({
       shipping: {
         mode: "me2",
         local_pick_up: localPickup,
-        free_shipping: freeShipping,
+        // Frete grátis obrigatório acima do piso do ML — backend reforça também.
+        free_shipping: isMeliFreeShippingMandatory(parseFloat(price)) ? true : freeShipping,
       },
     };
 
@@ -724,20 +729,43 @@ export function MeliListingWizard({
             {/* Shipping */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Frete</Label>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">Frete Grátis</p>
-                  <p className="text-xs text-muted-foreground">O vendedor assume o custo</p>
-                </div>
-                <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">Retirada no Local</p>
-                  <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
-                </div>
-                <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
-              </div>
+              {(() => {
+                const freeShippingMandatory = isMeliFreeShippingMandatory(Number(price));
+                const effectiveFreeShipping = freeShippingMandatory || freeShipping;
+                return (
+                  <>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">Frete Grátis</p>
+                          {freeShippingMandatory && (
+                            <Badge variant="secondary" className="text-[10px] h-5">
+                              Obrigatório pelo Mercado Livre
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {freeShippingMandatory
+                            ? `Anúncios a partir de R$ ${MELI_FREE_SHIPPING_THRESHOLD_BRL} têm frete grátis obrigatório no Mercado Livre. O custo é assumido pelo vendedor.`
+                            : "O vendedor assume o custo"}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={effectiveFreeShipping}
+                        disabled={freeShippingMandatory}
+                        onCheckedChange={setFreeShipping}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-sm font-medium">Retirada no Local</p>
+                        <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
+                      </div>
+                      <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

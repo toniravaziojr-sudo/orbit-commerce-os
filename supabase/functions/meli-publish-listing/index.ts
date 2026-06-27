@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 
 // ===== VERSION =====
-const VERSION = "3.7.2"; // v2.4.3 — UNITS_PER_PACK injetado quando ausente + drop universal de AFE/CONAMA/ANVISA quando cadastro vazio
+const VERSION = "3.8.0"; // v2.5.0 — Frete grátis obrigatório do ML acima de R$ 79 + persistência do shipping real após publicação
 // ===================
 
 const corsHeaders = {
@@ -214,15 +215,23 @@ Deno.serve(async (req) => {
       pictures: images,
     };
 
-    // Shipping
+    // Shipping — reforça frete grátis obrigatório do ML acima do piso.
+    // O ML aplica a regra de qualquer forma; declarar antes evita divergência
+    // entre o anúncio salvo aqui e o anúncio publicado lá.
+    const freeShippingMandatory = isMeliFreeShippingMandatory(itemPayload.price);
     if (listing.shipping && Object.keys(listing.shipping).length > 0) {
-      itemPayload.shipping = listing.shipping;
+      itemPayload.shipping = { ...listing.shipping };
     } else {
       itemPayload.shipping = {
         mode: "me2",
         local_pick_up: false,
         free_shipping: false,
       };
+    }
+    if (freeShippingMandatory && !itemPayload.shipping.free_shipping) {
+      console.log(`[meli-publish-listing] Frete grátis forçado por piso ML (R$ ${MELI_FREE_SHIPPING_THRESHOLD_BRL}) — price=${itemPayload.price}`);
+      itemPayload.shipping.free_shipping = true;
+      itemPayload.shipping.mode = itemPayload.shipping.mode || "me2";
     }
 
     // Attributes - merge saved + product fallback
@@ -643,12 +652,28 @@ Deno.serve(async (req) => {
 
     console.log(`[meli-publish-listing] Published successfully: ${meliItemId}, permalink: ${permalink}`);
 
+    // Sincroniza o `shipping` real devolvido pelo ML (fonte de verdade
+    // pós-publicação). Captura também eventuais aplicações automáticas de
+    // frete grátis pelo piso do ML — mantém UI e backend alinhados.
+    const responseShipping = responseData?.shipping && typeof responseData.shipping === "object"
+      ? responseData.shipping
+      : itemPayload.shipping;
+
+    // Sinal passivo: ML aplicou frete grátis em anúncio abaixo do piso conhecido → registrar para revisão.
+    if (
+      responseShipping?.free_shipping === true &&
+      !isMeliFreeShippingMandatory(itemPayload.price)
+    ) {
+      console.warn(`[meli-publish-listing] DIVERGÊNCIA piso frete grátis: ML aplicou free_shipping=true em price=${itemPayload.price} (piso atual=${MELI_FREE_SHIPPING_THRESHOLD_BRL}). Revisar constante MELI_FREE_SHIPPING_THRESHOLD_BRL.`);
+    }
+
     await supabase
       .from("meli_listings")
       .update({
         status: "published",
         meli_item_id: meliItemId,
         meli_response: responseData,
+        shipping: responseShipping,
         error_message: null,
         published_at: new Date().toISOString(),
       })

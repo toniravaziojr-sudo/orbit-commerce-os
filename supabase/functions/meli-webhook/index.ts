@@ -147,7 +147,7 @@ async function syncItemFromWebhook(
   }
 
   const mlRes = await fetch(
-    `https://api.mercadolibre.com/items/${itemId}?attributes=id,status,sub_status,price,available_quantity,permalink`,
+    `https://api.mercadolibre.com/items/${itemId}?attributes=id,status,sub_status,price,available_quantity,permalink,shipping`,
     { headers: { Authorization: `Bearer ${connection.access_token}` } },
   );
 
@@ -192,6 +192,7 @@ async function syncItemFromWebhook(
   if (typeof mlItem.price === "number") update.price = mlItem.price;
   if (typeof mlItem.available_quantity === "number") update.available_quantity = mlItem.available_quantity;
   if (mlItem.permalink) update.meli_response = { permalink: mlItem.permalink };
+  if (mlItem.shipping && typeof mlItem.shipping === "object") update.shipping = mlItem.shipping;
 
   await supabase.from("meli_listings").update(update).eq("id", listing.id);
   console.log(`[meli-webhook] Item ${itemId}: ${listing.status} → ${mapped.status} (ML: ${mlItem.status})`);
