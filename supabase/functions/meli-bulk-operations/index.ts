@@ -997,7 +997,7 @@ Retorne APENAS o texto da descrição.`,
       // Strategy 2: Fallback via search API
       if (!categoryId) {
         try {
-          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(productName)}&limit=5`;
+          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(cleanProductName)}&limit=5`;
           console.log(`[auto_suggest] Trying search fallback: ${searchUrl}`);
           const searchRes = await fetch(searchUrl, { headers: mlHeaders });
           
