@@ -1790,11 +1790,29 @@ export function MeliListingCreator({
         )}
 
         {/* ===== STEP 9: Shipping ===== */}
-        {step === "shipping" && (
+        {step === "shipping" && (() => {
+          const itemsAboveThreshold = generatedItems.filter((it) => isMeliFreeShippingMandatory(it.price)).length;
+          const allMandatory = itemsAboveThreshold > 0 && itemsAboveThreshold === generatedItems.length;
+          return (
           <div className="flex-1 flex flex-col gap-4 py-4">
             <p className="text-sm text-muted-foreground">
               Configure o frete para todos os {generatedItems.length} anúncios.
             </p>
+            {itemsAboveThreshold > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200 flex gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">
+                    {allMandatory
+                      ? `Todos os ${generatedItems.length} anúncios têm frete grátis obrigatório`
+                      : `${itemsAboveThreshold} de ${generatedItems.length} anúncios terão frete grátis obrigatório`}
+                  </p>
+                  <p className="mt-0.5">
+                    O Mercado Livre exige frete grátis em anúncios a partir de R$ {MELI_FREE_SHIPPING_THRESHOLD_BRL}. Para esses, o custo é assumido pelo vendedor independente da escolha abaixo.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="grid gap-3">
               <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
                 freeShipping ? "border-primary bg-primary/5" : "border-border"
