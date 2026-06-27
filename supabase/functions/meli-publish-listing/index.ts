@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.7.1"; // v2.4.1 — sanitiza metadados internos do cache de atributos antes de enviar ao ML
+const VERSION = "3.7.2"; // v2.4.3 — UNITS_PER_PACK injetado quando ausente + drop universal de AFE/CONAMA/ANVISA quando cadastro vazio
 // ===================
 
 const corsHeaders = {
@@ -506,6 +506,46 @@ Deno.serve(async (req) => {
         }
         attributes.length = 0;
         attributes.push(...cleaned);
+
+        // ===== v2.4.3 — Garantias finais antes do envio =====
+        // (A) UNITS_PER_PACK: quando a categoria expõe e o atributo está ausente,
+        // injetar valor do cadastro (units_per_package) com piso 1. Sem isso, ML
+        // rejeita venda avulsa com "Unidades por kit deve ser ≥ 1".
+        const _finalIds = new Set(attributes.map((a: any) => String(a.id).toUpperCase()));
+        const _upkSpec = attrSpecs.find((s: any) => String(s.id).toUpperCase() === "UNITS_PER_PACK");
+        if (_upkSpec && !_finalIds.has("UNITS_PER_PACK")) {
+          const _upk = Math.max(1, Number((listing.product as any)?.units_per_package) || 1);
+          attributes.push({ id: "UNITS_PER_PACK", value_name: String(_upk) });
+          console.log(`[meli-publish-listing][v2.4.3] Injected UNITS_PER_PACK=${_upk}`);
+        }
+
+        // (B) Drop universal: regulatório só vai ao ML se houver número no cadastro.
+        // Cobre qualquer valor herdado de memória do tenant / IA / painel quando o
+        // cadastro está vazio (cosmético notificado nunca tem AFE/CONAMA, p.ex.).
+        const _dropWhenCadastroEmpty = (matcher: (spec: any) => boolean, label: string) => {
+          for (let i = attributes.length - 1; i >= 0; i--) {
+            const spec = specById.get(attributes[i].id);
+            if (spec && matcher(spec)) {
+              console.log(`[meli-publish-listing][v2.4.3] Dropping ${label} (cadastro vazio): ${attributes[i].id}`);
+              attributes.splice(i, 1);
+            }
+          }
+        };
+        if (!afeNum) _dropWhenCadastroEmpty((s) => {
+          const nm = normName(s.name || "");
+          const idUp = String(s.id || "").toUpperCase();
+          return (idUp.includes("AFE") && (idUp.includes("CERTIF") || idUp.includes("NUMBER") || idUp.includes("AUTH")))
+            || (nm.includes("afe") && (nm.includes("certificad") || nm.includes("numero") || nm.includes("autorizac")));
+        }, "AFE");
+        if (!conamaNum) _dropWhenCadastroEmpty((s) => {
+          const nm = normName(s.name || "");
+          const idUp = String(s.id || "").toUpperCase();
+          return idUp.includes("CONAMA") || nm.includes("conama");
+        }, "CONAMA");
+        if (!anvisaNum) _dropWhenCadastroEmpty(
+          (s) => isAnvisaNumberById(s.id) || isAnvisaNumberByName(s.name || ""),
+          "ANVISA-number"
+        );
       }
     } catch (specErr) {
       console.log(`[meli-publish-listing] Category attribute spec fetch skipped:`, specErr);
