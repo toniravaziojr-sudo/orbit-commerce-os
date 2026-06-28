@@ -1215,12 +1215,67 @@ Responda JSON: {"answers":[{"id":"...","value":"..."}]}. SEMPRE "value" como str
       missing: resolvedWithVersion.filter(r => r.status === "missing").length,
     };
 
+    // ---- Onda B: Coverage Report ---------------------------------------
+    // Mede o quanto o cadastro cobre a ficha técnica da categoria. Serve
+    // para diagnosticar onde a IA precisou inferir e onde o produto ainda
+    // está incompleto antes de publicar.
+    const requiredSpecs = meliAttrs.filter(a => a.tags?.required || a.tags?.catalog_required);
+    const requiredIds = new Set(requiredSpecs.map(s => s.id));
+    const sources: Record<string, number> = {};
+    let requiredFilled = 0;
+    let optionalFilled = 0;
+    let naFilled = 0;
+    const missingRequired: Array<{ id: string; name: string }> = [];
+    for (const r of resolvedWithVersion) {
+      const src = String((r as any).source || "unknown");
+      sources[src] = (sources[src] || 0) + 1;
+      const valStr = String((r as any).value_name || "").toLowerCase();
+      const isNa = valStr.includes("não se aplica") || valStr.includes("nao se aplica") || valStr === "n/a";
+      if (isNa) naFilled++;
+      if (requiredIds.has((r as any).id)) {
+        if ((r as any).status === "filled" || (r as any).status === "review") requiredFilled++;
+        else missingRequired.push({ id: (r as any).id, name: (r as any).name });
+      } else if ((r as any).status === "filled" || (r as any).status === "review") {
+        optionalFilled++;
+      }
+    }
+    const coverageReport = {
+      version: VERSION,
+      spec_source: specSource,
+      required_total: requiredSpecs.length,
+      required_filled: requiredFilled,
+      optional_filled: optionalFilled,
+      na_filled: naFilled,
+      coverage_pct: requiredSpecs.length
+        ? Math.round((requiredFilled / requiredSpecs.length) * 100)
+        : 100,
+      missing_required: missingRequired,
+      sources,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Persistir coverage_report no listing se existir (fire-and-forget)
+    try {
+      await supabase
+        .from("meli_listings")
+        .update({
+          coverage_report: coverageReport,
+          adapter_version: `meli@v${VERSION}`,
+        })
+        .eq("tenant_id", tenantId)
+        .eq("product_id", productId)
+        .in("status", ["draft", "ready_to_publish", "publishing", "needs_review"]);
+    } catch (e) {
+      console.warn("[meli-resolve-attributes] coverage_report não persistido:", e);
+    }
+
     return json({
       success: true,
       version: VERSION,
       categoryId,
       attributes: resolvedWithVersion,
       summary,
+      coverage_report: coverageReport,
       can_publish: summary.missing === 0,
     });
   } catch (err) {
