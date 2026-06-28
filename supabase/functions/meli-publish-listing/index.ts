@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
+import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
 
 // ===== VERSION =====
 const VERSION = "3.9.0"; // v2.6.0 — Garantia do cadastro sempre vence + update síncrono robusto (humanizeMeliError + values[] + persistência de erro)
@@ -688,6 +689,11 @@ Deno.serve(async (req) => {
       })
       .eq("id", listingId);
 
+    // Onda A — coleta health score oficial do ML (fire-and-forget para não
+    // bloquear a resposta ao usuário). Resultado persiste em
+    // meli_listings.health_score/health_actions.
+    fetchAndPersistMeliHealth(supabase, accessToken, listingId, meliItemId).catch(() => {});
+
     return jsonResponse({
       success: true,
       meli_item_id: meliItemId,
@@ -1010,6 +1016,10 @@ async function updateListing(accessToken: string, listing: any, productImages: a
   }
 
   await supabase.from("meli_listings").update({ meli_response: data }).eq("id", listing.id);
+
+  // Onda A — coleta health após update (fire-and-forget).
+  fetchAndPersistMeliHealth(supabase, accessToken, listing.id, listing.meli_item_id).catch(() => {});
+
   return jsonResponse({ success: true, message: "Anúncio atualizado no Mercado Livre" });
 }
 
