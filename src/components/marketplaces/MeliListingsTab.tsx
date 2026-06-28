@@ -37,6 +37,7 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/error-toast";
 
 /**
  * Detecta se o erro de uma pendência tem origem em campo faltando no cadastro
