@@ -139,3 +139,53 @@ export function formatMissingForToast(missing: MlMissingEntry[]): string {
   if (!missing.length) return "";
   return missing.map((m) => `• ${m.label}`).join("\n");
 }
+
+/**
+ * Diagnóstico amigável quando a cascata de categorização do Mercado Livre
+ * não conseguiu identificar a categoria de um produto.
+ *
+ * Retorna um texto curto em linguagem de negócio + a ação corretiva,
+ * baseado no que está vazio ou genérico no cadastro.
+ *
+ * Doc: REGRAS-DO-SISTEMA.md §36 — Regra Universal "Guiar o Usuário".
+ */
+export interface CategoryFailureDiagnosis {
+  reason: string;
+  hint: string;
+}
+
+const GENERIC_TYPES = new Set([
+  "balm", "loção", "locao", "kit", "produto",
+  "shampoo", "óleo", "oleo", "creme",
+]);
+
+export function diagnoseCategoryFailure(p: {
+  product_type?: string | null;
+  brand?: string | null;
+} | null | undefined): CategoryFailureDiagnosis {
+  const type = (p?.product_type ?? "").trim();
+  const brand = (p?.brand ?? "").trim();
+
+  if (!type) {
+    return {
+      reason: "Tipo de produto não preenchido no cadastro.",
+      hint: "Edite o cadastro do produto e informe o Tipo (ex: 'Balm capilar', 'Shampoo anti-queda') ou escolha a categoria manualmente abaixo.",
+    };
+  }
+  if (GENERIC_TYPES.has(type.toLowerCase())) {
+    return {
+      reason: "Tipo de produto pouco específico para o Mercado Livre.",
+      hint: `Edite o cadastro e detalhe o Tipo (ex: '${type} capilar' em vez de '${type}') ou escolha a categoria manualmente abaixo.`,
+    };
+  }
+  if (!brand) {
+    return {
+      reason: "Marca não preenchida no cadastro.",
+      hint: "Preencha a Marca no cadastro do produto ou escolha a categoria manualmente abaixo.",
+    };
+  }
+  return {
+    reason: "O Mercado Livre não encontrou categoria compatível.",
+    hint: "Revise Tipo de Produto e Marca no cadastro, ou escolha a categoria manualmente abaixo.",
+  };
+}

@@ -46,6 +46,8 @@ import {
   MELI_FREE_SHIPPING_THRESHOLD_BRL,
   isMeliFreeShippingMandatory,
 } from "@/lib/marketplaces/meliFreeShipping";
+import { diagnoseCategoryFailure } from "@/lib/marketplaces/mlReadiness";
+import { ExternalLink } from "lucide-react";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -203,6 +205,11 @@ export function MeliListingCreator({
   const [attrRecalcAllToken, setAttrRecalcAllToken] = useState(0);
   const [attrSeedByListing, setAttrSeedByListing] = useState<Record<string, { token: number; attributes: import("./MeliAttributesPanel").ResolvedAttr[] }>>({});
   const [priceAdjustmentPercent, setPriceAdjustmentPercent] = useState("10");
+  // Diagnóstico amigável de falhas de categorização — preenchido após cada rodada.
+  // Doc: REGRAS-DO-SISTEMA.md §36 (Guiar o Usuário).
+  const [categoryFailureByProductId, setCategoryFailureByProductId] = useState<
+    Record<string, { reason: string; hint: string }>
+  >({});
 
   // Auto-gen guard for descriptions in configure mode
   const autoGenDescDoneRef = useRef(false);
@@ -587,6 +594,26 @@ export function MeliListingCreator({
         }));
       }
 
+      // Diagnóstico das falhas de categorização (motivo + ação em linguagem de negócio).
+      const stillMissing = (finalListings || []).filter(l => !l.category_id).map(l => l.id);
+      if (stillMissing.length > 0) {
+        const productIdsMissing = generatedItems
+          .filter(i => stillMissing.includes(i.listingId))
+          .map(i => i.productId);
+        if (productIdsMissing.length > 0) {
+          const { data: prods } = await supabase
+            .from("products")
+            .select("id, product_type, brand")
+            .in("id", productIdsMissing);
+          if (prods) {
+            const diag: Record<string, { reason: string; hint: string }> = {};
+            for (const p of prods as any[]) {
+              diag[p.id] = diagnoseCategoryFailure({ product_type: p.product_type, brand: p.brand });
+            }
+            setCategoryFailureByProductId(prev => ({ ...prev, ...diag }));
+          }
+        }
+      }
 
       setIsProcessing(false);
       setProcessingProgress(100);
@@ -1371,9 +1398,33 @@ export function MeliListingCreator({
                       ) : item.categoryId ? (
                         <p className="text-xs text-muted-foreground">{item.categoryId}</p>
                       ) : (
-                        <p className="text-xs text-amber-500 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" /> Categoria não identificada
-                        </p>
+                        (() => {
+                          const diag = categoryFailureByProductId[item.productId];
+                          return (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-2 space-y-1">
+                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                {diag?.reason ?? "Categoria não identificada."}
+                              </p>
+                              {diag?.hint && (
+                                <p className="text-[11px] text-amber-700/80 dark:text-amber-200/70">
+                                  {diag.hint}
+                                </p>
+                              )}
+                              {item.productId && (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-[11px] text-amber-700 dark:text-amber-300"
+                                  onClick={() => window.open(`/products?edit=${item.productId}`, "_blank", "noopener")}
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-1" /> Abrir cadastro do produto
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })()
                       )}
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
