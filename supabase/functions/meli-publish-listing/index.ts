@@ -779,13 +779,21 @@ async function sanitizeAttributesForCategory(
   categoryId: string,
   attrs: any[],
   productCtx?: any,
+  supabaseClient?: any,
 ): Promise<any[]> {
   try {
-    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    });
-    if (!res.ok) return attrs;
-    const specs: any[] = await res.json();
+    let specs: any[] = [];
+    if (supabaseClient) {
+      const spec = await getMeliCategorySpec(supabaseClient, categoryId, accessToken);
+      specs = (spec?.attributes as any[]) ?? [];
+    } else {
+      const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return attrs;
+      specs = await res.json();
+    }
+    if (!specs.length) return attrs;
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
     const isNaName = (n: any) => {
