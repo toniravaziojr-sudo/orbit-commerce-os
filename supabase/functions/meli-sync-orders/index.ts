@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           customer_id: customerId,
           customer_name: buyerDisplayName,
-          customer_email: buyer.email || null,
+          customer_email: buyer.email || `meli-${meliOrderId}@marketplace.local`,
           customer_phone: buyer.phone?.number || null,
           order_number: `ML-${meliOrderId}`,
           status: orderStatus,
