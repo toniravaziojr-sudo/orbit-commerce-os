@@ -292,11 +292,10 @@ Deno.serve(async (req) => {
     // Fetch category attribute specs and complete what's missing using sensible fallbacks.
     const missingRequired: string[] = [];
     try {
-      const attrSpecRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}/attributes`, {
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      });
-      if (attrSpecRes.ok) {
-        const attrSpecs: any[] = await attrSpecRes.json();
+      const spec = await getMeliCategorySpec(supabase, listing.category_id, accessToken);
+      if (spec?.attributes?.length) {
+        const attrSpecs: any[] = spec.attributes as any[];
+        console.log(`[meli-publish-listing] spec source=${spec.source} (${attrSpecs.length} atributos)`);
         const brandValue = listing.product?.brand || null;
 
         for (const spec of attrSpecs) {
