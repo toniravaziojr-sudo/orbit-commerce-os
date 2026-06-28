@@ -2011,7 +2011,7 @@ export function MeliListingCreator({
               </div>
             )}
 
-            <ScrollArea type="always" className="flex-1 min-h-[240px] -mx-1 pr-3">
+            <ScrollArea type="always" className="h-[45vh] min-h-[260px] max-h-[480px] rounded-md border border-border/40 -mx-1 pr-3">
               <div className="grid gap-2 px-1">
 
                 {generatedItems.map((item) => {
