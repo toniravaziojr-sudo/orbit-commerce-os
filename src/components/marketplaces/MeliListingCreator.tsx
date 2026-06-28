@@ -2011,8 +2011,9 @@ export function MeliListingCreator({
               </div>
             )}
 
-            <ScrollArea className="flex-1 min-h-0 -mx-1">
+            <ScrollArea type="always" className="flex-1 min-h-[240px] -mx-1 pr-3">
               <div className="grid gap-2 px-1">
+
                 {generatedItems.map((item) => {
                   const mandatory = isMeliFreeShippingMandatory(item.price);
                   const checked = mandatory ? true : !!freeShippingByListing[item.listingId];
