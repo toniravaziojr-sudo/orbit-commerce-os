@@ -2,9 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
+import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
 
 // ===== VERSION =====
-const VERSION = "3.9.0"; // v2.6.0 — Garantia do cadastro sempre vence + update síncrono robusto (humanizeMeliError + values[] + persistência de erro)
+const VERSION = "3.10.0"; // Onda B — espelho da ficha técnica via marketplace_category_specs (cache global 7d)
 // ===================
 
 const corsHeaders = {
