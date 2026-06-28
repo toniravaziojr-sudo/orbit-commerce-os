@@ -32,3 +32,6 @@ A função `checkMlReadiness` em `src/lib/marketplaces/mlReadiness.ts` é a **ú
 **Campos obrigatórios atuais (v3.8):** brand, gtin, model, weight, width, height, depth, universal_category_id, net_content_value+unit. Para `regulatory_regime = anvisa_cosmetic`, adicionar: dermatologically_tested, hypoallergenic, cruelty_free, vegan, has_fragrance.
 
 Doc: `docs/especificacoes/marketplaces/mercado-livre.md` seção "Cadastro como Fonte Única do Mercado Livre (v3.8 — 2026-06-23)".
+
+**Camada Adaptadora (v2026-06-28):** o motor do ML vive em `supabase/functions/_shared/marketplace-adapter/meli/` (façade) + `supabase/functions/_shared/meli/{category-spec,health}.ts`. `humanizeMeliError`, `prettyAttrName`, `getMeliCategorySpec`, `fetchAndPersistMeliHealth` e a constante `MELI_ADAPTER_VERSION` são compartilhados — proibido duplicar em `meli-publish-listing`/`meli-resolve-attributes`. Toda publicação/atualização dispara health em background (fire-and-forget) gravando `health_score`, `health_actions`, `health_checked_at`, `coverage_report` e `adapter_version` em `meli_listings`. Ficha técnica da categoria só via cache global `marketplace_category_specs` (TTL 7d). Doc: `mercado-livre.md` §"Adaptador e Auditoria de Qualidade" e `_padrao-canonico-marketplaces.md` §"Camada Adaptadora Multi-Marketplace".
+
