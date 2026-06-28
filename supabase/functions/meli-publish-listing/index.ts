@@ -7,7 +7,8 @@ import { humanizeMeliError, prettyAttrName, MELI_ADAPTER_VERSION } from "../_sha
 import { normalizeAnvisaNumber } from "../_shared/marketplace-adapter/meli/regulatory-normalizer.ts";
 
 // ===== VERSION =====
-const VERSION = `3.12.0+adapter-${MELI_ADAPTER_VERSION}`; // v2.4.4 — normalizador ANVISA (notificação 17d / registro 13d) no adapter
+const VERSION = `3.12.1+adapter-${MELI_ADAPTER_VERSION}`; // v2.4.4 — normalizador ANVISA + log de boot/payload
+console.log(`[meli-publish-listing] BOOT VERSION=${VERSION}`);
 
 // ===================
 
@@ -428,7 +429,7 @@ Deno.serve(async (req) => {
           if (val) {
             attributes.push({ id: spec.id, value_name: val });
             attrIds.add(spec.id);
-            console.log(`[meli-publish-listing] Auto-filled regulatory number ${spec.id}="${val}"`);
+            console.log(`[meli-publish-listing] Auto-filled regulatory number ${spec.id}="${val}" (anvisaKind=${anvisaNorm.kind ?? "n/a"})`);
           }
         }
 
