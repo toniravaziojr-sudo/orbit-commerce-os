@@ -805,6 +805,19 @@ async function sanitizeAttributesForCategory(
         console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (N/A not accepted)`);
         continue;
       }
+      // v2.4.4 — Normalização ANVISA no fluxo de update: se este attr é ANVISA-number,
+      // formata para o padrão exigido pelo ML antes de tudo (single ou multi).
+      if (ANVISA_NUMBER_IDS.has(idUp) || (spec && isAnvisaNumberByName(spec.name || ""))) {
+        const candidate = attr.value_name ?? (Array.isArray(attr.values) && attr.values[0]?.name);
+        const n = normalizeAnvisaNumber(candidate);
+        if (n.value) {
+          cleaned.push({ id: attr.id, value_name: n.value });
+          console.log(`[meli-publish-listing] sanitize(update): ANVISA normalizada ${attr.id}="${n.value}"`);
+        } else {
+          console.warn(`[meli-publish-listing] sanitize(update): ANVISA inválida ${attr.id}="${candidate}" — drop`);
+        }
+        continue;
+      }
       // v2.6.0 — suporte a multi-valor (values[]): normaliza contra a lista oficial.
       if (Array.isArray(attr.values) && attr.values.length > 0) {
         if (spec && Array.isArray(spec.values) && spec.values.length > 0) {
