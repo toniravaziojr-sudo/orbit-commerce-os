@@ -3,9 +3,11 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
 import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
+import { humanizeMeliError, prettyAttrName, MELI_ADAPTER_VERSION } from "../_shared/marketplace-adapter/meli/index.ts";
 
 // ===== VERSION =====
-const VERSION = "3.10.0"; // Onda B — espelho da ficha técnica via marketplace_category_specs (cache global 7d)
+const VERSION = `3.11.0+adapter-${MELI_ADAPTER_VERSION}`; // Onda C — humanizer e contrato compartilhados em _shared/marketplace-adapter/meli/
+
 // ===================
 
 const corsHeaders = {
