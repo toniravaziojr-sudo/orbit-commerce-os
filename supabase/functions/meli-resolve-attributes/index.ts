@@ -373,13 +373,16 @@ Deno.serve(async (req) => {
     if (!connection?.access_token) {
       return json({ success: false, error: "Mercado Livre não conectado" });
     }
-    const attrRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
-      headers: { Authorization: `Bearer ${connection.access_token}` },
-    });
-    if (!attrRes.ok) {
-      return json({ success: false, error: `ML retornou ${attrRes.status} ao buscar atributos da categoria` });
+    let meliAttrs: MeliAttrSpec[];
+    let specSource: "cache" | "fresh" | "stale" = "fresh";
+    try {
+      const spec = await getMeliCategorySpec(supabase, categoryId, connection.access_token);
+      meliAttrs = spec.attributes as MeliAttrSpec[];
+      specSource = spec.source;
+      console.log(`[meli-resolve-attributes] spec source=${specSource} (${meliAttrs.length} atributos) cat=${categoryId}`);
+    } catch (err) {
+      return json({ success: false, error: `Falha ao buscar ficha da categoria: ${err instanceof Error ? err.message : String(err)}` });
     }
-    const meliAttrs: MeliAttrSpec[] = await attrRes.json();
 
     // v2.4.0 — escolhe UM atributo Anvisa para receber o número (evita duplicação).
     const selectedAnvisaAttrId = pickAnvisaAttrId(meliAttrs);
