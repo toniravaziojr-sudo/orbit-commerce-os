@@ -232,21 +232,28 @@ Deno.serve(async (req) => {
           
         };
 
-        // Upsert pedido (não duplicar) e recuperar id
-        const { data: upserted, error: upsertError } = await supabase
+        // Upsert manual: o índice (tenant_id, marketplace_order_id) é parcial e
+        // PostgREST não consegue resolvê-lo via onConflict; fazemos select + insert/update.
+        const { data: existing } = await supabase
           .from("orders")
-          .upsert(orderData, {
-            onConflict: "tenant_id,marketplace_order_id",
-            ignoreDuplicates: false,
-          })
           .select("id")
-          .single();
+          .eq("tenant_id", connection.tenant_id)
+          .eq("marketplace_order_id", meliOrderId)
+          .maybeSingle();
 
-        if (upsertError || !upserted) {
-          console.error(`[meli-sync-orders] Upsert error for ${meliOrderId}:`, upsertError);
-          errors++;
-          continue;
+        let upserted: { id: string } | null = null;
+        if (existing?.id) {
+          const { data: upd, error: updErr } = await supabase
+            .from("orders").update(orderData).eq("id", existing.id).select("id").single();
+          if (updErr) { console.error(`[meli-sync-orders] Update error for ${meliOrderId}:`, updErr); errors++; continue; }
+          upserted = upd;
+        } else {
+          const { data: ins, error: insErr } = await supabase
+            .from("orders").insert(orderData).select("id").single();
+          if (insErr) { console.error(`[meli-sync-orders] Insert error for ${meliOrderId}:`, insErr); errors++; continue; }
+          upserted = ins;
         }
+        if (!upserted) { errors++; continue; }
 
         // Persistir itens com matching de SKU contra produtos locais
         const meliItems = Array.isArray(meliOrder.order_items) ? meliOrder.order_items : [];
