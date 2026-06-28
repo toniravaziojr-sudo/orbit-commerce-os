@@ -32,12 +32,14 @@ Reaproveitar ao máximo o que já está em produção (sem manter código obsole
 - O motor (que hoje vive em `meli-resolve-attributes`) passa a emitir o `coverage_report` (obrigatórios cobertos, opcionais cobertos, ignorados com motivo). O painel `MeliAttributesPanel` lê esse relatório em vez de recalcular.
 - Cruzamento na aba Anúncios: `coverage_report` × `health_actions` → mostra "o ML pediu X, seu cadastro não tem Y, corrija em Z" usando o `MarketplaceFieldHint` já existente.
 
-### Onda C — Unificação do Motor (multi-marketplace ready)
-- Criar `supabase/functions/_shared/marketplace-adapter/` com:
-  - `core/` — contrato genérico (entrada: produto + categoria + memória; saída: payload + coverage_report). Reaproveita helpers de `humanizeMeliError`, sanitizadores, gate de domínio.
-  - `meli/` — mapeamento atual extraído de `meli-resolve-attributes` e dos sanitizadores de `meli-publish-listing`. **Nada novo**: apenas mover e deduplicar.
-- `meli-resolve-attributes`, `meli-publish-listing` e `meli-bulk-operations` passam a importar do `_shared/marketplace-adapter/meli/`. Deletar funções duplicadas após confirmar que ninguém mais importa.
-- Estrutura fica pronta para `_shared/marketplace-adapter/shopee/` e `/tiktok/` no futuro, sem refactor adicional.
+### Onda C — Unificação do Motor (multi-marketplace ready) ✅ Fundação aplicada
+- Criado `supabase/functions/_shared/marketplace-adapter/` com:
+  - `core/contract.ts` — tipos genéricos (AttributeSpec, ResolvedAttribute, CoverageReport, AdapterContext, MarketplaceErrorHumanizer).
+  - `meli/error-humanizer.ts` — `humanizeMeliError` + `prettyAttrName` movidos de `meli-publish-listing` (comportamento preservado).
+  - `meli/index.ts` — façade que reexporta humanizer, `getMeliCategorySpec`, `fetchAndPersistMeliHealth` e expõe `MELI_ADAPTER_VERSION`.
+- `meli-publish-listing` v3.11.0 agora importa do adaptador (deletadas as duplicações locais).
+- Migração futura (mantida no plano): mover sanitizadores de publish e a cascata do `meli-resolve-attributes` para o adaptador sob `meli/resolver.ts` e `meli/sanitizers.ts` — só executar após Onda D validar o estado atual em produção, evitando refactor cego de ~2400 linhas.
+
 
 ### Onda D — Teste real do fluxo novo
 - Tenant **respeite-o-homem** como cobaia.
