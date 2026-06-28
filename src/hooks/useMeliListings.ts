@@ -30,6 +30,10 @@ export interface MeliListing {
   last_status_change_at: string | null;
   inactive_reason: string | null;
   inactive_at: string | null;
+  // Onda A — auditoria de qualidade ML
+  health_score: number | null;
+  health_actions: any[] | null;
+  health_checked_at: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

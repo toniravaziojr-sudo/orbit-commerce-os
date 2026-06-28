@@ -354,6 +354,27 @@ export function MeliListingsTab() {
     }
   };
 
+  // Onda A — reavaliar nota de qualidade (health) de todos os publicados do
+  // tenant. Custo zero quando não houver mudanças no ML; persiste em
+  // meli_listings.health_score/health_actions.
+  const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
+  const handleRefreshHealth = async () => {
+    if (!currentTenant?.id) return;
+    setIsRefreshingHealth(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meli-health-sync', {
+        body: { tenantId: currentTenant.id, limit: 200 },
+      });
+      if (error || !data?.success) throw error || new Error(data?.error || 'Falha ao reavaliar');
+      toast.success(`Qualidade reavaliada em ${data.processed} anúncio(s).`);
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+    } catch (e: any) {
+      showErrorToast(e?.message || 'Não foi possível reavaliar a qualidade agora.');
+    } finally {
+      setIsRefreshingHealth(false);
+    }
+  };
+
   // Indicador de frescor + selo de sincronização em tempo real.
   const { connection, refetch: refetchConnection } = useMeliConnection();
   const lastSyncAt = connection?.lastSyncAt ? new Date(connection.lastSyncAt) : null;
