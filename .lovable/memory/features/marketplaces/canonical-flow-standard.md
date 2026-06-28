@@ -20,9 +20,13 @@ Mercado Livre é o **modelo de referência** para qualquer marketplace. Antes de
 8. Dashboard ganha sub-aba quando `is_active = true`. Investimento em Ads do marketplace = "Em breve" até existir coleta oficial.
 9. Roteamento logístico via `resolve_order_shipping_provider`. Logística do marketplace retorna `reason='marketplace'` e fica fora de `shipping_draft_queue`.
 10. **Nunca fabricar dados do cliente**: campos vazios + `marketplace_data.data_pending = [campos]`.
+11. **Camada adaptadora compartilhada** em `supabase/functions/_shared/marketplace-adapter/{marketplace}/` com `error-humanizer.ts`, façade `index.ts` e constante `{MKT}_ADAPTER_VERSION`. Tipos genéricos (AttributeSpec, ResolvedAttribute, CoverageReport, AdapterContext, MarketplaceErrorHumanizer) em `core/contract.ts` — proibido duplicar humanizer ou cache de spec por marketplace.
+12. **Auditoria de qualidade** pós-publicação: leitura de health do anúncio (fire-and-forget) gravando `health_score`, `health_actions`, `health_checked_at` na tabela de listings; chip "Nota X/100" na aba Anúncios com ações traduzidas pelo humanizer.
+13. **Espelho da ficha técnica** em `marketplace_category_specs` (system-wide, TTL 7 dias) — única porta para `/categories/.../attributes`. Cada listing grava `coverage_report` (obrigatórios/opcionais cobertos, ignorados com motivo) e `adapter_version`.
 
 ## Onde diverge é permitido
 Apenas: endpoint/assinatura/paginação da API, mapeamento de status nativo→canônico, estrutura de listings. Tudo o mais segue ML.
 
 ## Doc oficial
-`docs/especificacoes/marketplaces/_padrao-canonico-marketplaces.md`
+`docs/especificacoes/marketplaces/_padrao-canonico-marketplaces.md` §"Camada Adaptadora Multi-Marketplace" + `docs/especificacoes/marketplaces/mercado-livre.md` §"Adaptador e Auditoria de Qualidade".
+
