@@ -16,7 +16,7 @@
 
 > **Camada:** Layer 3 — Especificações / Marketplaces  
 > **Migrado de:** `docs/regras/mercado-livre.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-06-29
 
 
 ---
