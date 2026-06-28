@@ -92,15 +92,20 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 - Modo Vendas (`sales_mode_enabled`) ativa 11 tools de comércio conversacional.
 - **Provedor de IA travado em OpenAI (Reg #40, 24/mai/2026):** o agente de produção (WhatsApp/Web) e o chat de teste do Comando Central agora usam **exclusivamente OpenAI direta** (modelos GPT-5-mini para chat/busca, GPT-4o para imagem, GPT-4o-mini para "pensar mais"). O chat de teste estava em Lovable AI Gateway/Gemini e batia rate limit, dando impressão de "IA muda". Unificado para que o teste reflita exatamente o que o cliente recebe. Regra anti-regressão registrada em `mem://constraints/ai-provider-openai-locked` — proibido trocar de provedor sem pedido explícito do operador.
 
-**Incidente aberto (24/mai/2026) — Quota OpenAI esgotada:**
-- Após a unificação, tanto o agente de produção quanto o chat de teste passaram a retornar **429 `insufficient_quota`** da OpenAI em todos os modelos.
-- Causa raiz: a chave `OPENAI_API_KEY` configurada na plataforma está **sem créditos / fora do limite de billing da conta OpenAI**. Não é problema de código.
-- Ação pendente do operador: acessar `https://platform.openai.com/account/billing`, validar cartão, recarregar créditos ou aumentar o limite mensal. Após isso, aguardar 1–2 minutos e testar.
-- Pergunta em aberto ao operador: incluir um **aviso visível no chat de teste** quando a falha for de quota (em vez de balão vazio), para diagnóstico imediato em incidentes futuros.
+**Status (28/jun/2026) — Aguardando bateria de regressão pós-quota:**
+- Quota OpenAI **recarregada**. Última atividade real registrada: 24/mai/2026 (1.291 turnos em `ai_turn_traces`); nada depois disso.
+- Código entregue mas **nunca exercido em conversa real** após a recarga: Reg #17.3 F1/F2/F3/F5 (saudação vazia → handoff Frankenstein), Reg #43 (hotfix `firedReflexId`), Reg #42 (wiring final do `resolveTenantSynonym` no `search_products`), Reg #41 Frentes 2/3/6 (Direct Catalog Question, sinônimos, ficha institucional).
+- `tenant_ai_synonyms` segue com **0 registros** para Respeite o Homem (bloqueia o caso B5.1 `minoxidil → Calvície Zero`).
 
-**Próximos candidatos (a combinar com operador):**
-- Validar saída em conversa real por canal (sandbox Meta + perguntas reais ML/Shopee/TikTok) **após** restauração da quota OpenAI.
-- Avançar para Arch18 Fase B (Policy Compiler) e B2 (Model Roles).
+**Próximos passos (ordem):**
+1. Cadastrar sinônimos canônicos do Respeite o Homem (lista a confirmar com operador antes do INSERT).
+2. Rodar bateria congelada de `docs/especificacoes/ia/bateria-regressao-base-universal.md` (~22 cenários, Ondas 1, 3, 4, 5, 6, 8, 9, 10) via edge `ai-test-sandbox` em Agent Mode (`x-agent-mode: true`, service role) — **proibido** chamar `ai-support-chat` direto (memória `ai-test-must-use-sandbox-edge`).
+3. Comparar cada cenário com baseline Rodada 2 (2026-05-23): ✅ mantido/superior, ⚠️ variação aceitável, ❌ regressão (bloqueia).
+4. Para cada ❌, abrir registro de diagnóstico em `ia-atendimento-changelog.md`.
+5. Após bateria limpa: validar saída real por canal (sandbox Meta + perguntas reais ML/Shopee/TikTok) e avançar para Arch18 Fase B (Policy Compiler) e B2 (Model Roles).
+
+**Pergunta pendente ao operador:** incluir aviso visível no chat de teste quando a falha for de quota (em vez de balão vazio), para diagnóstico imediato em incidentes futuros.
+
 
 **Restrições firmes:**
 - Nada novo sem autorização do operador.
