@@ -45,8 +45,8 @@ export function humanizeMeliError(raw: string, causes: unknown[]): string {
   if (/UNITS_PER_PACK/i.test(all) && /(Unidade|sale_format|formato de venda)/i.test(all)) {
     add('A característica "Unidades por kit" precisa ser pelo menos 1 quando o "Formato de venda" é "Unidade". Ajuste no painel de características.');
   }
-  if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all)) {
-    add('O número da ANVISA do produto está em formato inválido para o Mercado Livre. Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
+  if (/Número de registro de produto na Anvisa.*incorreto/i.test(all) || /Número de notificação.*Anvisa.*incorreto/i.test(all) || /invalid_sanitary_registry_value/i.test(all)) {
+    add('O número da ANVISA do produto está em formato inválido. O sistema espera 17 dígitos (Notificação/Comunicação prévia) ou 13 dígitos (Registro de produto). Revise o número no cadastro do produto (aba Fiscal/Regulatório).');
   }
   if (/Número de certificado da AFE.*incorreto/i.test(all) || /AFE.*formato.*inv[aá]lido/i.test(all)) {
     add('Este produto não tem registro AFE no cadastro — o sistema vai omitir esse campo automaticamente na próxima tentativa. Se o erro persistir, tente publicar novamente.');
