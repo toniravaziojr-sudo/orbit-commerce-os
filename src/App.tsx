@@ -436,6 +436,7 @@ const App = () => {
                   <Route path="/shipping" element={<ShippingDashboard />} />
                   <Route path="/shipping/shipments" element={<FeatureGatedRoute moduleKey="erp_logistica" featureKey="remessas" featureName="Remessas" featureDescription="Gestão de remessas e etiquetas"><Shipments /></FeatureGatedRoute>} />
                   <Route path="/shipping/settings" element={<ShippingSettings />} />
+                  <Route path="/external-shipping" element={<FeatureGatedRoute moduleKey="erp_logistica" featureKey="remessas" featureName="Logística Externa" featureDescription="Etiquetas emitidas por marketplaces e gateways"><ExternalShipping /></FeatureGatedRoute>} />
                   <Route path="/shipments" element={<Navigate to="/shipping/shipments" replace />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/checkout-links" element={<CheckoutLinks />} />
