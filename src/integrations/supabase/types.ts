@@ -12046,6 +12046,51 @@ export type Database = {
           },
         ]
       }
+      marketplace_category_specs: {
+        Row: {
+          attributes: Json
+          category_id: string
+          category_name: string | null
+          category_path_text: string | null
+          created_at: string
+          expires_at: string
+          fetched_at: string
+          id: string
+          marketplace: string
+          raw_payload: Json | null
+          source_version: string | null
+          updated_at: string
+        }
+        Insert: {
+          attributes?: Json
+          category_id: string
+          category_name?: string | null
+          category_path_text?: string | null
+          created_at?: string
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          marketplace: string
+          raw_payload?: Json | null
+          source_version?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attributes?: Json
+          category_id?: string
+          category_name?: string | null
+          category_path_text?: string | null
+          created_at?: string
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          marketplace?: string
+          raw_payload?: Json | null
+          source_version?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketplace_connections: {
         Row: {
           access_token: string
@@ -13077,12 +13122,14 @@ export type Database = {
       }
       meli_listings: {
         Row: {
+          adapter_version: string | null
           attributes: Json | null
           available_quantity: number
           category_id: string | null
           category_name: string | null
           category_path_text: string | null
           condition: string
+          coverage_report: Json | null
           created_at: string
           currency_id: string
           description: string | null
@@ -13109,12 +13156,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adapter_version?: string | null
           attributes?: Json | null
           available_quantity?: number
           category_id?: string | null
           category_name?: string | null
           category_path_text?: string | null
           condition?: string
+          coverage_report?: Json | null
           created_at?: string
           currency_id?: string
           description?: string | null
@@ -13141,12 +13190,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adapter_version?: string | null
           attributes?: Json | null
           available_quantity?: number
           category_id?: string | null
           category_name?: string | null
           category_path_text?: string | null
           condition?: string
+          coverage_report?: Json | null
           created_at?: string
           currency_id?: string
           description?: string | null
