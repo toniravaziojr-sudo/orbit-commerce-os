@@ -230,8 +230,6 @@ Deno.serve(async (req) => {
           shipping_postal_code: shippingAddress.zip_code || null,
           shipping_country: shippingAddress.country?.id || "BR",
           
-          // Metadata
-          notes: `Pedido importado do Mercado Livre em ${new Date().toISOString()}`,
         };
 
         // Upsert pedido (não duplicar) e recuperar id
