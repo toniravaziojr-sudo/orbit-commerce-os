@@ -14,8 +14,9 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
+import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
 
-const VERSION = "2.4.1";
+const VERSION = "2.5.0"; // Onda B — espelho de ficha técnica + coverage_report
 
 // ---------- v2.4.0: ANVISA — atributo único por categoria -----------
 // O ML expõe até dois atributos de Anvisa por categoria, mas no cadastro
