@@ -194,6 +194,7 @@ Deno.serve(async (req) => {
         const orderData = {
           tenant_id: tenantId,
           customer_id: customerId,
+          order_number: `ML-${meliOrderId}`,
           status: orderStatus,
           payment_status: paymentStatus,
           subtotal: meliOrder.total_amount || 0,
