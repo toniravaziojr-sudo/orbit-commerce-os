@@ -392,6 +392,23 @@ Deno.serve(async (req) => {
           const x = normName(n);
           return x.includes("anvisa") && (x.includes("numero") || x.includes("notifica") || x.includes("comunica") || x.includes("registro") || x.includes("documento"));
         };
+        // v2.4.4 — Normaliza qualquer ANVISA-number já preenchido (painel/IA/memória)
+        // antes de checar `anvisaAlreadyFilled`. Valor inválido = remove para deixar
+        // a cascata abaixo reaproveitar o cadastro normalizado.
+        for (let i = attributes.length - 1; i >= 0; i--) {
+          const a: any = attributes[i];
+          const specName = attrSpecs.find((s: any) => s.id === a.id)?.name || "";
+          if (!isAnvisaNumberById(a.id) && !isAnvisaNumberByName(specName)) continue;
+          const candidate = a.value_name ?? (Array.isArray(a.values) && a.values[0]?.name);
+          const n = normalizeAnvisaNumber(candidate);
+          if (n.value) {
+            attributes[i] = { id: a.id, value_name: n.value };
+          } else {
+            console.warn(`[meli-publish-listing] ANVISA-number ${a.id}="${candidate}" inválido — removendo para reaplicar cadastro`);
+            attributes.splice(i, 1);
+            attrIds.delete(a.id);
+          }
+        }
         // Já existe algum ANVISA-number preenchido pelo painel? Então NÃO espalhar.
         const anvisaAlreadyFilled = attributes.some((a: any) =>
           isAnvisaNumberById(a.id) || isAnvisaNumberByName(
