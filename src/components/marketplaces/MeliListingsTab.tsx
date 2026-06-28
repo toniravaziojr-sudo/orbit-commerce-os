@@ -658,6 +658,39 @@ export function MeliListingsTab() {
                               </TooltipContent>
                             </Tooltip>
                           )}
+                          {typeof listing.health_score === 'number' && (() => {
+                            const s = listing.health_score!;
+                            const color = s >= 90
+                              ? 'bg-green-600/15 text-green-700 dark:text-green-400 border-green-600/40'
+                              : s >= 70
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40'
+                              : 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/40';
+                            const actions = Array.isArray(listing.health_actions) ? listing.health_actions : [];
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    aria-label={`Qualidade ${s}/100`}
+                                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${color}`}
+                                  >
+                                    {s}/100
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p className="font-medium mb-1">Qualidade do anúncio no Mercado Livre: {s}/100</p>
+                                  {actions.length > 0 ? (
+                                    <ul className="list-disc pl-4 space-y-0.5 text-xs">
+                                      {actions.slice(0, 6).map((a: any, idx: number) => (
+                                        <li key={idx}>{a?.message || a?.title || a?.code || JSON.stringify(a)}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs">Sem pendências reportadas pelo ML.</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
                         </div>
                         {listing.status === 'inactive' && listing.inactive_reason && (
                           <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
