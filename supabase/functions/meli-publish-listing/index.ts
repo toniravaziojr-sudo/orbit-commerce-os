@@ -2,9 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from "../_shared/meli/freeShipping.ts";
 import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
+import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
 
 // ===== VERSION =====
-const VERSION = "3.9.0"; // v2.6.0 — Garantia do cadastro sempre vence + update síncrono robusto (humanizeMeliError + values[] + persistência de erro)
+const VERSION = "3.10.0"; // Onda B — espelho da ficha técnica via marketplace_category_specs (cache global 7d)
 // ===================
 
 const corsHeaders = {
@@ -291,11 +292,10 @@ Deno.serve(async (req) => {
     // Fetch category attribute specs and complete what's missing using sensible fallbacks.
     const missingRequired: string[] = [];
     try {
-      const attrSpecRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}/attributes`, {
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      });
-      if (attrSpecRes.ok) {
-        const attrSpecs: any[] = await attrSpecRes.json();
+      const spec = await getMeliCategorySpec(supabase, listing.category_id, accessToken);
+      if (spec?.attributes?.length) {
+        const attrSpecs: any[] = spec.attributes as any[];
+        console.log(`[meli-publish-listing] spec source=${spec.source} (${attrSpecs.length} atributos)`);
         const brandValue = listing.product?.brand || null;
 
         for (const spec of attrSpecs) {
@@ -779,13 +779,21 @@ async function sanitizeAttributesForCategory(
   categoryId: string,
   attrs: any[],
   productCtx?: any,
+  supabaseClient?: any,
 ): Promise<any[]> {
   try {
-    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    });
-    if (!res.ok) return attrs;
-    const specs: any[] = await res.json();
+    let specs: any[] = [];
+    if (supabaseClient) {
+      const spec = await getMeliCategorySpec(supabaseClient, categoryId, accessToken);
+      specs = (spec?.attributes as any[]) ?? [];
+    } else {
+      const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}/attributes`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return attrs;
+      specs = await res.json();
+    }
+    if (!specs.length) return attrs;
     const byId = new Map<string, any>(specs.map((s) => [s.id, s]));
     const norm = (v: any) => String(v ?? "").toLowerCase().trim();
     const isNaName = (n: any) => {
@@ -979,7 +987,7 @@ async function updateListing(accessToken: string, listing: any, productImages: a
     }
   }
   if (attrsForUpdate.length > 0 && listing.category_id) {
-    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate, listing.product);
+    const sanitized = await sanitizeAttributesForCategory(accessToken, listing.category_id, attrsForUpdate, listing.product, supabase);
     if (sanitized.length > 0) updatePayload.attributes = sanitized;
   }
 
