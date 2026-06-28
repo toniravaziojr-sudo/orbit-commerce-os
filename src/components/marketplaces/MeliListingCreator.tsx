@@ -1962,9 +1962,16 @@ export function MeliListingCreator({
 
           return (
           <div className="flex-1 flex flex-col gap-4 py-4 overflow-hidden">
-            <p className="text-sm text-muted-foreground">
-              Configure o frete grátis individualmente para cada um dos {generatedItems.length} anúncios.
-            </p>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                Configure o frete grátis individualmente para cada um dos {generatedItems.length} anúncios.
+              </p>
+              {generatedItems.length > 4 && (
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full shrink-0">
+                  {generatedItems.length} anúncios — role para ver todos
+                </span>
+              )}
+            </div>
             {mandatoryCount > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200 flex gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
