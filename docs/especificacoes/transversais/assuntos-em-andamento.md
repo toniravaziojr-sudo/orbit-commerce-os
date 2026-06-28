@@ -17,24 +17,41 @@
 
 ## Assuntos Ativos
 
-### 1. Motor de Créditos — Finalização (rollout e decisões estratégicas)
+### 1. Motor de Créditos — Finalização (cutover live universal)
 
 **Docs oficiais:**
 - `docs/especificacoes/plataforma/motor-creditos.md` (regras macro e arquitetura)
 - `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md` (Fase F2)
-- `docs/especificacoes/plataforma/motor-creditos-auditoria-2026-06.md` (auditoria oficial 28/06/2026 — estado atual, pendências e backlog)
+- `docs/especificacoes/plataforma/motor-creditos-auditoria-2026-06.md` (auditoria oficial — estado, mapa das 35 chaves, bloqueios e protocolo de laboratório permanente)
+
+**Decisão tomada pelo operador (28/06/2026):**
+Shadow será descontinuado como gate por tenant. Destino: **cobrança real universal** a partir do segundo tenant. Shadow fica adormecido no código e só permanece ativo no **Respeite o Homem como laboratório permanente** — reativado apenas quando entrar nova IA / novo modelo / nova chave de serviço (gate de preço, não gate de tenant).
 
 **Estado atual (28/06/2026):**
-- **Fase F1 (telemetria `chargeAfter`):** ✅ ativa em todas as edges migradas.
-- **Fase F2 (cobrança de custo de plataforma via `platform_cost_ledger`):** ✅ todas as sub-fases concluídas (F2.1 até F2.13.2.C-CODE — incluindo regra estrutural F2.12 do WhatsApp/Meta: mensagens e templates Meta NÃO são cobrados pela plataforma; somente custos de plataforma como IA/processamento entram no ledger).
-- **Métricas reais do banco:** 1.127 movimentos em `credit_ledger`, 799 eventos `captured`, 176 eventos `shadow`, 7 linhas em `platform_cost_ledger`, 49 chaves de preço ativas em `service_pricing`.
-- **Cobertura v2 por tenant:** apenas **1 tenant** com `motor_v2_enabled=true` (Respeite o Homem, em live shadow).
+- Fases F1 e F2 ✅ concluídas (telemetria + `platform_cost_ledger`).
+- Métricas: 1.127 movimentos em `credit_ledger`, 799 eventos `captured`, 176 `shadow`, 7 linhas em `platform_cost_ledger`, 49 chaves de preço, 1 tenant com `motor_v2_enabled=true`.
+- Mapa das 35 chaves não validadas levantado e classificado em 4 grupos (ver doc de auditoria §7).
 
-**Pendências reais para fechar o tema (4 decisões estratégicas — aguardando operador):**
-1. **Rollout v2 do shadow para live por categoria** (`email`, `ai_text`, `ai_image`, `video`, etc.) com critérios objetivos (delta_pct, volume, janela). Proposta: começar por `email` + `ai_text` no Respeite o Homem por 14 dias em live antes de ampliar.
-2. **Reprecificação dos pacotes 15K / 50K** (Risco R9 no doc principal — câmbio e markup podem ter desalinhado margem).
-3. **Câmbio Fase 2** — migrar de R$ 5,50 manual para PTAX Bacen automático.
-4. **Reconciliação `tenant_ai_usage` (legada)** — decisão binária: aposentar (recomendação técnica) ou restaurar paridade com `credit_ledger`.
+**Bloqueio real para abrir cobrança live universal (pré-requisito obrigatório):**
+Motores operacionais do Grupo 3 precisam rodar ao menos uma vez em produção real no Respeite o Homem para confirmar o preço canônico contra fatura do provedor:
+1. **NF-e (7 chaves)** — acoplado ao tema "Fiscal de Marketplaces" (aguarda primeira venda real de marketplace).
+2. **YouTube Upload** — aguarda publicação intencional pelo operador.
+3. **Vídeo IA caro (Veo 3.1 4K, Kling Avatar V2 Pro)** — aguarda geração intencional pelo operador.
+
+Enquanto essa lista não zerar, o cutover live universal não acontece.
+
+**Em paralelo — decisões estratégicas remanescentes (aguardando GO do operador):**
+- **D2 — Reprecificação dos pacotes 15K / 50K** (Risco R9: câmbio/markup podem ter desalinhado margem).
+- **D3 — Câmbio PTAX Bacen automático** (substituir R$ 5,50 fixo).
+- **D4 — Aposentar `tenant_ai_usage` legada** (recomendação técnica: fonte única em `credit_ledger`).
+
+**Validações automáticas em andamento (sem ação necessária):**
+- Grupo 1 (Gemini, Whisper, e-mails, Firecrawl, Insights cron) — completam shadow naturalmente conforme uso real.
+- Grupo 4 (Kling Pro, gpt-image medium 1024x1536, email transactional) — falta acumular volume; completam sozinhas.
+
+**Não validar via disparo sintético:**
+- Grupo 2 (fallbacks: gpt-4o/5.2 variantes, openai.gpt-image-1, dall-e-3, sora-2) — marcar como `pending_validation` e auditar só no primeiro uso real.
+- Grupo 3 — proibido disparo sintético (side-effect real: NF-e na Sefaz, vídeo publicado, vídeo USD caro).
 
 **Backlog de hardening (não-bloqueante, registrado no doc de auditoria):**
 - HMAC SHA-256 definitivo em webhooks.
@@ -45,12 +62,13 @@
 - Auditoria de `agenda_authorized_phones`.
 
 **Achados paralelos antigos — REVERTIDOS (não procedem):**
-- ~~Cron `generate-weekly-insights` 401~~ → não existe essa edge; o cron real (`weekly-command-insights`, jobid 56, chama `command-insights-generate`) está rodando com sucesso há semanas.
-- ~~`get_auth_user_email` permission denied em `/platform/emails`~~ → a RPC está corretamente revogada de `anon`/`authenticated` por design; uso restrito a RLS de tabelas admin. Sem erro ativo.
+- ~~Cron `generate-weekly-insights` 401~~ → cron real é `weekly-command-insights` (jobid 56) chamando `command-insights-generate`, rodando com sucesso.
+- ~~`get_auth_user_email` permission denied em `/platform/emails`~~ → RPC corretamente revogada por design, sem erro ativo.
 
 **Restrições firmes:**
-- Cada uma das 4 decisões estratégicas exige GO explícito do operador antes de qualquer execução.
-- Promoção de qualquer categoria de shadow para live exige PLANNER → GO → execução por categoria isolada.
+- Cutover live universal só após zerar a lista de motores operacionais Grupo 3 no Respeite o Homem.
+- Shadow permanece como laboratório permanente no Respeite o Homem; reativação obrigatória para qualquer nova IA/modelo/chave (protocolo doc auditoria §9).
+- Decisões D2, D3, D4 só executam com GO explícito.
 - Nunca processar mais de 1 tenant em janela de promoção sem confirmação.
 - Nunca apagar linha real de `platform_cost_ledger` ou `credit_ledger`.
 - Itens de hardening só entram em execução com GO explícito.
