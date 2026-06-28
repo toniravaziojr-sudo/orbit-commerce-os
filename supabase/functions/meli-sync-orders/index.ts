@@ -191,9 +191,13 @@ Deno.serve(async (req) => {
         const shipping = meliOrder.shipping || {};
         const shippingAddress = shipping.receiver_address || {};
 
+        const buyerDisplayName = `${buyer.first_name || ""} ${buyer.last_name || ""}`.trim() || buyer.nickname || `Comprador ML ${meliOrderId}`;
         const orderData = {
           tenant_id: tenantId,
           customer_id: customerId,
+          customer_name: buyerDisplayName,
+          customer_email: buyer.email || null,
+          customer_phone: buyer.phone?.number || null,
           order_number: `ML-${meliOrderId}`,
           status: orderStatus,
           payment_status: paymentStatus,
