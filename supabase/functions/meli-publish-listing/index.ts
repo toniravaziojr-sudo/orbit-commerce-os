@@ -4,9 +4,10 @@ import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from ".
 import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
 import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
 import { humanizeMeliError, prettyAttrName, MELI_ADAPTER_VERSION } from "../_shared/marketplace-adapter/meli/index.ts";
+import { normalizeAnvisaNumber } from "../_shared/marketplace-adapter/meli/regulatory-normalizer.ts";
 
 // ===== VERSION =====
-const VERSION = `3.11.0+adapter-${MELI_ADAPTER_VERSION}`; // Onda C — humanizer e contrato compartilhados em _shared/marketplace-adapter/meli/
+const VERSION = `3.12.0+adapter-${MELI_ADAPTER_VERSION}`; // v2.4.4 — normalizador ANVISA (notificação 17d / registro 13d) no adapter
 
 // ===================
 
@@ -369,7 +370,14 @@ Deno.serve(async (req) => {
         // v2.4.2: ANVISA usa UM único atributo por categoria (notificação OU registro,
         // nunca os dois). Se o painel já preencheu um, não inunda os demais.
         const regInfo: any = (listing.product as any)?.regulatory_info || {};
-        const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+        const anvisaRaw = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+        // v2.4.4 — normaliza ANVISA para o formato exigido pelo ML antes de enviar.
+        // Cadastro pode persistir só dígitos (17 ou 13) ou já formatado; o adapter formata.
+        const anvisaNorm = normalizeAnvisaNumber(anvisaRaw);
+        const anvisaNum = anvisaNorm.value ?? "";
+        if (anvisaRaw && !anvisaNorm.value) {
+          console.warn(`[meli-publish-listing] ANVISA inválida no cadastro (raw="${anvisaRaw}", reason=${anvisaNorm.reason}) — atributo será omitido`);
+        }
         const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
         const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
         const normName = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
