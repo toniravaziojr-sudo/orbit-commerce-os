@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
           if (val) {
             attributes.push({ id: spec.id, value_name: val });
             attrIds.add(spec.id);
-            console.log(`[meli-publish-listing] Auto-filled regulatory number ${spec.id}="${val}"`);
+            console.log(`[meli-publish-listing] Auto-filled regulatory number ${spec.id}="${val}" (anvisaKind=${anvisaNorm.kind ?? "n/a"})`);
           }
         }
 
