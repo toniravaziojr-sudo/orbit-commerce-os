@@ -1437,3 +1437,44 @@ Quando a cascata de categorização termina e um item permanece sem `category_id
 Os campos críticos no cadastro (`ProductForm.tsx`) carregam o selo `MarketplaceFieldHint` indicando que o valor influencia a categorização nos marketplaces.
 
 > Regra de governança: `docs/REGRAS-DO-SISTEMA.md` §36 — "Guiar o Usuário".
+
+---
+
+## Adaptador e Auditoria de Qualidade (v3.11.0+adapter-v1.0.0 — 2026-06-28)
+
+> Implementação concreta do **Padrão Canônico de Marketplaces** (ver `_padrao-canonico-marketplaces.md` §"Camada Adaptadora Multi-Marketplace"). Mercado Livre é o golden path: a estrutura abaixo é o modelo que Shopee, TikTok Shop e marketplaces futuros vão replicar.
+
+### Onde vive o adaptador
+- `supabase/functions/_shared/marketplace-adapter/meli/` — façade do adaptador do ML.
+  - `error-humanizer.ts` — `humanizeMeliError` + `prettyAttrName` (compartilhado entre publish, resolve e UI de saúde).
+  - `index.ts` — reexporta `getMeliCategorySpec`, `fetchAndPersistMeliHealth` e expõe `MELI_ADAPTER_VERSION`.
+- `supabase/functions/_shared/meli/category-spec.ts` — cache global da ficha técnica da categoria (TTL 7 dias) em `marketplace_category_specs`.
+- `supabase/functions/_shared/meli/health.ts` — leitura de `/items/{id}/health` + `/items/{id}/health/actions` e persistência em `meli_listings`.
+
+`meli-publish-listing` (v3.11.0) e `meli-resolve-attributes` consomem essas funções; lógica duplicada foi removida.
+
+### Auditoria de Qualidade (health do anúncio)
+Toda publicação ou atualização bem-sucedida dispara, em background (fire-and-forget, não bloqueia a resposta ao usuário), leitura de saúde do anúncio no Mercado Livre. Grava em `meli_listings`:
+- `health_score` (int 0–100) — nota oficial do ML.
+- `health_actions` (jsonb) — lista de ações sugeridas pelo ML (ex.: "adicione mais fotos", "ative parcelamento sem juros").
+- `health_checked_at` (timestamptz).
+
+A aba **Anúncios** mostra um chip "Nota ML: X/100" e, no tooltip, as ações traduzidas pelo `humanizeMeliError`. Ações que dependem do cadastro do produto recebem o selo `MarketplaceFieldHint` apontando o campo a corrigir.
+
+### Espelho da Ficha Técnica e Cobertura
+- `marketplace_category_specs` (tabela system-wide, sem `tenant_id`) — cache da ficha de atributos da categoria. Reduz chamadas repetidas ao ML e centraliza a definição do que cada categoria pede.
+- `meli_listings.coverage_report` (jsonb) — relatório emitido pelo motor a cada resolução: obrigatórios cobertos, opcionais cobertos, ignorados com motivo. O painel `MeliAttributesPanel` lê esse relatório em vez de recalcular.
+- `meli_listings.adapter_version` (text) — versão do adaptador que produziu o relatório, para invalidação seletiva.
+
+### Cruzamento Cobertura × Saúde
+Aba Anúncios cruza `coverage_report` (o que o motor cobriu) com `health_actions` (o que o ML ainda quer) e mostra ao lojista, em linguagem de negócio: *"o ML pediu X, seu cadastro não tem Y, corrija em Z"* — com link direto para o cadastro via `MarketplaceFieldHint`.
+
+### Política Manual-Only (reforço)
+O adaptador NÃO inclui cron de escrita. Health, sync de status e webhooks são leituras. Toda escrita ao ML (publicar, atualizar, pausar, reativar, excluir) é manual. Ver `.lovable/memory/constraints/marketplace-no-auto-push-ml.md`.
+
+### Anti-regressão
+- Proibido reintroduzir `humanizeMeliError` local em `meli-publish-listing` ou `meli-resolve-attributes` — usar o do adaptador.
+- Proibido bater direto em `/categories/{id}/attributes` fora de `getMeliCategorySpec`.
+- Proibido bloquear a resposta de publish/update aguardando `fetchAndPersistMeliHealth` — é fire-and-forget.
+- Toda mudança no contrato do adaptador (`core/contract.ts`) deve incrementar `MELI_ADAPTER_VERSION` e atualizar este doc + memória `ml-cadastro-fonte-unica.md`.
+

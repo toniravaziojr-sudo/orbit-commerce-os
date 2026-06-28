@@ -117,6 +117,35 @@ Ambas as tabelas são **system-wide** (sem `tenant_id`), leitura pública para a
 
 ---
 
+## Camada Adaptadora Multi-Marketplace (v2026-06-28 — Ondas A→C concluídas)
+
+Para reaproveitar Mercado Livre como golden path, o sistema mantém uma **camada adaptadora compartilhada** em `supabase/functions/_shared/marketplace-adapter/`. Todo marketplace novo entra como mais um adaptador dentro dessa pasta, consumindo o mesmo contrato.
+
+### Contrato genérico (`core/contract.ts`)
+Tipos universais que QUALQUER marketplace implementa:
+- `AttributeSpec` — descrição de um atributo exigido pela categoria do marketplace (id, nome, obrigatório, valores aceitos, tipo de valor).
+- `ResolvedAttribute` — atributo já resolvido pelo motor, com `source` (cadastro, memória do tenant, dicionário, IA, N/A) e `confidence`.
+- `CoverageReport` — relatório de cobertura emitido pelo motor: obrigatórios cobertos, opcionais cobertos, ignorados com motivo. Persistido por anúncio.
+- `AdapterContext` — contexto de execução (tenant, conexão, token, supabase client).
+- `MarketplaceErrorHumanizer` — assinatura padrão para tradução de erros do marketplace em linguagem de negócio.
+
+### Auditoria de Qualidade (Onda A)
+Toda publicação ou atualização bem-sucedida dispara, em background, leitura de saúde do anúncio na API do marketplace. O resultado é persistido na linha do anúncio (`health_score`, `health_actions`, `health_checked_at`) e exibido como chip na aba Anúncios do hub do marketplace. Erros técnicos são traduzidos pelo humanizer compartilhado antes de chegar ao usuário.
+
+### Espelho da Ficha Técnica (Onda B)
+Cache global `marketplace_category_specs` (TTL 7 dias) substitui chamadas repetidas à API de atributos da categoria. Cada anúncio recebe `coverage_report` (jsonb) que descreve exatamente quais atributos foram cobertos, por qual fonte, e quais foram ignorados (com motivo). O painel de características lê o relatório em vez de recalcular.
+
+### Versionamento de Adaptador
+Cada marketplace expõe sua constante `MARKETPLACE_ADAPTER_VERSION` (ex.: `MELI_ADAPTER_VERSION`). A versão é gravada em `meli_listings.adapter_version` (e equivalente em outros marketplaces) para rastreabilidade e invalidação seletiva.
+
+### Política Manual-Only
+Adaptador NÃO inclui cron ou job que dispare escrita automática no marketplace. Toda chamada de escrita (POST/PUT/DELETE) é disparada por ação humana — leituras (sync, health, webhook) são livres. Doc: `.lovable/memory/constraints/marketplace-no-auto-push-ml.md`.
+
+### Reaproveitamento ao adicionar marketplace novo
+Roteiro fixo: (1) criar `_shared/marketplace-adapter/{nome}/` com `error-humanizer.ts`, `category-spec.ts`, `health.ts` e façade `index.ts`; (2) implementar os tipos do `core/contract.ts`; (3) reusar `mlReadiness`-equivalente já genérico; (4) hub `/marketplaces/{nome}` só com conexão + listings + diagnóstico; (5) pedidos, fiscal, logística, atendimento, dashboard caem nos contratos já existentes.
+
+---
+
 ## Docs relacionados
 - `docs/especificacoes/marketplaces/mercado-livre.md` — referência viva
 - `docs/especificacoes/marketplaces/shopee.md` — pendente de alinhamento pleno (ver checklist)
