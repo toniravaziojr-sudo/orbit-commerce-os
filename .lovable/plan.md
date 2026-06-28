@@ -1,76 +1,71 @@
-## Diagnóstico real (causa raiz estrutural)
 
-Re-li o código e os dados. O problema NÃO é a lógica de categorização — ela está deterministicamente correta. O problema é estrutural na forma como o diálogo pagina o lote para o edge `bulk_auto_categories`.
+# Plano — Camada Adaptadora ML + Auditoria de Qualidade (reaproveitando o que já existe)
 
-### Causa raiz
-`supabase/functions/meli-bulk-operations/index.ts` na action `bulk_auto_categories` faz:
+## Princípio guia
+Reaproveitar ao máximo o que já está em produção (sem manter código obsoleto). Nada de reescrever do zero: o que já funciona vira fundação da camada adaptadora; só removo o que ficar redundante ao consolidar.
 
-```ts
-.eq("tenant_id", tenantId)
-.in("status", [...])
-.in("id", filterIds)
-.range(offset, offset + limit - 1)   // <-- sem .order()
-```
+## O que já existe e será reaproveitado
+- `supabase/functions/meli-resolve-attributes` — toda a cascata (cadastro → memória do tenant → dicionários → IA → N/A), `humanizeMeliError`, extrator de substâncias, match por nome de ANVISA, gate de domínio. Tudo isso vira o **núcleo do motor**, só muda de lugar para `_shared/marketplace-adapter/meli/`.
+- `supabase/functions/meli-publish-listing` — sanitizadores de publish/update da v2.6.1, soberania de garantia, injeção de `UNITS_PER_PACK`, omissão de regulatórios vazios (v2.4.3). Passam a chamar o mesmo motor compartilhado, em vez de duplicar a lógica.
+- `supabase/functions/meli-bulk-operations` — cascata de categorização v1.13.0 (incluindo IA Decisora) e sanitização do termo. Mantida intacta — só ganha persistência do `coverage_report` da categoria.
+- Tabela `meli_listings` — já guarda `attributes`, `category_id/name/path_text`, `resolver_version`, `meli_response`. Vamos **adicionar colunas** em vez de criar tabela paralela.
+- Tabela `meli_product_attribute_memory` — memória de ajustes manuais do tenant. Mantida como está; vira a etapa 2 da hierarquia do adaptador (já é hoje).
+- `src/lib/marketplaces/mlReadiness.ts` e `MarketplaceFieldHint.tsx` — continuam como porta de entrada do cadastro.
+- Painel `MeliAttributesPanel`, self-healing v2.6.0, cache versionado v2.4.1, idempotência por step v2.3.0 — todos mantidos; passam a ler o novo `coverage_report` para exibir o que falta em linguagem de negócio (Regra §36), sem nova tela.
+- Aba **Anúncios** existente no hub ML — recebe os novos selos de qualidade (sem rota nova, sem mudança de UX além de chips informativos).
+- Tabela `platform_capabilities` + hook `usePlatformCapability` — já existe contrato de "capacidades por plataforma". Pode hospedar o `adapter_version` por marketplace, evitando criar registro paralelo.
 
-**Não há `ORDER BY`**. Postgres pode devolver as linhas em ordem diferente entre páginas (depende do plano, do cache, da concorrência), o que faz `OFFSET/LIMIT` produzir **sobreposições e lacunas**:
+## O que sai (sem deixar código morto)
+- O sanitizador duplicado dentro de `meli-publish-listing` que repete lógica do `meli-resolve-attributes` — removido após a unificação (Onda C). Antes de remover, confirmo zero outros consumidores via busca no repo.
+- `resolver_version` ad-hoc espalhado — substituído por `adapter_version` único.
 
-- Página 1 (offset 0, limit 5) pode trazer um conjunto.
-- Página 2 (offset 5, limit 5) pode repetir 2 e perder 2.
-- Listings repetidos são pulados (`if (listing.category_id) continue`), e os perdidos **nunca são processados** — ficam com `category_id NULL` e `updated_at` no carimbo da criação do rascunho.
+## Ondas
 
-Confirma no banco: todos os órfãos do tenant "Respeite o Homem" estão exatamente no mesmo timestamp `21:57:18.494946` (carimbo da criação do lote). Todos os categorizados têm timestamp posterior. Não é falha do cascata — é página perdida.
+### Onda A — Auditoria de Qualidade (responde "por que não 100" sem mexer em mais nada)
+- **Reaproveita** `meli-publish-listing`: após o POST/PUT bem-sucedido, faz `GET /items/{id}` (campo `health`) e `GET /items/{id}/health/actions`, persistindo em novas colunas de `meli_listings`: `health_score`, `health_actions`, `health_checked_at`.
+- **Nova função leve** `meli-health-sync` (clonada da estrutura de `meli-bulk-operations`, sem reinventar auth/cors): backfill sob demanda dos 25 anúncios já publicados + reconciliação periódica.
+- Aba **Anúncios** ganha chip "Nota ML: X/100" e tooltip listando `health_actions` traduzidos pelo `humanizeMeliError` já existente.
 
-### Por que (3x) Dia categoriza e (2x) Dia não
-Mesma família, mesmo `product_type` ("Shampoo, balm"), mesmo termo sanitizado ("Kit Banho Calvície Zero Dia"). Se a cascata rodasse para ambos, a saída seria idêntica. (3x) Dia caiu numa página que o Postgres devolveu; (2x) Dia caiu numa lacuna. Aleatório.
+### Onda B — Espelho da Ficha + Cobertura Persistida
+- **Nova tabela** `marketplace_category_specs` (`marketplace`, `category_id`, `attributes_json`, `fetched_at`, TTL 7 dias). Substitui as chamadas repetidas a `/categories/{id}/attributes` espalhadas hoje.
+- `meli_listings` ganha `coverage_report jsonb` e `adapter_version text`.
+- O motor (que hoje vive em `meli-resolve-attributes`) passa a emitir o `coverage_report` (obrigatórios cobertos, opcionais cobertos, ignorados com motivo). O painel `MeliAttributesPanel` lê esse relatório em vez de recalcular.
+- Cruzamento na aba Anúncios: `coverage_report` × `health_actions` → mostra "o ML pediu X, seu cadastro não tem Y, corrija em Z" usando o `MarketplaceFieldHint` já existente.
 
-Ponto adicional: as actions `bulk_generate_titles` e `bulk_generate_descriptions` têm o mesmo padrão `range()` sem `order()` — mesma classe de bug latente.
+### Onda C — Unificação do Motor (multi-marketplace ready)
+- Criar `supabase/functions/_shared/marketplace-adapter/` com:
+  - `core/` — contrato genérico (entrada: produto + categoria + memória; saída: payload + coverage_report). Reaproveita helpers de `humanizeMeliError`, sanitizadores, gate de domínio.
+  - `meli/` — mapeamento atual extraído de `meli-resolve-attributes` e dos sanitizadores de `meli-publish-listing`. **Nada novo**: apenas mover e deduplicar.
+- `meli-resolve-attributes`, `meli-publish-listing` e `meli-bulk-operations` passam a importar do `_shared/marketplace-adapter/meli/`. Deletar funções duplicadas após confirmar que ninguém mais importa.
+- Estrutura fica pronta para `_shared/marketplace-adapter/shopee/` e `/tiktok/` no futuro, sem refactor adicional.
 
-## Plano estrutural (eficiente, sem mudança de UI nem de regra de negócio)
+### Onda D — Teste real do fluxo novo
+- Tenant **respeite-o-homem** como cobaia.
+- Roteiro:
+  1. Backfill de health dos 25 anúncios existentes — confirmar que `health_score` e `health_actions` aparecem em todos.
+  2. Reabrir o diálogo de um anúncio já publicado sem editar nada e salvar — confirmar zero erros (regressão v2.6.1) e que `coverage_report` é gravado.
+  3. Publicar 1 anúncio novo end-to-end — validar que `adapter_version` é gravado, health é coletado on-publish, e que o que aparece na aba Anúncios bate com o que o ML mostra no painel oficial.
+  4. Forçar 1 anúncio com campo obrigatório faltando no cadastro — confirmar que o painel aponta o campo com `MarketplaceFieldHint` e bloqueia publicar.
+  5. SQL de auditoria: comparar `coverage_report.missing` × `health_actions` para os 25 e para o novo, garantir consistência.
+- Validação técnica obrigatória (Knowledge): consulta ao banco, leitura dos logs das edges, verificação do build. Se algum item falhar, voltar ao Diagnóstico antes de partir para a Onda E.
 
-### Fix 1 — Garantir cobertura determinística no edge
-Em `supabase/functions/meli-bulk-operations/index.ts`:
+### Onda E — Atualização documental (só após D passar)
+- `docs/especificacoes/marketplaces/_padrao-canonico-marketplaces.md` — nova seção "Camada Adaptadora (multi-marketplace)" com o contrato genérico.
+- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Adaptador e Auditoria de Qualidade" (health, coverage_report, adapter_version, fluxo on-publish + backfill).
+- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que o motor agora é único e vive em `_shared/marketplace-adapter/meli/`.
+- `.lovable/memory/features/marketplaces/canonical-flow-standard.md` — acrescentar o contrato do adaptador como item invariável.
+- `docs/REGRAS-DO-SISTEMA.md` — referência cruzada à nova camada (sem mudar regra, só apontar).
+- `docs/especificacoes/transversais/mapa-ui.md` — só se a aba Anúncios mudar de fato (chips novos sim, rota não).
 
-1. Em `bulk_auto_categories`, `bulk_generate_titles` e `bulk_generate_descriptions`:
-   - Adicionar `.order("id", { ascending: true })` antes do `.range(...)`. Isso torna a paginação reprodutível.
-   - **Quando `filterIds?.length` for fornecido**, ignorar `offset/limit/range` e processar **todos os IDs do filtro de uma vez** (a lista já vem bounded do diálogo, tipicamente ≤ 50). Elimina pagination drift na origem.
-   - Manter `range()` apenas para a chamada sem `filterIds` (uso administrativo do botão "Recategorizar tudo").
+## Detalhes técnicos resumidos
+- **Schema novo:** `marketplace_category_specs` (tabela), `meli_listings` ganha `health_score int`, `health_actions jsonb`, `health_checked_at timestamptz`, `coverage_report jsonb`, `adapter_version text`. Migration única na Onda A (health) e outra na Onda B (coverage/spec). GRANTs e RLS conforme padrão.
+- **Edges novas:** apenas `meli-health-sync`. Tudo o mais é refactor/mover.
+- **Removidos ao final da Onda C:** blocos duplicados entre `resolve` e `publish` (lista explícita gerada antes do delete e revisada por mim).
 
-2. Em `bulk_auto_categories`, devolver no payload de resposta `processedIds: string[]` (lista dos listingIds efetivamente tratados — categorizados, pulados ou que falharam). Isso permite ao diálogo auditar cobertura e re-tentar só o que faltou, sem chutar.
+## Limitações e decisões técnicas que assumo (sem nova consulta)
+- TTL do espelho da ficha: 7 dias + refresh on-demand quando o adaptador detectar atributo desconhecido.
+- Backfill de health: leitura no ML, não destrutiva — sigo sem nova confirmação.
+- UI: zero tela nova. Só chips informativos na aba Anúncios já existente. Qualquer página dedicada de "Qualidade dos Anúncios" virá só com sua aprovação futura.
+- Núcleo core (Produtos/Clientes/Pedidos) intocado, conforme Regra §3.2.1.
 
-### Fix 2 — Diálogo audita cobertura e completa o que faltou
-Em `src/components/marketplaces/MeliListingCreator.tsx` (função `handleCreateAndCategorize`, linhas 517-551):
-
-1. Trocar o loop `while (hasMore) { offset += limit }` por **chunks explícitos do array `ids`** em JS:
-   - Fatiar `ids` em pedaços de 5 e mandar cada pedaço como `listingIds: chunk` (sem `offset/limit`).
-   - O edge processa exatamente esse pedaço (graças ao Fix 1).
-2. Ao final, fazer uma **passada de reconciliação**:
-   - Consultar `meli_listings` apenas pelos `ids` originais e isolar quem ainda está com `category_id IS NULL`.
-   - Se restou alguém, disparar **uma única retentativa** desses faltantes em chunks de 5. Limite de 1 retry para não criar loop infinito.
-   - O que sobrar após o retry segue como "não identificada" e o usuário continua podendo escolher manualmente no próprio diálogo (comportamento atual já cobre isso).
-3. Em caso de erro de rede/timeout num chunk, **não quebrar o loop inteiro**: registrar a falha, continuar com os próximos chunks, e o passo de reconciliação no fim pega o que ficou.
-
-### Fix 3 — Telemetria mínima para detectar recorrência
-- No edge, logar por listing: `listingId | cascada vencedora | category_id resultante | razão se NULL`.
-- Logar no início/fim de cada chamada: `received_ids_count`, `processed_ids_count`, `null_after_run_count`. Sem nova tabela; apenas `console.log` estruturado para investigação via `edge_function_logs`.
-
-### O que NÃO mudo (e por quê)
-- Cascata 1→4, gate de domínio, IA Decisora, sanitizador de termo, resumo cacheado — todos validados.
-- UI/UX do diálogo (sem novos botões, sem novas etapas) — comportamento visual idêntico para o lojista.
-- Schema do banco — sem migração.
-- Os outros endpoints do edge que já operam só com `filterIds` curtos (bulk_titles/bulk_descriptions) recebem a mesma `.order("id")` por segurança anti-regressão, mas mantenho a paginação por compatibilidade com chamadas sem filtro.
-
-### Validação técnica obrigatória pós-entrega
-1. Build OK e deploy de `meli-bulk-operations`.
-2. Limpar `category_id` dos órfãos atuais do Respeite o Homem (operação de saneamento, com aviso de "ação destrutiva controlada — só para limpar o estado residual deste bug", aguardando confirmação explícita antes de executar).
-3. Disparar um novo lote pelo diálogo selecionando os mesmos produtos e confirmar via SQL que **todos** os listingIds enviados acabam com `category_id` preenchido OU explicitamente `NULL` por decisão da Cascata 4 (com log "ai-decider declarou nenhuma compatível"). Zero casos por "página perdida".
-4. Reportar tabela final: listingId → produto → cascata vencedora → category_id.
-
-### Documentação a atualizar (mesma entrega)
-- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Cascata determinística do termo de busca": acrescentar que o fan-out por `filterIds` processa o conjunto completo sem pagination drift e que o diálogo faz reconciliação ao final.
-- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar a regra: **"pagination drift proibido em ações em lote do MeLi; usar `filterIds` fan-out ou `.order('id')` + `.range()` deterministicamente"**.
-
-## Dúvida / limitação
-- **Ação destrutiva controlada**: para validar end-to-end com os mesmos produtos do tenant Respeite o Homem, preciso zerar `category_id`/`category_name`/`category_path_text` dos listings órfãos atuais antes de re-rodar o diálogo. Isso só roda após sua aprovação explícita. Sem essa limpeza, o cascata vai pular esses listings (porque já têm `category_id NULL` mas a categoria não foi salva — tudo bem, eles entram normal; na verdade não precisa limpar nada para os NULL. Só preciso confirmação para limpar **caso queira reprocessar listings que já foram categorizados errados**). Confirma?
-- Se você quiser, posso reaproveitar o lote atual sem nenhuma operação destrutiva: basta abrir o diálogo, selecionar os mesmos produtos, e o novo fluxo cobre todos. Diga qual caminho prefere.
-
-📌 STATUS DA ENTREGA: Plano pronto, aguardando aprovação para implementar e validar.
+Sigo A → B → C → D → E nessa ordem, validando ao final de cada onda antes de avançar?

@@ -37,6 +37,7 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/error-toast";
 
 /**
  * Detecta se o erro de uma pendência tem origem em campo faltando no cadastro
@@ -354,6 +355,27 @@ export function MeliListingsTab() {
     }
   };
 
+  // Onda A — reavaliar nota de qualidade (health) de todos os publicados do
+  // tenant. Custo zero quando não houver mudanças no ML; persiste em
+  // meli_listings.health_score/health_actions.
+  const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
+  const handleRefreshHealth = async () => {
+    if (!currentTenant?.id) return;
+    setIsRefreshingHealth(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meli-health-sync', {
+        body: { tenantId: currentTenant.id, limit: 200 },
+      });
+      if (error || !data?.success) throw error || new Error(data?.error || 'Falha ao reavaliar');
+      toast.success(`Qualidade reavaliada em ${data.processed} anúncio(s).`);
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+    } catch (e: any) {
+      showErrorToast(e?.message || 'Não foi possível reavaliar a qualidade agora.');
+    } finally {
+      setIsRefreshingHealth(false);
+    }
+  };
+
   // Indicador de frescor + selo de sincronização em tempo real.
   const { connection, refetch: refetchConnection } = useMeliConnection();
   const lastSyncAt = connection?.lastSyncAt ? new Date(connection.lastSyncAt) : null;
@@ -433,6 +455,17 @@ export function MeliListingsTab() {
                 </TooltipTrigger>
                 <TooltipContent>Força uma reconciliação imediata com o Mercado Livre</TooltipContent>
               </Tooltip>
+              {activeTab === 'published' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" onClick={handleRefreshHealth} disabled={isRefreshingHealth}>
+                      {isRefreshingHealth ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      Reavaliar qualidade
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Recalcula a nota oficial (0-100) e pendências dos anúncios publicados, consultando o Mercado Livre.</TooltipContent>
+                </Tooltip>
+              )}
               <Button onClick={() => setShowCreator(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Anúncio
@@ -636,6 +669,39 @@ export function MeliListingsTab() {
                               </TooltipContent>
                             </Tooltip>
                           )}
+                          {typeof listing.health_score === 'number' && (() => {
+                            const s = listing.health_score!;
+                            const color = s >= 90
+                              ? 'bg-green-600/15 text-green-700 dark:text-green-400 border-green-600/40'
+                              : s >= 70
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40'
+                              : 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/40';
+                            const actions = Array.isArray(listing.health_actions) ? listing.health_actions : [];
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    aria-label={`Qualidade ${s}/100`}
+                                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${color}`}
+                                  >
+                                    {s}/100
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p className="font-medium mb-1">Qualidade do anúncio no Mercado Livre: {s}/100</p>
+                                  {actions.length > 0 ? (
+                                    <ul className="list-disc pl-4 space-y-0.5 text-xs">
+                                      {actions.slice(0, 6).map((a: any, idx: number) => (
+                                        <li key={idx}>{a?.message || a?.title || a?.code || JSON.stringify(a)}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs">Sem pendências reportadas pelo ML.</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
                         </div>
                         {listing.status === 'inactive' && listing.inactive_reason && (
                           <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">

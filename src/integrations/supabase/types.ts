@@ -13087,6 +13087,9 @@ export type Database = {
           currency_id: string
           description: string | null
           error_message: string | null
+          health_actions: Json | null
+          health_checked_at: string | null
+          health_score: number | null
           id: string
           images: Json | null
           inactive_at: string | null
@@ -13116,6 +13119,9 @@ export type Database = {
           currency_id?: string
           description?: string | null
           error_message?: string | null
+          health_actions?: Json | null
+          health_checked_at?: string | null
+          health_score?: number | null
           id?: string
           images?: Json | null
           inactive_at?: string | null
@@ -13145,6 +13151,9 @@ export type Database = {
           currency_id?: string
           description?: string | null
           error_message?: string | null
+          health_actions?: Json | null
+          health_checked_at?: string | null
+          health_score?: number | null
           id?: string
           images?: Json | null
           inactive_at?: string | null
