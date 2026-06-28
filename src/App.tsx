@@ -109,6 +109,7 @@ const HealthMonitor = lazy(() => import("@/pages/HealthMonitor"));
 const Shipments = lazy(() => import("@/pages/Shipments"));
 const ShippingDashboard = lazy(() => import("@/pages/ShippingDashboard"));
 const ShippingSettings = lazy(() => import("@/pages/ShippingSettings"));
+const ExternalShipping = lazy(() => import("@/pages/ExternalShipping"));
 const AwaitingConfirmation = lazy(() => import("@/pages/AwaitingConfirmation"));
 const AcceptInvite = lazy(() => import("@/pages/AcceptInvite"));
 const SystemUsers = lazy(() => import("@/pages/SystemUsers"));
