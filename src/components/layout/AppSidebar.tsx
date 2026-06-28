@@ -166,7 +166,8 @@ const fullNavigation: NavGroup[] = [
       { title: "Financeiro", href: "/finance", icon: DollarSign, blockedFeature: "erp_financeiro" },
       { title: "Compras", href: "/purchases", icon: ShoppingBag, blockedFeature: "erp_compras" },
       { title: "Fornecedores", href: "/suppliers", icon: Users, blockedFeature: "erp_compras" },
-      { title: "Logística", href: "/shipping", icon: Truck, blockedFeature: "remessas" },
+      { title: "Logística Interna", href: "/shipping", icon: Truck, blockedFeature: "remessas" },
+      { title: "Logística Externa", href: "/external-shipping", icon: Truck, blockedFeature: "remessas" },
     ],
   },
   {
