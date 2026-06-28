@@ -4,9 +4,10 @@ import { isMeliFreeShippingMandatory, MELI_FREE_SHIPPING_THRESHOLD_BRL } from ".
 import { fetchAndPersistMeliHealth } from "../_shared/meli/health.ts";
 import { getMeliCategorySpec } from "../_shared/meli/category-spec.ts";
 import { humanizeMeliError, prettyAttrName, MELI_ADAPTER_VERSION } from "../_shared/marketplace-adapter/meli/index.ts";
+import { normalizeAnvisaNumber } from "../_shared/marketplace-adapter/meli/regulatory-normalizer.ts";
 
 // ===== VERSION =====
-const VERSION = `3.11.0+adapter-${MELI_ADAPTER_VERSION}`; // Onda C — humanizer e contrato compartilhados em _shared/marketplace-adapter/meli/
+const VERSION = `3.12.0+adapter-${MELI_ADAPTER_VERSION}`; // v2.4.4 — normalizador ANVISA (notificação 17d / registro 13d) no adapter
 
 // ===================
 
@@ -369,7 +370,14 @@ Deno.serve(async (req) => {
         // v2.4.2: ANVISA usa UM único atributo por categoria (notificação OU registro,
         // nunca os dois). Se o painel já preencheu um, não inunda os demais.
         const regInfo: any = (listing.product as any)?.regulatory_info || {};
-        const anvisaNum = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+        const anvisaRaw = typeof regInfo.anvisa === "string" ? regInfo.anvisa.trim() : "";
+        // v2.4.4 — normaliza ANVISA para o formato exigido pelo ML antes de enviar.
+        // Cadastro pode persistir só dígitos (17 ou 13) ou já formatado; o adapter formata.
+        const anvisaNorm = normalizeAnvisaNumber(anvisaRaw);
+        const anvisaNum = anvisaNorm.value ?? "";
+        if (anvisaRaw && !anvisaNorm.value) {
+          console.warn(`[meli-publish-listing] ANVISA inválida no cadastro (raw="${anvisaRaw}", reason=${anvisaNorm.reason}) — atributo será omitido`);
+        }
         const afeNum = typeof regInfo.afe === "string" ? regInfo.afe.trim() : "";
         const conamaNum = typeof regInfo.conama === "string" ? regInfo.conama.trim() : "";
         const normName = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -384,6 +392,23 @@ Deno.serve(async (req) => {
           const x = normName(n);
           return x.includes("anvisa") && (x.includes("numero") || x.includes("notifica") || x.includes("comunica") || x.includes("registro") || x.includes("documento"));
         };
+        // v2.4.4 — Normaliza qualquer ANVISA-number já preenchido (painel/IA/memória)
+        // antes de checar `anvisaAlreadyFilled`. Valor inválido = remove para deixar
+        // a cascata abaixo reaproveitar o cadastro normalizado.
+        for (let i = attributes.length - 1; i >= 0; i--) {
+          const a: any = attributes[i];
+          const specName = attrSpecs.find((s: any) => s.id === a.id)?.name || "";
+          if (!isAnvisaNumberById(a.id) && !isAnvisaNumberByName(specName)) continue;
+          const candidate = a.value_name ?? (Array.isArray(a.values) && a.values[0]?.name);
+          const n = normalizeAnvisaNumber(candidate);
+          if (n.value) {
+            attributes[i] = { id: a.id, value_name: n.value };
+          } else {
+            console.warn(`[meli-publish-listing] ANVISA-number ${a.id}="${candidate}" inválido — removendo para reaplicar cadastro`);
+            attributes.splice(i, 1);
+            attrIds.delete(a.id);
+          }
+        }
         // Já existe algum ANVISA-number preenchido pelo painel? Então NÃO espalhar.
         const anvisaAlreadyFilled = attributes.some((a: any) =>
           isAnvisaNumberById(a.id) || isAnvisaNumberByName(
@@ -778,6 +803,19 @@ async function sanitizeAttributesForCategory(
           continue;
         }
         console.log(`[meli-publish-listing] sanitize(update): dropping ${attr.id} (N/A not accepted)`);
+        continue;
+      }
+      // v2.4.4 — Normalização ANVISA no fluxo de update: se este attr é ANVISA-number,
+      // formata para o padrão exigido pelo ML antes de tudo (single ou multi).
+      if (ANVISA_NUMBER_IDS.has(idUp) || (spec && isAnvisaNumberByName(spec.name || ""))) {
+        const candidate = attr.value_name ?? (Array.isArray(attr.values) && attr.values[0]?.name);
+        const n = normalizeAnvisaNumber(candidate);
+        if (n.value) {
+          cleaned.push({ id: attr.id, value_name: n.value });
+          console.log(`[meli-publish-listing] sanitize(update): ANVISA normalizada ${attr.id}="${n.value}"`);
+        } else {
+          console.warn(`[meli-publish-listing] sanitize(update): ANVISA inválida ${attr.id}="${candidate}" — drop`);
+        }
         continue;
       }
       // v2.6.0 — suporte a multi-valor (values[]): normaliza contra a lista oficial.
