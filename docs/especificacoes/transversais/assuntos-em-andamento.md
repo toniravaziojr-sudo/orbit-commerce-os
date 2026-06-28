@@ -17,25 +17,43 @@
 
 ## Assuntos Ativos
 
-### 1. Motor de Créditos — Fase F2 (cobrança de custos da plataforma)
+### 1. Motor de Créditos — Finalização (rollout e decisões estratégicas)
 
-**Doc oficial:** `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md`
+**Docs oficiais:**
+- `docs/especificacoes/plataforma/motor-creditos.md` (regras macro e arquitetura)
+- `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md` (Fase F2)
+- `docs/especificacoes/plataforma/motor-creditos-auditoria-2026-06.md` (auditoria oficial 28/06/2026 — estado atual, pendências e backlog)
 
-**Status por sub-fase:**
-- **F2.5** — `send-system-email` → 🟢 GO (validado 07/05/2026, 2 envios reais SendGrid).
-- **F2.6** — `command-insights-generate` + `ai-learning-aggregator` → 🟢 GO funcional final (07/05/2026). Validação real ponta a ponta no tenant Respeite o Homem; tenant não foi cobrado; idempotência confirmada.
-- **F2.7** — 🔒 Pendente de GO explícito do operador. Próximo passo: iniciar em modo PLANNER (somente diagnóstico) para mapear a próxima edge candidata a `recordPlatformCost`.
+**Estado atual (28/06/2026):**
+- **Fase F1 (telemetria `chargeAfter`):** ✅ ativa em todas as edges migradas.
+- **Fase F2 (cobrança de custo de plataforma via `platform_cost_ledger`):** ✅ todas as sub-fases concluídas (F2.1 até F2.13.2.C-CODE — incluindo regra estrutural F2.12 do WhatsApp/Meta: mensagens e templates Meta NÃO são cobrados pela plataforma; somente custos de plataforma como IA/processamento entram no ledger).
+- **Métricas reais do banco:** 1.127 movimentos em `credit_ledger`, 799 eventos `captured`, 176 eventos `shadow`, 7 linhas em `platform_cost_ledger`, 49 chaves de preço ativas em `service_pricing`.
+- **Cobertura v2 por tenant:** apenas **1 tenant** com `motor_v2_enabled=true` (Respeite o Homem, em live shadow).
 
-**Achados paralelos NÃO corrigidos (pendentes de autorização):**
-- Cron `generate-weekly-insights` cai em "Manual call" → 401 silencioso (refatorar a edge, não o cron).
-- `get_auth_user_email` retorna `permission denied` na tela `/platform/emails` (task `b70aa82b`).
+**Pendências reais para fechar o tema (4 decisões estratégicas — aguardando operador):**
+1. **Rollout v2 do shadow para live por categoria** (`email`, `ai_text`, `ai_image`, `video`, etc.) com critérios objetivos (delta_pct, volume, janela). Proposta: começar por `email` + `ai_text` no Respeite o Homem por 14 dias em live antes de ampliar.
+2. **Reprecificação dos pacotes 15K / 50K** (Risco R9 no doc principal — câmbio e markup podem ter desalinhado margem).
+3. **Câmbio Fase 2** — migrar de R$ 5,50 manual para PTAX Bacen automático.
+4. **Reconciliação `tenant_ai_usage` (legada)** — decisão binária: aposentar (recomendação técnica) ou restaurar paridade com `credit_ledger`.
+
+**Backlog de hardening (não-bloqueante, registrado no doc de auditoria):**
+- HMAC SHA-256 definitivo em webhooks.
+- Validação `x-hub-signature-256` em todos webhooks Meta.
+- Sanitização de `last_error` em 5 OAuths.
+- Header Bearer no healthcheck WhatsApp.
+- Hardening de logs admin.
+- Auditoria de `agenda_authorized_phones`.
+
+**Achados paralelos antigos — REVERTIDOS (não procedem):**
+- ~~Cron `generate-weekly-insights` 401~~ → não existe essa edge; o cron real (`weekly-command-insights`, jobid 56, chama `command-insights-generate`) está rodando com sucesso há semanas.
+- ~~`get_auth_user_email` permission denied em `/platform/emails`~~ → a RPC está corretamente revogada de `anon`/`authenticated` por design; uso restrito a RLS de tabelas admin. Sem erro ativo.
 
 **Restrições firmes:**
-- Não corrigir os achados paralelos sem autorização.
-- Não iniciar F2.7 sem autorização.
-- Toda nova fase começa em PLANNER, executa só após GO.
-- Nunca processar mais de 1 tenant em validação real.
-- Nunca apagar linha real de `platform_cost_ledger`.
+- Cada uma das 4 decisões estratégicas exige GO explícito do operador antes de qualquer execução.
+- Promoção de qualquer categoria de shadow para live exige PLANNER → GO → execução por categoria isolada.
+- Nunca processar mais de 1 tenant em janela de promoção sem confirmação.
+- Nunca apagar linha real de `platform_cost_ledger` ou `credit_ledger`.
+- Itens de hardening só entram em execução com GO explícito.
 
 ---
 
