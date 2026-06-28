@@ -455,6 +455,17 @@ export function MeliListingsTab() {
                 </TooltipTrigger>
                 <TooltipContent>Força uma reconciliação imediata com o Mercado Livre</TooltipContent>
               </Tooltip>
+              {activeTab === 'published' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" onClick={handleRefreshHealth} disabled={isRefreshingHealth}>
+                      {isRefreshingHealth ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      Reavaliar qualidade
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Recalcula a nota oficial (0-100) e pendências dos anúncios publicados, consultando o Mercado Livre.</TooltipContent>
+                </Tooltip>
+              )}
               <Button onClick={() => setShowCreator(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Anúncio
