@@ -324,6 +324,8 @@ O Mercado Livre Brasil aplica **frete grátis obrigatório em todo anúncio com 
 
 **Anti-regressão:** o cadastro do produto continua intocável. Toda a regra de frete grátis vive no adaptador de envio e na UI do anúncio.
 
+**UX da lista (v2.5.2 — 2026-06-29):** o Step 9 passou a exibir scrollbar sempre visível, altura mínima útil e um contador "{N} anúncios — role para ver todos" quando há mais de 4 itens. Sem isso, com o bloco fixo "Retirada no Local" abaixo, a lista aparentava conter apenas os primeiros 4 anúncios.
+
 
 
 
