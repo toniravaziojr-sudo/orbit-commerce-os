@@ -109,6 +109,7 @@ const HealthMonitor = lazy(() => import("@/pages/HealthMonitor"));
 const Shipments = lazy(() => import("@/pages/Shipments"));
 const ShippingDashboard = lazy(() => import("@/pages/ShippingDashboard"));
 const ShippingSettings = lazy(() => import("@/pages/ShippingSettings"));
+const ExternalShipping = lazy(() => import("@/pages/ExternalShipping"));
 const AwaitingConfirmation = lazy(() => import("@/pages/AwaitingConfirmation"));
 const AcceptInvite = lazy(() => import("@/pages/AcceptInvite"));
 const SystemUsers = lazy(() => import("@/pages/SystemUsers"));
@@ -435,6 +436,7 @@ const App = () => {
                   <Route path="/shipping" element={<ShippingDashboard />} />
                   <Route path="/shipping/shipments" element={<FeatureGatedRoute moduleKey="erp_logistica" featureKey="remessas" featureName="Remessas" featureDescription="Gestão de remessas e etiquetas"><Shipments /></FeatureGatedRoute>} />
                   <Route path="/shipping/settings" element={<ShippingSettings />} />
+                  <Route path="/external-shipping" element={<FeatureGatedRoute moduleKey="erp_logistica" featureKey="remessas" featureName="Logística Externa" featureDescription="Etiquetas emitidas por marketplaces e gateways"><ExternalShipping /></FeatureGatedRoute>} />
                   <Route path="/shipments" element={<Navigate to="/shipping/shipments" replace />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/checkout-links" element={<CheckoutLinks />} />

@@ -1,73 +1,133 @@
 
-# Plano — Camada Adaptadora ML + Auditoria de Qualidade (reaproveitando o que já existe)
+## 📋 CHECKLIST DE CONFORMIDADE
+- Doc de Regras do Sistema lido (governança)
+- Docs do tema lidos: `mercado-livre.md`, `erp/logistica.md`, memórias `wms-pratika-*`, `gateway-vs-local-shipping-routing`
+- **Lacuna documental declarada:** não existe doc formal para "Logística Externa" — será criada na Onda 4
+- Fluxo afetado: ingestão de pedido ML → `orders` → NF automática (Focus) → envio chave NF ao ML → ML libera etiqueta → puxa etiqueta → Pratika + tracking + notificações
+- Fonte de verdade: `orders` (pedido), `fiscal_invoices` (NF), nova `marketplace_shipments` (etiquetas externas), `shipments` (etiquetas internas), `shipping_providers.provider_kind`
+- Módulos impactados: Mercado Livre, Pedidos, Fiscal, Logística Interna, Logística Externa, Pratika, Notificações
+- UI impactada: sim (sidebar + 2 rotas + filtros) — `mapa-ui.md` será atualizado
+- Situação: **Aguardando confirmação do usuário**
 
-## Princípio guia
-Reaproveitar ao máximo o que já está em produção (sem manter código obsoleto). Nada de reescrever do zero: o que já funciona vira fundação da camada adaptadora; só removo o que ficar redundante ao consolidar.
+## 🧭 Princípio único de roteamento
 
-## O que já existe e será reaproveitado
-- `supabase/functions/meli-resolve-attributes` — toda a cascata (cadastro → memória do tenant → dicionários → IA → N/A), `humanizeMeliError`, extrator de substâncias, match por nome de ANVISA, gate de domínio. Tudo isso vira o **núcleo do motor**, só muda de lugar para `_shared/marketplace-adapter/meli/`.
-- `supabase/functions/meli-publish-listing` — sanitizadores de publish/update da v2.6.1, soberania de garantia, injeção de `UNITS_PER_PACK`, omissão de regulatórios vazios (v2.4.3). Passam a chamar o mesmo motor compartilhado, em vez de duplicar a lógica.
-- `supabase/functions/meli-bulk-operations` — cascata de categorização v1.13.0 (incluindo IA Decisora) e sanitização do termo. Mantida intacta — só ganha persistência do `coverage_report` da categoria.
-- Tabela `meli_listings` — já guarda `attributes`, `category_id/name/path_text`, `resolver_version`, `meli_response`. Vamos **adicionar colunas** em vez de criar tabela paralela.
-- Tabela `meli_product_attribute_memory` — memória de ajustes manuais do tenant. Mantida como está; vira a etapa 2 da hierarquia do adaptador (já é hoje).
-- `src/lib/marketplaces/mlReadiness.ts` e `MarketplaceFieldHint.tsx` — continuam como porta de entrada do cadastro.
-- Painel `MeliAttributesPanel`, self-healing v2.6.0, cache versionado v2.4.1, idempotência por step v2.3.0 — todos mantidos; passam a ler o novo `coverage_report` para exibir o que falta em linguagem de negócio (Regra §36), sem nova tela.
-- Aba **Anúncios** existente no hub ML — recebe os novos selos de qualidade (sem rota nova, sem mudança de UX além de chips informativos).
-- Tabela `platform_capabilities` + hook `usePlatformCapability` — já existe contrato de "capacidades por plataforma". Pode hospedar o `adapter_version` por marketplace, evitando criar registro paralelo.
+> **Quem emite a etiqueta?**
 
-## O que sai (sem deixar código morto)
-- O sanitizador duplicado dentro de `meli-publish-listing` que repete lógica do `meli-resolve-attributes` — removido após a unificação (Onda C). Antes de remover, confirmo zero outros consumidores via busca no repo.
-- `resolver_version` ad-hoc espalhado — substituído por `adapter_version` único.
+| | Logística **Interna** | Logística **Externa** |
+|---|---|---|
+| Quem emite a etiqueta | Nosso sistema (Correios contrato próprio, Loggi direto, futuras transportadoras com contrato local) | Terceiro: marketplace (ML, Shopee, TikTok Shop, Amazon-FBA) ou gateway de envio (Frenet, Melhor Envio) |
+| O que o sistema faz | Gera + imprime + entrega à transportadora; opera a Remessa | Recebe etiqueta pronta (pull) OU envia etiqueta de terceiro para outro terceiro (push) |
+| Filtro principal | Transportadora | Fonte da etiqueta |
+| Tabela canônica | `shipments` + `shipping_remessas` (já existem) | `marketplace_shipments` (nova — apesar do prefixo, cobre marketplaces **e** gateways de loja) |
 
-## Ondas
+**Cobertura dos cenários:**
+- **Ex.1** Frenet + ML → ambos em **Externa** (Frenet emite, ML emite)
+- **Ex.2** Frenet (loja) + Amazon-seller usando contrato Correios próprio → Frenet em **Externa**, Amazon em **Interna**
+- **Ex.3** Amazon-seller gerando etiqueta via Frenet/Melhor Envio e devolvendo para Amazon → **Externa** (label nasceu fora; push para o marketplace)
+- **Futuro** Shopee/TikTok-seller usando contrato próprio → Interna; usando Frenet → Externa
 
-### Onda A — Auditoria de Qualidade (responde "por que não 100" sem mexer em mais nada)
-- **Reaproveita** `meli-publish-listing`: após o POST/PUT bem-sucedido, faz `GET /items/{id}` (campo `health`) e `GET /items/{id}/health/actions`, persistindo em novas colunas de `meli_listings`: `health_score`, `health_actions`, `health_checked_at`.
-- **Nova função leve** `meli-health-sync` (clonada da estrutura de `meli-bulk-operations`, sem reinventar auth/cors): backfill sob demanda dos 25 anúncios já publicados + reconciliação periódica.
-- Aba **Anúncios** ganha chip "Nota ML: X/100" e tooltip listando `health_actions` traduzidos pelo `humanizeMeliError` já existente.
+A decisão é por linha (pedido), via função SQL `resolve_label_origin(order)` lendo `marketplace_source`, fulfillment mode do canal e `shipping_providers.provider_kind`. Marketplaces e modos novos entram no enum sem refactor.
 
-### Onda B — Espelho da Ficha + Cobertura Persistida
-- **Nova tabela** `marketplace_category_specs` (`marketplace`, `category_id`, `attributes_json`, `fetched_at`, TTL 7 dias). Substitui as chamadas repetidas a `/categories/{id}/attributes` espalhadas hoje.
-- `meli_listings` ganha `coverage_report jsonb` e `adapter_version text`.
-- O motor (que hoje vive em `meli-resolve-attributes`) passa a emitir o `coverage_report` (obrigatórios cobertos, opcionais cobertos, ignorados com motivo). O painel `MeliAttributesPanel` lê esse relatório em vez de recalcular.
-- Cruzamento na aba Anúncios: `coverage_report` × `health_actions` → mostra "o ML pediu X, seu cadastro não tem Y, corrija em Z" usando o `MarketplaceFieldHint` já existente.
+## 🔁 Fluxo ML específico (NF automática → Etiqueta → Pratika)
 
-### Onda C — Unificação do Motor (multi-marketplace ready) ✅ Fundação aplicada
-- Criado `supabase/functions/_shared/marketplace-adapter/` com:
-  - `core/contract.ts` — tipos genéricos (AttributeSpec, ResolvedAttribute, CoverageReport, AdapterContext, MarketplaceErrorHumanizer).
-  - `meli/error-humanizer.ts` — `humanizeMeliError` + `prettyAttrName` movidos de `meli-publish-listing` (comportamento preservado).
-  - `meli/index.ts` — façade que reexporta humanizer, `getMeliCategorySpec`, `fetchAndPersistMeliHealth` e expõe `MELI_ADAPTER_VERSION`.
-- `meli-publish-listing` v3.11.0 agora importa do adaptador (deletadas as duplicações locais).
-- Migração futura (mantida no plano): mover sanitizadores de publish e a cascata do `meli-resolve-attributes` para o adaptador sob `meli/resolver.ts` e `meli/sanitizers.ts` — só executar após Onda D validar o estado atual em produção, evitando refactor cego de ~2400 linhas.
+1. Webhook/cron ingere pedido em `orders` (Onda 2)
+2. Trigger fiscal atual cria PV → tenant com **NF automática** emite NF → `fiscal_invoices.status='authorized'` com `chave_acesso` e XML
+3. **Novo:** trigger SQL ao detectar NF autorizada de pedido ML enfileira o envio da chave da NF ao ML (sem `pg_net` direto — usa fila + cron, padrão da casa)
+4. Edge `meli-send-invoice` faz POST no ML anexando a NF; ML aceita e (assíncrono) muda `shipment.status` para `ready_to_ship`
+5. Webhook `shipments` (já tratado) OU o `external-shipping-sync-cron` aciona `meli-fetch-shipment`
+6. `meli-fetch-shipment` baixa PDF (`/shipments/{id}/labels?response_type=pdf`) + tracking; salva PDF em Storage `marketplace-labels` e upserta `marketplace_shipments`
+7. Despachante `external-shipment-to-pratika` envia `(chave_nf, pdf_etiqueta, tracking_number)` para Pratika reutilizando o adapter SOAP existente (CNPJ cru + envio combinado conforme memória `wms-pratika-combined-send-and-cnpj-raw`)
+8. Mudanças em `marketplace_shipments` propagam para `orders.tracking_*` → motor de notificações dispara naturalmente
 
+**Idempotência:** chave única `(tenant_id, source_key, external_shipment_id)`. Pratika já é idempotente por `invoice.id`. Retry seguro em qualquer etapa.
 
-### Onda D — Teste real do fluxo novo
-- Tenant **respeite-o-homem** como cobaia.
-- Roteiro:
-  1. Backfill de health dos 25 anúncios existentes — confirmar que `health_score` e `health_actions` aparecem em todos.
-  2. Reabrir o diálogo de um anúncio já publicado sem editar nada e salvar — confirmar zero erros (regressão v2.6.1) e que `coverage_report` é gravado.
-  3. Publicar 1 anúncio novo end-to-end — validar que `adapter_version` é gravado, health é coletado on-publish, e que o que aparece na aba Anúncios bate com o que o ML mostra no painel oficial.
-  4. Forçar 1 anúncio com campo obrigatório faltando no cadastro — confirmar que o painel aponta o campo com `MarketplaceFieldHint` e bloqueia publicar.
-  5. SQL de auditoria: comparar `coverage_report.missing` × `health_actions` para os 25 e para o novo, garantir consistência.
-- Validação técnica obrigatória (Knowledge): consulta ao banco, leitura dos logs das edges, verificação do build. Se algum item falhar, voltar ao Diagnóstico antes de partir para a Onda E.
+**Remessa automática do tenant Respeite o Homem:** continua valendo só para Interna; ML não toca em `shipping_remessas`.
 
-### Onda E — Atualização documental (só após D passar)
-- `docs/especificacoes/marketplaces/_padrao-canonico-marketplaces.md` — nova seção "Camada Adaptadora (multi-marketplace)" com o contrato genérico.
-- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Adaptador e Auditoria de Qualidade" (health, coverage_report, adapter_version, fluxo on-publish + backfill).
-- `.lovable/memory/constraints/ml-cadastro-fonte-unica.md` — registrar que o motor agora é único e vive em `_shared/marketplace-adapter/meli/`.
-- `.lovable/memory/features/marketplaces/canonical-flow-standard.md` — acrescentar o contrato do adaptador como item invariável.
-- `docs/REGRAS-DO-SISTEMA.md` — referência cruzada à nova camada (sem mudar regra, só apontar).
-- `docs/especificacoes/transversais/mapa-ui.md` — só se a aba Anúncios mudar de fato (chips novos sim, rota não).
+## 🧭 Plano em 4 Ondas
 
-## Detalhes técnicos resumidos
-- **Schema novo:** `marketplace_category_specs` (tabela), `meli_listings` ganha `health_score int`, `health_actions jsonb`, `health_checked_at timestamptz`, `coverage_report jsonb`, `adapter_version text`. Migration única na Onda A (health) e outra na Onda B (coverage/spec). GRANTs e RLS conforme padrão.
-- **Edges novas:** apenas `meli-health-sync`. Tudo o mais é refactor/mover.
-- **Removidos ao final da Onda C:** blocos duplicados entre `resolve` e `publish` (lista explícita gerada antes do delete e revisada por mim).
+### Onda 1 — UI/UX e navegação
+- Sidebar: renomear `Logística` → **`Logística Interna`** (rota `/shipping` mantida). Adicionar **`Logística Externa`** (rota nova `/external-shipping`).
+- Criar `ExternalShipping.tsx` (reaproveita layout do dashboard de shipping) com abas: **Dashboard**, **Objetos de postagem**, **Rastreios**. Sem "Remessas", sem "Prontos para emitir".
+- Filtro principal: **Fonte da etiqueta** (todos / Mercado Livre / Shopee / TikTok Shop / Frenet / Melhor Envio / Amazon-seller). Estrutura genérica para novas fontes.
+- Ações por linha: baixar PDF, abrir no marketplace, reenviar à Pratika, copiar tracking.
+- Card extra no Dashboard: **"Aguardando NF"** (pedidos ML cuja etiqueta depende de NF autorizada).
+- `Logística Interna` mantém Remessas + "Prontos para emitir"; filtro continua **Transportadora**.
+- Atualizar `mapa-ui.md`.
 
-## Limitações e decisões técnicas que assumo (sem nova consulta)
-- TTL do espelho da ficha: 7 dias + refresh on-demand quando o adaptador detectar atributo desconhecido.
-- Backfill de health: leitura no ML, não destrutiva — sigo sem nova confirmação.
-- UI: zero tela nova. Só chips informativos na aba Anúncios já existente. Qualquer página dedicada de "Qualidade dos Anúncios" virá só com sua aprovação futura.
-- Núcleo core (Produtos/Clientes/Pedidos) intocado, conforme Regra §3.2.1.
+### Onda 2 — Ingestão de pedidos ML
+1. Agendar cron `meli-orders-reconcile` (`*/15 * * * *`) — função já existe mas **não está agendada**.
+2. **Backfill imediato**: rodar `meli-sync-orders` em modo `fullSync` para o tenant Respeite o Homem → validar entrada dos 2 pedidos da imagem em `/orders` e PV em `/fiscal?tab=pedidos`.
+3. Documentar (runbook) que o app ML no DevCenter precisa ter `orders_v2` e `shipments` assinados (webhook já trata os dois).
+4. Hardening de `meli-sync-orders`: tolerar `buyer.email` ausente, lidar com `pack_id` (múltiplos pedidos no mesmo pacote).
 
-Sigo A → B → C → D → E nessa ordem, validando ao final de cada onda antes de avançar?
+### Onda 3 — Logística Externa: NF → Etiqueta → Pratika
+
+**Schema (migração — segue padrão `wms-pratika-*` e RLS por tenant):**
+```
+marketplace_shipments(
+  id, tenant_id, label_origin enum('marketplace','gateway'),
+  source_key text,            -- 'mercadolivre' | 'frenet' | 'melhor_envio' | 'amazon_seller' | 'shopee' | 'tiktok_shop'
+  order_id FK orders, marketplace_order_id, external_shipment_id,
+  carrier, tracking_number, tracking_url,
+  status enum('awaiting_invoice','ready_to_ship','label_issued','in_transit','delivered','problem','returned'),
+  label_pdf_url, label_fetched_at,
+  invoice_id FK fiscal_invoices, invoice_sent_at,
+  pratika_sent_at, last_tracking_event_at,
+  raw jsonb, created_at, updated_at
+) + UNIQUE(tenant_id, source_key, external_shipment_id) + RLS tenant + GRANTs
+```
+Bucket Storage `marketplace-labels` privado, tenant-scoped.
+
+**Edge functions novas:**
+- `meli-send-invoice` — recebe `order_id`; busca NF autorizada; anexa chave/XML no ML; preenche `invoice_sent_at`.
+- `meli-fetch-shipment` — busca `/shipments/{id}` + PDF; upserta `marketplace_shipments`; salva PDF.
+- `external-shipment-to-pratika` — despachante único; reusa `wms-pratika-send` (`send_combined`) respeitando regra NF+rastreio juntos, CNPJ cru.
+- `external-shipping-sync-cron` (30min) — (a) varre `marketplace_shipments` não-terminais e atualiza tracking; (b) varre pedidos ML com NF autorizada e `invoice_sent_at IS NULL` e chama `meli-send-invoice` (rede de segurança).
+
+**Triggers SQL:**
+- Em `fiscal_invoices` autorizada + pedido ML → enfileira `meli-send-invoice` via tabela de fila (padrão `gateway_sync_queue`), consumida por cron — **sem `pg_net` direto** (constraint do projeto).
+- Em mudança de `marketplace_shipments.status/tracking_*` → propaga para `orders.tracking_*`.
+
+**Webhook ML:** quando `topic='shipments'` chegar, já dispara `meli-fetch-shipment` (caminho primário; cron é fallback).
+
+**Frenet (gateway de loja):** adicionar gancho em `gateway-attach-fiscal-doc` para criar linha em `marketplace_shipments` com `source_key='frenet'` e deixar o cron puxar PDF gerado pela Frenet — aparece na mesma UI de Externa.
+
+**Melhor Envio / Amazon-seller / Shopee / TikTok labels:** ficam **stubbed** — enum suporta, arquivo adapter criado vazio com TODO, UI mostra o filtro. Sem código de integração agora (zero gasto de processamento).
+
+### Onda 4 — Validação técnica + Documentação
+
+**Validação técnica obrigatória (executada por mim antes de fechar):**
+- `SELECT order_number, marketplace_order_id, status FROM orders WHERE marketplace_source='mercadolivre'` → 2 pedidos perdidos presentes
+- `SELECT numero, chave_acesso, status FROM fiscal_invoices WHERE source_order_id IN (...)` → PV + NF criados
+- Disparar `meli-send-invoice` num pedido com NF autorizada → `invoice_sent_at` preenchido, sem 4xx
+- Disparar `meli-fetch-shipment` → PDF no Storage + linha em `marketplace_shipments`
+- Conferir log em `wms_pratika_logs` (operação combined, success)
+- Abrir `/external-shipping` → card "Aguardando NF", filtro Fonte, ações (baixar/reenviar)
+- Logs limpos em todas as edges novas
+
+**Documentação:**
+- `docs/especificacoes/logistica/logistica-interna.md` (renomeação a partir de `erp/logistica.md` + ajuste de escopo)
+- `docs/especificacoes/logistica/logistica-externa.md` **(NOVO)** — princípio "quem emite o label", matriz de fontes, fluxo NF→ML→Etiqueta→Pratika, contratos
+- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Ciclo Fiscal-Logístico ML" + tópicos DevCenter obrigatórios + cron agendado
+- `docs/especificacoes/transversais/mapa-ui.md` — rename + rota nova
+- `docs/especificacoes/transversais/assuntos-em-andamento.md` — encerramento do tema
+- Memórias: nova `mem://features/logistics/external-vs-internal-routing-standard`; atualizar `meli-listings-bidirectional-sync.md` (orders+shipments) e `gateway-vs-local-shipping-routing.md` (cross-ref)
+
+## 🔧 Detalhes técnicos
+- Tenant piloto: Respeite o Homem; conexão ML `91cb152c-20bc-41c2-8188-56070034e4db`
+- Endpoints ML: `POST /shipment_labels` (anexar NF), `GET /shipments/{id}`, `GET /shipments/{id}/labels?response_type=pdf`
+- Tópicos DevCenter manuais: `orders_v2`, `shipments`
+- Crons novos: agendar `meli-orders-reconcile` (15min) + criar `external-shipping-sync-cron` (30min) — ambos com anon key hardcoded no header (constraint `cron-service-role-key-guc-prohibition`)
+- Padrão de fila: `gateway_sync_queue`-like (sem `pg_net` no DB)
+- Pratika: chamadas seguem `wms-pratika-send action=send_combined`, CNPJ 14 dígitos puros, chave 44 dígitos puros — sem alteração no adapter
+- Reuso máximo: zero refactor em fiscal/Pratika; tudo novo é aditivo
+
+## ❓ Pontos para sua aprovação
+Mudanças de **UI/navegação** dentro do escopo que você já autorizou:
+- Renomear `Logística` → `Logística Interna` (mesma rota)
+- Nova `Logística Externa` com 3 abas
+- Filtro "Fonte da etiqueta" no Externa, mantendo "Transportadora" no Interna
+
+Tudo o que está aqui está dentro do que você pediu (logística interna vs externa, fluxo NF→ML→Etiqueta→Pratika, considerar NF automática do tenant). Nenhuma mudança de negócio fora do seu pedido.
+
+**Confirma a sequência Onda 1 → Onda 2 → Onda 3 → Onda 4 e eu executo?**

@@ -12246,6 +12246,100 @@ export type Database = {
           },
         ]
       }
+      marketplace_shipments: {
+        Row: {
+          carrier: string | null
+          created_at: string
+          external_shipment_id: string
+          id: string
+          invoice_id: string | null
+          invoice_sent_at: string | null
+          label_fetched_at: string | null
+          label_origin: string
+          label_pdf_url: string | null
+          last_error: string | null
+          last_tracking_event_at: string | null
+          marketplace_order_id: string | null
+          order_id: string | null
+          pratika_sent_at: string | null
+          raw: Json
+          source_key: string
+          status: string
+          tenant_id: string
+          tracking_number: string | null
+          tracking_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          carrier?: string | null
+          created_at?: string
+          external_shipment_id: string
+          id?: string
+          invoice_id?: string | null
+          invoice_sent_at?: string | null
+          label_fetched_at?: string | null
+          label_origin: string
+          label_pdf_url?: string | null
+          last_error?: string | null
+          last_tracking_event_at?: string | null
+          marketplace_order_id?: string | null
+          order_id?: string | null
+          pratika_sent_at?: string | null
+          raw?: Json
+          source_key: string
+          status?: string
+          tenant_id: string
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string | null
+          created_at?: string
+          external_shipment_id?: string
+          id?: string
+          invoice_id?: string | null
+          invoice_sent_at?: string | null
+          label_fetched_at?: string | null
+          label_origin?: string
+          label_pdf_url?: string | null
+          last_error?: string | null
+          last_tracking_event_at?: string | null
+          marketplace_order_id?: string | null
+          order_id?: string | null
+          pratika_sent_at?: string | null
+          raw?: Json
+          source_key?: string
+          status?: string
+          tenant_id?: string
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_shipments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_shipments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_shipments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_sync_logs: {
         Row: {
           completed_at: string | null
@@ -13116,6 +13210,70 @@ export type Database = {
             columns: ["scene_component_id"]
             isOneToOne: false
             referencedRelation: "media_preset_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meli_invoice_send_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          done_at: string | null
+          id: string
+          invoice_id: string
+          last_error: string | null
+          next_attempt_at: string
+          order_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          invoice_id: string
+          last_error?: string | null
+          next_attempt_at?: string
+          order_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          invoice_id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          order_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meli_invoice_send_queue_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meli_invoice_send_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meli_invoice_send_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
