@@ -1479,3 +1479,48 @@ O adaptador NÃO inclui cron de escrita. Health, sync de status e webhooks são 
 - Proibido bloquear a resposta de publish/update aguardando `fetchAndPersistMeliHealth` — é fire-and-forget.
 - Toda mudança no contrato do adaptador (`core/contract.ts`) deve incrementar `MELI_ADAPTER_VERSION` e atualizar este doc + memória `ml-cadastro-fonte-unica.md`.
 
+
+---
+
+## Sync de Pedidos v3.12 — Enriquecimento e Paridade Financeira (2026-06-29)
+
+> Resolve o problema "pedidos do ML entravam vazios em /orders": sem CPF, endereço, telefone e fora do faturamento.
+
+### Fontes de dados consultadas por pedido
+A função `meli-sync-orders` consulta agora **três endpoints** por pedido (em paralelo após o GET principal):
+
+1. **`GET /orders/{id}`** — cabeçalho do pedido (status, itens, valores, `buyer.id/nickname/first_name/last_name`, `shipping.id`).
+2. **`GET /orders/{id}/billing_info`** — documento fiscal (CPF/CNPJ), nome completo e endereço de cobrança. Resposta vem como `{ billing_info: { doc_number, doc_type, additional_info: [{type, value}, ...] } }`. Achatado por `flattenBillingInfo()` em `STREET_NAME`, `STREET_NUMBER`, `ZIP_CODE`, `CITY_NAME`, `STATE_CODE`, `NEIGHBORHOOD`, `DOC_NUMBER`, `DOC_TYPE`, etc.
+3. **`GET /shipments/{id}`** (header `x-format-new: true`) — endereço e telefone do **receptor** real (`destination.receiver_address`, `destination.receiver_phone`). Tem prioridade sobre o endereço de cobrança.
+
+### Limitação conhecida — e-mail do comprador
+A API do ML **não expõe** o e-mail do comprador para sellers (privacidade). O sistema grava um e-mail sintético determinístico `meli-{orderId}@marketplace.local` (constraint `customers.email NOT NULL`) e marca em `orders.customer_notes` o aviso "Importado do Mercado Livre — pendente: email, ...". A comunicação com o comprador segue pelo canal interno do ML. Anti-regressão: **proibido** alucinar e-mails reais.
+
+### Resolução / criação de cliente — ordem de prioridade
+1. `customers.last_external_id` = `buyer.id` AND `last_source_platform='mercadolivre'`
+2. `customers.cpf` (quando billing_info entrega CPF)
+3. `customers.cnpj` (quando billing_info entrega CNPJ)
+4. `customers.email` (apenas se real, **não** sintético)
+5. Cria novo `customer` preenchendo endereço, CPF, telefone, nome — flag `last_source_platform='mercadolivre'`.
+
+Quando o cliente já existe, somente campos vazios são preenchidos; **e-mail canônico nunca é sobrescrito**.
+
+### Paridade financeira (Dashboard / Relatórios)
+O Dashboard (`useDashboardMetrics`) e Pagamentos (`usePayments`) filtram por `.not('payment_gateway_id', 'is', null)`. Para que pedidos do ML entrem nessas métricas sem exceção:
+
+- Criou-se `payment_providers (provider='mercadolivre')` por tenant com conexão ML ativa.
+- `meli-sync-orders` grava `payment_gateway='mercadolivre'` e `payment_gateway_id={provider.id}` em todo pedido importado.
+- **Anti-regressão:** sempre que um tenant conectar o ML, criar o `payment_providers` correspondente; sem ele, os pedidos ficam fora dos relatórios financeiros. (Ver migração inicial e o helper interno na função.)
+
+### Marcadores adicionais persistidos
+- `orders.marketplace_data.meli_billing_doc_type` — `CPF` ou `CNPJ` registrado.
+- `orders.marketplace_data.meli_pending_fields` — lista textual (`["email","telefone",...]`).
+- `orders.customer_notes` — frase em português listando pendências para exibição na UI.
+
+### Logo oficial na UI
+`OrderSourceBadge` passou a usar `src/assets/marketplaces/mercadolivre.png` (logo handshake amarelo oficial) no lugar do SVG genérico. Mesma posição, mesmo tamanho, sem regressão de layout.
+
+### Anti-regressão
+- Proibido remover as chamadas a `/billing_info` ou `/shipments` em `meli-sync-orders` — sem elas, o pedido entra vazio.
+- Proibido fabricar e-mails reais ou CPFs — apenas o e-mail sintético padronizado é aceito.
+- Proibido reintroduzir filtro por `payment_gateway_id` em `useOrders` (já documentado lá): a lista de pedidos NÃO filtra por gateway, apenas Dashboard/Pagamentos.
