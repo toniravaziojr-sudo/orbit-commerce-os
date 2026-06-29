@@ -77,3 +77,13 @@ Estados: `pending | sent | failed`.
 - Inscrever os tópicos `orders_v2` e `shipments` no app DevCenter do ML do tenant (sem isso o webhook não chega).
 - Garantir que `fiscal-invoice-issue` dispare automaticamente para pedidos com `sales_channel='marketplace'`.
 - Configurar Pratika para aceitar tracking de múltiplas fontes (já há fallback em `wms-pratika-send`).
+
+## 8. Enriquecimento de Pedidos do ML (rev 2026-06-29 — v3.12)
+
+A função `meli-sync-orders` agora consome **três endpoints** por pedido (`/orders/{id}`, `/orders/{id}/billing_info`, `/shipments/{id}` com header `x-format-new: true`) para entregar ao módulo `/orders` o pedido completo com **CPF/CNPJ, nome real, endereço de entrega e telefone**. Detalhe completo do contrato e dos parsers em `docs/especificacoes/marketplaces/mercado-livre.md` §"Sync de Pedidos v3.12".
+
+Pontos-chave que afetam a Logística Externa:
+- O endereço usado na etiqueta vem prioritariamente do **shipment** (`destination.receiver_address`), com `billing_info` como fallback.
+- Cada pedido importado entra com `payment_gateway='mercadolivre'` e `payment_gateway_id` válido, então passa a contar nos relatórios financeiros (Dashboard / Pagamentos).
+- O badge de origem na lista `/orders` usa o logo oficial do ML (`src/assets/marketplaces/mercadolivre.png`).
+- E-mail do comprador permanece sintético (`meli-{orderId}@marketplace.local`) por restrição da API do ML; `customer_notes` registra essa pendência para visibilidade do lojista.
