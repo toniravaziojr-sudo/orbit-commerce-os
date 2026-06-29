@@ -142,6 +142,7 @@ async function processTenanDrafts(
       order_number,
       status,
       payment_status,
+      sales_channel,
       total,
       subtotal,
       shipping_total,
@@ -225,7 +226,9 @@ async function processTenanDrafts(
       const order = ordersWithExistingDraft.find((o: any) => o.id === inv.order_id);
       if (!order || !inv.numero || inv.numero <= 0) continue;
       const orderStatus = String(order.status || '');
-      if (orderStatus !== 'ready_to_invoice') continue;
+      const isMarketplaceAuto = String((order as any).sales_channel || '') === 'marketplace'
+        && String((order as any).payment_status || '') === 'approved';
+      if (orderStatus !== 'ready_to_invoice' && !isMarketplaceAuto) continue;
 
       const baseUrl = Deno.env.get('SUPABASE_URL')!;
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -551,7 +554,12 @@ async function processTenanDrafts(
       //   Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
       // (mesmo padrão usado por scheduler-tick.callSubFunction).
       const orderStatus = String(order.status || '');
-      const statusMatches = orderStatus === 'ready_to_invoice';
+      // Marketplace orders (ML, Shopee, TikTok Shop) precisam de NF antes da etiqueta —
+      // são considerados elegíveis assim que aprovados, sem exigir transição manual a
+      // 'ready_to_invoice'. Loja virtual mantém o gate manual.
+      const isMarketplaceAuto = String((order as any).sales_channel || '') === 'marketplace'
+        && String((order as any).payment_status || '') === 'approved';
+      const statusMatches = orderStatus === 'ready_to_invoice' || isMarketplaceAuto;
 
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         const baseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -632,24 +640,29 @@ Deno.serve(async (req) => {
     
     const authHeader = req.headers.get('Authorization');
     const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
-    const isCronMode = isServiceRoleCall;
 
-    // ========== TRIGGER MODE: single order from DB trigger ==========
-    // Detected by presence of order_id + tenant_id in body with cron-like auth
+    // ========== TRIGGER / CRON detection ==========
+    // O trigger SQL (pg_net) e o cron interno podem chegar com anon key + body
+    // específico. Tratamos esses como invocações de sistema confiáveis pois a
+    // função está com verify_jwt=false e o body carrega a intenção.
     let body: any = {};
     try {
       body = await req.json();
     } catch { /* empty body is ok for cron */ }
 
-    if (isServiceRoleCall && body?.order_id && body?.tenant_id) {
+    const isSystemCall = isServiceRoleCall || body?.cron_invocation === true || (body?.order_id && body?.tenant_id);
+    const isCronMode = isSystemCall && !(body?.order_id && body?.tenant_id);
+
+    // ========== TRIGGER MODE: single order ==========
+    if (isSystemCall && body?.order_id && body?.tenant_id) {
       console.log(`[fiscal-auto-create-drafts][${VERSION}] TRIGGER mode — order: ${body.order_id}, tenant: ${body.tenant_id}`);
-      
+
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       const result = await processTenanDrafts(supabase, body.tenant_id, null, body.order_id);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           mode: 'trigger',
           created: result.created,
           errors: result.errors.length > 0 ? result.errors : undefined,
@@ -719,6 +732,13 @@ Deno.serve(async (req) => {
     }
 
     // ========== USER MODE: process single tenant ==========
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } }
     });
