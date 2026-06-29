@@ -1,108 +1,98 @@
-## 📋 CHECKLIST DE CONFORMIDADE
-- [x] Doc de Regras do Sistema lido (governança)
-- [x] Docs formais lidos: `docs/especificacoes/logistica/logistica-externa.md`, `docs/especificacoes/marketplaces/mercado-livre.md`, memórias de fiscal/shipping/customers
-- [x] Fluxos identificados: rastreio Correios, reconcile fiscal #658, fluxo fiscal+logístico de pedidos ML, cadastro/dedupe de cliente ML
-- [x] Fonte de verdade: `shipment_events` (Correios), `fiscal_invoice_events` (autorização SEFAZ), `orders.sales_channel='marketplace'` (canal), `customers.cpf` (dedupe), Profile Enrichment Policy + Systemic Tag Cliente
-- [x] Módulos impactados: Logística Interna, Logística Externa, Fiscal (PV + NF), Pedidos (ML), Clientes, Email Marketing
-- [x] Impacto cruzado: `enqueue_fiscal_draft`, cron reconcile, sync ML, trigger `customer_metrics_sync_v2`, `systemic-tag-cliente`
-- [x] UI impactada → `mapa-ui.md` será atualizado
-- **Situação:** Diagnóstico em andamento — aguardando aprovação do plano
+## Objetivo
 
----
+Fazer os pedidos do Mercado Livre percorrerem **o mesmo fluxo** dos pedidos da loja virtual em Cliente → Fiscal → Logística, respeitando 3 limitações reais do ML: e-mail/telefone podem não vir, etiqueta é gerada pelo ML (não pelos Correios) e a entrada do pedido vem por webhook/sync. Sem gambiarra, sem auto-cura silenciosa, sem regra exclusiva por tenant.
 
-## Diagnóstico (4 problemas distintos)
+## 1. Cliente do ML reaproveita cadastro existente (Onda 4 rev.)
 
-### 1) Card "Problemas de envio/entrega" sem motivo real dos Correios
-- Card mostra só "Falha" + rastreio.
-- O motivo já existe em `shipment_events.description` (ex.: #633 = "Tentativa de entrega não efetuada" em FORTALEZA-CE 26/06 19:01).
-- Sem tratativa específica para **"Aguardando retirada na agência"** (status pós 3 tentativas dos Correios, prazo padrão **7 dias corridos** para retirada antes de devolução ao remetente).
+**Como funciona hoje:** o `meli-sync-orders` já procura cliente por `last_external_id → CPF → CNPJ → e-mail real`. Quando não acha, cria com e-mail sintético `meli-{id}@marketplace.local`. Esse sintético dispara duplicidade no fluxo de leads e some o cliente real.
 
-### 2) Pedido #658 (Alexandre) — NF nunca foi curada
-- Confirmado: NF nº 442 está em `draft`/`pronta_emitir` apesar do evento `authorized` gravado em 27/06 13:30:41 (e `email_sent` em seguida).
-- Cenário clássico que motivou o `fiscal-reconcile-authorized`. O cron está agendado para 8h–16h BRT seg-sex, mas o caso real **nunca foi disparado retroativamente**. Por isso o pedido não mudou — o ajuste só preparou a cura automática.
+**O que muda:**
+- **Match ampliado:** quando ML não envia e-mail, mas envia CPF/CNPJ e/ou telefone, casar também por `phone` (normalizado em dígitos, com variantes 55) — mesma regra do `lookup_customer` da IA. Reaproveita cliente da loja sem criar registro novo.
+- **Nunca sobrescrever dado real:** se o cliente encontrado já tem e-mail/telefone reais cadastrados, o pedido do ML **usa esses dados** (inclusive em `customer_email` no pedido, para notificações funcionarem). Só preenche campo do cliente quando estiver vazio (política já existente em `profile-enrichment-policy-standard`).
+- **E-mail sintético segue existindo como último recurso** (a coluna `customers.email` é NOT NULL), mas marcado em `customer_notes` e em `marketplace_data.data_pending` como “e-mail pendente”. UI mostra “Sem e-mail informado” quando o e-mail for sintético — sem alterar layout, só o texto do campo.
+- **Bloqueio anti-lead duplicado:** `sync_subscriber_on_tag_assignment` já ignora `@marketplace.local` (Onda 4 anterior) — mantém.
 
-### 3) Pedidos do ML (#662 e #663) não entram no fluxo fiscal completo
-- Confirmado: ambos com `sales_channel='marketplace'`, `payment_status='approved'`, geraram apenas o **Pedido de Venda** (nº 450 e 451, `fiscal_stage='pedido_venda'`). **Nenhuma NF foi enfileirada.**
-- Causa raiz: gatilho de promoção PV→NF não está rodando para canal marketplace; ciclo ML→NF→envio da chave→etiqueta→Pratika nunca arranca.
+## 2. Backfill dos pedidos #662 e #663
 
-### 4) Cliente do ML duplicou no lead e não trouxe dados completos
-- Confirmado no banco:
-  - **2 pedidos do ML (#662 e #663) do mesmo CPF `48027413915` apontam para o mesmo `customer_id`**, mas com **emails sintéticos diferentes** (`meli-2000017149792188@…` e `meli-2000017149957656@…`).
-  - O `customer` está com `cpf`, `phone`, `total_orders` e `total_spent` **vazios/zerados**, embora os pedidos tenham CPF e valor.
-  - **`email_marketing_subscribers` recebeu 2 entradas** (uma por order id), gerando o lead duplicado em /email-marketing.
-  - Tela do cliente mostra "R$ 0,00" e "Total de Pedidos: 0" — a métrica não foi recalculada e o pedido aparece "Em separação" sem refletir nos totais.
-- Causas:
-  - Dedupe de cliente está usando email sintético em vez de **CPF como chave primária** quando o pedido vem do ML.
-  - `meli-sync-orders` não está propagando `cpf`/`phone`/`address` para o registro do cliente (Profile Enrichment Policy não aplicada na ingestão ML).
-  - Subscriber do email marketing é criado a partir do email do pedido sem filtrar domínios sintéticos `@marketplace.local`.
-  - Trigger `customer_metrics_sync_v2` provavelmente não disparou na inserção via sync (ou dispara mas o canal marketplace passa fora do filtro).
+Comparar com pedidos da loja e reexecutar o pipeline canônico:
+1. Rodar `meli-sync-orders` apontando para esses 2 `marketplace_order_id` (re-sync atualiza, não duplica).
+2. Reassociar ao cliente real (João Carlos) caso o match novo encontre, recalculando métricas via `customer-metrics-sync`.
+3. Reemitir `order_history` se ficou incompleto.
+4. Disparar `enqueue_fiscal_draft` para criar Pedido de Venda Fiscal (hoje não foram criados — esse é o gap real).
+5. Validar que o pedido aparece em `/fiscal?tab=pedidos` e em `/external-shipping` como “Aguardando NF”.
 
----
+## 3. Avisos de problema de envio na UI
 
-## O que eu faria
+Mantém o visual padrão (badge/cartão atual do sistema). Apenas garante que:
+- Lista `/orders` → clique no aviso da coluna Envio → deep-link já existente (`resolveShippingDeepLink`) abre a aba certa.
+- Central de Execuções → clique em “Problemas com envio” → mesma aba “Problemas de envio/entrega”.
+- **Texto do motivo** passa a vir do `tracking-poll` (Correios “Aguardando retirada”, “Tentativa frustrada”, etc.), em PT-BR, conforme Onda 1 já planejada.
 
-### Onda 1 — Motivo real do Correios + Aguardando retirada
-1. **`tracking-poll`:** mapear descrições que indicam "Aguardando retirada" (ex.: "Objeto aguardando retirada no endereço indicado", "Aguardando retirada em unidade dos Correios"). Quando detectado:
-   - `delivery_status='awaiting_pickup'`
-   - Persistir em `shipments.metadata`: `pickup_unit`, `pickup_address`, `pickup_deadline` (occurred_at + 7 dias corridos), `attempt_count`.
-2. **`orders.shipping_status`:** propagar `awaiting_pickup` (transição já existe em `orderTransitions.ts`).
-3. **UI Logística — card de "Problemas de envio/entrega":**
-   - Exibir **última descrição real** dos Correios + cidade + data/hora.
-   - Se `awaiting_pickup`: card amarelo dedicado com endereço da agência e contagem regressiva (X dias para retorno).
-   - Distinção visual: vermelho = falha/devolução; amarelo = aguardando retirada.
-4. **Notificações:** garantir que a regra `awaiting_pickup` já existente dispare na mudança de status (sem duplicar).
+Sem cor/formato novo. Só conteúdo correto.
 
-### Onda 2 — Cura do #658 + validação do reconciliador
-1. Disparar `fiscal-reconcile-authorized` manualmente uma vez contra Respeite o Homem.
-2. Validar: NF 442 sobe para `authorized`, com `chave_acesso`, `fiscal_stage=emitida`, side-effects encadeados (link com remessa #324, e-mail).
-3. Confirmar que remessa #324 libera para emissão de etiqueta.
+## 4. Automação fiscal + logística unificada
 
-### Onda 3 — Pedidos do ML no fluxo fiscal e logístico externo
-1. **Trigger fiscal universal:** ajustar `enqueue_fiscal_draft` (ou helper específico) para que pedidos com `sales_channel='marketplace'` + `payment_status='approved'` sejam promovidos de PV→NF automaticamente, herdando dados do PV criado pelo `meli-sync-orders`.
-2. **Encadeamento canônico para ML:**
-   ```
-   Pedido ML → PV → NF autorizada → meli-send-invoice (chave ao ML)
-     → ML libera etiqueta → meli-fetch-shipment → marketplace_shipments
-     → external-shipping-sync-cron → Pratika
-   ```
-3. **Backfill controlado:** rodar promoção PV→NF para #662 e #663 após validar o gatilho. Sem operação destrutiva.
-4. **`/fiscal?tab=pedidos`:** se filtro atual oculta marketplace, remover exclusão.
-5. **`/external-shipping`:** garantir que cada pedido ML aparece com estado real (`awaiting_invoice` → `ready_to_ship` → `label_issued` → `in_transit`).
+**Regra única (vale para loja e marketplaces):**
+- Se `fiscal_settings.emissao_automatica = TRUE` → **toda NF é emitida sozinha**, inclusive marketplace.
+- Se `emissao_automatica = FALSE` → **toda NF é manual**, inclusive marketplace.
+- **Logística externa é sempre automática** quando a NF é autorizada (não tem opção manual — é resposta ao evento).
 
-### Onda 4 — Cliente do ML (dedupe + enriquecimento + lead único) — **NOVA**
-1. **Dedupe canônico no `meli-sync-orders`:**
-   - Chave de identidade primária = **CPF/CNPJ** (quando presente no `billing_info`). Se já existir `customer` com o mesmo CPF no tenant, **reaproveitar** em vez de criar novo. Chave secundária = `ml_buyer_id` salvo em `customers.metadata.marketplace.mercadolivre.buyer_id` (para casos sem CPF).
-   - Email sintético `meli-…@marketplace.local` continua válido apenas como rótulo de contato; **nunca como chave de dedupe**.
-2. **Enriquecimento (Profile Enrichment Policy):** ao sincronizar pedido ML, preencher campos vazios do cliente: `cpf`, `phone`, endereço completo (vindo de `/shipments` → `destination.receiver_address`), `full_name` real. **Sem sobrescrever** campos já preenchidos pelo lojista (regra Profile Enrichment).
-3. **Email Marketing — não inscrever sintéticos:** subscribe automático deve **filtrar emails com domínio `@marketplace.local`** (ou flag `is_synthetic_email=true` na `customers`). Sem opt-in real, nada de lista de marketing — alinhado com LGPD e com a política de leads do projeto.
-4. **Métricas:** confirmar que `customer_metrics_sync_v2` cobre marketplace; se não, ajustar para incluir. Recalcular para os 2 pedidos do João Carlos para a tela do cliente parar de mostrar R$ 0,00.
-5. **Backfill controlado:**
-   - Mesclar o cliente duplicado (mover assinaturas/pedidos para o `customer_id` canônico, descartar duplicata; **sem deletar histórico de pedidos**).
-   - Remover os 2 subscribers sintéticos do Email Marketing.
-   - Preencher CPF/phone/endereço do cliente único.
-   - Recalcular `total_orders` e `total_spent`.
+**Pipeline marketplace (igual ao da loja):**
 
-### Onda 5 — Validação técnica + docs
-- Para cada onda: consulta real ao banco confirmando o efeito.
-- Atualizar:
-  - `docs/especificacoes/logistica/logistica-externa.md` — motivo Correios + Aguardando retirada + fluxo ML completo
-  - `docs/especificacoes/marketplaces/mercado-livre.md` — promoção PV→NF automática + dedupe/enriquecimento de cliente ML + exclusão de marketing
-  - `docs/especificacoes/transversais/mapa-ui.md` — card "Aguardando retirada"
-  - Memória nova: `mem://constraints/marketplace-customer-dedupe-by-document` (CPF/CNPJ é chave canônica; email sintético nunca dedupa; subscribers de email marketing excluem `@marketplace.local`).
+```text
+Webhook ML → meli-sync-orders
+   ↓
+INSERT em orders (sales_channel='marketplace')
+   ↓
+Trigger atomic-order-draft (já existe)
+   ↓
+fiscal_draft_queue → cria Pedido de Venda Fiscal (sempre, igual loja)
+   ↓
+SE emissao_automatica=TRUE  →  fiscal-auto-create-drafts processa e dispara fiscal-submit (modo sistema)
+SE emissao_automatica=FALSE →  fica aguardando ação manual em /fiscal?tab=notas (igual loja)
+   ↓
+NF autorizada → trigger fire_authorized_side_effects
+   ↓ (canal marketplace?)
+meli-send-invoice (envia chave ao ML)
+   ↓
+ML libera etiqueta → webhook shipments
+   ↓
+meli-fetch-shipment baixa PDF + tracking → marketplace_shipments
+   ↓
+external-shipping-sync-cron → wms-pratika-send
+```
 
----
+**Mudanças concretas:**
+- **`fiscal-auto-create-drafts`** hoje só olha pedidos com `sales_channel='storefront'` em alguns trechos. Remover essa restrição: passa a processar pedidos de marketplace pela mesma regra (`emissao_automatica = TRUE` + pedido pago + dados completos).
+- **`fiscal-submit` em modo sistema:** refatorar para aceitar contexto `service_role` (sem `auth.uid()`), reusando o mesmo handler que o usuário aciona manualmente. Sem fork de lógica.
+- **Pré-flight bloqueia automaticamente** se faltar CPF/endereço (regra `sistema-nunca-preenche-dado-faltante-do-cliente`): pedido fica visível com pendência, não fabrica dado.
+- **`meli-send-invoice`** já dispara via fila quando NF fica `authorized` — manter.
+- **`meli-fetch-shipment`** já baixa etiqueta automaticamente via webhook + cron — manter.
+- **Cron de cura fiscal** das 8h–16h continua como rede de segurança para casos como o #658.
 
-## Pontos abertos / decisões que precisam da sua confirmação
-1. **UX do cliente sintético em /customers e /customers/{id}:** hoje aparece "meli-…@marketplace.local" como email principal. Não vou mudar a UI sem sua aprovação. Sugestão técnica (não aplicada até você confirmar): exibir apenas "Sem e-mail informado pelo Mercado Livre" + manter o sintético oculto no detalhe, mas ainda usável internamente para vínculo. **Aprovar mudança de UI?**
-2. **Backfill dos 2 pedidos ML reais (#662/#663):** envolve criar NF, deduplicar cliente e remover 2 subscribers — é ação corretiva em dados de produção. Faço com idempotência e log, mas é **ação de escrita em massa**. Preciso da sua autorização explícita.
-3. **Sem mudanças no design ou no copy fora do estritamente necessário** (card "Aguardando retirada" reutiliza o mesmo padrão visual amarelo já existente em outros estados de aviso).
+## 5. Validação técnica obrigatória
 
-## Resultado final
-- Logística: card de problema mostra a razão exata dos Correios e trata corretamente "Aguardando retirada" com endereço e prazo.
-- Fiscal: #658 curado, reconciliador validado como rede de segurança real.
-- ML: pedidos passam a percorrer PV → NF → chave ao ML → etiqueta → Pratika sem intervenção manual.
-- Cliente ML: 1 cliente por CPF, com dados completos (CPF, telefone, endereço), totais corretos, **sem duplicar lead** no Email Marketing.
+Antes de declarar concluído:
+1. Re-sync dos pedidos #662 e #663 → confirmar cliente único, PV criado, NF autorizada (se `emissao_automatica=TRUE`) ou pendente (se `FALSE`), e remessa em `marketplace_shipments`.
+2. Consultar `customers` no tenant Respeite o Homem → sem duplicados sintéticos para o mesmo CPF.
+3. Verificar `order_history` dos pedidos ML → eventos completos.
+4. Logs de `fiscal-auto-create-drafts` e `meli-send-invoice` → sem erros.
 
----
+## 6. Documentação
 
-**Confirma os 3 pontos abertos acima e eu sigo na ordem Onda 1 → 2 → 3 → 4 → 5?**
+Atualizar ao final:
+- `docs/especificacoes/marketplaces/mercado-livre.md` → seção “Identidade do cliente” (regra de match + e-mail sintético) e seção “Fluxo Fiscal Marketplace”.
+- `docs/especificacoes/fiscal/preflight-fiscal-logistico.md` → marketplace usa o mesmo pré-flight.
+- `docs/especificacoes/logistica/logistica-externa.md` → fluxo NF→Etiqueta automatizado.
+- `docs/especificacoes/transversais/assuntos-em-andamento.md` → fechar Ondas 1–4.
+- Memory: atualizar `mem://features/marketplaces/canonical-flow-standard.md` com a regra “marketplace usa a mesma flag `emissao_automatica` da loja”.
+
+## 7. Ordem de execução
+
+1. **Cliente ML** (match por telefone + UI “Sem e-mail informado”).
+2. **Backfill #662/#663** (reusa fluxo canônico que será corrigido nos passos 3–4).
+3. **Fiscal marketplace** (`fiscal-auto-create-drafts` + `fiscal-submit` modo sistema).
+4. **Tracking Correios “Aguardando retirada”** (texto do motivo na UI).
+5. **Validação técnica** + **docs**.
+
+Sem mudanças de UI além do texto do e-mail sintético e do motivo de envio. Sem flags novas por tenant. Sem cron adicional.

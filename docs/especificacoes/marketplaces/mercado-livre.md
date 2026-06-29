@@ -1497,14 +1497,21 @@ A função `meli-sync-orders` consulta agora **três endpoints** por pedido (em 
 ### Limitação conhecida — e-mail do comprador
 A API do ML **não expõe** o e-mail do comprador para sellers (privacidade). O sistema grava um e-mail sintético determinístico `meli-{orderId}@marketplace.local` (constraint `customers.email NOT NULL`) e marca em `orders.customer_notes` o aviso "Importado do Mercado Livre — pendente: email, ...". A comunicação com o comprador segue pelo canal interno do ML. Anti-regressão: **proibido** alucinar e-mails reais.
 
-### Resolução / criação de cliente — ordem de prioridade
+### Resolução / criação de cliente — ordem de prioridade (rev 2026-06-29 v3.14)
 1. `customers.last_external_id` = `buyer.id` AND `last_source_platform='mercadolivre'`
 2. `customers.cpf` (quando billing_info entrega CPF)
 3. `customers.cnpj` (quando billing_info entrega CNPJ)
 4. `customers.email` (apenas se real, **não** sintético)
-5. Cria novo `customer` preenchendo endereço, CPF, telefone, nome — flag `last_source_platform='mercadolivre'`.
+5. `customers.phone` — quando o shipment expõe `receiver_phone` e nenhum dos critérios acima resolveu. Faz match em dígitos puros, testando a variante com/sem prefixo `55` (mesma normalização do `lookup_customer` da IA). Permite reaproveitar cliente que já comprou na loja virtual usando o mesmo número.
+6. Cria novo `customer` preenchendo endereço, CPF, telefone, nome — flag `last_source_platform='mercadolivre'`.
 
-Quando o cliente já existe, somente campos vazios são preenchidos; **e-mail canônico nunca é sobrescrito**.
+Quando o cliente já existe:
+- **E-mail canônico nunca é sobrescrito.** Se o cliente já tem um e-mail real cadastrado, o pedido do ML usa esse e-mail real em `orders.customer_email` (assim notificações como confirmação, etiqueta gerada, NF emitida e rastreio continuam funcionando).
+- **Telefone canônico nunca é sobrescrito** quando já houver valor.
+- Os demais campos vazios são preenchidos (política `mem://features/customers/profile-enrichment-policy-standard`).
+
+### Exibição na UI — `displayCustomerEmail`
+O helper `src/lib/marketplaces/syntheticEmail.ts` esconde o placeholder em qualquer renderização (`OrderList`, `OrderDetail`, `CustomerList`, `CustomerDetail`). Quando o e-mail é sintético (`@marketplace.local`, `@shopee.user`, `@tiktok.user`) a UI mostra **"Sem e-mail informado"** — sem alterar layout. **Anti-regressão:** qualquer tela nova que renderize `customer.email` ou `order.customer_email` deve passar pelo helper.
 
 ### Paridade financeira (Dashboard / Relatórios)
 O Dashboard (`useDashboardMetrics`) e Pagamentos (`usePayments`) filtram por `.not('payment_gateway_id', 'is', null)`. Para que pedidos do ML entrem nessas métricas sem exceção:

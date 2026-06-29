@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayCustomerEmail } from '@/lib/marketplaces/syntheticEmail';
 import { 
   Package, 
   MoreHorizontal, 
@@ -246,7 +247,7 @@ export function OrderList({
                   </TableCell>
                   <TableCell onClick={() => onView(order)} className="py-3">
                     <p className="font-medium text-sm truncate max-w-[200px]">{order.customer_name}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{order.customer_email}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{displayCustomerEmail(order.customer_email)}</p>
                   </TableCell>
                   <TableCell className="py-3">
                     <Badge variant={orderStatusCfg.variant} className={`gap-1 text-xs whitespace-nowrap ${orderStatusCfg.color ? `${orderStatusCfg.color} border-yellow-400/50 bg-yellow-50` : ''}`}>
