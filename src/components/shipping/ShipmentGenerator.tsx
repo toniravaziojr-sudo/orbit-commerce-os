@@ -115,14 +115,15 @@ const CARRIERS = [
   { value: 'outros', label: 'Outros' },
 ];
 
-export function ShipmentGenerator() {
+export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } = {}) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const createShipment = useCreateShipment();
   const dispatchShipment = useDispatchShipment();
   
-  const [activeTab, setActiveTab] = useState('prontos');
+  const [activeTab, setActiveTab] = useState(initialSubTab || 'prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
+
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectedIssued, setSelectedIssued] = useState<Set<string>>(new Set());
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -319,10 +320,13 @@ export function ShipmentGenerator() {
     enabled: !!currentTenant?.id,
   });
 
-  // === TAB 3: Remessas pendentes (failed) ===
+  // === TAB 3+4: Pendências de emissão E problemas pós-despacho ===
   // Vínculo canônico é com PV (source_pedido_venda_id). Pedido é opcional —
   // PV manual/duplicado também aparece aqui.
-  const { data: failedShipments, isLoading: loadingFailed } = useQuery({
+  // Buscamos ambos os universos juntos (failed/returned/unknown) e dividimos
+  // pela presença de tracking_code: sem tracking = pendência de emissão,
+  // com tracking = problema de envio/entrega.
+  const { data: failedAndProblemShipments, isLoading: loadingFailed } = useQuery({
     queryKey: ['shipments-failed', currentTenant?.id, selectedCarrier],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
@@ -334,9 +338,10 @@ export function ShipmentGenerator() {
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
-        .eq('delivery_status', 'failed' as any)
+        .in('delivery_status', ['failed', 'returned', 'unknown'] as any)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(150);
+
 
       if (error) throw error;
       const shipments = ((data || []) as ShipmentRecord[]).filter(
@@ -780,7 +785,20 @@ export function ShipmentGenerator() {
 
   const readyCount = readyOrders?.length || 0;
   const issuedCount = issuedShipments?.length || 0;
-  const failedCount = failedShipments?.length || 0;
+  // Split: sem tracking_code = pendência de emissão; com tracking = problema pós-despacho.
+  const { pendingIssuance, deliveryProblems } = useMemo(() => {
+    const list = failedAndProblemShipments || [];
+    const pending: typeof list = [];
+    const problems: typeof list = [];
+    for (const s of list) {
+      if (s.tracking_code && String(s.tracking_code).trim().length > 0) problems.push(s);
+      else pending.push(s);
+    }
+    return { pendingIssuance: pending, deliveryProblems: problems };
+  }, [failedAndProblemShipments]);
+  const failedCount = pendingIssuance.length;
+  const problemCount = deliveryProblems.length;
+
 
   return (
     <div className="space-y-4">
@@ -838,7 +856,17 @@ export function ShipmentGenerator() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="problemas" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Problemas de envio/entrega
+            {problemCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                {problemCount}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
 
         {/* TAB 1: Prontos para emitir */}
         <TabsContent value="prontos" className="mt-4">
@@ -1203,7 +1231,7 @@ export function ShipmentGenerator() {
               ) : (
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {failedShipments!.map(shipment => {
+                    {pendingIssuance.map(shipment => {
                       const orderNumber = (shipment.order as any)?.order_number;
                       const customerName = (shipment.order as any)?.customer_name
                         || shipment.pv?.dest_nome
@@ -1285,7 +1313,90 @@ export function ShipmentGenerator() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* TAB 4: Problemas de envio/entrega (pós-despacho) */}
+        <TabsContent value="problemas" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Problemas de envio/entrega
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  {problemCount} remessa(s) — objeto já despachado com ocorrência
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingFailed ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+                  ))}
+                </div>
+              ) : problemCount === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  Nenhum problema de envio ou entrega no momento
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3">
+                    {deliveryProblems.map(shipment => {
+                      const orderNumber = (shipment.order as any)?.order_number;
+                      const customerName = (shipment.order as any)?.customer_name
+                        || shipment.pv?.dest_nome
+                        || 'Sem cliente vinculado';
+                      const refLabel = orderNumber
+                        ? `Pedido #${orderNumber}`
+                        : shipment.pv?.numero
+                          ? `PV ${shipment.pv.numero}`
+                          : '—';
+                      const headerLabel = `#${shipment.numero} · ${refLabel}`;
+                      return (
+                        <div
+                          key={shipment.id}
+                          className="p-3 rounded-lg border border-destructive/30 bg-destructive/5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">{headerLabel}</span>
+                                {getStatusBadge(shipment.delivery_status)}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {customerName}
+                              </p>
+                              {shipment.tracking_code && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Rastreio: <span className="font-mono">{shipment.tracking_code}</span>
+                                </p>
+                              )}
+                              {(shipment.metadata as any)?.error_message && (
+                                <p className="text-xs text-destructive mt-1">
+                                  {(shipment.metadata as any).error_message}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                            <Badge variant="outline" className="text-xs">
+                              {shipment.carrier}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateTimeBR(new Date(shipment.created_at))}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
 
       {/* Dispatch dialog removido — emissão da remessa = despacho.
           A transição para "Enviado" só acontece quando os Correios reportam o

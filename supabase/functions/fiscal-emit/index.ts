@@ -9,6 +9,9 @@ import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
 import { ensureEmitenteSynced } from "../_shared/fiscal-emitente-sync-gate.ts";
+import { persistAuthorizedState } from "../_shared/fiscal-persist-authorized.ts";
+import { fireAuthorizedSideEffects } from "../_shared/fiscal-authorized-side-effects.ts";
+
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -539,84 +542,57 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-emit] Status Focus NFe: ${focusStatus} -> ${internalStatus}`);
 
-    const updateData: any = {
-      status: internalStatus,
-      // Rejeição volta para pendência; só documento aceito/protocolado segue como emitida.
-      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
-      focus_ref: ref_final,
-      pendencia_motivos: internalStatus === 'rejected'
-        ? [statusData?.mensagem_sefaz || statusData?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
-        : null,
-      mensagem_sefaz: statusData?.mensagem_sefaz,
-      submitted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
     if (focusStatus === 'autorizado' && statusData?.chave_nfe) {
-      const baseUrl = ambiente === 'producao'
-        ? 'https://api.focusnfe.com.br'
-        : 'https://homologacao.focusnfe.com.br';
-
-      updateData.chave_acesso = statusData.chave_nfe;
-      updateData.numero = statusData.numero ? parseInt(String(statusData.numero), 10) : undefined;
-      updateData.serie = statusData.serie ? parseInt(String(statusData.serie), 10) : undefined;
-      updateData.xml_url = statusData.caminho_xml_nota_fiscal ? `${baseUrl}${statusData.caminho_xml_nota_fiscal}` : null;
-      updateData.danfe_url = statusData.caminho_danfe ? `${baseUrl}${statusData.caminho_danfe}` : null;
-      updateData.authorized_at = new Date().toISOString();
-    }
-
-    // CRÍTICO: persistir status/chave ANTES de qualquer efeito colateral.
-    // Se a NF foi autorizada na SEFAZ, o banco DEVE refletir isso mesmo que
-    // os passos seguintes (link de remessa, email, WMS) falhem.
-    const { error: persistError } = await supabaseClient
-      .from('fiscal_invoices')
-      .update(updateData)
-      .eq('id', invoice_id);
-
-    if (persistError) {
-      console.error('[fiscal-emit] FALHA CRÍTICA ao persistir status autorizado:', persistError);
-      // Não relança — a NF está autorizada na SEFAZ; registrar e seguir para side-effects.
-    }
-
-    if (focusStatus === 'autorizado' && statusData?.chave_nfe) {
-      // Side-effects pós-persistência. Falhas aqui não revertem o estado autorizado.
-      if (invoice.order_id) {
-        try {
-          await linkNFeToShipment({
-            supabaseClient,
-            orderId: invoice.order_id,
-            invoiceId: invoice_id,
-            tenantId,
-            chaveAcesso: statusData.chave_nfe,
-            autoCreateShipment: !!settings.auto_create_shipment,
-            callerModule: 'fiscal-emit',
-          });
-        } catch (linkErr) {
-          console.error('[fiscal-emit] linkNFeToShipment falhou (não bloqueia autorização):', linkErr);
-        }
-      }
-
-      if (settings.enviar_email_nfe !== false) {
-        fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ invoice_id, tenant_id: tenantId }),
-        }).catch(err => console.error('[fiscal-emit] Email error:', err));
-      }
-
-      // WMS Pratika — combinado ancorado na NF (vale para PV manual ou pedido real).
-      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
+      // CAMINHO CANÔNICO: persistAuthorizedState é o ÚNICO writer válido do estado autorizado.
+      const persistResult = await persistAuthorizedState({
+        supabaseClient,
+        invoiceId: invoice_id,
+        tenantId,
+        ambiente,
+        callerModule: 'fiscal-emit',
+        focusStatusData: {
+          status: 'autorizado',
+          chave_nfe: statusData.chave_nfe,
+          numero: statusData.numero,
+          serie: statusData.serie,
+          caminho_xml_nota_fiscal: statusData.caminho_xml_nota_fiscal,
+          caminho_danfe: statusData.caminho_danfe,
+          mensagem_sefaz: statusData?.mensagem_sefaz,
+          status_sefaz: statusData?.status_sefaz,
+          protocolo: statusData?.protocolo,
         },
-        body: JSON.stringify({ action: 'send_combined', invoice_id, tenant_id: tenantId }),
-      }).catch(err => console.error('[fiscal-emit] WMS Pratika error:', err));
+        focusRef: ref_final,
+      });
+
+      if (persistResult.persisted && persistResult.invoice) {
+        await fireAuthorizedSideEffects({
+          supabaseClient,
+          invoice: { id: invoice_id, tenant_id: tenantId, order_id: invoice.order_id },
+          chaveAcesso: statusData.chave_nfe,
+          supabaseUrl,
+          supabaseServiceKey,
+          callerModule: 'fiscal-emit',
+        });
+      }
+    } else {
+      // Rejeição / outros estados não-autorizados: persistir motivo direto.
+      const updateData: any = {
+        status: internalStatus,
+        fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : undefined,
+        focus_ref: ref_final,
+        pendencia_motivos: internalStatus === 'rejected'
+          ? [statusData?.mensagem_sefaz || statusData?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
+          : null,
+        mensagem_sefaz: statusData?.mensagem_sefaz,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update(updateData)
+        .eq('id', invoice_id);
     }
+
 
     // Marca alta da SEFAZ: o cursor numero_nfe_atual nunca recua.
     // Garante que nenhum número já queimado lá fora seja reusado por rascunho.

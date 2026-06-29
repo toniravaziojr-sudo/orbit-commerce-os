@@ -1,8 +1,10 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { persistAuthorizedState } from "../_shared/fiscal-persist-authorized.ts";
+import { fireAuthorizedSideEffects } from "../_shared/fiscal-authorized-side-effects.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { validateFiscalWebhookAuth } from "../_shared/fiscal-role-check.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -179,143 +181,106 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prepare update data
-    const updateData: Record<string, any> = {
-      status: internalStatus,
-      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : (internalStatus === 'authorized' ? 'emitida' : undefined),
-      pendencia_motivos: internalStatus === 'rejected'
-        ? [mensagem_sefaz || status_sefaz || 'Nota rejeitada pela SEFAZ.']
-        : null,
-      updated_at: now,
-    };
+    // CAMINHO CANÔNICO de autorização — passa pelo helper unificado.
+    if (status === 'autorizado' && chave_nfe) {
+      const persistResult = await persistAuthorizedState({
+        supabaseClient: supabase,
+        invoiceId: invoice.id,
+        tenantId: invoice.tenant_id,
+        ambiente: (ambiente as 'homologacao' | 'producao'),
+        callerModule: 'fiscal-webhook',
+        focusStatusData: {
+          status: 'autorizado',
+          chave_nfe,
+          numero,
+          serie,
+          caminho_xml_nota_fiscal,
+          caminho_danfe,
+          mensagem_sefaz,
+          status_sefaz,
+          protocolo: payload.protocolo_autorizacao || payload.protocolo,
+        },
+        focusRef: ref,
+      });
 
-    // Add status-specific fields
-    if (status === 'autorizado') {
-      console.log("[fiscal-webhook] Processing 'autorizado' status");
-      if (chave_nfe) updateData.chave_acesso = chave_nfe;
-      // Don't update numero/serie - they're already set when creating the draft
-      // Build full URLs for DANFE and XML
-      const fullXmlUrl = buildFocusUrl(caminho_xml_nota_fiscal, ambiente);
-      const fullDanfeUrl = buildFocusUrl(caminho_danfe, ambiente);
-      if (fullXmlUrl) updateData.xml_url = fullXmlUrl;
-      if (fullDanfeUrl) updateData.danfe_url = fullDanfeUrl;
-      updateData.authorized_at = now;
-      console.log(`[fiscal-webhook] Full DANFE URL: ${fullDanfeUrl}`);
-      console.log(`[fiscal-webhook] Full XML URL: ${fullXmlUrl}`);
-    }
+      // Log evento (sempre, mesmo se persist saltou — para o reconciliador rastrear).
+      await supabase.from('fiscal_invoice_events').insert({
+        invoice_id: invoice.id,
+        tenant_id: invoice.tenant_id,
+        event_type: 'authorized',
+        event_data: { focus_response: payload, source: 'fiscal-webhook' },
+      });
 
-    if (status === 'cancelado') {
-      console.log("[fiscal-webhook] Processing 'cancelado' status");
-      updateData.cancelled_at = now;
-      if (motivo_cancelamento) updateData.cancel_justificativa = motivo_cancelamento;
-      if (protocolo_cancelamento) updateData.protocolo = protocolo_cancelamento;
-    }
+      // Cancelamento de pedido após autorização → alerta fiscal.
+      if (invoice.order_id) {
+        const { data: order } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', invoice.order_id)
+          .maybeSingle();
 
-    if (status === 'erro_autorizacao' || status === 'denegado') {
-      console.log(`[fiscal-webhook] Processing error status: ${status}`);
-      updateData.status_motivo = mensagem_sefaz || status_sefaz;
-    }
+        if (order?.status === 'cancelled') {
+          await supabase
+            .from('fiscal_invoices')
+            .update({
+              requires_action: true,
+              action_reason: 'Pedido cancelado após autorização da NF-e',
+            })
+            .eq('id', invoice.id);
+        }
+      }
 
-    console.log("[fiscal-webhook] Update data:", JSON.stringify(updateData, null, 2));
+      if (persistResult.persisted && persistResult.invoice) {
+        await fireAuthorizedSideEffects({
+          supabaseClient: supabase,
+          invoice: { id: invoice.id, tenant_id: invoice.tenant_id, order_id: invoice.order_id },
+          chaveAcesso: chave_nfe,
+          supabaseUrl,
+          supabaseServiceKey,
+          callerModule: 'fiscal-webhook',
+        });
+      }
+    } else {
+      // Outros estados (cancelado, rejeitado, etc.): atualiza direto.
+      const updateData: Record<string, any> = {
+        status: internalStatus,
+        fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : undefined,
+        pendencia_motivos: internalStatus === 'rejected'
+          ? [mensagem_sefaz || status_sefaz || 'Nota rejeitada pela SEFAZ.']
+          : null,
+        updated_at: now,
+      };
 
-    // Update invoice
-    const { error: updateError } = await supabase
-      .from("fiscal_invoices")
-      .update(updateData)
-      .eq("id", invoice.id);
+      if (status === 'cancelado') {
+        updateData.cancelled_at = now;
+        if (motivo_cancelamento) updateData.cancel_justificativa = motivo_cancelamento;
+        if (protocolo_cancelamento) updateData.protocolo = protocolo_cancelamento;
+      }
+      if (status === 'erro_autorizacao' || status === 'denegado') {
+        updateData.status_motivo = mensagem_sefaz || status_sefaz;
+      }
 
-    if (updateError) {
-      console.error("[fiscal-webhook] Error updating invoice:", JSON.stringify(updateError));
-      return new Response(
-        JSON.stringify({ success: false, error: "Update failed", details: updateError }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+      const { error: updateError } = await supabase
+        .from('fiscal_invoices')
+        .update(updateData)
+        .eq('id', invoice.id);
 
-    console.log("[fiscal-webhook] Invoice updated successfully");
+      if (updateError) {
+        console.error('[fiscal-webhook] update failed:', updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Update failed', details: updateError }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
 
-    // Log event
-    await supabase
-      .from("fiscal_invoice_events")
-      .insert({
+      await supabase.from('fiscal_invoice_events').insert({
         invoice_id: invoice.id,
         tenant_id: invoice.tenant_id,
         event_type: `webhook_${status}`,
         event_data: payload,
       });
-
-    // If authorized and has order_id, check if order was cancelled (fiscal alert)
-    if (status === 'autorizado' && invoice.order_id) {
-      const { data: order } = await supabase
-        .from("orders")
-        .select("status")
-        .eq("id", invoice.order_id)
-        .single();
-
-      if (order?.status === 'cancelled') {
-        // Set requires_action flag for fiscal alert
-        await supabase
-          .from("fiscal_invoices")
-          .update({
-            requires_action: true,
-            action_reason: "Pedido cancelado após autorização da NF-e",
-          })
-          .eq("id", invoice.id);
-        
-        console.log(`[fiscal-webhook] Fiscal alert: order ${invoice.order_id} cancelled but NF-e authorized`);
-      } else {
-        // Vincular NF-e ao rascunho logístico e gerenciar remessa
-        const { data: fiscalSettingsShip } = await supabase
-          .from("fiscal_settings")
-          .select("auto_create_shipment")
-          .eq("tenant_id", invoice.tenant_id)
-          .single();
-
-        await linkNFeToShipment({
-          supabaseClient: supabase,
-          orderId: invoice.order_id,
-          invoiceId: invoice.id,
-          tenantId: invoice.tenant_id,
-          chaveAcesso: updateData.chave_acesso || '',
-          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
-          callerModule: 'fiscal-webhook',
-        });
-      }
-      
-      // Send NF-e email to customer if enabled
-      const { data: fiscalSettingsEmail } = await supabase
-        .from("fiscal_settings")
-        .select("enviar_email_nfe")
-        .eq("tenant_id", invoice.tenant_id)
-        .single();
-
-      if (fiscalSettingsEmail?.enviar_email_nfe !== false) {
-        console.log(`[fiscal-webhook] Sending NF-e email for invoice ${invoice.id}`);
-        // Fire and forget - don't block the webhook response
-        fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ invoice_id: invoice.id, tenant_id: invoice.tenant_id }),
-        }).catch(err => console.error('[fiscal-webhook] Email send error:', err));
-      }
     }
 
-    // WMS Pratika — disparo reativo combinado (NF + rastreio juntos).
-    // Ancorado na NF (não no pedido): vale para NF de venda originada de PV manual ou pedido real.
-    // Se ainda não há rastreio, a função responde "waiting" e o gatilho de rastreio reenvia depois.
-    if (status === 'autorizado') {
-      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({ action: 'send_combined', invoice_id: invoice.id, tenant_id: invoice.tenant_id }),
-      }).catch(err => console.error('[fiscal-webhook] WMS Pratika error:', err));
-    }
 
     console.log(`[fiscal-webhook] Invoice ${invoice.id} updated to status ${internalStatus}`);
 

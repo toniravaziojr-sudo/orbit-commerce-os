@@ -4,8 +4,10 @@ import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.t
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
-import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { persistAuthorizedState } from "../_shared/fiscal-persist-authorized.ts";
+import { fireAuthorizedSideEffects } from "../_shared/fiscal-authorized-side-effects.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
+
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -157,119 +159,80 @@ Deno.serve(async (req) => {
     const focusStatus = result.data?.status || 'processando_autorizacao';
     const internalStatus = mapFocusStatusToInternal(focusStatus);
 
-    // Preparar dados de atualização
-    const updateData: any = {
-      status: internalStatus,
-      mensagem_sefaz: result.data?.mensagem_sefaz,
-      status_sefaz: result.data?.status_sefaz,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Se autorizado, salvar dados adicionais
-    // ambiente já resolvido acima
+    // CAMINHO CANÔNICO para autorizado: persistAuthorizedState + side-effects.
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
-      updateData.chave_acesso = result.data.chave_nfe;
-      updateData.numero = result.data.numero;
-      updateData.serie = result.data.serie;
-      // Build full URLs for DANFE and XML
-      updateData.xml_url = buildFocusUrl(result.data.caminho_xml_nota_fiscal, ambiente);
-      updateData.danfe_url = buildFocusUrl(result.data.caminho_danfe, ambiente);
-      
-      if (!invoice.authorized_at) {
-        updateData.authorized_at = new Date().toISOString();
-      }
-    }
+      const persistResult = await persistAuthorizedState({
+        supabaseClient,
+        invoiceId,
+        tenantId,
+        ambiente,
+        callerModule: 'fiscal-check-status',
+        focusStatusData: {
+          status: 'autorizado',
+          chave_nfe: result.data.chave_nfe,
+          numero: result.data.numero,
+          serie: result.data.serie,
+          caminho_xml_nota_fiscal: result.data.caminho_xml_nota_fiscal,
+          caminho_danfe: result.data.caminho_danfe,
+          mensagem_sefaz: result.data?.mensagem_sefaz,
+          status_sefaz: result.data?.status_sefaz,
+          protocolo: result.data?.protocolo,
+        },
+        focusRef: invoice.focus_ref,
+      });
 
-    // Idempotência (Lote 1.C.3): nunca sobrescrever status terminal
-    const TERMINAL = new Set(['authorized', 'cancelled', 'rejected']);
-    const wouldDemoteTerminal = TERMINAL.has(invoice.status) && invoice.status !== internalStatus;
-    if (wouldDemoteTerminal) {
-      console.warn(`[fiscal-check-status] Ignorando tentativa de sobrescrever status terminal ${invoice.status} -> ${internalStatus}`);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          status: invoice.status,
-          focus_status: focusStatus,
-          chave_acesso: invoice.chave_acesso,
-          noop: true,
-          message: 'Status terminal preservado',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Atualizar NF-e se status mudou
-    const statusChanged = invoice.status !== internalStatus;
-    if (statusChanged) {
-      await supabaseClient
-        .from('fiscal_invoices')
-        .update(updateData)
-        .eq('id', invoiceId)
-        .eq('tenant_id', tenantId);
-
-      // Registrar log
+      // Log do evento authorized para o reconciliador poder reaplicar se algo der errado.
       await supabaseClient
         .from('fiscal_invoice_events')
         .insert({
           invoice_id: invoiceId,
           tenant_id: tenantId,
-          event_type: focusStatus === 'autorizado' ? 'authorized' : 'status_check',
-          event_data: result.data,
+          event_type: 'authorized',
+          event_data: { focus_response: result.data, source: 'fiscal-check-status' },
         });
 
-      console.log(`[fiscal-check-status] Status atualizado: ${invoice.status} -> ${internalStatus}`);
-
-      // Se autorizado, vincular NF-e ao rascunho logístico
-      if (focusStatus === 'autorizado' && invoice.order_id) {
-        const { data: fiscalSettingsShip } = await supabaseClient
-          .from('fiscal_settings')
-          .select('auto_create_shipment')
-          .eq('tenant_id', tenantId)
-          .single();
-
-        await linkNFeToShipment({
+      if (persistResult.persisted && persistResult.invoice) {
+        await fireAuthorizedSideEffects({
           supabaseClient,
-          orderId: invoice.order_id,
-          invoiceId: invoiceId,
-          tenantId,
-          chaveAcesso: result.data?.chave_nfe || '',
-          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          invoice: { id: invoiceId, tenant_id: tenantId, order_id: invoice.order_id },
+          chaveAcesso: result.data.chave_nfe,
+          supabaseUrl,
+          supabaseServiceKey,
           callerModule: 'fiscal-check-status',
         });
       }
-      
-      // Send NF-e email to customer if enabled
-      const { data: fiscalSettingsEmail } = await supabaseClient
-        .from('fiscal_settings')
-        .select('enviar_email_nfe')
-        .eq('tenant_id', tenantId)
-        .single();
+    } else if (invoice.status !== internalStatus) {
+      // Não autorizado: atualiza estado simples (sem side-effects).
+      const updateData: any = {
+        status: internalStatus,
+        mensagem_sefaz: result.data?.mensagem_sefaz,
+        status_sefaz: result.data?.status_sefaz,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (fiscalSettingsEmail?.enviar_email_nfe !== false) {
-        console.log(`[fiscal-check-status] Sending NF-e email for invoice ${invoiceId}`);
-        // Fire and forget - don't block the response
-        fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ invoice_id: invoiceId, tenant_id: tenantId }),
-        }).catch(err => console.error('[fiscal-check-status] Email send error:', err));
-      }
+      // Idempotência: nunca sobrescrever status terminal
+      const TERMINAL = new Set(['authorized', 'cancelled', 'rejected']);
+      const wouldDemoteTerminal = TERMINAL.has(invoice.status) && invoice.status !== internalStatus;
+      if (wouldDemoteTerminal) {
+        console.warn(`[fiscal-check-status] preservando status terminal ${invoice.status}`);
+      } else {
+        await supabaseClient
+          .from('fiscal_invoices')
+          .update(updateData)
+          .eq('id', invoiceId)
+          .eq('tenant_id', tenantId);
 
-      // WMS Pratika — disparo reativo combinado (NF + rastreio juntos), ancorado na NF.
-      if (focusStatus === 'autorizado') {
-        fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ action: 'send_combined', invoice_id: invoice.id, tenant_id: tenantId }),
-        }).catch(err => console.error('[fiscal-check-status] WMS Pratika error:', err));
+        await supabaseClient
+          .from('fiscal_invoice_events')
+          .insert({
+            invoice_id: invoiceId,
+            tenant_id: tenantId,
+            event_type: 'status_check',
+            event_data: result.data,
+          });
       }
     }
+
 
     chargeAfter({
       tenantId,
