@@ -140,18 +140,32 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 - `docs/especificacoes/erp/erp-fiscal.md` (Ondas 4 e 5)
 - `docs/especificacoes/marketplaces/mercado-livre.md` (seção "Pedidos na Esteira Fiscal")
 - `docs/especificacoes/marketplaces/shopee.md` (seção "Pedidos na Esteira Fiscal")
+- `docs/especificacoes/logistica/logistica-externa.md` (sub-aba Problemas, deep-links)
 - `docs/especificacoes/transversais/mapa-ui.md` (banner e botão "Vincular produto" em `/orders/:id`)
 
 **Onde estamos:**
-- **Fase 1 — Pedidos de marketplaces na esteira fiscal:** ✅ aplicada. Pedidos ML/Shopee sem SKU vinculado ficam **pendentes** com banner + botão "Vincular produto" na UI. Após vínculo manual, esteira fiscal é reativada.
-- **Fase 2 — Cálculo automático de PIS/COFINS/ICMS por regime:** ✅ aplicada. Engine compartilhado com precedência **Override de Produto > Default do Tenant > Zero**. Settings de "Tributos" só visíveis para Regime Normal (CRT 3). Simples Nacional mantém lógica de zero-tax.
+- **Fase 1 — Pedidos de marketplaces na esteira fiscal:** ✅ aplicada.
+- **Fase 2 — Cálculo automático de PIS/COFINS/ICMS por regime:** ✅ aplicada.
 - **Fase 3 — Consolidação documental:** ✅ concluída.
+- **Fase 4 — Padronização de pedidos ML (junho/2026):** ✅ aplicada. Numeração canônica, badge oficial, enriquecimento `/billing_info` + `/shipments`, dedupe de cliente por CPF→buyer_id→email, status "Aguardando etiqueta", imagens do produto.
+- **Fase 5 — Higiene Cliente ML (29/06/2026):** ✅ aplicada.
+  - Trigger `sync_subscriber_on_tag_assignment` agora **bloqueia** e-mails do domínio `@marketplace.local` — clientes sintéticos do ML não geram mais lead duplicado em `/email-marketing` nem em listas.
+  - Backfill executado no tenant Respeite o Homem: cliente João Carlos de Souza recebeu CPF/endereço dos pedidos #662/#663; 2 subscribers `@marketplace.local` removidos; métricas `total_orders=2 / total_spent=R$784,98` recalculadas.
+- **Fase 6 — Self-heal fiscal authorized (cron):** ✅ infraestrutura entregue.
+  - `fiscal-reconcile-authorized` + helpers `persistAuthorizedState` (advisory lock) e `fireAuthorizedSideEffects`.
+  - Cron `fiscal-reconcile-authorized-hourly-business-hours` agendado `0 11-18 * * 1-5` (8h–16h BRT, seg-sex), gateado por `cron_call_edge_if_active`. ⚠️ Edge ainda **não respondeu em produção** (NOT_FOUND ao chamar manualmente em 29/06/2026 13:30 BRT) — verificar deploy/cache antes de marcar como "ativa".
 
-**Pendente:** Validação real ponta a ponta pelo operador — pedido ML sem vínculo de SKU, vínculo manual, emissão de NF com regime Normal e overrides de produto.
+**Pendências em aberto (Mercado Livre — ciclo real):**
+1. **#658 (NF 442) — órfã `authorized` no banco em `draft`.** Aguarda o cron rodar (ou nova validação manual após confirmar deploy do edge).
+2. **#662 / #663 — pedidos pagos com NF em rascunho (450/451)**, sem submissão à SEFAZ. Decisão técnica em aberto: refatorar `fiscal-submit` para expor um *core* sem RBAC chamável por contexto system (cron/edge), permitindo um `fiscal-auto-submit-marketplace` que promova PV→NF de pedidos `sales_channel='marketplace'` + `payment_status='approved'`. Sem essa refatoração, a emissão ML continua manual.
+3. **Onda Correios — "Aguardando retirada":** `tracking-poll` ainda não mapeia o status pós-3 tentativas (prazo 7 dias para retirada). UI de Logística Externa precisa exibir o motivo real do Correios (ex.: "Tentativa de entrega não efetuada"), endereço da agência e prazo. Notificações de "Aguardando retirada" para o cliente também dependem deste mapeamento.
+4. **Logística Externa — sub-aba "Problemas de envio/entrega":** já existe; deep-links a partir da Central de Execuções e da coluna Envio do `/orders` já implementados.
 
 **Restrições firmes:**
 - Nada de tocar nas configurações de imposto sem autorização (impacta diretamente cálculo de NF-e).
 - Validar sempre no tenant Respeite o Homem antes de qualquer expansão.
+- Auto-submissão de NF para marketplace **não** será habilitada sem GO explícito do operador (envia documento real à SEFAZ).
+- Subscribers `@marketplace.local` continuam **proibidos** em `email_marketing_subscribers` — qualquer fluxo novo que crie subscriber a partir de cliente ML precisa replicar o gate de domínio.
 
 ---
 
