@@ -1231,7 +1231,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
               ) : (
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {failedShipments!.map(shipment => {
+                    {pendingIssuance.map(shipment => {
                       const orderNumber = (shipment.order as any)?.order_number;
                       const customerName = (shipment.order as any)?.customer_name
                         || shipment.pv?.dest_nome
