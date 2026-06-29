@@ -206,12 +206,19 @@ async function processTenanDrafts(
   // Cenário: pedido foi pago (rascunho criado) e depois transitou para 'ready_to_invoice'.
   // O gatilho re-enfileira o pedido; aqui detectamos rascunhos existentes (status=draft)
   // e disparamos fiscal-emit se a configuração de auto-emit casar com o status atual.
-  // IMPORTANTE: roda APENAS em modo TRIGGER (singleOrderId definido) para evitar
-  // avalanche de chamadas no CRON que tentaria reemitir todos os rascunhos antigos
-  // (e bate em rate limit). Pedidos antigos travados são tratados manualmente.
+  //
+  // Em modo TRIGGER (singleOrderId), reavalia todos os pedidos.
+  // Em modo CRON, restringe a pedidos de marketplace aprovados — esses não passam por
+  // 'ready_to_invoice' e precisam de auto-emit imediato para liberar a etiqueta. Pedidos
+  // antigos da loja virtual continuam exigindo transição manual e não entram aqui (evita
+  // avalanche / rate limit).
   const ordersWithExistingDraft = singleOrderId
     ? paidOrders.filter((o: any) => ordersWithInvoice.has(o.id))
-    : [];
+    : paidOrders.filter((o: any) =>
+        ordersWithInvoice.has(o.id)
+        && String((o as any).sales_channel || '') === 'marketplace'
+        && String((o as any).payment_status || '') === 'approved'
+      );
   if (ordersWithExistingDraft.length > 0 && isFiscalConfigured && fiscalSettings.emissao_automatica === true) {
     // Gatilho único: dispara apenas quando o pedido está em 'ready_to_invoice'.
     const existingDraftIds = ordersWithExistingDraft.map((o: any) => o.id);
