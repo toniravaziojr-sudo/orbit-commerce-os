@@ -219,9 +219,11 @@ Deno.serve(async (req) => {
         // Email real só se vier do billing/buyer (ML costuma ocultar)
         const realEmail = (buyer?.email || "").toLowerCase().trim() || null;
         const syntheticEmail = `meli-${meliOrderId}@marketplace.local`;
-        const customerEmail = realEmail || syntheticEmail;
 
-        // Resolver/criar cliente — prioridade: last_external_id → cpf → email real
+        // Resolver/criar cliente — prioridade:
+        //   last_external_id → cpf → cnpj → email real → telefone (variantes com/sem 55)
+        // Telefone só é usado quando há identificação adicional (cpf, cnpj ou email)
+        // ausente; segue a mesma normalização do `lookup_customer` da IA de atendimento.
         let customerId: string | null = null;
         if (buyer?.id) {
           const { data: c } = await supabase.from("customers").select("id")
@@ -245,12 +247,40 @@ Deno.serve(async (req) => {
             .eq("tenant_id", tenantId).eq("email", realEmail).maybeSingle();
           if (c) customerId = c.id;
         }
+        if (!customerId && phone) {
+          const digits = phone;
+          const variants = new Set<string>([digits]);
+          if (digits.startsWith("55") && digits.length > 11) variants.add(digits.slice(2));
+          else if (!digits.startsWith("55")) variants.add(`55${digits}`);
+          const { data: c } = await supabase.from("customers").select("id, phone")
+            .eq("tenant_id", tenantId)
+            .in("phone", Array.from(variants))
+            .limit(1).maybeSingle();
+          if (c) customerId = c.id;
+        }
+
+        // Se já existe cliente, lê dados canônicos para propagar ao pedido sem sobrescrever
+        let existingCustomer: { email: string | null; phone: string | null } | null = null;
+        if (customerId) {
+          const { data: c } = await supabase.from("customers")
+            .select("email, phone").eq("id", customerId).maybeSingle();
+          existingCustomer = c ?? null;
+        }
+
+        // E-mail final: real do ML > real já cadastrado > sintético
+        const existingRealEmail = existingCustomer?.email && !existingCustomer.email.endsWith("@marketplace.local")
+          ? existingCustomer.email
+          : null;
+        const customerEmail = realEmail || existingRealEmail || syntheticEmail;
+
+        // Telefone final: do shipment > já cadastrado
+        const finalPhone = phone || onlyDigits(existingCustomer?.phone) || null;
 
         const customerPayload: Record<string, unknown> = {
           tenant_id: tenantId,
           email: customerEmail,
           full_name: fullName,
-          phone,
+          phone: finalPhone,
           cpf: doc.cpf,
           cnpj: doc.cnpj,
           person_type: doc.person_type,
@@ -266,10 +296,12 @@ Deno.serve(async (req) => {
         };
 
         if (customerId) {
-          // Não sobrescreve email canônico; apenas preenche campos vazios
-          const patch = { ...customerPayload };
+          // Não sobrescreve email canônico nem telefone existente; só preenche campos vazios
+          // (política `profile-enrichment-policy-standard`).
+          const patch: Record<string, unknown> = { ...customerPayload };
           delete (patch as any).email;
           delete (patch as any).tenant_id;
+          if (existingCustomer?.phone) delete (patch as any).phone;
           await supabase.from("customers").update(patch).eq("id", customerId);
         } else {
           const { data: ins } = await supabase.from("customers").insert(customerPayload).select("id").single();
