@@ -576,7 +576,7 @@ export function useExecutionCounts() {
   // Rastreio
   const tracking: ExecutionCategory = {
     stats: [
-      problematicShipments ? { count: problematicShipments, label: "Entregas problemáticas", navigateTo: "/shipping", color: "destructive" as const } : null,
+      problematicShipments ? { count: problematicShipments, label: "Entregas problemáticas", navigateTo: "/shipping?tab=objetos&aba=problemas", color: "destructive" as const } : null,
       trackingDisabledProviders ? { count: trackingDisabledProviders, label: "Rastreamento desativado", navigateTo: "/shipping?tab=settings", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
     totalPending: problematicShipments + trackingDisabledProviders,
