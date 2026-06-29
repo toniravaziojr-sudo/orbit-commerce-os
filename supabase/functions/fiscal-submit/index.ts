@@ -496,74 +496,61 @@ Deno.serve(async (req) => {
     const focusStatus = result.data?.status || 'processando_autorizacao';
     const internalStatus = mapFocusStatusToInternal(focusStatus);
 
-    // Atualizar NF-e com dados da resposta
-    const updateData: any = {
-      status: internalStatus,
-      // Só vira emitida quando o provedor já aceitou a transmissão.
-      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
-      focus_ref: ref,
-      pendencia_motivos: internalStatus === 'rejected'
-        ? [result.data?.mensagem_sefaz || result.data?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
-        : null,
-      mensagem_sefaz: result.data?.mensagem_sefaz,
-      status_sefaz: result.data?.status_sefaz,
-      submitted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Se autorizado imediatamente
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
-      updateData.chave_acesso = result.data.chave_nfe;
-      updateData.numero = result.data.numero;
-      updateData.serie = result.data.serie;
-      updateData.xml_url = result.data.caminho_xml_nota_fiscal;
-      updateData.danfe_url = result.data.caminho_danfe;
-      updateData.authorized_at = new Date().toISOString();
-      
-      // Vincular NF-e ao rascunho logístico e gerenciar remessa
-      if (invoice.order_id) {
-        const { data: fiscalSettingsShip } = await supabaseClient
-          .from('fiscal_settings')
-          .select('auto_create_shipment')
-          .eq('tenant_id', tenantId)
-          .single();
+      // CAMINHO CANÔNICO: persistAuthorizedState é o ÚNICO writer válido do estado autorizado.
+      // Side-effects (e-mail, link de remessa, WMS) só após o UPDATE garantido,
+      // evitando o cenário órfão: SEFAZ autorizada + tabela em draft.
+      const persistResult = await persistAuthorizedState({
+        supabaseClient,
+        invoiceId: invoice_id,
+        tenantId,
+        ambiente,
+        callerModule: 'fiscal-submit',
+        focusStatusData: {
+          status: 'autorizado',
+          chave_nfe: result.data.chave_nfe,
+          numero: result.data.numero,
+          serie: result.data.serie,
+          caminho_xml_nota_fiscal: result.data.caminho_xml_nota_fiscal,
+          caminho_danfe: result.data.caminho_danfe,
+          mensagem_sefaz: result.data?.mensagem_sefaz,
+          status_sefaz: result.data?.status_sefaz,
+          protocolo: result.data?.protocolo,
+        },
+        focusRef: ref,
+      });
 
-        await linkNFeToShipment({
+      if (persistResult.persisted && persistResult.invoice) {
+        await fireAuthorizedSideEffects({
           supabaseClient,
-          orderId: invoice.order_id,
-          invoiceId: invoice_id,
-          tenantId,
+          invoice: { id: invoice_id, tenant_id: tenantId, order_id: invoice.order_id },
           chaveAcesso: result.data.chave_nfe,
-          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          supabaseUrl,
+          supabaseServiceKey,
           callerModule: 'fiscal-submit',
         });
+      } else if (persistResult.error) {
+        console.error(`[fiscal-submit] persistAuthorizedState falhou: ${persistResult.error}`);
       }
-      
-      // Send NF-e email to customer if enabled
-      const { data: fiscalSettingsEmail } = await supabaseClient
-        .from('fiscal_settings')
-        .select('enviar_email_nfe')
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if (fiscalSettingsEmail?.enviar_email_nfe !== false) {
-        console.log(`[fiscal-submit] Sending NF-e email for invoice ${invoice_id}`);
-        // Fire and forget - don't block the response
-        fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ invoice_id: invoice_id, tenant_id: tenantId }),
-        }).catch(err => console.error('[fiscal-submit] Email send error:', err));
-      }
+    } else {
+      // Rejeição / outros estados não-autorizados: persistir motivo direto.
+      const updateData: any = {
+        status: internalStatus,
+        fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
+        focus_ref: ref,
+        pendencia_motivos: internalStatus === 'rejected'
+          ? [result.data?.mensagem_sefaz || result.data?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
+          : null,
+        mensagem_sefaz: result.data?.mensagem_sefaz,
+        status_sefaz: result.data?.status_sefaz,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update(updateData)
+        .eq('id', invoice_id);
     }
-
-    await supabaseClient
-      .from('fiscal_invoices')
-      .update(updateData)
-      .eq('id', invoice_id);
 
     // Marca alta da SEFAZ: o cursor numero_nfe_atual nunca recua.
     // Garante que nenhum número já queimado lá fora seja reusado por rascunho.
@@ -584,6 +571,7 @@ Deno.serve(async (req) => {
       });
 
     console.log(`[fiscal-submit] NF-e ${ref} enviada com status: ${focusStatus}`);
+
 
     return new Response(
       JSON.stringify({
