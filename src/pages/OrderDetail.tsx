@@ -58,6 +58,7 @@ import {
 } from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { OrderRegressionBanner } from '@/components/orders/OrderRegressionBanner';
+import { BuyerCancellationNotice } from '@/components/orders/BuyerCancellationNotice';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
@@ -291,6 +292,11 @@ export default function OrderDetail() {
               <h1 className="text-2xl font-bold">{order.order_number}</h1>
               <Badge variant={orderStatusCfg.variant}>{orderStatusCfg.label}</Badge>
             </div>
+            <BuyerCancellationNotice
+              orderId={id}
+              status={order.status}
+              cancellationReason={(order as any).cancellation_reason}
+            />
             <p className="text-muted-foreground">
               Criado em {formatDate(order.created_at)}
             </p>
