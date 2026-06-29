@@ -115,14 +115,15 @@ const CARRIERS = [
   { value: 'outros', label: 'Outros' },
 ];
 
-export function ShipmentGenerator() {
+export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } = {}) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const createShipment = useCreateShipment();
   const dispatchShipment = useDispatchShipment();
   
-  const [activeTab, setActiveTab] = useState('prontos');
+  const [activeTab, setActiveTab] = useState(initialSubTab || 'prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
+
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectedIssued, setSelectedIssued] = useState<Set<string>>(new Set());
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -319,10 +320,13 @@ export function ShipmentGenerator() {
     enabled: !!currentTenant?.id,
   });
 
-  // === TAB 3: Remessas pendentes (failed) ===
+  // === TAB 3+4: Pendências de emissão E problemas pós-despacho ===
   // Vínculo canônico é com PV (source_pedido_venda_id). Pedido é opcional —
   // PV manual/duplicado também aparece aqui.
-  const { data: failedShipments, isLoading: loadingFailed } = useQuery({
+  // Buscamos ambos os universos juntos (failed/returned/unknown) e dividimos
+  // pela presença de tracking_code: sem tracking = pendência de emissão,
+  // com tracking = problema de envio/entrega.
+  const { data: failedAndProblemShipments, isLoading: loadingFailed } = useQuery({
     queryKey: ['shipments-failed', currentTenant?.id, selectedCarrier],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
@@ -334,9 +338,10 @@ export function ShipmentGenerator() {
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
-        .eq('delivery_status', 'failed' as any)
+        .in('delivery_status', ['failed', 'returned', 'unknown'] as any)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(150);
+
 
       if (error) throw error;
       const shipments = ((data || []) as ShipmentRecord[]).filter(
