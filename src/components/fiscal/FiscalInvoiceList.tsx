@@ -40,6 +40,7 @@ import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { issueAndDownloadCorreiosContentDeclarationsBatch, reprintDeclarationByFiscalInvoiceId } from '@/lib/declaracaoConteudo';
 import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
+import { BuyerCancellationNotice } from '@/components/orders/BuyerCancellationNotice';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 import {
