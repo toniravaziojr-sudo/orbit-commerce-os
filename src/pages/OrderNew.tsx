@@ -580,9 +580,9 @@ export default function OrderNew() {
             </CardHeader>
             <CardContent>
               <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
-                <SelectTrigger><SelectValue placeholder="Aguardando envio (padrão)" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Aguardando etiqueta (padrão)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                  <SelectItem value="awaiting_shipment">Aguardando etiqueta</SelectItem>
                   <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
                   <SelectItem value="shipped">Despachado</SelectItem>
                   <SelectItem value="in_transit">Em trânsito</SelectItem>

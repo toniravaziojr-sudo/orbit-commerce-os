@@ -1525,3 +1525,13 @@ O Dashboard (`useDashboardMetrics`) e Pagamentos (`usePayments`) filtram por `.n
 - Proibido remover as chamadas a `/billing_info` ou `/shipments` em `meli-sync-orders` — sem elas, o pedido entra vazio.
 - Proibido fabricar e-mails reais ou CPFs — apenas o e-mail sintético padronizado é aceito.
 - Proibido reintroduzir filtro por `payment_gateway_id` em `useOrders` (já documentado lá): a lista de pedidos NÃO filtra por gateway, apenas Dashboard/Pagamentos.
+
+### Imagem do produto nos itens do pedido (v3.13)
+- `meli-sync-orders` resolve `product_image_url` para cada `order_item`:
+  1. **Prioridade 1 — Catálogo:** quando o SKU bate com um produto do tenant, busca a imagem em `product_images` (ordem: `is_primary DESC`, depois `sort_order ASC`) e usa o `url` da imagem principal.
+  2. **Fallback — Anúncio ML:** se não houver imagem no catálogo (ou SKU não cadastrado), usa `item.secure_thumbnail` ou `item.thumbnail` do payload do pedido.
+- Resultado: o card do pedido nunca exibe ícone genérico de pacote para pedidos do ML quando há imagem disponível em alguma das duas fontes.
+- **Anti-regressão:** a coluna correta em `product_images` é `url` (não `image_url`). Qualquer refator que volte a usar `image_url` quebra o sync silenciosamente.
+
+### Status base de envio
+- Pedidos do ML entram com `shipping_status='pending'` (normalizado para `awaiting_shipment` na UI). O rótulo canônico exibido é **"Aguardando etiqueta"** (renomeado de "Aguardando envio" para deixar claro que é o estado anterior à geração da etiqueta — ver `docs/especificacoes/ecommerce/pedidos.md`).

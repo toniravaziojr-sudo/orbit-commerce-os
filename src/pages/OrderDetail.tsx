@@ -627,7 +627,7 @@ export default function OrderDetail() {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status de Envio</span>
                 <Select 
-                  value={order.shipping_status} 
+                  value={normalizeShippingStatus(order.shipping_status)} 
                   onValueChange={(v) => handleShippingStatusChange(v as ShippingStatus)}
                 >
                   <SelectTrigger className="w-44 h-8">

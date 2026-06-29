@@ -296,7 +296,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos envios</SelectItem>
-                  <SelectItem value="pending">Aguardando envio</SelectItem>
+                  <SelectItem value="pending">Aguardando etiqueta</SelectItem>
                   <SelectItem value="processing">Preparando</SelectItem>
                   <SelectItem value="shipped">Enviado</SelectItem>
                   <SelectItem value="in_transit">Em trânsito</SelectItem>
