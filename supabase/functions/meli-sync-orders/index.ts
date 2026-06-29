@@ -39,25 +39,71 @@ function onlyDigits(s: unknown): string | null {
   return d.length > 0 ? d : null;
 }
 
-function pickFullName(billing: any, buyer: any, meliOrderId: string): string {
-  const billingName =
-    billing?.buyer?.name ||
-    [billing?.buyer?.first_name, billing?.buyer?.last_name].filter(Boolean).join(" ") ||
-    billing?.buyer?.billing_info?.business_name ||
-    null;
-  const buyerName = [buyer?.first_name, buyer?.last_name].filter(Boolean).join(" ").trim();
-  return (billingName || buyerName || buyer?.nickname || `Comprador ML ${meliOrderId}`).trim();
+/**
+ * billing_info do ML vem como:
+ *   { billing_info: { doc_number, doc_type, additional_info: [{type,value}, ...] } }
+ * Achata o additional_info em um map por TYPE para facilitar o consumo.
+ */
+function flattenBillingInfo(billing: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  const root = billing?.billing_info || billing || {};
+  if (root.doc_number) out.DOC_NUMBER = String(root.doc_number);
+  if (root.doc_type) out.DOC_TYPE = String(root.doc_type).toUpperCase();
+  const arr = Array.isArray(root.additional_info) ? root.additional_info : [];
+  for (const it of arr) {
+    if (it?.type && it.value != null) out[String(it.type).toUpperCase()] = String(it.value);
+  }
+  return out;
 }
 
-function pickDoc(billing: any): { cpf: string | null; cnpj: string | null; person_type: "fisica" | "juridica" | null } {
-  const id = billing?.buyer?.billing_info?.identification || billing?.buyer?.identification || billing?.payer?.identification;
-  if (!id) return { cpf: null, cnpj: null, person_type: null };
-  const type = String(id.type || "").toUpperCase();
-  const num = onlyDigits(id.number);
+function pickFullName(bi: Record<string, string>, buyer: any, meliOrderId: string): string {
+  const billingFull = bi.BUSINESS_NAME || bi.BUYER_NAME
+    || [bi.FIRST_NAME, bi.LAST_NAME].filter(Boolean).join(" ").trim();
+  const buyerName = [buyer?.first_name, buyer?.last_name].filter(Boolean).join(" ").trim();
+  return (billingFull || buyerName || buyer?.nickname || `Comprador ML ${meliOrderId}`).trim();
+}
+
+function pickDoc(bi: Record<string, string>): { cpf: string | null; cnpj: string | null; person_type: "fisica" | "juridica" | null } {
+  const type = (bi.DOC_TYPE || "").toUpperCase();
+  const num = onlyDigits(bi.DOC_NUMBER);
   if (!num) return { cpf: null, cnpj: null, person_type: null };
   if (type === "CPF" || num.length === 11) return { cpf: num, cnpj: null, person_type: "fisica" };
   if (type === "CNPJ" || num.length === 14) return { cpf: null, cnpj: num, person_type: "juridica" };
   return { cpf: null, cnpj: null, person_type: null };
+}
+
+/** Extrai endereço a partir do billing_info achatado. */
+function pickAddressFromBilling(bi: Record<string, string>) {
+  return {
+    shipping_street: bi.STREET_NAME || null,
+    shipping_number: bi.STREET_NUMBER || null,
+    shipping_complement: bi.COMMENT || null,
+    shipping_neighborhood: bi.NEIGHBORHOOD || null,
+    shipping_city: bi.CITY_NAME || null,
+    shipping_state: (bi.STATE_CODE || "").replace(/^BR-/, "") || null,
+    shipping_postal_code: onlyDigits(bi.ZIP_CODE),
+    shipping_country: bi.COUNTRY_ID || "BR",
+  };
+}
+
+/** Endereço/telefone do receptor a partir do shipment v2 (destination.receiver_address). */
+function pickAddressFromShipment(shipment: any) {
+  const dest = shipment?.destination || {};
+  const addr = dest?.receiver_address || shipment?.receiver_address || {};
+  const phone = dest?.receiver_phone || addr?.receiver_phone || null;
+  return {
+    phone,
+    address: {
+      shipping_street: addr.street_name || addr.address_line || null,
+      shipping_number: addr.street_number || addr.number || null,
+      shipping_complement: addr.comment || addr.complement || null,
+      shipping_neighborhood: addr.neighborhood?.name || addr.neighborhood || null,
+      shipping_city: addr.city?.name || addr.city || null,
+      shipping_state: (addr.state?.id || addr.state?.name || "").replace(/^BR-/, "") || null,
+      shipping_postal_code: onlyDigits(addr.zip_code),
+      shipping_country: addr.country?.id || "BR",
+    },
+  };
 }
 
 Deno.serve(async (req) => {
