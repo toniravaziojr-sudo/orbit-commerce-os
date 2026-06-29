@@ -984,3 +984,8 @@ Todo ponto de entrada de pedido (checkout do storefront, link de checkout, cria�
 5. Pedido de Venda Fiscal herda os dados **apenas na origem** (criação automática a partir do pedido). Sem auto-cura posterior.
 
 Esta política é o portão de entrada do Pré-Flight Fiscal/Logístico. Sem ela, o sistema permite pedidos que estouram silenciosamente em DC/Remessa/NF.
+
+## Rótulo do status base de envio (2026-06-29)
+- O status canônico `awaiting_shipment` (ID/enum no banco e no código) tem rótulo de UI **"Aguardando etiqueta"** em todo o sistema (lista, detalhe, novo pedido, filtros). Antes era "Aguardando envio" — renomeado para evitar ambiguidade com o estado `shipped` ("Enviado") e para refletir o que o pedido está realmente esperando: a geração da etiqueta de envio.
+- Nada muda no enum do banco, nas transições (`orderTransitions.ts`) ou nos triggers. Apenas o **label** em `SHIPPING_STATUS_CONFIG` foi alterado.
+- O `<Select>` do detalhe do pedido agora normaliza o valor cru via `normalizeShippingStatus()` antes de renderizar, garantindo que pedidos com o valor legado `pending` no banco exibam corretamente "Aguardando etiqueta" (antes ficava em branco).
