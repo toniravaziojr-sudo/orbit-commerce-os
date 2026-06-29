@@ -61,6 +61,7 @@ import { OrderSourceBadge } from './OrderSourceBadge';
 import type { Order } from '@/hooks/useOrders';
 import { Link } from 'react-router-dom';
 import { resolveShippingDeepLink } from '@/lib/shipping/shippingDeepLink';
+import { BuyerCancellationNotice } from './BuyerCancellationNotice';
 
 import { 
   OrderStatus, 
