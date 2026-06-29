@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayCustomerEmail } from '@/lib/marketplaces/syntheticEmail';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
