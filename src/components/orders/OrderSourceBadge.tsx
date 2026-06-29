@@ -1,15 +1,15 @@
 import { Store, ShoppingBag, Bot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import mercadoLivreLogo from '@/assets/marketplaces/mercadolivre.png';
 
-// Ícone SVG do Mercado Livre
+// Logo oficial do Mercado Livre (handshake amarelo).
 const MercadoLivreIcon = ({ className }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    className={className}
-    fill="currentColor"
-  >
-    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2.4c5.302 0 9.6 4.298 9.6 9.6s-4.298 9.6-9.6 9.6S2.4 17.302 2.4 12 6.698 2.4 12 2.4zm0 2.4c-3.976 0-7.2 3.224-7.2 7.2s3.224 7.2 7.2 7.2 7.2-3.224 7.2-7.2-3.224-7.2-7.2-7.2zm-3.6 4.8c.662 0 1.2.538 1.2 1.2v2.4c0 .662-.538 1.2-1.2 1.2s-1.2-.538-1.2-1.2v-2.4c0-.662.538-1.2 1.2-1.2zm7.2 0c.662 0 1.2.538 1.2 1.2v2.4c0 .662-.538 1.2-1.2 1.2s-1.2-.538-1.2-1.2v-2.4c0-.662.538-1.2 1.2-1.2zm-3.6 1.2c.993 0 1.8.807 1.8 1.8s-.807 1.8-1.8 1.8-1.8-.807-1.8-1.8.807-1.8 1.8-1.8z" />
-  </svg>
+  <img
+    src={mercadoLivreLogo}
+    alt="Mercado Livre"
+    loading="lazy"
+    className={`${className ?? ''} object-contain`}
+  />
 );
 
 // Mapa de marketplaces com suas configurações

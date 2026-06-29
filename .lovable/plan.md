@@ -1,133 +1,80 @@
 
-## 📋 CHECKLIST DE CONFORMIDADE
-- Doc de Regras do Sistema lido (governança)
-- Docs do tema lidos: `mercado-livre.md`, `erp/logistica.md`, memórias `wms-pratika-*`, `gateway-vs-local-shipping-routing`
-- **Lacuna documental declarada:** não existe doc formal para "Logística Externa" — será criada na Onda 4
-- Fluxo afetado: ingestão de pedido ML → `orders` → NF automática (Focus) → envio chave NF ao ML → ML libera etiqueta → puxa etiqueta → Pratika + tracking + notificações
-- Fonte de verdade: `orders` (pedido), `fiscal_invoices` (NF), nova `marketplace_shipments` (etiquetas externas), `shipments` (etiquetas internas), `shipping_providers.provider_kind`
-- Módulos impactados: Mercado Livre, Pedidos, Fiscal, Logística Interna, Logística Externa, Pratika, Notificações
-- UI impactada: sim (sidebar + 2 rotas + filtros) — `mapa-ui.md` será atualizado
-- Situação: **Aguardando confirmação do usuário**
+# Auditoria — Pedidos do Mercado Livre na esteira padrão de Pedidos
 
-## 🧭 Princípio único de roteamento
+## Como funciona hoje
 
-> **Quem emite a etiqueta?**
+1. `meli-sync-orders` consome só `/orders/{id}`. Esse endpoint do ML **não retorna** nome real, e-mail, telefone, CPF nem endereço — só `buyer.id` + `buyer.nickname`. Por isso o pedido entra com nome do nickname, **e-mail fake `meli-<id>@marketplace.local`**, sem telefone, sem CPF, sem endereço.
+2. Método de pagamento (`payments[].payment_method_id` / `payment_type`) **não é gravado**. `payment_gateway_id` fica vazio.
+3. Dashboard da Central de Comando filtra faturamento por `payment_gateway_id IS NOT NULL` → os 2 pedidos do ML ficam **fora** de Faturamento Real, Pedidos Pagos, Ticket Médio, mesmo na aba "Mercado Livre".
+4. `OrderSourceBadge` usa SVG genérico amarelo no lugar do logo oficial do ML.
+5. O e-mail fake faz o sistema criar 1 cliente-fantasma por pedido no CRM.
 
-| | Logística **Interna** | Logística **Externa** |
-|---|---|---|
-| Quem emite a etiqueta | Nosso sistema (Correios contrato próprio, Loggi direto, futuras transportadoras com contrato local) | Terceiro: marketplace (ML, Shopee, TikTok Shop, Amazon-FBA) ou gateway de envio (Frenet, Melhor Envio) |
-| O que o sistema faz | Gera + imprime + entrega à transportadora; opera a Remessa | Recebe etiqueta pronta (pull) OU envia etiqueta de terceiro para outro terceiro (push) |
-| Filtro principal | Transportadora | Fonte da etiqueta |
-| Tabela canônica | `shipments` + `shipping_remessas` (já existem) | `marketplace_shipments` (nova — apesar do prefixo, cobre marketplaces **e** gateways de loja) |
+## O problema
 
-**Cobertura dos cenários:**
-- **Ex.1** Frenet + ML → ambos em **Externa** (Frenet emite, ML emite)
-- **Ex.2** Frenet (loja) + Amazon-seller usando contrato Correios próprio → Frenet em **Externa**, Amazon em **Interna**
-- **Ex.3** Amazon-seller gerando etiqueta via Frenet/Melhor Envio e devolvendo para Amazon → **Externa** (label nasceu fora; push para o marketplace)
-- **Futuro** Shopee/TikTok-seller usando contrato próprio → Interna; usando Frenet → Externa
+- Pedidos do ML entram sem dados completos do cliente e do pagamento.
+- Violam a regra `sistema-nunca-preenche-dado-faltante-do-cliente`: hoje o e-mail é fabricado (`@marketplace.local`).
+- Não aparecem no Dashboard / Relatórios mesmo na aba Mercado Livre.
+- Logo destoa do padrão do marketplace.
+- Cliente-fantasma polui o CRM.
 
-A decisão é por linha (pedido), via função SQL `resolve_label_origin(order)` lendo `marketplace_source`, fulfillment mode do canal e `shipping_providers.provider_kind`. Marketplaces e modos novos entram no enum sem refactor.
+## O que eu faria
 
-## 🔁 Fluxo ML específico (NF automática → Etiqueta → Pratika)
+### Onda 1 — Enriquecimento de dados na sincronização (`meli-sync-orders`)
 
-1. Webhook/cron ingere pedido em `orders` (Onda 2)
-2. Trigger fiscal atual cria PV → tenant com **NF automática** emite NF → `fiscal_invoices.status='authorized'` com `chave_acesso` e XML
-3. **Novo:** trigger SQL ao detectar NF autorizada de pedido ML enfileira o envio da chave da NF ao ML (sem `pg_net` direto — usa fila + cron, padrão da casa)
-4. Edge `meli-send-invoice` faz POST no ML anexando a NF; ML aceita e (assíncrono) muda `shipment.status` para `ready_to_ship`
-5. Webhook `shipments` (já tratado) OU o `external-shipping-sync-cron` aciona `meli-fetch-shipment`
-6. `meli-fetch-shipment` baixa PDF (`/shipments/{id}/labels?response_type=pdf`) + tracking; salva PDF em Storage `marketplace-labels` e upserta `marketplace_shipments`
-7. Despachante `external-shipment-to-pratika` envia `(chave_nf, pdf_etiqueta, tracking_number)` para Pratika reutilizando o adapter SOAP existente (CNPJ cru + envio combinado conforme memória `wms-pratika-combined-send-and-cnpj-raw`)
-8. Mudanças em `marketplace_shipments` propagam para `orders.tracking_*` → motor de notificações dispara naturalmente
+1. Após `/orders/{id}`, fazer chamadas adicionais com o mesmo token:
+   - `GET /shipments/{shipping.id}` com header `x-format-new: true` → `receiver_address` completo (logradouro, número, complemento, bairro, cidade, UF, CEP, país), `receiver_phone`, `receiver_name`.
+   - `GET /orders/{id}/billing_info` → `doc_number` (CPF/CNPJ) e nome fiscal quando o comprador pediu NF.
+   - Tolerar 403/404 sem derrubar o pedido — gravar o que vier, registrar o que faltou em `marketplace_data.data_pending = [campos]`.
+2. Persistir em `orders` **sem fabricar nada** (alinhado à constraint "Sistema nunca preenche dado faltante"):
+   - `customer_name` = nome real (`receiver_name` ou `billing.name`) ou fallback **`nickname`** (que é o nome real exibido pelo ML, não dado fabricado).
+   - `customer_email` = e-mail real **ou NULL**. Remover o `meli-<id>@marketplace.local`.
+   - `customer_phone`, `customer_document` (CPF/CNPJ), `shipping_*` → preencher só quando o ML devolver; resto NULL.
+   - `payment_method` = mapeamento de `payments[0].payment_method_id` / `payment_type` (cartão, pix, boleto, account_money…).
+   - `payment_gateway_id` = id do provider `mercadolivre` em `payment_providers` (criar registro se não existir — é um gateway real, não placeholder), para o pedido entrar no Dashboard.
+   - `marketplace_data.data_pending` = lista dos campos faltantes (alimenta pré-flight fiscal/logístico, que já bloqueia naturalmente).
+3. Vínculo de cliente sem poluir CRM:
+   - Procurar cliente por (a) `external_id = buyer.id` + `source = mercadolivre`, (b) CPF, (c) telefone, (d) e-mail real.
+   - Se nada bater, criar cliente com `external_id = buyer.id`, `source = mercadolivre`, **sem e-mail fake**.
+   - Limpar os 2 clientes-fantasma `@marketplace.local` criados pelos syncs anteriores antes do backfill.
+4. Manter idempotência por `(tenant_id, marketplace_order_id)` (upsert manual já existente).
 
-**Idempotência:** chave única `(tenant_id, source_key, external_shipment_id)`. Pratika já é idempotente por `invoice.id`. Retry seguro em qualquer etapa.
+### Onda 2 — Backfill controlado dos 2 pedidos atuais
 
-**Remessa automática do tenant Respeite o Homem:** continua valendo só para Interna; ML não toca em `shipping_remessas`.
+Re-rodar `meli-sync-orders` para `2000017149957656` e `2000017149792188`. Após, apagar os 2 customers-fantasma e checar no banco que os pedidos referenciam o cliente real (ou cliente novo sem e-mail fake) e têm endereço/telefone/CPF/método preenchidos quando o ML devolve.
 
-## 🧭 Plano em 4 Ondas
+### Onda 3 — Logo oficial do Mercado Livre no `OrderSourceBadge`
 
-### Onda 1 — UI/UX e navegação
-- Sidebar: renomear `Logística` → **`Logística Interna`** (rota `/shipping` mantida). Adicionar **`Logística Externa`** (rota nova `/external-shipping`).
-- Criar `ExternalShipping.tsx` (reaproveita layout do dashboard de shipping) com abas: **Dashboard**, **Objetos de postagem**, **Rastreios**. Sem "Remessas", sem "Prontos para emitir".
-- Filtro principal: **Fonte da etiqueta** (todos / Mercado Livre / Shopee / TikTok Shop / Frenet / Melhor Envio / Amazon-seller). Estrutura genérica para novas fontes.
-- Ações por linha: baixar PDF, abrir no marketplace, reenviar à Pratika, copiar tracking.
-- Card extra no Dashboard: **"Aguardando NF"** (pedidos ML cuja etiqueta depende de NF autorizada).
-- `Logística Interna` mantém Remessas + "Prontos para emitir"; filtro continua **Transportadora**.
-- Atualizar `mapa-ui.md`.
+Trocar o SVG genérico pelo **logo oficial** (handshake amarelo do ML) salvo como asset PNG/SVG em `src/assets/marketplaces/`, importado no `OrderSourceBadge`. Mantém os tamanhos `sm/md/lg`, fundo amarelo, tooltip "Mercado Livre". Aplica automaticamente em lista de pedidos, detalhe do pedido e dashboard (sem mudança de UX — só asset).
 
-### Onda 2 — Ingestão de pedidos ML
-1. Agendar cron `meli-orders-reconcile` (`*/15 * * * *`) — função já existe mas **não está agendada**.
-2. **Backfill imediato**: rodar `meli-sync-orders` em modo `fullSync` para o tenant Respeite o Homem → validar entrada dos 2 pedidos da imagem em `/orders` e PV em `/fiscal?tab=pedidos`.
-3. Documentar (runbook) que o app ML no DevCenter precisa ter `orders_v2` e `shipments` assinados (webhook já trata os dois).
-4. Hardening de `meli-sync-orders`: tolerar `buyer.email` ausente, lidar com `pack_id` (múltiplos pedidos no mesmo pacote).
+### Onda 4 — Paridade Dashboard / Relatórios
 
-### Onda 3 — Logística Externa: NF → Etiqueta → Pratika
+- Após Onda 1, os pedidos do ML carregam `payment_gateway_id` → entram automaticamente nas métricas do Dashboard e do `/reports` na aba **Mercado Livre** (e na **Geral**), usando o critério canônico já existente (`paid/processing/ready_to_invoice/shipped/delivered`). Nenhum ajuste no Dashboard.
+- Validar no banco que aba Mercado Livre passa a exibir R$ 428,42 + R$ 356,56 = R$ 785,98, 2 pedidos pagos, ticket médio R$ 392,99, no período correto.
 
-**Schema (migração — segue padrão `wms-pratika-*` e RLS por tenant):**
-```
-marketplace_shipments(
-  id, tenant_id, label_origin enum('marketplace','gateway'),
-  source_key text,            -- 'mercadolivre' | 'frenet' | 'melhor_envio' | 'amazon_seller' | 'shopee' | 'tiktok_shop'
-  order_id FK orders, marketplace_order_id, external_shipment_id,
-  carrier, tracking_number, tracking_url,
-  status enum('awaiting_invoice','ready_to_ship','label_issued','in_transit','delivered','problem','returned'),
-  label_pdf_url, label_fetched_at,
-  invoice_id FK fiscal_invoices, invoice_sent_at,
-  pratika_sent_at, last_tracking_event_at,
-  raw jsonb, created_at, updated_at
-) + UNIQUE(tenant_id, source_key, external_shipment_id) + RLS tenant + GRANTs
-```
-Bucket Storage `marketplace-labels` privado, tenant-scoped.
+### Onda 5 — Validação técnica obrigatória
 
-**Edge functions novas:**
-- `meli-send-invoice` — recebe `order_id`; busca NF autorizada; anexa chave/XML no ML; preenche `invoice_sent_at`.
-- `meli-fetch-shipment` — busca `/shipments/{id}` + PDF; upserta `marketplace_shipments`; salva PDF.
-- `external-shipment-to-pratika` — despachante único; reusa `wms-pratika-send` (`send_combined`) respeitando regra NF+rastreio juntos, CNPJ cru.
-- `external-shipping-sync-cron` (30min) — (a) varre `marketplace_shipments` não-terminais e atualiza tracking; (b) varre pedidos ML com NF autorizada e `invoice_sent_at IS NULL` e chama `meli-send-invoice` (rede de segurança).
+- Consulta direta em `orders` confirmando preenchimento dos campos de cliente, endereço, documento, telefone, método e gateway.
+- Conferir tela de detalhe do pedido exibindo endereço completo, método e cliente real.
+- Conferir badge com logo oficial em `/orders` e no detalhe.
+- Conferir Dashboard `Mercado Livre` com faturamento dos 2 pedidos.
+- Confirmar que pedidos da Loja Virtual continuam idênticos (sem regressão na contagem, ticket, top 5 e relatórios).
 
-**Triggers SQL:**
-- Em `fiscal_invoices` autorizada + pedido ML → enfileira `meli-send-invoice` via tabela de fila (padrão `gateway_sync_queue`), consumida por cron — **sem `pg_net` direto** (constraint do projeto).
-- Em mudança de `marketplace_shipments.status/tracking_*` → propaga para `orders.tracking_*`.
+### Onda 6 — Documentação (obrigatória)
 
-**Webhook ML:** quando `topic='shipments'` chegar, já dispara `meli-fetch-shipment` (caminho primário; cron é fallback).
+- `docs/especificacoes/marketplaces/mercado-livre.md` — nova seção **"Ingestão de Pedidos"** descrevendo endpoints (`/orders`, `/shipments`, `/billing_info`), regra de `data_pending`, vínculo de cliente por external_id/CPF/telefone, criação do provider `mercadolivre` em `payment_providers`.
+- `docs/especificacoes/logistica/logistica-externa.md` — bloco "Ingestão" referenciando a completude exigida antes da NF-e.
+- `docs/especificacoes/sistema/relatorios.md` (e/ou doc do Dashboard) — registrar que pedidos ML contam por `payment_gateway_id` do provider mercadolivre, sem critério especial.
+- `.lovable/memory/features/marketplaces/canonical-flow-standard.md` — anexar bullet "Pagamento de marketplace usa payment_provider próprio (`mercadolivre`, `shopee`, …) para entrar no Dashboard sem fork de filtro".
+- Sem alteração no `mapa-ui.md` (não há mudança de rota/sidebar).
 
-**Frenet (gateway de loja):** adicionar gancho em `gateway-attach-fiscal-doc` para criar linha em `marketplace_shipments` com `source_key='frenet'` e deixar o cron puxar PDF gerado pela Frenet — aparece na mesma UI de Externa.
+## Resultado final
 
-**Melhor Envio / Amazon-seller / Shopee / TikTok labels:** ficam **stubbed** — enum suporta, arquivo adapter criado vazio com TODO, UI mostra o filtro. Sem código de integração agora (zero gasto de processamento).
+Pedido do ML entra em `/orders` exatamente como pedido da loja: cliente real, endereço/telefone/CPF quando o ML devolve (ou `data_pending` visível quando não), método e gateway de pagamento, badge com logo oficial. Aparece em Faturamento Real, Ticket Médio, Top 5 e relatórios sem nenhum ajuste especial. CRM deixa de criar clientes-fantasma. Fluxo do módulo Pedidos **inalterado** — quem se adapta é o ML.
 
-### Onda 4 — Validação técnica + Documentação
+## Pontos de atenção / limitações
 
-**Validação técnica obrigatória (executada por mim antes de fechar):**
-- `SELECT order_number, marketplace_order_id, status FROM orders WHERE marketplace_source='mercadolivre'` → 2 pedidos perdidos presentes
-- `SELECT numero, chave_acesso, status FROM fiscal_invoices WHERE source_order_id IN (...)` → PV + NF criados
-- Disparar `meli-send-invoice` num pedido com NF autorizada → `invoice_sent_at` preenchido, sem 4xx
-- Disparar `meli-fetch-shipment` → PDF no Storage + linha em `marketplace_shipments`
-- Conferir log em `wms_pratika_logs` (operação combined, success)
-- Abrir `/external-shipping` → card "Aguardando NF", filtro Fonte, ações (baixar/reenviar)
-- Logs limpos em todas as edges novas
+- `/orders/{id}/billing_info` exige escopo de leitura adicional do app ML; se a app credential atual não tiver, o CPF entra como `data_pending` e o operador completa pelo detalhe do pedido. Não vou pedir reconexão automática agora — só logar o aviso.
+- `receiver_phone` no `/shipments` às vezes vem mascarado pelo ML; quando vier mascarado, tratar como `data_pending`.
+- Auto-emissão de NF para `sales_channel='marketplace'`, inscrição de webhooks no DevCenter e Pratika continuam fora desta entrega (já em pendência operacional).
 
-**Documentação:**
-- `docs/especificacoes/logistica/logistica-interna.md` (renomeação a partir de `erp/logistica.md` + ajuste de escopo)
-- `docs/especificacoes/logistica/logistica-externa.md` **(NOVO)** — princípio "quem emite o label", matriz de fontes, fluxo NF→ML→Etiqueta→Pratika, contratos
-- `docs/especificacoes/marketplaces/mercado-livre.md` — seção "Ciclo Fiscal-Logístico ML" + tópicos DevCenter obrigatórios + cron agendado
-- `docs/especificacoes/transversais/mapa-ui.md` — rename + rota nova
-- `docs/especificacoes/transversais/assuntos-em-andamento.md` — encerramento do tema
-- Memórias: nova `mem://features/logistics/external-vs-internal-routing-standard`; atualizar `meli-listings-bidirectional-sync.md` (orders+shipments) e `gateway-vs-local-shipping-routing.md` (cross-ref)
-
-## 🔧 Detalhes técnicos
-- Tenant piloto: Respeite o Homem; conexão ML `91cb152c-20bc-41c2-8188-56070034e4db`
-- Endpoints ML: `POST /shipment_labels` (anexar NF), `GET /shipments/{id}`, `GET /shipments/{id}/labels?response_type=pdf`
-- Tópicos DevCenter manuais: `orders_v2`, `shipments`
-- Crons novos: agendar `meli-orders-reconcile` (15min) + criar `external-shipping-sync-cron` (30min) — ambos com anon key hardcoded no header (constraint `cron-service-role-key-guc-prohibition`)
-- Padrão de fila: `gateway_sync_queue`-like (sem `pg_net` no DB)
-- Pratika: chamadas seguem `wms-pratika-send action=send_combined`, CNPJ 14 dígitos puros, chave 44 dígitos puros — sem alteração no adapter
-- Reuso máximo: zero refactor em fiscal/Pratika; tudo novo é aditivo
-
-## ❓ Pontos para sua aprovação
-Mudanças de **UI/navegação** dentro do escopo que você já autorizou:
-- Renomear `Logística` → `Logística Interna` (mesma rota)
-- Nova `Logística Externa` com 3 abas
-- Filtro "Fonte da etiqueta" no Externa, mantendo "Transportadora" no Interna
-
-Tudo o que está aqui está dentro do que você pediu (logística interna vs externa, fluxo NF→ML→Etiqueta→Pratika, considerar NF automática do tenant). Nenhuma mudança de negócio fora do seu pedido.
-
-**Confirma a sequência Onda 1 → Onda 2 → Onda 3 → Onda 4 e eu executo?**
+**É isso? Confirma que eu sigo com as 6 ondas?**
