@@ -111,8 +111,10 @@ export async function persistAuthorizedState(
     authorized_at: nowIso,
     pendencia_motivos: null,
     status_motivo: focusStatusData.mensagem_sefaz ?? focusStatusData.status_sefaz ?? null,
+    mensagem_sefaz: focusStatusData.mensagem_sefaz ?? null,
     updated_at: nowIso,
   };
+
 
   if (focusStatusData.numero != null) updateData.numero = parseInt(String(focusStatusData.numero), 10);
   if (focusStatusData.serie != null) updateData.serie = parseInt(String(focusStatusData.serie), 10);
