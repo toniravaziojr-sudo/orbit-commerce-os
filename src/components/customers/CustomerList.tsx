@@ -172,7 +172,7 @@ export function CustomerList({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm">
                       <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      {customer.email}
+                      {displayCustomerEmail(customer.email)}
                     </div>
                     {customer.phone && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
