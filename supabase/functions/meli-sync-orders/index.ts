@@ -395,12 +395,33 @@ Deno.serve(async (req) => {
             .map((it: any) => it?.item?.seller_sku || it?.item?.seller_custom_field || null)
             .filter((s: string | null): s is string => !!s);
 
-          const skuMap: Record<string, { id: string; weight: number | null; barcode: string | null; ncm: string | null }> = {};
+          const skuMap: Record<string, { id: string; weight: number | null; barcode: string | null; ncm: string | null; image_url: string | null }> = {};
           if (skus.length > 0) {
             const { data: prods } = await supabase.from("products")
               .select("id, sku, weight, barcode, ncm").eq("tenant_id", tenantId).in("sku", skus);
+            const productIds = (prods || []).map((p: any) => p.id);
+            // Busca em paralelo a imagem principal de cada produto resolvido
+            const imageByProduct: Record<string, string> = {};
+            if (productIds.length > 0) {
+              const { data: imgs } = await supabase.from("product_images")
+                .select("product_id, image_url, is_primary, sort_order")
+                .in("product_id", productIds)
+                .order("is_primary", { ascending: false })
+                .order("sort_order", { ascending: true });
+              (imgs || []).forEach((img: any) => {
+                if (!imageByProduct[img.product_id] && img.image_url) {
+                  imageByProduct[img.product_id] = img.image_url;
+                }
+              });
+            }
             (prods || []).forEach((p: any) => {
-              if (p.sku) skuMap[p.sku] = { id: p.id, weight: p.weight, barcode: p.barcode, ncm: p.ncm };
+              if (p.sku) skuMap[p.sku] = {
+                id: p.id,
+                weight: p.weight,
+                barcode: p.barcode,
+                ncm: p.ncm,
+                image_url: imageByProduct[p.id] || null,
+              };
             });
           }
 
@@ -409,12 +430,18 @@ Deno.serve(async (req) => {
             const match = skuMap[sku] || null;
             const qty = Number(it.quantity || 1);
             const unit = Number(it.unit_price || 0);
+            // Prioridade: imagem do catálogo (SKU resolvido) → thumbnail do anúncio ML
+            const productImage = match?.image_url
+              || it?.item?.secure_thumbnail
+              || it?.item?.thumbnail
+              || null;
             return {
               order_id: upserted!.id,
               tenant_id: tenantId,
               product_id: match?.id || null,
               sku,
               product_name: it?.item?.title || sku,
+              product_image_url: productImage,
               quantity: qty,
               unit_price: unit,
               total_price: qty * unit,

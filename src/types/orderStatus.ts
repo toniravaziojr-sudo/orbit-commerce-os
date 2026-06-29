@@ -108,7 +108,7 @@ export const SHIPPING_STATUS_CONFIG: Record<ShippingStatus, {
   label: string; 
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
 }> = {
-  awaiting_shipment: { label: 'Aguardando envio', variant: 'outline' },
+  awaiting_shipment: { label: 'Aguardando etiqueta', variant: 'outline' },
   label_generated: { label: 'Etiqueta gerada', variant: 'secondary' },
   shipped: { label: 'Enviado', variant: 'default' },
   in_transit: { label: 'Em trânsito', variant: 'default' },
