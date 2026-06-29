@@ -775,7 +775,7 @@ export default function CustomerDetail() {
               <>
                 <div className="flex items-center gap-3">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{customer.email}</span>
+                  <span className="text-sm">{displayCustomerEmail(customer.email)}</span>
                   {customer.email_verified && (
                     <Badge variant="outline" className="text-xs">Verificado</Badge>
                   )}
