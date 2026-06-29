@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayCustomerEmail } from '@/lib/marketplaces/syntheticEmail';
 import { 
   Users, 
   Mail, 
