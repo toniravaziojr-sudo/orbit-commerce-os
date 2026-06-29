@@ -289,6 +289,27 @@ Deno.serve(async (req) => {
         const shippingCost = Number(meliOrder?.shipping?.cost || 0);
         const subtotal = Number(meliOrder?.total_amount || 0);
 
+        // Identifica pedido pré-existente (para preservar order_number canônico em re-sync)
+        const { data: existing } = await supabase.from("orders")
+          .select("id, order_number, is_first_sale")
+          .eq("tenant_id", tenantId)
+          .eq("marketplace_order_id", meliOrderId)
+          .maybeSingle();
+
+        // Calcula is_first_sale: só TRUE se o cliente não tem nenhum outro pedido neste tenant
+        let isFirstSale = false;
+        if (!existing) {
+          if (customerId) {
+            const { count } = await supabase.from("orders")
+              .select("id", { count: "exact", head: true })
+              .eq("tenant_id", tenantId)
+              .eq("customer_id", customerId);
+            isFirstSale = (count || 0) === 0;
+          } else {
+            isFirstSale = true; // cliente recém-criado neste mesmo sync
+          }
+        }
+
         const orderData: Record<string, unknown> = {
           tenant_id: tenantId,
           customer_id: customerId,
@@ -298,7 +319,6 @@ Deno.serve(async (req) => {
           customer_cpf: doc.cpf,
           customer_cnpj: doc.cnpj,
           customer_notes: customerNotes,
-          order_number: `ML-${meliOrderId}`,
           status: orderStatus,
           payment_status: paymentStatus,
           payment_gateway: "mercadolivre",
@@ -329,21 +349,40 @@ Deno.serve(async (req) => {
           ...shippingFields,
         };
 
-        // Upsert manual (índice parcial em tenant_id+marketplace_order_id)
-        const { data: existing } = await supabase.from("orders").select("id")
-          .eq("tenant_id", tenantId).eq("marketplace_order_id", meliOrderId).maybeSingle();
-
-        let upserted: { id: string } | null = null;
+        let upserted: { id: string; order_number: string } | null = null;
         if (existing?.id) {
+          // Re-sync: NÃO regenerar número, preservar is_first_sale calculado na 1ª importação
           const { data: upd, error: updErr } = await supabase.from("orders")
-            .update(orderData).eq("id", existing.id).select("id").single();
+            .update(orderData).eq("id", existing.id)
+            .select("id, order_number").single();
           if (updErr) { console.error(`[meli-sync-orders] Update ${meliOrderId}:`, updErr); errors++; continue; }
           upserted = upd;
         } else {
+          // Novo pedido: aloca número sequencial canônico do tenant (#NNN)
+          const { data: orderNumber, error: numErr } = await supabase
+            .rpc("generate_order_number", { p_tenant_id: tenantId });
+          if (numErr || !orderNumber) {
+            console.error(`[meli-sync-orders] generate_order_number falhou para ${meliOrderId}:`, numErr);
+            errors++; continue;
+          }
+          const insertPayload = { ...orderData, order_number: orderNumber, is_first_sale: isFirstSale };
           const { data: ins, error: insErr } = await supabase.from("orders")
-            .insert(orderData).select("id").single();
+            .insert(insertPayload).select("id, order_number").single();
           if (insErr) { console.error(`[meli-sync-orders] Insert ${meliOrderId}:`, insErr); errors++; continue; }
           upserted = ins;
+
+          // Histórico: registra origem para aparecer no card "Histórico" do pedido
+          await supabase.from("order_history").insert({
+            order_id: ins.id,
+            action: "imported_from_marketplace",
+            description: `Pedido importado do Mercado Livre (ID externo ${meliOrderId})`,
+            new_value: {
+              marketplace: "mercadolivre",
+              external_order_id: meliOrderId,
+              meli_status: meliOrder.status,
+              meli_pack_id: meliOrder.pack_id ?? null,
+            },
+          });
         }
         if (!upserted) { errors++; continue; }
 
