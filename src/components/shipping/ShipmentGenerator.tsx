@@ -856,7 +856,17 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="problemas" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Problemas de envio/entrega
+            {problemCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                {problemCount}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
 
         {/* TAB 1: Prontos para emitir */}
         <TabsContent value="prontos" className="mt-4">
