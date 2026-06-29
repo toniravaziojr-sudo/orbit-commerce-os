@@ -130,17 +130,21 @@ async function sendInvoice(supabase: any, tenantId: string, orderId: string, inv
   }
 
   // 5. Enviar XML para o ML: POST /shipments/{id}/invoice_data (application/xml)
-  //    site_id=MLB é exigido pelo endpoint (rede Brasil).
-  const resp = await fetch(`https://api.mercadolibre.com/shipments/${shipmentId}/invoice_data?site_id=MLB`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${conn.access_token}`,
-      "Content-Type": "application/xml",
-      Accept: "application/json",
-      "x-format-new": "true",
-    },
-    body: xml,
-  });
+  //    O ML exige siteId=MLB (header e querystring) e header x-format-new.
+  const resp = await fetch(
+    `https://api.mercadolibre.com/shipments/${shipmentId}/invoice_data?siteId=MLB&site_id=MLB`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${conn.access_token}`,
+        "Content-Type": "application/xml",
+        Accept: "application/json",
+        "x-format-new": "true",
+        "x-site-id": "MLB",
+      },
+      body: xml,
+    }
+  );
 
   const respText = await resp.text();
   if (!resp.ok) {
