@@ -151,20 +151,24 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 - **Fase 5 — Higiene Cliente ML (29/06/2026):** ✅ aplicada.
   - Trigger `sync_subscriber_on_tag_assignment` agora **bloqueia** e-mails do domínio `@marketplace.local` — clientes sintéticos do ML não geram mais lead duplicado em `/email-marketing` nem em listas.
   - Backfill executado no tenant Respeite o Homem: cliente João Carlos de Souza recebeu CPF/endereço dos pedidos #662/#663; 2 subscribers `@marketplace.local` removidos; métricas `total_orders=2 / total_spent=R$784,98` recalculadas.
-- **Fase 6 — Self-heal fiscal authorized (cron):** ✅ infraestrutura entregue.
-  - `fiscal-reconcile-authorized` + helpers `persistAuthorizedState` (advisory lock) e `fireAuthorizedSideEffects`.
-  - Cron `fiscal-reconcile-authorized-hourly-business-hours` agendado `0 11-18 * * 1-5` (8h–16h BRT, seg-sex), gateado por `cron_call_edge_if_active`. ⚠️ Edge ainda **não respondeu em produção** (NOT_FOUND ao chamar manualmente em 29/06/2026 13:30 BRT) — verificar deploy/cache antes de marcar como "ativa".
+- **Fase 6 — Self-heal fiscal authorized (cron):** ✅ **operacional em 29/06/2026 17h BRT.**
+  - `fiscal-reconcile-authorized` deployed e respondendo (`healed=2` em validação real).
+  - Cron `fiscal-reconcile-authorized-hourly-business-hours` agendado `0 11-18 * * 1-5` (8h–16h BRT, seg-sex), gateado por `cron_call_edge_if_active`.
+  - **Raiz do bug do #658 corrigida (29/06/2026):** o helper canônico `persistAuthorizedState` escrevia em `fiscal_invoices.mensagem_sefaz`, coluna que **não existia** (PGRST204 silencioso) — TODOS os callers (`fiscal-emit`, `fiscal-submit`, `fiscal-webhook`, `fiscal-check-status`, `fiscal-reconcile`) falhavam no UPDATE final mesmo após a SEFAZ autorizar, deixando a NF em `draft` com side-effects (e-mail/evento) já executados.
+  - **Migration:** `ADD COLUMN mensagem_sefaz text, status_sefaz text` em `fiscal_invoices` — destrava todos os writers sem caçar 10+ arquivos.
+  - **Refator paralelo:** `fiscal-submit` agora usa o caminho canônico `persistAuthorizedState` + `fireAuthorizedSideEffects` (era o último writer fora do padrão, fazia UPDATE bruto e disparava e-mail **antes** do commit).
+- **Fase 7 — Token ML resiliente (29/06/2026):** ✅ entregue.
+  - Conexão ML do tenant Respeite o Homem renovada via `meli-token-refresh` (token havia vencido em 29/06 05:05 UTC, travando ingestão por ~15h).
+  - Novo cron `meli-token-refresh-30min` (`*/30 * * * *`) executa refresh proativo de toda conexão que expira nas próximas 2h. Elimina por design a janela de token vencido.
+  - `meli-sync-orders` agora preenche `cancelled_at` e `cancellation_reason` (extraídos de `date_closed` + `status_detail`) quando status=`cancelled`, satisfazendo o trigger `trg_guard_order_cancellation_metadata` que bloqueava o sync de cancelamentos.
 
 **Pendências em aberto (Mercado Livre — ciclo real):**
-1. **#658 (NF 442) — órfã `authorized` no banco em `draft`.** Aguarda o cron rodar (ou nova validação manual após confirmar deploy do edge).
-2. ~~**#662 / #663 — pedidos pagos com NF em rascunho (450/451)**~~ ✅ **Resolvido em 29/06/2026.**
-   - `fiscal-auto-create-drafts` v3.x agora aceita chamadas de sistema (service-role OU anon com body `{cron_invocation:true}` ou `{order_id,tenant_id}`) e o batch query inclui `sales_channel='marketplace' AND status='processing'` (não apenas `paid/ready_to_invoice`).
-   - Cron `fiscal-auto-create-drafts-every-10min` ativo (gateado por `cron_call_edge_if_active`) — roda PV→NF→SEFAZ para marketplaces aprovados.
-   - Backfill aplicado nos PVs 450/451 (campos `dest_*` copiados do customer canônico, e-mail sintético `@marketplace.local` ignorado em `dest_email`).
-   - Pedido #663 → **NF #447 autorizada na SEFAZ** (`chave NFe35260663269917000106550010000004471054414461`). Pedido #662 em `processando_autorizacao` no Focus — próximo poll do cron de reconcile vai promover para `authorized`.
-   - Próximo passo de validação real: confirmar que após autorização o ML recebeu a NF e liberou a etiqueta automaticamente para o módulo Logística Externa (Onda C do plano marketplace).
-3. **Onda Correios — "Aguardando retirada":** `tracking-poll` ainda não mapeia o status pós-3 tentativas (prazo 7 dias para retirada). UI de Logística Externa precisa exibir o motivo real do Correios (ex.: "Tentativa de entrega não efetuada"), endereço da agência e prazo. Notificações de "Aguardando retirada" para o cliente também dependem deste mapeamento.
+1. ~~**#658 (NF 442) — órfã `authorized` no banco em `draft`**~~ ✅ **curado em 29/06/2026 17:17 BRT** via reconcile (`healed=2`, NFs 442 e 447 agora `authorized + fiscal_stage=emitida + chave_acesso preenchida`).
+2. ~~**#662 / #663 — cancelamentos não sincronizavam**~~ ✅ **resolvido em 29/06/2026 17:18 BRT** — ambos agora `status=cancelled` com `cancelled_at` e razão. Pedido novo **#665** importado automaticamente em `processing` no mesmo sync.
+3. **Onda Correios — "Aguardando retirada":** `tracking-poll` ainda não mapeia o status pós-3 tentativas (prazo 7 dias para retirada). UI de Logística Externa precisa exibir o motivo real do Correios, endereço da agência e prazo. Notificações de "Aguardando retirada" para o cliente também dependem deste mapeamento.
 4. **Logística Externa — sub-aba "Problemas de envio/entrega":** já existe; deep-links a partir da Central de Execuções e da coluna Envio do `/orders` já implementados.
+5. **Próxima validação real:** confirmar que após autorização das NFs marketplace o ML recebeu o XML e liberou a etiqueta para Logística Externa (Onda C do plano marketplace).
+
 
 **Restrições firmes:**
 - Nada de tocar nas configurações de imposto sem autorização (impacta diretamente cálculo de NF-e).
