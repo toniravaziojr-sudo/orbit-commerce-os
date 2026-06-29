@@ -255,6 +255,10 @@ export function OrderList({
                       <StatusIcon className="h-3 w-3 shrink-0" />
                       {orderStatusCfg.label}
                     </Badge>
+                    <BuyerCancellationNotice
+                      status={order.status}
+                      cancellationReason={(order as any).cancellation_reason}
+                    />
                   </TableCell>
                   <TableCell className="py-3">
                     <Tooltip>
