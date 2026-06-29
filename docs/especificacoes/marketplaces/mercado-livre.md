@@ -1542,3 +1542,27 @@ O Dashboard (`useDashboardMetrics`) e Pagamentos (`usePayments`) filtram por `.n
 
 ### Status base de envio
 - Pedidos do ML entram com `shipping_status='pending'` (normalizado para `awaiting_shipment` na UI). O rótulo canônico exibido é **"Aguardando etiqueta"** (renomeado de "Aguardando envio" para deixar claro que é o estado anterior à geração da etiqueta — ver `docs/especificacoes/ecommerce/pedidos.md`).
+
+### Cancelamento pelo comprador e saneamento da fila (v3.14)
+Quando o comprador cancela um pedido no ML antes da NF ser enviada ao marketplace, o ciclo precisa fechar limpo — sem itens travados em "failed" e sem ações fiscais inválidas. Implementado:
+
+- **Status canônico:** pedidos do ML cancelados pelo comprador entram como `orders.status = 'cancelled'` com `cancellation_reason` preenchido. Não inventar novos status (regra reforçada em `mem://constraints/orders-canonical-status`).
+- **Tarja discreta `BuyerCancellationNotice`:** componente único usado em **detalhe do pedido**, **detalhe da NF**, **lista de pedidos** (`OrderList`) e **lista fiscal** (`FiscalInvoiceList`). Renderiza uma linha pequena vermelha logo abaixo do status com a razão humanizada ("Pedido cancelado pelo comprador", "Pedido cancelado em mediação no Mercado Livre", etc.). Substitui o banner grande nos casos meramente informativos — o banner grande (`OrderRegressionBanner`) só aparece quando houve ação manual concreta (NF autorizada ou etiqueta despachada).
+- **Batch fetch no FiscalInvoiceList:** para evitar N+1, a lista fiscal carrega `cancellation_reason` dos `order_id`s das NFs canceladas visíveis em uma única query (`useEffect` por página).
+- **Fila `meli_invoice_send_queue` aceita o estado `cancelled`:** novo CHECK constraint inclui `cancelled`. Sanitização retroativa rodada.
+- **Gatilho automático `trg_cancel_meli_invoice_queue`:** sempre que `orders.status` muda para `cancelled`, todos os itens pendentes/processing/failed daquele pedido na fila são movidos para `cancelled` com o motivo. Encerra o ciclo de re-tentativas sem intervenção manual.
+
+**Anti-regressão:**
+- Não criar novos status fiscais ou de pedido para "cancelado por comprador" — usar apenas o `cancellation_reason` + `BuyerCancellationNotice`.
+- Não remover a verificação `.neq('tracking_code', '')` em `wms-pratika-send` (ver abaixo).
+- O CHECK da fila não pode regredir: sempre incluir `'cancelled'` nas opções permitidas.
+
+### Pratika — fonte do rastreio para etiquetas externas (v3.14)
+A fila Pratika exige NF + rastreio juntos. Para pedidos do ML, a etiqueta é gerada pelo próprio marketplace e o rastreio fica em `marketplace_shipments.tracking_number`. O lookup interno `shipments.tracking_code` pode existir vazio (string `''`, não NULL) para esses pedidos.
+
+- `wms-pratika-send.send_combined` ignora `tracking_code = ''` no lookup interno (`.neq('tracking_code', '')`) **e** sempre roda o fallback em `marketplace_shipments` quando o shipment interno resolvido não tem rastreio efetivo.
+- A nova aba **"Problemas"** em `/external-shipping` lista shipments com erro registrado, status `problem`/`returned` ou prontos para Pratika há mais de 6h sem despacho — com botão **"Reenviar Pratika"** (chama `wms-pratika-send` com `action=send_combined`).
+- KPI **"Aguardando NF"** unificado: soma shipments em `awaiting_invoice` **+** itens `pending` em `meli_invoice_send_queue`.
+
+**Anti-regressão:**
+- Não voltar a condição `if (!shipment && resolvedOrderId)` para o fallback marketplace — a string vazia faz `shipment` ser truthy. Usar `if (!shipment?.tracking_code && resolvedOrderId)`.

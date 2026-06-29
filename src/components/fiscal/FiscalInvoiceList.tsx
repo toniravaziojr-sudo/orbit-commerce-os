@@ -40,6 +40,7 @@ import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { issueAndDownloadCorreiosContentDeclarationsBatch, reprintDeclarationByFiscalInvoiceId } from '@/lib/declaracaoConteudo';
 import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
+import { BuyerCancellationNotice } from '@/components/orders/BuyerCancellationNotice';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 import {
@@ -305,6 +306,36 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const start = (currentPage - 1) * pageSize;
     return filteredInvoices.slice(start, start + pageSize);
   }, [filteredInvoices, currentPage, pageSize]);
+
+  // Carrega cancellation_reason em lote para os pedidos das NFs canceladas visíveis,
+  // evitando N+1. Mapa { order_id: reason }. Renderiza a tarja discreta de cancelamento.
+  const cancelledOrderIds = useMemo(() => {
+    const ids = new Set<string>();
+    (pagedInvoices || []).forEach((i: any) => {
+      if (i?.status === 'cancelled' && i?.order_id) ids.add(i.order_id as string);
+    });
+    return Array.from(ids);
+  }, [pagedInvoices]);
+
+  const [cancellationReasonByOrder, setCancellationReasonByOrder] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    if (!cancelledOrderIds.length) return;
+    let canceled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status, cancellation_reason')
+        .in('id', cancelledOrderIds);
+      if (canceled || !data) return;
+      const next: Record<string, string | null> = {};
+      (data as any[]).forEach((row) => {
+        if (row?.status === 'cancelled') next[row.id] = row.cancellation_reason ?? null;
+      });
+      setCancellationReasonByOrder((prev) => ({ ...prev, ...next }));
+    })();
+    return () => { canceled = true; };
+  }, [cancelledOrderIds.join('|')]);
+
 
   // Carrega o conjunto de Pedidos de Venda visíveis que já possuem Declaração de
   // Conteúdo emitida. Atualiza o mapa local para o item do menu alternar entre
@@ -2020,6 +2051,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                 <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
                                   {invoice.status_motivo}
                                 </p>
+                              )}
+                              {invoice.status === 'cancelled' && invoice.order_id && (
+                                <BuyerCancellationNotice
+                                  status="cancelled"
+                                  cancellationReason={cancellationReasonByOrder[invoice.order_id as string] ?? null}
+                                />
                               )}
                             </div>
                           </TableCell>

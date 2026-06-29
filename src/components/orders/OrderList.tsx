@@ -61,6 +61,7 @@ import { OrderSourceBadge } from './OrderSourceBadge';
 import type { Order } from '@/hooks/useOrders';
 import { Link } from 'react-router-dom';
 import { resolveShippingDeepLink } from '@/lib/shipping/shippingDeepLink';
+import { BuyerCancellationNotice } from './BuyerCancellationNotice';
 
 import { 
   OrderStatus, 
@@ -255,6 +256,10 @@ export function OrderList({
                       <StatusIcon className="h-3 w-3 shrink-0" />
                       {orderStatusCfg.label}
                     </Badge>
+                    <BuyerCancellationNotice
+                      status={order.status}
+                      cancellationReason={(order as any).cancellation_reason}
+                    />
                   </TableCell>
                   <TableCell className="py-3">
                     <Tooltip>

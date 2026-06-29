@@ -167,7 +167,11 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 2. ~~**#662 / #663 — cancelamentos não sincronizavam**~~ ✅ **resolvido em 29/06/2026 17:18 BRT** — ambos agora `status=cancelled` com `cancelled_at` e razão. Pedido novo **#665** importado automaticamente em `processing` no mesmo sync.
 3. **Onda Correios — "Aguardando retirada":** `tracking-poll` ainda não mapeia o status pós-3 tentativas (prazo 7 dias para retirada). UI de Logística Externa precisa exibir o motivo real do Correios, endereço da agência e prazo. Notificações de "Aguardando retirada" para o cliente também dependem deste mapeamento.
 4. **Logística Externa — sub-aba "Problemas de envio/entrega":** já existe; deep-links a partir da Central de Execuções e da coluna Envio do `/orders` já implementados.
-5. **Próxima validação real:** confirmar que após autorização das NFs marketplace o ML recebeu o XML e liberou a etiqueta para Logística Externa (Onda C do plano marketplace).
+5. ~~**Onda Pratika — #665 travado em ready_to_ship sem despacho**~~ ✅ **resolvido em 29/06/2026** — bug no `wms-pratika-send` (tracking_code='' fazia o fallback `marketplace_shipments` ser ignorado). Corrigido com `.neq('tracking_code','')` e troca da condição `!shipment` por `!shipment?.tracking_code`. NF 448 enviada à Pratika com tracking AD624331900BR.
+6. ~~**Tarja "Cancelado pelo comprador" só aparecia nos detalhes**~~ ✅ **resolvido em 29/06/2026** — `BuyerCancellationNotice` integrado em `OrderList` (lista de pedidos) e `FiscalInvoiceList` (lista fiscal, com batch fetch de `cancellation_reason` para evitar N+1).
+7. ~~**Fila `meli_invoice_send_queue` entupida com itens "failed" de pedidos cancelados**~~ ✅ **resolvido em 29/06/2026** — novo estado `cancelled` no CHECK, sanitização retroativa e gatilho `trg_cancel_meli_invoice_queue` que encerra itens automaticamente quando o pedido vira `cancelled`.
+8. ~~**UI da Logística Externa confusa**~~ ✅ ajuste cirúrgico em 29/06/2026 — nova aba **Problemas** (shipments com erro, status problema/devolvido ou prontos para Pratika há mais de 6h), botão **Reenviar Pratika** por linha, KPI **Aguardando NF** unificado (shipments + fila pendente).
+9. **Onda Correios — "Aguardando retirada":** segue pendente (mapeamento do status pós-3 tentativas, prazo 7 dias, endereço da agência).
 
 
 **Restrições firmes:**
