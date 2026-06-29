@@ -381,6 +381,20 @@ Deno.serve(async (req) => {
           ...shippingFields,
         };
 
+        // Metadados obrigatórios de cancelamento (trigger trg_guard_order_cancellation_metadata)
+        if (orderStatus === "cancelled") {
+          const cancelDate = meliOrder?.date_closed || meliOrder?.last_updated || meliOrder?.date_created || new Date().toISOString();
+          const cancelReason = meliOrder?.status_detail?.description
+            || meliOrder?.status_detail?.code
+            || meliOrder?.cancel_detail?.description
+            || meliOrder?.cancel_detail?.code
+            || (typeof meliOrder?.status_detail === "string" ? meliOrder.status_detail : null)
+            || "Pedido cancelado no Mercado Livre";
+          (orderData as any).cancelled_at = cancelDate;
+          (orderData as any).cancellation_reason = String(cancelReason).slice(0, 500);
+        }
+
+
         let upserted: { id: string; order_number: string } | null = null;
         if (existing?.id) {
           // Re-sync: NÃO regenerar número, preservar is_first_sale calculado na 1ª importação
