@@ -2052,6 +2052,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   {invoice.status_motivo}
                                 </p>
                               )}
+                              {invoice.status === 'cancelled' && invoice.order_id && (
+                                <BuyerCancellationNotice
+                                  status="cancelled"
+                                  cancellationReason={cancellationReasonByOrder[invoice.order_id as string] ?? null}
+                                />
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
