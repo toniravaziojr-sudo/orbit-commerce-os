@@ -58,6 +58,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OrderSourceBadge } from './OrderSourceBadge';
 import type { Order } from '@/hooks/useOrders';
+import { Link } from 'react-router-dom';
+import { resolveShippingDeepLink } from '@/lib/shipping/shippingDeepLink';
+
 import { 
   OrderStatus, 
   PaymentStatus, 
@@ -254,10 +257,21 @@ export function OrderList({
                   <TableCell className="py-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant={shippingStatusCfg.variant} className="gap-1 text-xs cursor-help whitespace-nowrap">
-                          <ShippingIcon className="h-3 w-3 shrink-0" />
-                          {shippingStatusCfg.label}
-                        </Badge>
+                        {(() => {
+                          const link = resolveShippingDeepLink(order as any);
+                          const badge = (
+                            <Badge
+                              variant={shippingStatusCfg.variant}
+                              className={`gap-1 text-xs whitespace-nowrap ${link.enabled ? 'cursor-pointer hover:opacity-80' : 'cursor-help'}`}
+                            >
+                              <ShippingIcon className="h-3 w-3 shrink-0" />
+                              {shippingStatusCfg.label}
+                            </Badge>
+                          );
+                          return link.enabled
+                            ? <Link to={link.to} onClick={(e) => e.stopPropagation()}>{badge}</Link>
+                            : badge;
+                        })()}
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
                         <div className="space-y-1">
@@ -267,6 +281,7 @@ export function OrderList({
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
+
                   <TableCell className="py-3">
                     <span className="text-xs font-medium">
                       {order.payment_method ? PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method : '—'}

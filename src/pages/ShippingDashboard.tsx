@@ -445,8 +445,9 @@ export default function ShippingDashboard() {
 
         {/* Objetos de postagem (operação por unidade) */}
         <TabsContent value="objetos" className="mt-6">
-          <ShipmentGenerator />
+          <ShipmentGenerator initialSubTab={searchParams.get('aba') || undefined} />
         </TabsContent>
+
 
         {/* Remessas (agrupadores) */}
         <TabsContent value="remessas" className="mt-6">
