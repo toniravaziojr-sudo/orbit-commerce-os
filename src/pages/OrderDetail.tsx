@@ -530,7 +530,7 @@ export default function OrderDetail() {
                   <p className="font-medium group-hover:text-primary transition-colors">
                     {order.customer_name}
                   </p>
-                  <p className="text-sm text-muted-foreground">{order.customer_email}</p>
+                  <p className="text-sm text-muted-foreground">{displayCustomerEmail(order.customer_email)}</p>
                   {order.customer_phone && (
                     <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
                   )}
