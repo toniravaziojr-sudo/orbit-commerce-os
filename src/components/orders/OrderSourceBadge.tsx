@@ -131,14 +131,20 @@ export function OrderSourceBadge({
   }
 
   const Icon = config.icon;
+  const isMercadoLivre = marketplaceSource.toLowerCase() === 'mercadolivre';
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="inline-flex items-center gap-1.5">
-          <div className={`rounded-full ${config.bgColor} ${size === 'sm' ? 'p-0.5' : 'p-1'}`}>
-            <Icon className={`${sizeClasses[size]} ${config.color}`} />
-          </div>
+          {isMercadoLivre ? (
+            // Logo oficial do ML já vem com o círculo amarelo embutido — sem wrapper extra
+            <Icon className={sizeClasses[size]} />
+          ) : (
+            <div className={`rounded-full ${config.bgColor} ${size === 'sm' ? 'p-0.5' : 'p-1'}`}>
+              <Icon className={`${sizeClasses[size]} ${config.color}`} />
+            </div>
+          )}
           {showLabel && <span className="text-sm text-muted-foreground">{config.name}</span>}
         </div>
       </TooltipTrigger>
