@@ -404,13 +404,13 @@ Deno.serve(async (req) => {
             const imageByProduct: Record<string, string> = {};
             if (productIds.length > 0) {
               const { data: imgs } = await supabase.from("product_images")
-                .select("product_id, image_url, is_primary, sort_order")
+                .select("product_id, url, is_primary, sort_order")
                 .in("product_id", productIds)
                 .order("is_primary", { ascending: false })
                 .order("sort_order", { ascending: true });
               (imgs || []).forEach((img: any) => {
-                if (!imageByProduct[img.product_id] && img.image_url) {
-                  imageByProduct[img.product_id] = img.image_url;
+                if (!imageByProduct[img.product_id] && img.url) {
+                  imageByProduct[img.product_id] = img.url;
                 }
               });
             }
