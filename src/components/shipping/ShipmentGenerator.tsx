@@ -1313,7 +1313,90 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* TAB 4: Problemas de envio/entrega (pós-despacho) */}
+        <TabsContent value="problemas" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Problemas de envio/entrega
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  {problemCount} remessa(s) — objeto já despachado com ocorrência
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingFailed ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+                  ))}
+                </div>
+              ) : problemCount === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  Nenhum problema de envio ou entrega no momento
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3">
+                    {deliveryProblems.map(shipment => {
+                      const orderNumber = (shipment.order as any)?.order_number;
+                      const customerName = (shipment.order as any)?.customer_name
+                        || shipment.pv?.dest_nome
+                        || 'Sem cliente vinculado';
+                      const refLabel = orderNumber
+                        ? `Pedido #${orderNumber}`
+                        : shipment.pv?.numero
+                          ? `PV ${shipment.pv.numero}`
+                          : '—';
+                      const headerLabel = `#${shipment.numero} · ${refLabel}`;
+                      return (
+                        <div
+                          key={shipment.id}
+                          className="p-3 rounded-lg border border-destructive/30 bg-destructive/5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">{headerLabel}</span>
+                                {getStatusBadge(shipment.delivery_status)}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {customerName}
+                              </p>
+                              {shipment.tracking_code && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Rastreio: <span className="font-mono">{shipment.tracking_code}</span>
+                                </p>
+                              )}
+                              {(shipment.metadata as any)?.error_message && (
+                                <p className="text-xs text-destructive mt-1">
+                                  {(shipment.metadata as any).error_message}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                            <Badge variant="outline" className="text-xs">
+                              {shipment.carrier}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateTimeBR(new Date(shipment.created_at))}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
 
       {/* Dispatch dialog removido — emissão da remessa = despacho.
           A transição para "Enviado" só acontece quando os Correios reportam o
