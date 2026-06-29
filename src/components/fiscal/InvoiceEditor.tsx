@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 import { AddressFields } from '@/components/shared/AddressFields';
+import { BuyerCancellationNotice } from '@/components/orders/BuyerCancellationNotice';
 
 // Types
 export interface InvoiceData {
