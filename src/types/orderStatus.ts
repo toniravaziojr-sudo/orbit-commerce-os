@@ -36,6 +36,7 @@ export type OrderStatus =
   | 'completed'                // Concluído - Chegou ao destino
   | 'returning'                // Em devolução - NF de devolução emitida
   | 'payment_expired'          // Pagamento expirado - Não pago, expirou
+  | 'cancelled'                // Cancelado - Pedido cancelado (comprador, marketplace, etc.)
   | 'cancelled_by_user'        // Cancelado pelo usuário - Lojista cancelou o pagamento manualmente
   | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
   | 'invoice_cancelled'        // NF Cancelada - Cancelada pós-autorização
@@ -57,6 +58,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   completed: { label: 'Concluído', variant: 'default' },
   returning: { label: 'Em devolução', variant: 'destructive' },
   payment_expired: { label: 'Pagamento expirado', variant: 'destructive' },
+  cancelled: { label: 'Cancelado', variant: 'destructive' },
   cancelled_by_user: { label: 'Cancelado pelo usuário', variant: 'destructive' },
   invoice_rejected: { label: 'NF Rejeitada', variant: 'destructive' },
   invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
@@ -150,7 +152,7 @@ export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
   shipped: 'dispatched',
   in_transit: 'dispatched',
   delivered: 'completed',
-  cancelled: 'payment_expired',
+  cancelled: 'cancelled',
   returned: 'returning',
   // Extra old values
   approved: 'ready_to_invoice',
