@@ -126,6 +126,9 @@ Deno.serve(async (req) => {
             ? mlGet(`${ML_BASE}/shipments/${shippingId}`, accessToken, { "x-format-new": "true" })
             : Promise.resolve(null),
         ]);
+        console.log(`[meli-sync-orders][${meliOrderId}] billing=`, billing ? JSON.stringify(billing).slice(0, 800) : "null");
+        console.log(`[meli-sync-orders][${meliOrderId}] shipment=`, shipment ? JSON.stringify(shipment).slice(0, 800) : "null");
+        console.log(`[meli-sync-orders][${meliOrderId}] buyer=`, JSON.stringify(buyer = meliOrder.buyer || {}).slice(0, 400));
 
         const statusMap: Record<string, string> = {
           confirmed: "processing", paid: "processing",
