@@ -306,6 +306,36 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return filteredInvoices.slice(start, start + pageSize);
   }, [filteredInvoices, currentPage, pageSize]);
 
+  // Carrega cancellation_reason em lote para os pedidos das NFs canceladas visíveis,
+  // evitando N+1. Mapa { order_id: reason }. Renderiza a tarja discreta de cancelamento.
+  const cancelledOrderIds = useMemo(() => {
+    const ids = new Set<string>();
+    (pagedInvoices || []).forEach((i: any) => {
+      if (i?.status === 'cancelled' && i?.order_id) ids.add(i.order_id as string);
+    });
+    return Array.from(ids);
+  }, [pagedInvoices]);
+
+  const [cancellationReasonByOrder, setCancellationReasonByOrder] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    if (!cancelledOrderIds.length) return;
+    let canceled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status, cancellation_reason')
+        .in('id', cancelledOrderIds);
+      if (canceled || !data) return;
+      const next: Record<string, string | null> = {};
+      (data as any[]).forEach((row) => {
+        if (row?.status === 'cancelled') next[row.id] = row.cancellation_reason ?? null;
+      });
+      setCancellationReasonByOrder((prev) => ({ ...prev, ...next }));
+    })();
+    return () => { canceled = true; };
+  }, [cancelledOrderIds.join('|')]);
+
+
   // Carrega o conjunto de Pedidos de Venda visíveis que já possuem Declaração de
   // Conteúdo emitida. Atualiza o mapa local para o item do menu alternar entre
   // "Gerar" e "Imprimir Declaração de Conteúdo".
