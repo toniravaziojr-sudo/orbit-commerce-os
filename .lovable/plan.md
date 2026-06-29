@@ -1,98 +1,69 @@
-## Objetivo
+## Revisão do diagnóstico
 
-Fazer os pedidos do Mercado Livre percorrerem **o mesmo fluxo** dos pedidos da loja virtual em Cliente → Fiscal → Logística, respeitando 3 limitações reais do ML: e-mail/telefone podem não vir, etiqueta é gerada pelo ML (não pelos Correios) e a entrada do pedido vem por webhook/sync. Sem gambiarra, sem auto-cura silenciosa, sem regra exclusiva por tenant.
+### Pedido #658 — Alexandre Araúna
+- NF nº 442 **autorizada na SEFAZ em 27/06 13:30** (chave + protocolo gravados em `fiscal_invoice_events`).
+- O side-effect de e-mail **rodou com sucesso** logo depois (`event_type=email_sent` às 13:30:43).
+- Mas o `UPDATE fiscal_invoices SET status='authorized', chave_acesso, focus_ref...` **nunca persistiu**: linha segue `draft` / `pronta_emitir` / sem chave.
+- A regra `fiscal-emit-persist-authorized-before-side-effects` (v2026-06-11) já cobre `fiscal-emit`. Como o e-mail rodou e o UPDATE não, o caminho que autorizou **não foi o `fiscal-emit`** ou um caminho paralelo (`fiscal-check-status` polling, `fiscal-webhook` da Focus) registrou o evento sem aplicar a mesma ordem segura. **Os logs já expiraram (2 dias)** — confirmação exata virá auditando os arquivos.
+- Reconciliador `fiscal-reconcile-authorized` das 8h–16h **não cobriu** este caso: a query atual provavelmente filtra por `status=authorized AND chave_acesso IS NULL`, não por "evento authorized presente + linha draft".
 
-## 1. Cliente do ML reaproveita cadastro existente (Onda 4 rev.)
+### Mercado Livre — Respeite o Homem
+- Token OAuth **expirou em 29/06 05:05 UTC**. Webhooks chegam (último 19:46) mas qualquer chamada à API ML retorna 401 e o sync aborta. Sem refresh proativo.
+- Cancelamentos dos #662/#663 e o novo pedido **não foram processados**.
+- Mesmo com token recuperado, o sync atual **vai falhar ao cancelar** os #662/#663 porque o trigger `trg_guard_order_cancellation_metadata` exige `cancelled_at` + `cancellation_reason` na mesma UPDATE — regra rígida do banco (`mem://constraints/order-cancellation-requires-metadata-guard`). O adapter ML precisa preencher esses campos.
 
-**Como funciona hoje:** o `meli-sync-orders` já procura cliente por `last_external_id → CPF → CNPJ → e-mail real`. Quando não acha, cria com e-mail sintético `meli-{id}@marketplace.local`. Esse sintético dispara duplicidade no fluxo de leads e some o cliente real.
+## Onda 1 — Persistência fiscal universal (raiz do #658)
 
-**O que muda:**
-- **Match ampliado:** quando ML não envia e-mail, mas envia CPF/CNPJ e/ou telefone, casar também por `phone` (normalizado em dígitos, com variantes 55) — mesma regra do `lookup_customer` da IA. Reaproveita cliente da loja sem criar registro novo.
-- **Nunca sobrescrever dado real:** se o cliente encontrado já tem e-mail/telefone reais cadastrados, o pedido do ML **usa esses dados** (inclusive em `customer_email` no pedido, para notificações funcionarem). Só preenche campo do cliente quando estiver vazio (política já existente em `profile-enrichment-policy-standard`).
-- **E-mail sintético segue existindo como último recurso** (a coluna `customers.email` é NOT NULL), mas marcado em `customer_notes` e em `marketplace_data.data_pending` como “e-mail pendente”. UI mostra “Sem e-mail informado” quando o e-mail for sintético — sem alterar layout, só o texto do campo.
-- **Bloqueio anti-lead duplicado:** `sync_subscriber_on_tag_assignment` já ignora `@marketplace.local` (Onda 4 anterior) — mantém.
+1. **Estender a regra "persistir antes dos side-effects" a TODOS os caminhos** que recebem resposta de autorização da Focus: `fiscal-emit`, `fiscal-submit`, `fiscal-check-status`, `fiscal-webhook`. Extrair a função `applyAuthorizationResult(invoice_id, focusResponse)` em `supabase/functions/_shared/fiscal/applyAuthorization.ts` (responsável por: UPDATE da linha → `event=authorized` → enfileirar side-effects). Os 4 caminhos passam a chamar exclusivamente esse helper. Side-effects (e-mail, WMS, link-remessa) ficam em `try/catch` individual e nunca bloqueiam.
 
-## 2. Backfill dos pedidos #662 e #663
+2. **Reconciliador `fiscal-reconcile-authorized` ampliado** para o cenário real do #658: detecta linhas `fiscal_invoices.status='draft'` cujos `fiscal_invoice_events` já têm `event_type='authorized'` com `event_data->>'focus_response'->>'status'='autorizado'`. Quando detecta, reaplica `applyAuthorizationResult()` a partir do `event_data` — sem rechamar a SEFAZ. Mantém o cron 8h–16h existente.
 
-Comparar com pedidos da loja e reexecutar o pipeline canônico:
-1. Rodar `meli-sync-orders` apontando para esses 2 `marketplace_order_id` (re-sync atualiza, não duplica).
-2. Reassociar ao cliente real (João Carlos) caso o match novo encontre, recalculando métricas via `customer-metrics-sync`.
-3. Reemitir `order_history` se ficou incompleto.
-4. Disparar `enqueue_fiscal_draft` para criar Pedido de Venda Fiscal (hoje não foram criados — esse é o gap real).
-5. Validar que o pedido aparece em `/fiscal?tab=pedidos` e em `/external-shipping` como “Aguardando NF”.
+3. **Auditoria pós-deploy** (uma vez): rodar o reconciliador ampliado contra todo o tenant `respeite-o-homem` para cobrir órfãos legados além do #658.
 
-## 3. Avisos de problema de envio na UI
+## Onda 2 — Token ML resiliente (raiz do "pedidos não entram")
 
-Mantém o visual padrão (badge/cartão atual do sistema). Apenas garante que:
-- Lista `/orders` → clique no aviso da coluna Envio → deep-link já existente (`resolveShippingDeepLink`) abre a aba certa.
-- Central de Execuções → clique em “Problemas com envio” → mesma aba “Problemas de envio/entrega”.
-- **Texto do motivo** passa a vir do `tracking-poll` (Correios “Aguardando retirada”, “Tentativa frustrada”, etc.), em PT-BR, conforme Onda 1 já planejada.
+1. **Helper compartilhado `getValidMeliToken(tenant_id)`** em `supabase/functions/_shared/meli/token.ts`. Refaz refresh se `expires_at - now() < 10 min`. Lock via `pg_try_advisory_xact_lock(hashtext(tenant_id||'meli-refresh'))` para evitar refresh concorrente. Atualiza `marketplace_connections.last_error` em falha. Todas as edge functions ML (`meli-sync-orders`, `meli-fetch-shipment`, `meli-send-invoice`, `meli-resolve-attributes`, `meli-publish-listing`, `meli-fetch-listing`) passam a chamar esse helper antes de qualquer fetch ML.
 
-Sem cor/formato novo. Só conteúdo correto.
+2. **Cron `meli-refresh-tokens`** a cada 30 min: refresca toda conexão `is_active=true` com `expires_at < now() + 1h`. Se o refresh token expirar/falhar, grava `last_error` e cria notificação na Central de Execuções com texto "Conexão Mercado Livre expirou — reconectar".
 
-## 4. Automação fiscal + logística unificada
+3. **`meli-webhook` à prova de token expirado**: hoje já existe; garantir que sempre grava o payload em `events_inbox` antes de tentar processar e que a falha de processamento não devolve 5xx pro ML (já é 200, mas o evento precisa ficar enfileirado para reprocesso). Cron `meli-reconcile-orders` (já existente, validar frequência ≤15 min) drena `events_inbox` pendentes.
 
-**Regra única (vale para loja e marketplaces):**
-- Se `fiscal_settings.emissao_automatica = TRUE` → **toda NF é emitida sozinha**, inclusive marketplace.
-- Se `emissao_automatica = FALSE` → **toda NF é manual**, inclusive marketplace.
-- **Logística externa é sempre automática** quando a NF é autorizada (não tem opção manual — é resposta ao evento).
+4. **Adapter de cancelamento ML compatível com o guard do banco**: ao detectar pedido cancelado no ML, o sync monta o UPDATE com `status='cancelled'`, `cancelled_at = ml.date_closed || now()`, `cancellation_reason = 'Cancelado no Mercado Livre: ' || ml.cancel_detail.description` (PT-BR) na mesma operação. Depois chama `order-regression-handler` (já idempotente) para marcar `requires_action=true` na NF autorizada do #662 e nos envios pendentes.
 
-**Pipeline marketplace (igual ao da loja):**
+## Onda 3 — Backfill seguro
+
+1. **#658**: rodar o reconciliador ampliado → NF 442 vira `authorized` com chave/protocolo/XML/DANFE do evento. Sem reenvio de e-mail (já foi). Validar consistência `orders.status` = `fiscal_invoices.status`.
+2. **ML — Respeite o Homem**: refresh manual do token, depois `meli-sync-orders` em modo backfill 7 dias. Resultado esperado: novo pedido importado com PV; #662/#663 cancelados via novo adapter, com `requires_action=true` nas NFs/envios e banner de regressão visível em `OrderDetail`.
+3. Conferir: sem cliente duplicado, sem alteração em NFs autorizadas (cancelamento de NF segue sendo ação humana).
+
+## Onda 4 — Anti-regressão
+
+- Atualizar `mem://constraints/fiscal-emit-persist-authorized-before-side-effects` cobrindo explicitamente os 4 caminhos e o reconciliador como rede de segurança.
+- Nova memory `mem://constraints/marketplace-token-proactive-refresh`: toda função que chama API de marketplace DEVE usar helper de token com refresh < 10 min; cron de refresh < 1h; webhook enfileira em `events_inbox` mesmo em falha.
+- Nova memory `mem://constraints/marketplace-cancellation-must-fill-metadata`: adapter de marketplace que sincroniza cancelamento DEVE preencher `cancelled_at` + `cancellation_reason` no mesmo UPDATE (cumprindo `order-cancellation-requires-metadata-guard`).
+- Atualizar `docs/especificacoes/erp/erp-fiscal.md` (§ Persistência transacional + reconciliador), `docs/especificacoes/marketplaces/mercado-livre.md` (§ Resiliência de token + cancelamento) e `docs/especificacoes/transversais/assuntos-em-andamento.md`.
+
+## Validação técnica obrigatória
 
 ```text
-Webhook ML → meli-sync-orders
-   ↓
-INSERT em orders (sales_channel='marketplace')
-   ↓
-Trigger atomic-order-draft (já existe)
-   ↓
-fiscal_draft_queue → cria Pedido de Venda Fiscal (sempre, igual loja)
-   ↓
-SE emissao_automatica=TRUE  →  fiscal-auto-create-drafts processa e dispara fiscal-submit (modo sistema)
-SE emissao_automatica=FALSE →  fica aguardando ação manual em /fiscal?tab=notas (igual loja)
-   ↓
-NF autorizada → trigger fire_authorized_side_effects
-   ↓ (canal marketplace?)
-meli-send-invoice (envia chave ao ML)
-   ↓
-ML libera etiqueta → webhook shipments
-   ↓
-meli-fetch-shipment baixa PDF + tracking → marketplace_shipments
-   ↓
-external-shipping-sync-cron → wms-pratika-send
+SELECT status, chave_acesso FROM fiscal_invoices WHERE numero=442
+  AND source_order_invoice_id IS NOT NULL;  -- esperar: authorized + chave
+SELECT expires_at FROM marketplace_connections
+  WHERE tenant_id=(tenant respeite-o-homem);  -- esperar: > now()+5h
+SELECT order_number, status, cancelled_at, cancellation_reason
+  FROM orders WHERE order_number IN ('#662','#663');  -- esperar: cancelled + metadata
+SELECT order_number FROM orders WHERE marketplace_source='mercadolivre'
+  AND created_at > now()-interval '2 day';  -- esperar: novo pedido presente
 ```
+Logs de `meli-sync-orders` sem 401; banners de regressão visíveis nos pedidos cancelados.
 
-**Mudanças concretas:**
-- **`fiscal-auto-create-drafts`** hoje só olha pedidos com `sales_channel='storefront'` em alguns trechos. Remover essa restrição: passa a processar pedidos de marketplace pela mesma regra (`emissao_automatica = TRUE` + pedido pago + dados completos).
-- **`fiscal-submit` em modo sistema:** refatorar para aceitar contexto `service_role` (sem `auth.uid()`), reusando o mesmo handler que o usuário aciona manualmente. Sem fork de lógica.
-- **Pré-flight bloqueia automaticamente** se faltar CPF/endereço (regra `sistema-nunca-preenche-dado-faltante-do-cliente`): pedido fica visível com pendência, não fabrica dado.
-- **`meli-send-invoice`** já dispara via fila quando NF fica `authorized` — manter.
-- **`meli-fetch-shipment`** já baixa etiqueta automaticamente via webhook + cron — manter.
-- **Cron de cura fiscal** das 8h–16h continua como rede de segurança para casos como o #658.
+## Fora de escopo / decisões
 
-## 5. Validação técnica obrigatória
+- **Sem mudança de UI** além do texto/cor dos badges e banners já existentes (regressão e status de conexão ML).
+- **Cancelamento automático de NF autorizada continua proibido** — ação humana via `fiscal-cancel`. Marketplace só sinaliza `requires_action=true`.
+- Helper de token fica preparado para outros marketplaces mas só ML usa nesta entrega.
+- Não vou tocar em `fiscal-cancel`, fluxo de devolução nem cron de expiração.
 
-Antes de declarar concluído:
-1. Re-sync dos pedidos #662 e #663 → confirmar cliente único, PV criado, NF autorizada (se `emissao_automatica=TRUE`) ou pendente (se `FALSE`), e remessa em `marketplace_shipments`.
-2. Consultar `customers` no tenant Respeite o Homem → sem duplicados sintéticos para o mesmo CPF.
-3. Verificar `order_history` dos pedidos ML → eventos completos.
-4. Logs de `fiscal-auto-create-drafts` e `meli-send-invoice` → sem erros.
+## Dúvida que preciso confirmar com você
 
-## 6. Documentação
-
-Atualizar ao final:
-- `docs/especificacoes/marketplaces/mercado-livre.md` → seção “Identidade do cliente” (regra de match + e-mail sintético) e seção “Fluxo Fiscal Marketplace”.
-- `docs/especificacoes/fiscal/preflight-fiscal-logistico.md` → marketplace usa o mesmo pré-flight.
-- `docs/especificacoes/logistica/logistica-externa.md` → fluxo NF→Etiqueta automatizado.
-- `docs/especificacoes/transversais/assuntos-em-andamento.md` → fechar Ondas 1–4.
-- Memory: atualizar `mem://features/marketplaces/canonical-flow-standard.md` com a regra “marketplace usa a mesma flag `emissao_automatica` da loja”.
-
-## 7. Ordem de execução
-
-1. **Cliente ML** (match por telefone + UI “Sem e-mail informado”).
-2. **Backfill #662/#663** (reusa fluxo canônico que será corrigido nos passos 3–4).
-3. **Fiscal marketplace** (`fiscal-auto-create-drafts` + `fiscal-submit` modo sistema).
-4. **Tracking Correios “Aguardando retirada”** (texto do motivo na UI).
-5. **Validação técnica** + **docs**.
-
-Sem mudanças de UI além do texto do e-mail sintético e do motivo de envio. Sem flags novas por tenant. Sem cron adicional.
+Para o **novo pedido do ML** que entrou depois do cancelamento: importo automaticamente no backfill ou prefere validar caso a caso antes? Minha recomendação é importar automaticamente — é o mesmo fluxo dos #662/#663 e deixar manual cria risco de perder pedido real.
