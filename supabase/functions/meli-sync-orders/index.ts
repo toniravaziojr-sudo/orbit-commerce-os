@@ -347,7 +347,7 @@ Deno.serve(async (req) => {
           customer_id: customerId,
           customer_name: fullName,
           customer_email: customerEmail,
-          customer_phone: phone,
+          customer_phone: finalPhone,
           customer_cpf: doc.cpf,
           customer_cnpj: doc.cnpj,
           customer_notes: customerNotes,
