@@ -172,9 +172,10 @@ async function processTenanDrafts(
     // TRIGGER mode: specific order
     query = query.eq('id', singleOrderId);
   } else {
-    // BATCH mode: all paid orders with eligible status
+    // BATCH mode: pedidos pagos elegíveis. Inclui marketplace em 'processing'
+    // (Mercado Livre/Shopee entram nesse status e exigem NF antes da etiqueta).
     query = query
-      .in('status', ['paid', 'ready_to_invoice'])
+      .or('status.in.(paid,ready_to_invoice),and(sales_channel.eq.marketplace,status.eq.processing)')
       .order('created_at', { ascending: false })
       .limit(50);
   }
