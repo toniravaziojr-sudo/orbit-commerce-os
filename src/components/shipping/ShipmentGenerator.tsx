@@ -785,7 +785,20 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
 
   const readyCount = readyOrders?.length || 0;
   const issuedCount = issuedShipments?.length || 0;
-  const failedCount = failedShipments?.length || 0;
+  // Split: sem tracking_code = pendência de emissão; com tracking = problema pós-despacho.
+  const { pendingIssuance, deliveryProblems } = useMemo(() => {
+    const list = failedAndProblemShipments || [];
+    const pending: typeof list = [];
+    const problems: typeof list = [];
+    for (const s of list) {
+      if (s.tracking_code && String(s.tracking_code).trim().length > 0) problems.push(s);
+      else pending.push(s);
+    }
+    return { pendingIssuance: pending, deliveryProblems: problems };
+  }, [failedAndProblemShipments]);
+  const failedCount = pendingIssuance.length;
+  const problemCount = deliveryProblems.length;
+
 
   return (
     <div className="space-y-4">
