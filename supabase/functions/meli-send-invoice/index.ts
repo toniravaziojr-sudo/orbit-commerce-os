@@ -105,33 +105,53 @@ async function sendInvoice(supabase: any, tenantId: string, orderId: string, inv
   }
   if (!shipmentId) return { success: false, error: "shipment_id não disponível no pedido ML" };
 
-  // 3. NF autorizada
+  // 3. NF autorizada (precisa do XML para anexar ao shipment)
   let invQ = supabase.from("fiscal_invoices")
-    .select("id, chave_acesso, xml_url, status")
+    .select("id, chave_acesso, xml_url, xml_autorizado, status")
     .eq("tenant_id", tenantId).eq("status", "authorized")
     .not("chave_acesso", "is", null);
   invQ = invoiceId ? invQ.eq("id", invoiceId) : invQ.eq("order_id", orderId);
   const { data: invoice } = await invQ.order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!invoice?.chave_acesso) return { success: false, error: "NF autorizada não encontrada" };
 
-  // 4. Enviar para o ML: POST /shipments/{id}/invoice_data
-  const chave = String(invoice.chave_acesso).replace(/\D/g, "");
-  const payload = { invoice_data: { number: chave, type: "N", date_created: new Date().toISOString() } };
+  // 4. Obter XML da NF (autorizado pela SEFAZ) — o ML exige application/xml,
+  //    não aceita JSON. Tenta coluna inline; se ausente, baixa do xml_url.
+  let xml: string | null = (invoice as any).xml_autorizado || null;
+  if (!xml && invoice.xml_url) {
+    try {
+      const xr = await fetch(invoice.xml_url);
+      if (xr.ok) xml = await xr.text();
+    } catch (e) {
+      console.error("[meli-send-invoice] falha ao baixar xml_url:", e);
+    }
+  }
+  if (!xml || !xml.includes("<")) {
+    return { success: false, error: "XML autorizado da NF não disponível para envio ao ML" };
+  }
 
-  const resp = await fetch(`https://api.mercadolibre.com/shipments/${shipmentId}/invoice_data`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${conn.access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  // 5. Enviar XML para o ML: POST /shipments/{id}/invoice_data (application/xml)
+  //    O ML exige siteId=MLB (header e querystring) e header x-format-new.
+  const resp = await fetch(
+    `https://api.mercadolibre.com/shipments/${shipmentId}/invoice_data?siteId=MLB&site_id=MLB`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${conn.access_token}`,
+        "Content-Type": "application/xml",
+        Accept: "application/json",
+        "x-format-new": "true",
+        "x-site-id": "MLB",
+      },
+      body: xml,
+    }
+  );
 
   const respText = await resp.text();
   if (!resp.ok) {
-    console.error(`[meli-send-invoice] ML ${resp.status}:`, respText);
+    console.error(`[meli-send-invoice] ML ${resp.status}:`, respText.slice(0, 500));
     return { success: false, error: `ML HTTP ${resp.status}: ${respText.slice(0, 300)}` };
   }
+
 
   // 5. Upsert marketplace_shipments
   await supabase.from("marketplace_shipments").upsert({

@@ -92,6 +92,7 @@ const orderStatusIcons: Record<OrderStatus, typeof Clock> = {
   completed: PackageCheck,
   returning: RotateCcw,
   payment_expired: XCircle,
+  cancelled: XCircle,
   cancelled_by_user: XCircle,
   invoice_rejected: AlertTriangle,
   invoice_cancelled: PackageX,

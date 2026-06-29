@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 import { AddressFields } from '@/components/shared/AddressFields';
+import { BuyerCancellationNotice } from '@/components/orders/BuyerCancellationNotice';
 
 // Types
 export interface InvoiceData {
@@ -946,6 +947,12 @@ export function InvoiceEditor({
             </Badge>
           </div>
         </DialogHeader>
+
+        {/* Aviso discreto: pedido cancelado pelo comprador */}
+        {data.order_id && (
+          <BuyerCancellationNotice orderId={data.order_id} />
+        )}
+
 
         {/* Pendências do Pedido de Venda (peso, NCM, CPF, endereço, etc.) */}
         {isPedidoVenda && pendenciaMotivos && pendenciaMotivos.length > 0 && (
