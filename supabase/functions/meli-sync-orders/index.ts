@@ -172,9 +172,11 @@ Deno.serve(async (req) => {
             ? mlGet(`${ML_BASE}/shipments/${shippingId}`, accessToken, { "x-format-new": "true" })
             : Promise.resolve(null),
         ]);
-        console.log(`[meli-sync-orders][${meliOrderId}] billing=`, billing ? JSON.stringify(billing).slice(0, 800) : "null");
-        console.log(`[meli-sync-orders][${meliOrderId}] shipment=`, shipment ? JSON.stringify(shipment).slice(0, 800) : "null");
-        console.log(`[meli-sync-orders][${meliOrderId}] buyer=`, JSON.stringify(meliOrder.buyer || {}).slice(0, 400));
+        const bi = flattenBillingInfo(billing);
+        if (Deno.env.get("ML_SYNC_DEBUG") === "1") {
+          console.log(`[meli-sync-orders][${meliOrderId}] bi=`, JSON.stringify(bi).slice(0, 600));
+          console.log(`[meli-sync-orders][${meliOrderId}] shipment.destination=`, JSON.stringify(shipment?.destination || {}).slice(0, 600));
+        }
 
         const statusMap: Record<string, string> = {
           confirmed: "processing", paid: "processing",
@@ -191,31 +193,31 @@ Deno.serve(async (req) => {
           : "pending";
 
         const buyer = meliOrder.buyer || {};
-        const fullName = pickFullName(billing, buyer, meliOrderId);
-        const doc = pickDoc(billing);
+        const fullName = pickFullName(bi, buyer, meliOrderId);
+        const doc = pickDoc(bi);
 
-        // Telefone — prioridade: shipment.receiver_phone > buyer.phone
-        const shipReceiverPhone = shipment?.receiver_phone || shipment?.receiver_address?.receiver_phone || null;
+        // Endereço — prioridade: shipment (destination.receiver_address) > billing_info
+        const ship = pickAddressFromShipment(shipment);
+        const billAddr = pickAddressFromBilling(bi);
+        const shippingFields = {
+          shipping_street: ship.address.shipping_street || billAddr.shipping_street,
+          shipping_number: ship.address.shipping_number || billAddr.shipping_number,
+          shipping_complement: ship.address.shipping_complement || billAddr.shipping_complement,
+          shipping_neighborhood: ship.address.shipping_neighborhood || billAddr.shipping_neighborhood,
+          shipping_city: ship.address.shipping_city || billAddr.shipping_city,
+          shipping_state: ship.address.shipping_state || billAddr.shipping_state,
+          shipping_postal_code: ship.address.shipping_postal_code || billAddr.shipping_postal_code,
+          shipping_country: ship.address.shipping_country || billAddr.shipping_country,
+        };
+
+        // Telefone — shipment.destination.receiver_phone > buyer.phone
         const buyerPhone = buyer?.phone?.area_code && buyer?.phone?.number
           ? `${buyer.phone.area_code}${buyer.phone.number}`
           : (buyer?.phone?.number || null);
-        const phone = onlyDigits(shipReceiverPhone) || onlyDigits(buyerPhone);
-
-        // Endereço real (shipment.receiver_address tem mais detalhes que order.shipping.receiver_address)
-        const addr = shipment?.receiver_address || meliOrder?.shipping?.receiver_address || {};
-        const shippingFields = {
-          shipping_street: addr.street_name || addr.address_line || null,
-          shipping_number: addr.street_number || addr.number || null,
-          shipping_complement: addr.comment || addr.complement || null,
-          shipping_neighborhood: addr.neighborhood?.name || addr.neighborhood || null,
-          shipping_city: addr.city?.name || addr.city || null,
-          shipping_state: addr.state?.id?.replace(/^BR-/, "") || addr.state?.name || null,
-          shipping_postal_code: onlyDigits(addr.zip_code),
-          shipping_country: addr.country?.id || "BR",
-        };
+        const phone = onlyDigits(ship.phone) || onlyDigits(buyerPhone);
 
         // Email real só se vier do billing/buyer (ML costuma ocultar)
-        const realEmail = (billing?.buyer?.email || buyer?.email || "").toLowerCase().trim() || null;
+        const realEmail = (buyer?.email || "").toLowerCase().trim() || null;
         const syntheticEmail = `meli-${meliOrderId}@marketplace.local`;
         const customerEmail = realEmail || syntheticEmail;
 
