@@ -225,10 +225,11 @@ Deno.serve(async (req) => {
       const trackingSel = 'id, tracking_code';
 
       const tryLookup = async (col: string, val: string) => {
-        if (shipment) return;
+        if (shipment?.tracking_code) return;
         const r = await supabase.from('shipments').select(trackingSel)
           .eq('tenant_id', tenantId).eq(col, val)
           .not('tracking_code', 'is', null)
+          .neq('tracking_code', '')
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (r.data) shipment = r.data;
       };
@@ -238,12 +239,15 @@ Deno.serve(async (req) => {
       if (invoice?.source_order_invoice_id) await tryLookup('source_pedido_venda_id', invoice.source_order_invoice_id);
       if (resolvedOrderId) await tryLookup('order_id', resolvedOrderId);
 
-      // Fallback: tracking de etiqueta externa (Logística Externa) vive em marketplace_shipments
-      if (!shipment && resolvedOrderId) {
+      // Fallback: tracking de etiqueta externa (Logística Externa) vive em marketplace_shipments.
+      // Importante: roda mesmo se já achamos um shipment interno sem rastreio (string vazia),
+      // pois a fonte de verdade do rastreio no fluxo marketplace é o marketplace_shipments.
+      if (!shipment?.tracking_code && resolvedOrderId) {
         const r = await supabase.from('marketplace_shipments')
           .select('id, tracking_number')
           .eq('tenant_id', tenantId).eq('order_id', resolvedOrderId)
           .not('tracking_number', 'is', null)
+          .neq('tracking_number', '')
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (r.data?.tracking_number) shipment = { id: r.data.id, tracking_code: r.data.tracking_number };
       }
