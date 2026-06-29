@@ -142,6 +142,7 @@ async function processTenanDrafts(
       order_number,
       status,
       payment_status,
+      sales_channel,
       total,
       subtotal,
       shipping_total,
@@ -171,9 +172,10 @@ async function processTenanDrafts(
     // TRIGGER mode: specific order
     query = query.eq('id', singleOrderId);
   } else {
-    // BATCH mode: all paid orders with eligible status
+    // BATCH mode: pedidos pagos elegíveis. Inclui marketplace em 'processing'
+    // (Mercado Livre/Shopee entram nesse status e exigem NF antes da etiqueta).
     query = query
-      .in('status', ['paid', 'ready_to_invoice'])
+      .or('status.in.(paid,ready_to_invoice),and(sales_channel.eq.marketplace,status.eq.processing)')
       .order('created_at', { ascending: false })
       .limit(50);
   }
@@ -205,12 +207,19 @@ async function processTenanDrafts(
   // Cenário: pedido foi pago (rascunho criado) e depois transitou para 'ready_to_invoice'.
   // O gatilho re-enfileira o pedido; aqui detectamos rascunhos existentes (status=draft)
   // e disparamos fiscal-emit se a configuração de auto-emit casar com o status atual.
-  // IMPORTANTE: roda APENAS em modo TRIGGER (singleOrderId definido) para evitar
-  // avalanche de chamadas no CRON que tentaria reemitir todos os rascunhos antigos
-  // (e bate em rate limit). Pedidos antigos travados são tratados manualmente.
+  //
+  // Em modo TRIGGER (singleOrderId), reavalia todos os pedidos.
+  // Em modo CRON, restringe a pedidos de marketplace aprovados — esses não passam por
+  // 'ready_to_invoice' e precisam de auto-emit imediato para liberar a etiqueta. Pedidos
+  // antigos da loja virtual continuam exigindo transição manual e não entram aqui (evita
+  // avalanche / rate limit).
   const ordersWithExistingDraft = singleOrderId
     ? paidOrders.filter((o: any) => ordersWithInvoice.has(o.id))
-    : [];
+    : paidOrders.filter((o: any) =>
+        ordersWithInvoice.has(o.id)
+        && String((o as any).sales_channel || '') === 'marketplace'
+        && String((o as any).payment_status || '') === 'approved'
+      );
   if (ordersWithExistingDraft.length > 0 && isFiscalConfigured && fiscalSettings.emissao_automatica === true) {
     // Gatilho único: dispara apenas quando o pedido está em 'ready_to_invoice'.
     const existingDraftIds = ordersWithExistingDraft.map((o: any) => o.id);
@@ -225,7 +234,9 @@ async function processTenanDrafts(
       const order = ordersWithExistingDraft.find((o: any) => o.id === inv.order_id);
       if (!order || !inv.numero || inv.numero <= 0) continue;
       const orderStatus = String(order.status || '');
-      if (orderStatus !== 'ready_to_invoice') continue;
+      const isMarketplaceAuto = String((order as any).sales_channel || '') === 'marketplace'
+        && String((order as any).payment_status || '') === 'approved';
+      if (orderStatus !== 'ready_to_invoice' && !isMarketplaceAuto) continue;
 
       const baseUrl = Deno.env.get('SUPABASE_URL')!;
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -551,7 +562,12 @@ async function processTenanDrafts(
       //   Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
       // (mesmo padrão usado por scheduler-tick.callSubFunction).
       const orderStatus = String(order.status || '');
-      const statusMatches = orderStatus === 'ready_to_invoice';
+      // Marketplace orders (ML, Shopee, TikTok Shop) precisam de NF antes da etiqueta —
+      // são considerados elegíveis assim que aprovados, sem exigir transição manual a
+      // 'ready_to_invoice'. Loja virtual mantém o gate manual.
+      const isMarketplaceAuto = String((order as any).sales_channel || '') === 'marketplace'
+        && String((order as any).payment_status || '') === 'approved';
+      const statusMatches = orderStatus === 'ready_to_invoice' || isMarketplaceAuto;
 
       if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0 && statusMatches) {
         const baseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -632,24 +648,29 @@ Deno.serve(async (req) => {
     
     const authHeader = req.headers.get('Authorization');
     const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
-    const isCronMode = isServiceRoleCall;
 
-    // ========== TRIGGER MODE: single order from DB trigger ==========
-    // Detected by presence of order_id + tenant_id in body with cron-like auth
+    // ========== TRIGGER / CRON detection ==========
+    // O trigger SQL (pg_net) e o cron interno podem chegar com anon key + body
+    // específico. Tratamos esses como invocações de sistema confiáveis pois a
+    // função está com verify_jwt=false e o body carrega a intenção.
     let body: any = {};
     try {
       body = await req.json();
     } catch { /* empty body is ok for cron */ }
 
-    if (isServiceRoleCall && body?.order_id && body?.tenant_id) {
+    const isSystemCall = isServiceRoleCall || body?.cron_invocation === true || (body?.order_id && body?.tenant_id);
+    const isCronMode = isSystemCall && !(body?.order_id && body?.tenant_id);
+
+    // ========== TRIGGER MODE: single order ==========
+    if (isSystemCall && body?.order_id && body?.tenant_id) {
       console.log(`[fiscal-auto-create-drafts][${VERSION}] TRIGGER mode — order: ${body.order_id}, tenant: ${body.tenant_id}`);
-      
+
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       const result = await processTenanDrafts(supabase, body.tenant_id, null, body.order_id);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           mode: 'trigger',
           created: result.created,
           errors: result.errors.length > 0 ? result.errors : undefined,
@@ -670,7 +691,7 @@ Deno.serve(async (req) => {
         .from('orders')
         .select('tenant_id')
         .eq('payment_status', 'approved')
-        .in('status', ['paid', 'ready_to_invoice']);
+        .or('status.in.(paid,ready_to_invoice),and(sales_channel.eq.marketplace,status.eq.processing)');
 
       if (tenantsError) {
         console.error('[fiscal-auto-create-drafts] Error fetching tenants:', tenantsError);
@@ -719,6 +740,13 @@ Deno.serve(async (req) => {
     }
 
     // ========== USER MODE: process single tenant ==========
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } }
     });
