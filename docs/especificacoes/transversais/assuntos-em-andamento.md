@@ -157,15 +157,20 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 
 **Pendências em aberto (Mercado Livre — ciclo real):**
 1. **#658 (NF 442) — órfã `authorized` no banco em `draft`.** Aguarda o cron rodar (ou nova validação manual após confirmar deploy do edge).
-2. **#662 / #663 — pedidos pagos com NF em rascunho (450/451)**, sem submissão à SEFAZ. Decisão técnica em aberto: refatorar `fiscal-submit` para expor um *core* sem RBAC chamável por contexto system (cron/edge), permitindo um `fiscal-auto-submit-marketplace` que promova PV→NF de pedidos `sales_channel='marketplace'` + `payment_status='approved'`. Sem essa refatoração, a emissão ML continua manual.
+2. ~~**#662 / #663 — pedidos pagos com NF em rascunho (450/451)**~~ ✅ **Resolvido em 29/06/2026.**
+   - `fiscal-auto-create-drafts` v3.x agora aceita chamadas de sistema (service-role OU anon com body `{cron_invocation:true}` ou `{order_id,tenant_id}`) e o batch query inclui `sales_channel='marketplace' AND status='processing'` (não apenas `paid/ready_to_invoice`).
+   - Cron `fiscal-auto-create-drafts-every-10min` ativo (gateado por `cron_call_edge_if_active`) — roda PV→NF→SEFAZ para marketplaces aprovados.
+   - Backfill aplicado nos PVs 450/451 (campos `dest_*` copiados do customer canônico, e-mail sintético `@marketplace.local` ignorado em `dest_email`).
+   - Pedido #663 → **NF #447 autorizada na SEFAZ** (`chave NFe35260663269917000106550010000004471054414461`). Pedido #662 em `processando_autorizacao` no Focus — próximo poll do cron de reconcile vai promover para `authorized`.
+   - Próximo passo de validação real: confirmar que após autorização o ML recebeu a NF e liberou a etiqueta automaticamente para o módulo Logística Externa (Onda C do plano marketplace).
 3. **Onda Correios — "Aguardando retirada":** `tracking-poll` ainda não mapeia o status pós-3 tentativas (prazo 7 dias para retirada). UI de Logística Externa precisa exibir o motivo real do Correios (ex.: "Tentativa de entrega não efetuada"), endereço da agência e prazo. Notificações de "Aguardando retirada" para o cliente também dependem deste mapeamento.
 4. **Logística Externa — sub-aba "Problemas de envio/entrega":** já existe; deep-links a partir da Central de Execuções e da coluna Envio do `/orders` já implementados.
 
 **Restrições firmes:**
 - Nada de tocar nas configurações de imposto sem autorização (impacta diretamente cálculo de NF-e).
 - Validar sempre no tenant Respeite o Homem antes de qualquer expansão.
-- Auto-submissão de NF para marketplace **não** será habilitada sem GO explícito do operador (envia documento real à SEFAZ).
-- Subscribers `@marketplace.local` continuam **proibidos** em `email_marketing_subscribers` — qualquer fluxo novo que crie subscriber a partir de cliente ML precisa replicar o gate de domínio.
+- Auto-submissão de NF para marketplace fica condicionada à flag `fiscal_settings.emissao_automatica` do tenant (igual à loja). Tenant Respeite o Homem está com a flag ativa por decisão explícita do operador (29/06/2026).
+- Subscribers `@marketplace.local` continuam **proibidos** em `email_marketing_subscribers` — qualquer fluxo novo que crie subscriber a partir de cliente ML precisa replicar o gate de domínio. E-mails sintéticos também nunca podem sobrescrever um e-mail real já existente em `customers`.
 
 ---
 
