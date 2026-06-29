@@ -691,7 +691,7 @@ Deno.serve(async (req) => {
         .from('orders')
         .select('tenant_id')
         .eq('payment_status', 'approved')
-        .in('status', ['paid', 'ready_to_invoice']);
+        .or('status.in.(paid,ready_to_invoice),and(sales_channel.eq.marketplace,status.eq.processing)');
 
       if (tenantsError) {
         console.error('[fiscal-auto-create-drafts] Error fetching tenants:', tenantsError);
