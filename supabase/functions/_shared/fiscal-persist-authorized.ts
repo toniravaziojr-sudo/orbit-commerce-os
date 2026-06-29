@@ -110,9 +110,10 @@ export async function persistAuthorizedState(
     danfe_url: buildFocusUrl(focusStatusData.caminho_danfe, ambiente),
     authorized_at: nowIso,
     pendencia_motivos: null,
-    mensagem_sefaz: focusStatusData.mensagem_sefaz ?? null,
+    status_motivo: focusStatusData.mensagem_sefaz ?? focusStatusData.status_sefaz ?? null,
     updated_at: nowIso,
   };
+
   if (focusStatusData.numero != null) updateData.numero = parseInt(String(focusStatusData.numero), 10);
   if (focusStatusData.serie != null) updateData.serie = parseInt(String(focusStatusData.serie), 10);
   if (focusRef) updateData.focus_ref = focusRef;
