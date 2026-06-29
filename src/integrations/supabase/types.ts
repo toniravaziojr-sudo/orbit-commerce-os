@@ -9369,6 +9369,7 @@ export type Database = {
           informacoes_fisco: string | null
           last_reconcile_at: string | null
           last_reconcile_error: string | null
+          mensagem_sefaz: string | null
           modalidade_frete: string | null
           natureza_operacao: string | null
           natureza_operacao_id: string | null
@@ -9393,6 +9394,7 @@ export type Database = {
           source_order_invoice_id: string | null
           status: string
           status_motivo: string | null
+          status_sefaz: string | null
           submitted_at: string | null
           tenant_id: string
           tipo_documento: number | null
@@ -9457,6 +9459,7 @@ export type Database = {
           informacoes_fisco?: string | null
           last_reconcile_at?: string | null
           last_reconcile_error?: string | null
+          mensagem_sefaz?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           natureza_operacao_id?: string | null
@@ -9481,6 +9484,7 @@ export type Database = {
           source_order_invoice_id?: string | null
           status?: string
           status_motivo?: string | null
+          status_sefaz?: string | null
           submitted_at?: string | null
           tenant_id: string
           tipo_documento?: number | null
@@ -9545,6 +9549,7 @@ export type Database = {
           informacoes_fisco?: string | null
           last_reconcile_at?: string | null
           last_reconcile_error?: string | null
+          mensagem_sefaz?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           natureza_operacao_id?: string | null
@@ -9569,6 +9574,7 @@ export type Database = {
           source_order_invoice_id?: string | null
           status?: string
           status_motivo?: string | null
+          status_sefaz?: string | null
           submitted_at?: string | null
           tenant_id?: string
           tipo_documento?: number | null
