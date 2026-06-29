@@ -8,6 +8,9 @@ import { resolveCarrier } from "../_shared/carrier-registry.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
 import { ensureEmitenteSynced } from "../_shared/fiscal-emitente-sync-gate.ts";
+import { persistAuthorizedState } from "../_shared/fiscal-persist-authorized.ts";
+import { fireAuthorizedSideEffects } from "../_shared/fiscal-authorized-side-effects.ts";
+
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
