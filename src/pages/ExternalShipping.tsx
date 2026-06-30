@@ -59,7 +59,7 @@ export default function ExternalShipping() {
     queryFn: async () => {
       let q = supabase
         .from("marketplace_shipments")
-        .select("*")
+        .select("*, orders!marketplace_shipments_order_id_fkey(customer_name, order_number)")
         .order("created_at", { ascending: false })
         .limit(200);
       if (sourceFilter !== "all") q = q.eq("source_key", sourceFilter);
