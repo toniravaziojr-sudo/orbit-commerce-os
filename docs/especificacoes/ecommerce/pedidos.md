@@ -335,6 +335,17 @@ stateDiagram-v2
 >   (`label_generated, shipped, in_transit, arriving, delivered, problem, returned`).
 > - **Pagamento**: somente os webhooks de gateway gravam `payment_status`.
 
+> **Anti-regressão (2026-06-30) — Reconciliação manual e backfills de pagamento (incidente #668).**
+> O **valor de banco** para "pagamento aprovado" é **`'approved'`**, não `'paid'`. O termo `paid` é vocabulário **canônico de borda** (UI e edge `core-orders`), traduzido para `'approved'` pelo mapa `PAYMENT_CANONICAL_TO_DB` antes da escrita. Todos os consumidores a jusante — gatilho `after_order_approved_sync` (recalcula `total_spent`, aplica tag "Cliente", adiciona à lista de e-mail marketing), cron `fiscal-auto-create-drafts`, hooks de dashboard, monitor de chargeback, atribuição de e-mail marketing — filtram literalmente `payment_status = 'approved'`.
+>
+> Reconciliações administrativas, backfills, scripts ad-hoc e novas rotas internas DEVEM marcar pagamento aprovado de uma destas formas:
+> - **Preferencial:** chamar `core-orders.set_payment_status` com canônico `'paid'` (edge traduz).
+> - **Direto no DB (somente quando edge não estiver disponível):** `UPDATE orders SET payment_status = 'approved'`.
+>
+> **Proibido** `UPDATE orders SET payment_status = 'paid'` direto no banco. O enum aceita o valor (expansão 2026-05-01), então a escrita não falha — mas os consumidores ignoram o pedido e a propagação trava silenciosamente. Auditoria contínua: `SELECT COUNT(*) FROM orders WHERE payment_status = 'paid'` deve ser sempre `0`. Detalhe em `mem://constraints/payment-status-db-canonical-is-approved`.
+
+
+
 ### 4.2 Transições de Pagamento
 
 | De | Para | Válido | Descrição |
