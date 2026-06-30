@@ -1660,3 +1660,30 @@ Semântica idêntica, sem cast implícito de enum para text, sem literal inváli
 **Proibido:** `COALESCE(OLD.status, '') <> 'valor'`. Já documentado em `docs/especificacoes/ecommerce/pedidos.md` §4.6 e coberto pela memória `mem://constraints/order-cross-module-sync-on-regression`.
 
 **Validação obrigatória ao alterar qualquer trigger de `orders`.** Rodar manualmente `UPDATE orders SET updated_at = now() WHERE id = <qualquer>` e confirmar `0 ERROR 22P02 / 42883` nos logs do Postgres pelos próximos 5 minutos. TypeScript build NÃO valida triggers PL/pgSQL.
+
+### 10.2 Backfill de pagamento — DB canônico de "pago" é `approved`, não `paid` (v2026-06-30)
+
+**Problema.** Após corrigir o trigger acima (§10.1), o pedido #668 ficou destravado para receber `UPDATE`, mas a reconciliação manual gravou `payment_status = 'paid'` direto no DB. O pedido apareceu correto na UI ("Pago" + "Pronto para emitir NF"), porém **nada propagou**: `customers.total_spent` permaneceu em 0, tag "Cliente" não foi aplicada, lista de e-mail marketing não recebeu o contato, e a fila fiscal foi enfileirada mas o cron varreu sem encontrar nada qualificável → marcou `done` sem gerar Pedido de Venda. Sem PV, sem NF, sem etiqueta ML, sem despacho Pratika.
+
+**Causa raiz.** Confusão de vocabulário entre canônico de borda e canônico de banco.
+- **DB armazena `'approved'`** como "pago" (322/322 pedidos). É o que os webhooks de gateway (Pagar.me, PagBank, Mercado Pago) e o sync do Mercado Livre escrevem.
+- **`'paid'` é canônico de borda** (UI, edge `core-orders`), traduzido para `'approved'` pelo mapa `PAYMENT_CANONICAL_TO_DB` em `supabase/functions/core-orders/index.ts`.
+- O enum `payment_status` aceita os dois valores (expansão 2026-05-01) — então `UPDATE … SET payment_status='paid'` direto no DB **não falha**, mas trava propagação porque todos os consumidores a jusante filtram `'approved'`:
+  - Gatilho `after_order_approved_sync` (dispara em `NEW.payment_status = 'approved'`).
+  - Cron `fiscal-auto-create-drafts` (`payment_status = 'approved'`).
+  - Hooks de dashboard, monitor de chargeback, atribuição de e-mail marketing, GMV em ads ROI.
+
+**Solução.** Realinhar #668 com `UPDATE orders SET payment_status='approved'`, registrar `order_history` e reabrir a fila fiscal (`status='pending'`). Propagação ocorre naturalmente — zero alteração em consumidor.
+
+**Regra derivada (universal).** Reconciliações administrativas, backfills, scripts ad-hoc e novas rotas internas DEVEM marcar pagamento aprovado de uma destas formas:
+- **Preferencial:** chamar `core-orders.set_payment_status` com canônico `'paid'` (edge traduz).
+- **Direto no DB:** `UPDATE orders SET payment_status = 'approved'` (canônico de banco).
+
+**Proibido:** `UPDATE orders SET payment_status = 'paid'` direto no banco.
+
+**Auditoria contínua.** A query abaixo deve retornar `0` em qualquer ambiente saudável:
+```sql
+SELECT COUNT(*) FROM orders WHERE payment_status = 'paid';
+```
+Qualquer linha que apareça é backfill incorreto; realinhar para `'approved'` destrava propagação retroativamente. Memória correspondente: `mem://constraints/payment-status-db-canonical-is-approved`. Doc de pedidos §4 atualizado.
+

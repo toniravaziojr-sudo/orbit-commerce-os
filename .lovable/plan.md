@@ -1,66 +1,65 @@
-## Causa raiz (confirmada no banco agora)
+## Resumo da reviravolta
 
-A função do gatilho `cancel_meli_invoice_queue_on_order_cancel` (cancela a fila de envio de NF do Mercado Livre quando o pedido vira "cancelled") compara o status antigo assim:
+A "regressão estrutural" diagnosticada antes **não existe**. A auditoria completa (banco, código de gateways, ML sync, docs Layer 2/3 e memórias) confirmou:
 
-```
-COALESCE(OLD.status, '') <> 'cancelled'
-```
+- **322 pedidos no DB usam `'approved'`**. Único `'paid'` é o **#668**, que **escrevi manualmente** durante a reconciliação, violando a regra oficial.
+- **DB armazena `'approved'`** como valor canônico de "pago". `'paid'` é vocabulário **da UI/canônico de borda**, traduzido para `'approved'` pelo `toDbPaymentStatus` em `core-orders`.
+- **Docs confirmam** (`erp-fiscal.md` §97-100): gatilho dispara em `NEW.payment_status = 'approved'`. **Consumidores estão corretos**.
+- **Memória oficial** `manual-order-must-mirror-checkout-pipeline.md` proíbe explicitamente reverter `PAYMENT_CANONICAL_TO_DB.paid → 'paid'`.
 
-`OLD.status` é do enum `order_status`. O literal `''` não é valor válido desse enum e o Postgres não consegue resolver o tipo da comparação. Resultado: `ERROR 22P02 invalid input value for enum order_status: ""`. Como o gatilho dispara em **toda** UPDATE em `public.orders`, qualquer mudança no pedido falha — webhook de pagamento, cron de expiração, ações manuais. Por isso:
+**Causa real do #668 não propagar:** minha escrita manual de `'paid'` no DB.
 
-- #668 (Fabricio): o webhook Pagar.me recebeu o pagamento (entrada existe em `payment_transactions`), mas o UPDATE em `orders` foi revertido. Continua "Aguardando pagamento".
-- #667 e #669: cron de expiração também não consegue marcar como expirado pelo mesmo motivo.
+## Plano de execução
 
-As outras duas funções da mesma família (`guard_order_cancellation_requires_metadata`, `enqueue_fiscal_draft`) já usam `OLD.status::text` corretamente — só esta ficou com o padrão antigo. É um único ponto de falha.
+### 1. Corrigir o #668 (alinhar ao padrão DB)
+Atualizar via SQL:
+- `payment_status: 'paid' → 'approved'`
+- Manter `status = 'ready_to_invoice'`, `paid_at` e demais campos como estão.
+- Registrar linha em `order_history` com nota `realign_payment_status_paid_to_approved_db_canonical`.
 
-## Análise de regressão
+Isso destrava naturalmente:
+- `after_order_approved_sync` → enrich_customer_from_order, `total_spent`, tag "Cliente", lista e-mail marketing.
+- `fiscal-auto-create-drafts` (próximo tick) → Pedido de Venda → NF → etiqueta ML → Pratika.
 
-Trocar `COALESCE(OLD.status, '') <> 'cancelled'` por `OLD.status IS DISTINCT FROM 'cancelled'`:
+Sem mexer em consumidor nenhum.
 
-- `OLD.status = 'cancelled'` → não dispara (idempotente, igual antes).
-- `OLD.status` = qualquer outro valor → dispara (igual antes).
-- `OLD.status` NULL (não acontece — coluna é NOT NULL) → dispara.
+### 2. Blindar a regra contra repetição do meu erro
 
-Comportamento semântico **idêntico**. Não toca enums, RLS, permissões, gatilhos vizinhos, fila ML, cascata de cancelamento do comprador, fluxo Pratika, NF marketplace nem UI. Conforme a memória `order-cross-module-sync-on-regression`, é o padrão técnico oficial pra comparar enum com literal sem cast implícito.
+**2a. Memória nova** `mem://constraints/payment-status-db-canonical-is-approved`:
+- DB armazena `'approved'`; `'paid'` é só canônico de borda (UI/edge).
+- Toda escrita administrativa/reconciliação **deve passar por `core-orders.set_payment_status`** (que aplica `toDbPaymentStatus`).
+- Proibido `UPDATE orders SET payment_status='paid'` direto no DB.
+- Como detectar o erro: `SELECT COUNT(*) FROM orders WHERE payment_status='paid'` deve ser sempre 0.
 
-## Execução (3 passos)
+**2b. Atualização das memórias existentes:**
+- Reforçar `order-status-vocabulary-canonical.md`: incluir nota "DB canônico de 'pago' é `'approved'`, não `'paid'`" e referência cruzada à nova memória.
 
-### 1. Migração — corrigir o gatilho
-Recriar apenas `cancel_meli_invoice_queue_on_order_cancel` trocando a condição do IF para:
-```
-IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
-```
-Resto da função inalterado. Sem `DROP TRIGGER`/`CREATE TRIGGER` — `CREATE OR REPLACE FUNCTION` basta.
+### 3. Documentação formal (Layer 2)
 
-### 2. Destravar o #668 (já está pago na Pagar.me)
-Após o gatilho corrigido, ler `payment_transactions` do #668 e aplicar no pedido, em UPDATE único:
-- `payment_status = 'paid'` (vocabulário canônico — memória `order-status-vocabulary-canonical`)
-- `status = 'ready_to_invoice'`
-- `paid_at` = `paid_at` da transação aprovada
-- `payment_gateway = 'pagarme'`, `payment_gateway_id` = id da transação
-Registrar linha em `order_history` com nota `backfill_pagarme_webhook_stuck_22P02`. Isso aciona naturalmente `enqueue_fiscal_draft` → fila fiscal → NF → etiqueta ML.
+- `docs/especificacoes/ecommerce/pedidos.md` §4: adicionar caixa "Reconciliação manual e backfills" com a regra acima.
+- `docs/tecnico/base-de-conhecimento-tecnico.md`: novo item "Anti-regressão — backfill de pagamento" descrevendo o incidente (escrevi `'paid'` direto, travou propagação) e a regra correta.
 
-#667 e #669 não precisam de intervenção manual: ficaram em `awaiting_payment` porque o cron não conseguiu rodar — na próxima execução do `expire-stale-orders` eles vão para `payment_expired` corretamente.
+### 4. Validação técnica obrigatória
 
-### 3. Validação técnica
-- `UPDATE orders SET updated_at = now() WHERE id = '<um pedido recente>'` → deve passar sem `22P02`.
-- Conferir #668: `status='ready_to_invoice'`, `payment_status='paid'`, `paid_at` preenchido, e que existe linha em `fiscal_draft_queue` para o pedido.
-- Acompanhar próximo tick do cron de expiração e confirmar #667/#669 em `payment_expired`.
-- Rodar log de `edge_logs` do Postgres por 5 min para confirmar que `22P02` sumiu globalmente.
+Após o UPDATE do #668:
+1. `SELECT payment_status, status FROM orders WHERE id='29db1d2d-...'` → deve estar `approved` / `ready_to_invoice`.
+2. `SELECT 1 FROM fiscal_draft_queue WHERE order_id='29db1d2d-...'` → linha pending criada pelo trigger.
+3. `SELECT total_spent, is_first_sale FROM customers WHERE id=<customer_id_do_668>` → `total_spent > 0` após o trigger rodar.
+4. Aguardar próximo tick do cron `fiscal-auto-create-drafts` (5 min): conferir geração de Pedido de Venda e NF.
+5. `SELECT COUNT(*) FROM orders WHERE payment_status='paid'` → 0 globalmente.
+6. Conferir `edge_logs` por 5 min: nenhum `22P02` nem erro de enum.
 
-## O que pode dar conflito (peço sua decisão se aparecer)
+### 5. O que NÃO vou fazer (anti-regressão)
 
-- Se o #668 já tiver gerado **outra** transação aprovada além da que o webhook tentou registrar (cliente pagou duas vezes), eu paro o backfill e te aviso antes de mexer — não vou consolidar pagamento duplicado por conta própria.
-- Não vou tocar em UI/UX nem mudar contratos. Mudança é só na função do banco e no dado do #668.
+- **Não vou padronizar consumidores** para aceitar `'paid'`. Eles estão corretos.
+- **Não vou tocar** em webhooks de gateway, `meli-sync-orders`, hooks de dashboard, monitor de chargebacks, `enrich-customers-pagarme`, `process-events`, `useDashboardMetrics`, `usePayments`, `useFinanceEntries`, `AdsRoiReportsTab` — todos filtram `'approved'` corretamente porque é o que o DB armazena.
+- **Não vou alterar** `PAYMENT_CANONICAL_TO_DB` nem `toDbPaymentStatus`.
 
-## Documentação
+### 6. Pontos de parada (peço sua decisão se aparecer)
 
-- Atualizar `docs/especificacoes/ecommerce/pedidos.md` §4.6 com o padrão obrigatório `OLD.status IS DISTINCT FROM ...` ou `OLD.status::text` para qualquer trigger novo em `public.orders`.
-- Adicionar entrada em `docs/tecnico/base-de-conhecimento-tecnico.md`: "Enum vs literal vazio em trigger de orders → 22P02; padrão oficial."
-- Sem nova memória — já coberto pelas memórias `order-cross-module-sync-on-regression` e `order-status-vocabulary-canonical`. Vou só reforçar a existente `order-cross-module-sync-on-regression` se for necessário (sem duplicar).
+- Se ao re-rodar o cron fiscal o #668 falhar por outro motivo (item sem NCM, CPF ausente etc.), paro e te aviso — não é mais do escopo desta correção.
+- #667 e #669: já destravados pela correção anterior do gatilho. Próximo tick do `expire-stale-orders` os marca como `payment_expired`. Sem ação manual.
 
-## Detalhes técnicos
+## Estado da entrega
 
-- Arquivos: 1 migração SQL (recriação da função) + 1 INSERT/UPDATE pontual para o #668.
-- Zero mudança em edge functions, hooks, componentes, RLS, enums ou tipos do front.
-- Sem rebuild/restart necessários no front.
+📌 STATUS: Diagnóstico concluído → aguardando aprovação do plano para executar correção pontual + blindagem documental.

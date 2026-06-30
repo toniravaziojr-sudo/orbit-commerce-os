@@ -29,12 +29,18 @@ A migração `20260501-202836_*.sql` expandiu os enums com `ALTER TYPE … ADD V
 - **NUNCA** introduzir um novo valor de status na UI sem adicionar ao enum DB e ao array `PAYMENT_STATUSES`/`SHIPPING_STATUSES` em `core-orders`.
 - **NUNCA** comparar `orders.status` (enum) contra `text[]` em `ANY()` sem `::text` cast — vide memória `order-cross-module-sync-on-regression`.
 
+## ⚠️ Atenção — DB canônico de "pago" é `approved`, não `paid`
+
+Apesar de o enum aceitar `paid` (expansão 2026-05-01), o **valor efetivamente armazenado** pelos webhooks de gateway e por `core-orders.set_payment_status` é `'approved'`. Todos os consumidores (gatilhos, cron fiscal, dashboards, ads ROI) filtram `'approved'`. Reconciliações/backfills administrativos que gravem `'paid'` direto no DB aceitam silenciosamente e **travam propagação**. Detalhe completo: `mem://constraints/payment-status-db-canonical-is-approved`.
+
 ## Validação obrigatória após mudar enum ou tradutor
 
 1. `SELECT '<novo_valor>'::payment_status` deve passar.
 2. Criar pedido manual via `core-orders.create_order` sem overrides — deve persistir `awaiting_payment`/`awaiting_shipment`.
-3. `UPDATE orders SET payment_status='paid' WHERE id=<test>` direto no DB deve funcionar.
+3. Marcar pedido como pago SEMPRE via `core-orders.set_payment_status('paid')` (edge traduz para `'approved'` no DB) ou direto `UPDATE … SET payment_status='approved'`. **Nunca** `UPDATE … SET payment_status='paid'` direto no banco.
 4. Verificar que webhooks de gateways legados (Pagar.me, MercadoPago) continuam gravando seus valores (`approved`, etc.) sem rejeição.
+5. `SELECT COUNT(*) FROM orders WHERE payment_status='paid'` deve ser 0.
+
 
 ## Arquivos
 
