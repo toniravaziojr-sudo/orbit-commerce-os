@@ -72,7 +72,7 @@ export function BuyerCancellationNotice({
   return (
     <p className="flex items-center gap-1.5 text-xs text-destructive mt-1">
       <XCircle className="h-3.5 w-3.5 shrink-0" />
-      <span>{humanize(finalReason)}</span>
+      <span>{humanize(finalStatus, finalReason)}</span>
     </p>
   );
 }
