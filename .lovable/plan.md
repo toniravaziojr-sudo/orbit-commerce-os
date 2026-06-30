@@ -1,65 +1,74 @@
-## Resumo da reviravolta
+## Plano final — Correção estrutural de duplicação e vazamento logístico
 
-A "regressão estrutural" diagnosticada antes **não existe**. A auditoria completa (banco, código de gateways, ML sync, docs Layer 2/3 e memórias) confirmou:
+### Causas-raiz confirmadas
+1. **Bug 1 (estrutural):** Gatilho `sync_shipment_with_pv_status` só pula `provider_kind='gateway'`. Não pula marketplace. Por isso pedidos do ML geram objeto Correios fantasma na Logística Interna. (A fila `shipping_draft_queue` já bloqueia marketplace — o furo é exclusivo deste gatilho, que grava direto em `shipments`.)
+2. **Bug 2 (estrutural):** Postagem manual da loja cria nova linha em `shipments` sem costurar `source_pedido_venda_id`. O índice único parcial atual só cobre PV preenchido + tracking preenchido, então a duplicata escapa.
+3. **Bug 3 (UI):** Logística Externa não exibe nome do cliente nos rastreios.
 
-- **322 pedidos no DB usam `'approved'`**. Único `'paid'` é o **#668**, que **escrevi manualmente** durante a reconciliação, violando a regra oficial.
-- **DB armazena `'approved'`** como valor canônico de "pago". `'paid'` é vocabulário **da UI/canônico de borda**, traduzido para `'approved'` pelo `toDbPaymentStatus` em `core-orders`.
-- **Docs confirmam** (`erp-fiscal.md` §97-100): gatilho dispara em `NEW.payment_status = 'approved'`. **Consumidores estão corretos**.
-- **Memória oficial** `manual-order-must-mirror-checkout-pipeline.md` proíbe explicitamente reverter `PAYMENT_CANONICAL_TO_DB.paid → 'paid'`.
+### Regra canônica preservada
+- 1 PV = 1 objeto de remessa. Múltiplos PVs do mesmo pedido = múltiplos objetos legítimos (saída manual para reenvio confirmada por você).
+- Marketplace nunca tem objeto local.
+- PV de pedido marketplace continua existindo (necessário para NF + envio externo ao ML).
 
-**Causa real do #668 não propagar:** minha escrita manual de `'paid'` no DB.
+---
 
-## Plano de execução
+## Execução
 
-### 1. Corrigir o #668 (alinhar ao padrão DB)
-Atualizar via SQL:
-- `payment_status: 'paid' → 'approved'`
-- Manter `status = 'ready_to_invoice'`, `paid_at` e demais campos como estão.
-- Registrar linha em `order_history` com nota `realign_payment_status_paid_to_approved_db_canonical`.
+### Onda 1 — Blindar o gatilho `sync_shipment_with_pv_status` contra marketplace
+Migração ajustando a função para sair imediatamente quando o pedido for de marketplace:
+- Checar `orders.marketplace_source IS NOT NULL` **ou** `resolve_order_shipping_provider(order_id).reason = 'marketplace'`.
+- Mesmo bloqueio aplicado em `public.reconcile_orphan_pv_shipments` (rede de segurança).
+- Preserva o ramo de cancelamento terminal (memória `pv-status-shipment-mirror-preserves-active`).
+- Mantém intacto o ramo `gateway` (já correto).
 
-Isso destrava naturalmente:
-- `after_order_approved_sync` → enrich_customer_from_order, `total_spent`, tag "Cliente", lista e-mail marketing.
-- `fiscal-auto-create-drafts` (próximo tick) → Pedido de Venda → NF → etiqueta ML → Pratika.
+### Onda 2 — Postagem manual adota rascunho e amarra PV
+Auditar o caminho de criação manual (edge `shipping-create-shipment` e UI `ShipmentGenerator`):
+- Antes de INSERT, buscar `shipments` do mesmo `order_id` com `tracking_code` vazio (rascunho do gatilho). Se existir, **UPDATE** com tracking/label/status — proibido criar segunda linha.
+- Resolver `source_pedido_venda_id` (via `fiscal_invoices` do pedido) e costurar SEMPRE antes do INSERT/UPDATE.
+- Cumpre `shipment-ingest-adopt-draft-and-auto-dispatch` e `shipping-canonical-link-is-pv-not-order`.
+- Se aparecer mais de uma porta de entrada (RPC, outro edge), aplico em todas e te listo no fechamento.
 
-Sem mexer em consumidor nenhum.
+### Onda 3 — Trava física no banco (defesa em profundidade)
+Migração criando índice único parcial em `shipments`:
+- `UNIQUE (source_pedido_venda_id) WHERE source_pedido_venda_id IS NOT NULL AND delivery_status NOT IN ('cancelled','failed')` — no máximo 1 objeto ativo por PV.
+- Não bloqueia múltiplos PVs do mesmo pedido (saída manual de reenvio).
+- Não bloqueia históricos cancelados nem rascunhos falhos antigos.
+- Convive com o índice atual `idx_shipments_pv_tracking`.
 
-### 2. Blindar a regra contra repetição do meu erro
+### Onda 4 — Limpeza dos 3 objetos fantasmas (autorizada)
+DELETE direcionado e auditado:
+- `cf4b2ada-982f-4c0b-9cd4-f8be84465292` (PV #446 / Alexandre — duplicata órfã do manual AP146180332BR).
+- `89ec77f1-56c7-4020-b55a-1c732e6c8df1` (PV #452 / Carlos ML — fantasma).
+- `1f6c1e63-a6b4-4e21-8162-74996441c92d` (PV #453 / Hilário ML — fantasma).
+- Registro em `order_history` de cada pedido com nota explicando a limpeza.
 
-**2a. Memória nova** `mem://constraints/payment-status-db-canonical-is-approved`:
-- DB armazena `'approved'`; `'paid'` é só canônico de borda (UI/edge).
-- Toda escrita administrativa/reconciliação **deve passar por `core-orders.set_payment_status`** (que aplica `toDbPaymentStatus`).
-- Proibido `UPDATE orders SET payment_status='paid'` direto no DB.
-- Como detectar o erro: `SELECT COUNT(*) FROM orders WHERE payment_status='paid'` deve ser sempre 0.
+### Onda 5 — UI Logística Externa exibe cliente
+Em `src/pages/ExternalShipping.tsx`:
+- Join opcional com `orders` para puxar `customer_name`.
+- Nova coluna "Cliente" antes de "Pedido" na tabela de rastreios.
 
-**2b. Atualização das memórias existentes:**
-- Reforçar `order-status-vocabulary-canonical.md`: incluir nota "DB canônico de 'pago' é `'approved'`, não `'paid'`" e referência cruzada à nova memória.
+### Onda 6 — Documentação + memórias (anti-regressão obrigatória)
+- `docs/especificacoes/erp/logistica.md`: nova seção "Roteamento marketplace × gatilho de PV" + reforço "1 PV = 1 objeto, saída manual = novo PV".
+- `docs/especificacoes/logistica/logistica-externa.md`: nota de não-duplicidade e cliente visível.
+- Nova memória `mem://constraints/pv-shipment-trigger-must-skip-marketplace`.
+- Nova memória `mem://constraints/manual-shipment-must-adopt-pv-draft` (cita incidente #658).
+- Atualizar `mem://index.md`.
+- `docs/tecnico/base-de-conhecimento-tecnico.md`: registro do incidente.
 
-### 3. Documentação formal (Layer 2)
+### Onda 7 — Validação técnica obrigatória
+1. `SELECT COUNT(*) FROM shipments s JOIN orders o ON o.id=s.order_id WHERE o.marketplace_source IS NOT NULL AND s.delivery_status NOT IN ('cancelled')` → **0**.
+2. `SELECT source_pedido_venda_id, COUNT(*) FROM shipments WHERE delivery_status NOT IN ('cancelled','failed') AND source_pedido_venda_id IS NOT NULL GROUP BY 1 HAVING COUNT(*)>1` → **vazio**.
+3. Os 3 IDs fantasmas → `SELECT COUNT(*)` = **0**.
+4. Aba "Pendentes" da Logística Interna: apenas pedidos reais da loja.
+5. Logística Externa: "Carlos Roberto…" e "Hilario…" visíveis.
+6. Simular INSERT duplicado por PV → deve falhar pelo índice único.
+7. `tsgo` limpo e logs de edge sem erro nos 5 min pós-deploy.
 
-- `docs/especificacoes/ecommerce/pedidos.md` §4: adicionar caixa "Reconciliação manual e backfills" com a regra acima.
-- `docs/tecnico/base-de-conhecimento-tecnico.md`: novo item "Anti-regressão — backfill de pagamento" descrevendo o incidente (escrevi `'paid'` direto, travou propagação) e a regra correta.
+---
 
-### 4. Validação técnica obrigatória
+## Pontos de parada (consulto antes de continuar)
+- Se a Onda 3 acusar duplicatas legadas adicionais que ainda não vi, paro e te listo antes de aplicar.
+- Se o caminho da postagem manual tiver mais de uma porta de entrada, aplico em todas e te informo quais.
+- Qualquer mudança de UI/UX além da coluna "Cliente" — paro e pergunto.
 
-Após o UPDATE do #668:
-1. `SELECT payment_status, status FROM orders WHERE id='29db1d2d-...'` → deve estar `approved` / `ready_to_invoice`.
-2. `SELECT 1 FROM fiscal_draft_queue WHERE order_id='29db1d2d-...'` → linha pending criada pelo trigger.
-3. `SELECT total_spent, is_first_sale FROM customers WHERE id=<customer_id_do_668>` → `total_spent > 0` após o trigger rodar.
-4. Aguardar próximo tick do cron `fiscal-auto-create-drafts` (5 min): conferir geração de Pedido de Venda e NF.
-5. `SELECT COUNT(*) FROM orders WHERE payment_status='paid'` → 0 globalmente.
-6. Conferir `edge_logs` por 5 min: nenhum `22P02` nem erro de enum.
-
-### 5. O que NÃO vou fazer (anti-regressão)
-
-- **Não vou padronizar consumidores** para aceitar `'paid'`. Eles estão corretos.
-- **Não vou tocar** em webhooks de gateway, `meli-sync-orders`, hooks de dashboard, monitor de chargebacks, `enrich-customers-pagarme`, `process-events`, `useDashboardMetrics`, `usePayments`, `useFinanceEntries`, `AdsRoiReportsTab` — todos filtram `'approved'` corretamente porque é o que o DB armazena.
-- **Não vou alterar** `PAYMENT_CANONICAL_TO_DB` nem `toDbPaymentStatus`.
-
-### 6. Pontos de parada (peço sua decisão se aparecer)
-
-- Se ao re-rodar o cron fiscal o #668 falhar por outro motivo (item sem NCM, CPF ausente etc.), paro e te aviso — não é mais do escopo desta correção.
-- #667 e #669: já destravados pela correção anterior do gatilho. Próximo tick do `expire-stale-orders` os marca como `payment_expired`. Sem ação manual.
-
-## Estado da entrega
-
-📌 STATUS: Diagnóstico concluído → aguardando aprovação do plano para executar correção pontual + blindagem documental.
+📌 STATUS: Plano consolidado e revisado — aguardando "Implementar" para executar todas as ondas.
