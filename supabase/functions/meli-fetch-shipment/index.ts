@@ -107,7 +107,96 @@ Deno.serve(async (req) => {
     }, { onConflict: "tenant_id,source_key,external_shipment_id" }).select().single();
 
     if (upErr) return json({ success: false, error: upErr.message }, 200);
-    return json({ success: true, shipment: row, has_label: !!labelUrl }, 200);
+
+    // 5. Ponte marketplace_shipments → orders (espelha shipment-ingest).
+    // Mapeia o status do shipment para o vocabulário canônico de orders.shipping_status,
+    // promove orders.status para 'dispatched'/'delivered' quando ainda está em estado
+    // pré-despacho, registra tracking_code/shipping_carrier/shipped_at/delivered_at e
+    // nunca regride pedidos já em estados terminais.
+    // Memória: mem://constraints/marketplace-shipment-promotes-order-mirrors-shipment-ingest
+    let orderBridge: { applied: boolean; updates?: Record<string, unknown> } = { applied: false };
+    if (resolvedOrderId) {
+      try {
+        const { data: ord } = await supabase
+          .from("orders")
+          .select("status, shipping_status, tracking_code, shipping_carrier, shipped_at, delivered_at")
+          .eq("id", resolvedOrderId).maybeSingle();
+
+        if (ord) {
+          // ml ms_status → orders.shipping_status canônico
+          const shippingStatusMap: Record<string, string> = {
+            awaiting_invoice: "awaiting_shipment",
+            ready_to_ship: "label_generated",
+            in_transit: "in_transit",
+            shipped: "shipped",
+            delivered: "delivered",
+            problem: "problem",
+            returned: "returned",
+            cancelled: "problem",
+          };
+          const newShippingStatus = shippingStatusMap[status] || null;
+
+          const terminalOrderStatuses = new Set([
+            "shipped","in_transit","delivered","completed",
+            "cancelled","returning","returned",
+          ]);
+          const preDispatchOrderStatuses = new Set([
+            "paid","processing","ready_to_invoice","pending","awaiting_shipment",
+            "invoice_pending_sefaz","invoice_authorized","invoice_issued","fulfilled",
+          ]);
+          const dispatchTriggerStatuses = new Set([
+            "ready_to_ship","in_transit","shipped","delivered",
+          ]);
+
+          const updates: Record<string, unknown> = {};
+          if (trackingNumber && trackingNumber !== ord.tracking_code) {
+            updates.tracking_code = trackingNumber;
+          }
+          if (carrier && carrier !== ord.shipping_carrier) {
+            updates.shipping_carrier = String(carrier).toLowerCase();
+          }
+
+          // Não regride pedidos terminais
+          if (!terminalOrderStatuses.has(String(ord.status))) {
+            if (newShippingStatus && newShippingStatus !== ord.shipping_status) {
+              updates.shipping_status = newShippingStatus;
+            }
+            // Promoção para dispatched
+            if (dispatchTriggerStatuses.has(status)
+                && preDispatchOrderStatuses.has(String(ord.status))) {
+              updates.status = "dispatched";
+              if (!ord.shipped_at) updates.shipped_at = new Date().toISOString();
+            }
+            // Promoção para delivered (sem rebaixar pedidos já em delivered)
+            if (status === "delivered") {
+              if (!ord.delivered_at) updates.delivered_at = new Date().toISOString();
+              if (ord.status !== "delivered") updates.status = "delivered";
+            }
+            // problem: só ajusta shipping_status, não toca orders.status
+          }
+
+          if (Object.keys(updates).length > 0) {
+            const { error: ordErr } = await supabase
+              .from("orders").update(updates).eq("id", resolvedOrderId);
+            if (ordErr) {
+              console.error("[meli-fetch-shipment] order bridge update:", ordErr);
+            } else {
+              orderBridge = { applied: true, updates };
+              await supabase.from("order_history").insert({
+                order_id: resolvedOrderId,
+                action: "shipment_updated",
+                description: `Marketplace shipment ${shipmentId} (${status}) — bridge aplicou: ${Object.keys(updates).join(", ")}`,
+                new_value: { source: "marketplace_shipment", shipment_id: String(shipmentId), ml_status: mlStatus, ms_status: status, updates },
+              });
+            }
+          }
+        }
+      } catch (bridgeErr) {
+        console.error("[meli-fetch-shipment] bridge error:", bridgeErr);
+      }
+    }
+
+    return json({ success: true, shipment: row, has_label: !!labelUrl, order_bridge: orderBridge }, 200);
   } catch (e) {
     console.error("[meli-fetch-shipment] erro:", e);
     return json({ success: false, error: String(e?.message || e) }, 200);
