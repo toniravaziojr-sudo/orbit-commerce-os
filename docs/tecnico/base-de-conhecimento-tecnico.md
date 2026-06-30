@@ -1635,3 +1635,28 @@ o default seguro é mandar as duas.
 **Regra derivada.** Memória anti-regressão `mem://constraints/ads-publish-full-parity-meta` (regra "ABO vs CBO no nível de campanha"). Qualquer novo campo de campanha que dependa de CBO deve passar pelo mesmo gate.
 
 **Anti-regressão.** Erro genérico 4834011 sem contexto deve disparar checagem imediata de "campo de CBO vazando em ABO" antes de qualquer outra hipótese.
+
+
+### 10.1 Trigger em `public.orders` — enum vs literal vazio (v2026-06-30)
+
+**Problema.** Pedido #668 da loja Respeite o Homem teve pagamento aprovado na Pagar.me (`or_er1OEqKIPsqaRVAQ`, 12:29 BRT), webhook recebeu e tentou atualizar `orders` → falhou silenciosamente. Pedido permaneceu em "Aguardando pagamento". Cron de expiração também não conseguiu marcar #667/#669 como expirados. Logs do Postgres mostravam `ERROR 22P02: invalid input value for enum order_status: ""` em **todo** UPDATE da tabela.
+
+**Causa raiz.** O gatilho `cancel_meli_invoice_queue_on_order_cancel` (cancela fila de envio de NF do Mercado Livre quando comprador cancela) usava:
+```sql
+IF NEW.status = 'cancelled' AND COALESCE(OLD.status, '') <> 'cancelled' THEN
+```
+`OLD.status` é do tipo enum `order_status` e `''` (string vazia) **não é valor válido do enum**. O Postgres não conseguia resolver o tipo na função `COALESCE`, falhava com `22P02`, e o erro abortava qualquer `UPDATE orders` que disparasse o gatilho (ou seja, **todos**). Outros dois gatilhos da mesma família (`guard_order_cancellation_requires_metadata`, `enqueue_fiscal_draft`) já usavam `OLD.status::text` corretamente — este passou despercebido.
+
+**Solução.** `CREATE OR REPLACE FUNCTION` trocando a condição por:
+```sql
+IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
+```
+Semântica idêntica, sem cast implícito de enum para text, sem literal inválido.
+
+**Regra derivada (universal).** Qualquer trigger novo em `public.orders` que compare `OLD.status`/`NEW.status` (enum) com literal de texto deve usar um dos dois padrões:
+- `OLD.status::text <> 'valor'` (compatível com `COALESCE`)
+- `OLD.status IS DISTINCT FROM 'valor'` (preferido — também trata NULL)
+
+**Proibido:** `COALESCE(OLD.status, '') <> 'valor'`. Já documentado em `docs/especificacoes/ecommerce/pedidos.md` §4.6 e coberto pela memória `mem://constraints/order-cross-module-sync-on-regression`.
+
+**Validação obrigatória ao alterar qualquer trigger de `orders`.** Rodar manualmente `UPDATE orders SET updated_at = now() WHERE id = <qualquer>` e confirmar `0 ERROR 22P02 / 42883` nos logs do Postgres pelos próximos 5 minutos. TypeScript build NÃO valida triggers PL/pgSQL.
