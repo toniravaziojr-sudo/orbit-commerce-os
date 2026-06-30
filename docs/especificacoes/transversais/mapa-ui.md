@@ -52,7 +52,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 21 | CRM | Atendimento | `/support` | crm | `support_chat` | — | Badge "Upgrade" se bloqueado |
 | 22 | CRM | Emails | `/emails` | crm | `emails` | — | Badge "Upgrade" se bloqueado |
 | 23 | CRM | Avaliações | `/reviews` | crm | — | — | — |
-| 24 | ERP | Fiscal | `/fiscal` | erp_logistica | — | — | — |
+| 24 | ERP | Fiscal | `/fiscal` | erp_logistica | — | — | **Tarja universal de cancelamento (v2026-06-30):** linhas com pedido cancelado mostram tarja discreta (`BuyerCancellationNotice`) abaixo do status em ambas as abas. Aba **Pedidos de Venda** dispara pela condição `pedido_status === 'cancelado'` (PV permanece `status='draft'`); aba **Notas Fiscais** dispara por `invoice.status === 'cancelled'`. Texto difere por origem: `cancelled_by_user` → "Pedido cancelado pelo lojista"; `cancelled` + razão de comprador/mediação → "Pedido cancelado pelo comprador". Batch loader único por página evita N+1. |
 | 25 | ERP | Financeiro | `/finance` | erp_logistica | `erp_financeiro` | — | Badge "Upgrade" se bloqueado |
 | 26 | ERP | Compras | `/purchases` | erp_logistica | `erp_compras` | — | Badge "Upgrade" se bloqueado |
 | 26b | ERP | Fornecedores | `/suppliers` | erp_logistica | `erp_compras` | — | Cadastro único de fornecedores (rev 2026-05-21) |
