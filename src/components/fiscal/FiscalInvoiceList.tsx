@@ -2056,12 +2056,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   {invoice.status_motivo}
                                 </p>
                               )}
-                              {invoice.status === 'cancelled' && invoice.order_id && (
-                                <BuyerCancellationNotice
-                                  status="cancelled"
-                                  cancellationReason={cancellationReasonByOrder[invoice.order_id as string] ?? null}
-                                />
-                              )}
+                              {(() => {
+                                const showInNotas = mode === 'invoices' && invoice.status === 'cancelled';
+                                const showInOrders = mode === 'orders' && pedidoStatusOf(invoice as any) === 'cancelado';
+                                if (!(showInNotas || showInOrders) || !invoice.order_id) return null;
+                                const info = cancellationInfoByOrder[invoice.order_id as string];
+                                return (
+                                  <BuyerCancellationNotice
+                                    status={info?.status ?? 'cancelled'}
+                                    cancellationReason={info?.reason ?? null}
+                                  />
+                                );
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
