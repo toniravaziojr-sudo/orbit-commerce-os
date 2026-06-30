@@ -15,12 +15,20 @@ const REASON_HINT: Array<[RegExp, string]> = [
   [/cancel_purchase|buyer|comprador/i, "Pedido cancelado pelo comprador"],
   [/mediation/i, "Pedido cancelado em mediação no Mercado Livre"],
   [/expired|expirou/i, "Pedido cancelado por expiração de pagamento"],
-  [/seller|vendedor/i, "Pedido cancelado pelo vendedor"],
+  [/seller|vendedor|lojista|merchant/i, "Pedido cancelado pelo lojista"],
   [/chargeback/i, "Pedido cancelado por chargeback"],
 ];
 
-function humanize(reason: string | null | undefined): string {
-  if (!reason) return "Pedido cancelado pelo comprador";
+function humanize(status: string | null | undefined, reason: string | null | undefined): string {
+  // Cancelamento manual feito pelo lojista no Comando Central
+  if (status === "cancelled_by_user") {
+    return reason ? `Pedido cancelado pelo lojista — ${reason}` : "Pedido cancelado pelo lojista";
+  }
+  if (status === "chargeback_lost") {
+    return "Pedido cancelado por chargeback";
+  }
+  // status = 'cancelled' (externo: comprador, gateway, expiração, mediação)
+  if (!reason) return "Pedido cancelado";
   for (const [re, label] of REASON_HINT) {
     if (re.test(reason)) return label;
   }
@@ -64,7 +72,7 @@ export function BuyerCancellationNotice({
   return (
     <p className="flex items-center gap-1.5 text-xs text-destructive mt-1">
       <XCircle className="h-3.5 w-3.5 shrink-0" />
-      <span>{humanize(finalReason)}</span>
+      <span>{humanize(finalStatus, finalReason)}</span>
     </p>
   );
 }

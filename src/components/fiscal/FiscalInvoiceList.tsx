@@ -307,17 +307,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return filteredInvoices.slice(start, start + pageSize);
   }, [filteredInvoices, currentPage, pageSize]);
 
-  // Carrega cancellation_reason em lote para os pedidos das NFs canceladas visíveis,
-  // evitando N+1. Mapa { order_id: reason }. Renderiza a tarja discreta de cancelamento.
+  // Carrega status + cancellation_reason em lote para os pedidos das linhas
+  // visíveis que estão canceladas — tanto NFs canceladas (modo 'notas') quanto
+  // Pedidos de Venda cancelados (modo 'orders', via pedidoStatusOf === 'cancelado').
+  // Evita N+1. Renderiza a tarja discreta com o texto correto de origem.
   const cancelledOrderIds = useMemo(() => {
     const ids = new Set<string>();
     (pagedInvoices || []).forEach((i: any) => {
-      if (i?.status === 'cancelled' && i?.order_id) ids.add(i.order_id as string);
+      if (!i?.order_id) return;
+      if (mode === 'invoices' && i?.status === 'cancelled') ids.add(i.order_id as string);
+      if (mode === 'orders' && pedidoStatusOf(i) === 'cancelado') ids.add(i.order_id as string);
     });
     return Array.from(ids);
-  }, [pagedInvoices]);
+  }, [pagedInvoices, mode]);
 
-  const [cancellationReasonByOrder, setCancellationReasonByOrder] = useState<Record<string, string | null>>({});
+  const [cancellationInfoByOrder, setCancellationInfoByOrder] = useState<Record<string, { status: string | null; reason: string | null }>>({});
   useEffect(() => {
     if (!cancelledOrderIds.length) return;
     let canceled = false;
@@ -327,11 +331,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .select('id, status, cancellation_reason')
         .in('id', cancelledOrderIds);
       if (canceled || !data) return;
-      const next: Record<string, string | null> = {};
+      const next: Record<string, { status: string | null; reason: string | null }> = {};
       (data as any[]).forEach((row) => {
-        if (row?.status === 'cancelled') next[row.id] = row.cancellation_reason ?? null;
+        next[row.id] = { status: row.status ?? null, reason: row.cancellation_reason ?? null };
       });
-      setCancellationReasonByOrder((prev) => ({ ...prev, ...next }));
+      setCancellationInfoByOrder((prev) => ({ ...prev, ...next }));
     })();
     return () => { canceled = true; };
   }, [cancelledOrderIds.join('|')]);
@@ -2052,12 +2056,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   {invoice.status_motivo}
                                 </p>
                               )}
-                              {invoice.status === 'cancelled' && invoice.order_id && (
-                                <BuyerCancellationNotice
-                                  status="cancelled"
-                                  cancellationReason={cancellationReasonByOrder[invoice.order_id as string] ?? null}
-                                />
-                              )}
+                              {(() => {
+                                const showInNotas = mode === 'invoices' && invoice.status === 'cancelled';
+                                const showInOrders = mode === 'orders' && pedidoStatusOf(invoice as any) === 'cancelado';
+                                if (!(showInNotas || showInOrders) || !invoice.order_id) return null;
+                                const info = cancellationInfoByOrder[invoice.order_id as string];
+                                return (
+                                  <BuyerCancellationNotice
+                                    status={info?.status ?? 'cancelled'}
+                                    cancellationReason={info?.reason ?? null}
+                                  />
+                                );
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
