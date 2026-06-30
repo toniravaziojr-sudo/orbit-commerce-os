@@ -117,3 +117,34 @@ Pontos-chave que afetam a Logística Externa:
 4. **UI `/external-shipping`:** tabela agora exibe coluna **Cliente** (join com `orders.customer_name`) e usa `order_number` interno quando disponível.
 
 **Regra canônica reforçada:** `1 PV = 1 objeto logístico ativo`. Para reenviar/segundo envio → criar novo PV (manual ou duplicado) e o objeto nasce vinculado automaticamente.
+
+## 10. Promoção de status do pedido a partir do shipment marketplace (rev 2026-06-30)
+
+**Princípio:** o ciclo de vida do pedido marketplace (`orders.status`, `shipping_status`, `tracking_code`, `shipped_at`, `delivered_at`) precisa refletir o estado real do shipment no marketplace, espelhando exatamente o que `shipment-ingest` já faz para o fluxo interno (Correios/Pratika). A ausência dessa ponte deixava pedidos travados em `invoice_authorized` / `processing` mesmo depois de "A caminho" no ML (incidentes #665 e #670).
+
+**Implementação:** a ponte vive na Edge Function `meli-fetch-shipment` (padrão de arquitetura: ação em edge, não em trigger SQL — ver `mem://architecture/automation-trigger-cron-standard`). Após o `upsert` em `marketplace_shipments`, a função:
+
+1. Lê `orders.status, shipping_status, tracking_code, shipping_carrier, shipped_at, delivered_at`.
+2. Traduz `marketplace_shipments.status` (vocabulário ML) para `orders.shipping_status` (vocabulário canônico):
+
+| `marketplace_shipments.status` | `orders.shipping_status` |
+|---|---|
+| `awaiting_invoice`             | `awaiting_shipment` |
+| `ready_to_ship`                | `label_generated` |
+| `in_transit`                   | `in_transit` |
+| `shipped`                      | `shipped` |
+| `delivered`                    | `delivered` |
+| `problem`                      | `problem` |
+| `returned`                     | `returned` |
+| `cancelled`                    | `problem` *(orders.status não é tocado)* |
+
+3. Atualiza `tracking_code` e `shipping_carrier` quando vazios ou divergentes.
+4. **Promove** `orders.status='dispatched'` (+ `shipped_at=now()` se nulo) quando o status novo está em `{ready_to_ship, in_transit, shipped, delivered}` **e** o status atual está em `preDispatchOrderStatuses` (`paid, processing, ready_to_invoice, pending, awaiting_shipment, invoice_pending_sefaz, invoice_authorized, invoice_issued, fulfilled`).
+5. Promove `orders.status='delivered'` (+ `delivered_at=now()`) quando o ML reporta `delivered`.
+6. **Nunca regride** pedidos em estados terminais (`shipped, in_transit, delivered, completed, cancelled, returning, returned`).
+7. Audita em `order_history` (`action='shipment_updated'`, `new_value.source='marketplace_shipment'`).
+
+**Guarda complementar no `meli-sync-orders`:** o sync de pedidos não pode rebaixar `orders.status` quando o pedido já está em estado avançado (`invoice_pending_sefaz, invoice_authorized, invoice_issued, dispatched, shipped, in_transit, delivered, completed, cancelled, returning, returned`). Apenas `payment_status` e demais campos continuam sendo espelhados. Cancelamentos do ML continuam tendo precedência (exceção controlada).
+
+**Referência cruzada:** o fluxo interno usa o mesmo padrão em `supabase/functions/shipment-ingest/index.ts` (linhas 360-419). Toda alteração nesta ponte deve manter paridade lógica com `shipment-ingest`.
+

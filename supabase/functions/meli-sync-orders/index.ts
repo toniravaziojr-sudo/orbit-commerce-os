@@ -398,8 +398,24 @@ Deno.serve(async (req) => {
         let upserted: { id: string; order_number: string } | null = null;
         if (existing?.id) {
           // Re-sync: NÃO regenerar número, preservar is_first_sale calculado na 1ª importação
+          // Guarda anti-rebaixamento (espelha o padrão do shipment-ingest): se o pedido já está
+          // em estado avançado, NÃO sobrescreve `status` com o mapeamento ML (que só conhece
+          // pending/processing/shipped/etc.). Apenas payment_status e demais campos são atualizados.
+          // Memória: mem://constraints/marketplace-shipment-promotes-order-mirrors-shipment-ingest
+          const { data: existingStatusRow } = await supabase.from("orders")
+            .select("status").eq("id", existing.id).maybeSingle();
+          const advancedStatuses = new Set([
+            "invoice_pending_sefaz","invoice_authorized","invoice_issued",
+            "dispatched","shipped","in_transit","delivered","completed",
+            "cancelled","returning","returned",
+          ]);
+          const updatePayload: Record<string, unknown> = { ...orderData };
+          if (existingStatusRow?.status && advancedStatuses.has(String(existingStatusRow.status))
+              && orderStatus !== "cancelled") {
+            delete (updatePayload as any).status;
+          }
           const { data: upd, error: updErr } = await supabase.from("orders")
-            .update(orderData).eq("id", existing.id)
+            .update(updatePayload).eq("id", existing.id)
             .select("id, order_number").single();
           if (updErr) { console.error(`[meli-sync-orders] Update ${meliOrderId}:`, updErr); errors++; continue; }
           upserted = upd;
