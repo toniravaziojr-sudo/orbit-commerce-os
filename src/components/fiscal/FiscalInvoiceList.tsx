@@ -315,7 +315,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const ids = new Set<string>();
     (pagedInvoices || []).forEach((i: any) => {
       if (!i?.order_id) return;
-      if (mode === 'notas' && i?.status === 'cancelled') ids.add(i.order_id as string);
+      if (mode === 'invoices' && i?.status === 'cancelled') ids.add(i.order_id as string);
       if (mode === 'orders' && pedidoStatusOf(i) === 'cancelado') ids.add(i.order_id as string);
     });
     return Array.from(ids);
