@@ -59,7 +59,7 @@ export default function ExternalShipping() {
     queryFn: async () => {
       let q = supabase
         .from("marketplace_shipments")
-        .select("*")
+        .select("*, orders!marketplace_shipments_order_id_fkey(customer_name, order_number)")
         .order("created_at", { ascending: false })
         .limit(200);
       if (sourceFilter !== "all") q = q.eq("source_key", sourceFilter);
@@ -290,6 +290,7 @@ function RenderTable({
       <TableHeader>
         <TableRow>
           <TableHead>Pedido</TableHead>
+          <TableHead>Cliente</TableHead>
           <TableHead>Fonte</TableHead>
           <TableHead>Transportadora</TableHead>
           <TableHead>Rastreio</TableHead>
@@ -303,9 +304,12 @@ function RenderTable({
         {rows.map(s => {
           const st = STATUS_LABELS[s.status] || { label: s.status, variant: "outline" as const };
           const canResendPratika = !!(s.invoice_id && s.tracking_number);
+          const customerName = s.orders?.customer_name || "—";
+          const orderRef = s.orders?.order_number ? `#${s.orders.order_number}` : (s.marketplace_order_id || "—");
           return (
             <TableRow key={s.id}>
-              <TableCell>{s.marketplace_order_id || "—"}</TableCell>
+              <TableCell>{orderRef}</TableCell>
+              <TableCell className="max-w-[180px] truncate" title={customerName}>{customerName}</TableCell>
               <TableCell>{SOURCE_LABELS[s.source_key] || s.source_key}</TableCell>
               <TableCell>{s.carrier || "—"}</TableCell>
               <TableCell className="font-mono text-xs">{s.tracking_number || "—"}</TableCell>

@@ -87,3 +87,33 @@ Pontos-chave que afetam a Logística Externa:
 - Cada pedido importado entra com `payment_gateway='mercadolivre'` e `payment_gateway_id` válido, então passa a contar nos relatórios financeiros (Dashboard / Pagamentos).
 - O badge de origem na lista `/orders` usa o logo oficial do ML (`src/assets/marketplaces/mercadolivre.png`).
 - E-mail do comprador permanece sintético (`meli-{orderId}@marketplace.local`) por restrição da API do ML; `customer_notes` registra essa pendência para visibilidade do lojista.
+
+## 9. Anti-regressão — Duplicação e Vazamento (rev 2026-06-30)
+
+**Incidentes corrigidos:**
+- **#658 (Alexandre — loja):** postagem manual criou segundo objeto sem amarrar ao PV. O rascunho original ficou em `failed` e o manual em `posted`, gerando duplicidade no `/external-shipping`.
+- **#665 (Carlos — ML) e #670 (Hilário — ML):** o gatilho `sync_shipment_with_pv_status` criou rascunhos Correios para pedidos de marketplace (sem rota válida → `failed` permanente).
+
+**Correções aplicadas:**
+
+1. **Gatilho `sync_shipment_with_pv_status`** agora pula:
+   - PVs com `marketplace_source` preenchido (ML, Shopee, etc.) — etiqueta é externa.
+   - PVs cuja resolução de transporte aponta `reason='marketplace'` (cinto-suspensório).
+   - Mantém o pulo já existente para `provider_kind='gateway'` (Frenet).
+
+2. **`shipping-register-manual`** agora:
+   - Resolve o PV canônico (raiz, `source_order_invoice_id IS NULL`) a partir do `order_id`.
+   - **Adota** um rascunho ativo existente (mesmo PV ou mesmo pedido) em vez de criar uma nova linha. UPDATE em vez de INSERT.
+   - Garante `source_pedido_venda_id` preenchido na remessa final.
+
+3. **Trava física no banco:** índice único parcial `uq_shipments_active_per_pv`:
+   ```sql
+   UNIQUE (source_pedido_venda_id)
+     WHERE source_pedido_venda_id IS NOT NULL
+       AND delivery_status NOT IN ('canceled','returned','failed')
+   ```
+   Impede mais de 1 objeto ativo por PV. **Saída manual preservada:** múltiplos PVs do mesmo pedido (reenvio, segunda etiqueta) continuam gerando seu próprio objeto, porque a unicidade é por PV — não por pedido. Estados terminais (`canceled`, `returned`, `failed`) saem do índice, permitindo retry após falha.
+
+4. **UI `/external-shipping`:** tabela agora exibe coluna **Cliente** (join com `orders.customer_name`) e usa `order_number` interno quando disponível.
+
+**Regra canônica reforçada:** `1 PV = 1 objeto logístico ativo`. Para reenviar/segundo envio → criar novo PV (manual ou duplicado) e o objeto nasce vinculado automaticamente.

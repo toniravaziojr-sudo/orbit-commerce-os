@@ -151,28 +151,101 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create shipment record (carrier + service_name + service_code)
-    const { data: shipment, error: shipmentError } = await supabase
-      .from('shipments')
-      .insert({
-        tenant_id: tenantId,
-        order_id: order_id,
-        carrier: cleanCarrier,
-        service_name: order.shipping_service_name || derivedService,
-        service_code: order.shipping_service_code || derivedServiceCode,
-        tracking_code: cleanTrackingCode,
-        delivery_status: 'label_created',
-        source: 'manual',
-        metadata: {
-          registered_by: user.id,
-          registered_at: now,
-        },
-        last_status_at: now,
-        // Set next poll to now so tracking starts checking
-        next_poll_at: now,
-      })
-      .select()
-      .single();
+    // Resolver Pedido de Venda canônico (raiz, sem source_order_invoice_id)
+    // para amarrar a remessa ao PV — regra: 1 PV = 1 objeto ativo.
+    let resolvedPvId: string | null = null;
+    try {
+      const { data: pv } = await supabase
+        .from('fiscal_invoices')
+        .select('id')
+        .eq('order_id', order_id)
+        .eq('fiscal_stage', 'pedido_venda')
+        .is('source_order_invoice_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      resolvedPvId = pv?.id ?? null;
+    } catch (e) {
+      console.warn('[shipping-register-manual] PV resolve fallback (sem PV):', e);
+    }
+
+    // Adotar rascunho existente do mesmo PV (ou do mesmo pedido) em vez de
+    // criar nova linha. Anti-regressão: duplicação logística (incidente #658).
+    let existingShipment: { id: string } | null = null;
+    if (resolvedPvId) {
+      const { data } = await supabase
+        .from('shipments')
+        .select('id')
+        .eq('source_pedido_venda_id', resolvedPvId)
+        .or('tracking_code.is.null,tracking_code.eq.')
+        .not('delivery_status', 'in', '("canceled","returned","failed")')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      existingShipment = data ?? null;
+    }
+    if (!existingShipment) {
+      const { data } = await supabase
+        .from('shipments')
+        .select('id')
+        .eq('order_id', order_id)
+        .or('tracking_code.is.null,tracking_code.eq.')
+        .not('delivery_status', 'in', '("canceled","returned","failed")')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      existingShipment = data ?? null;
+    }
+
+    let shipment: { id: string } | null = null;
+    let shipmentError: unknown = null;
+
+    if (existingShipment) {
+      const { data: updated, error: updErr } = await supabase
+        .from('shipments')
+        .update({
+          tenant_id: tenantId,
+          order_id: order_id,
+          source_pedido_venda_id: resolvedPvId ?? undefined,
+          carrier: cleanCarrier,
+          service_name: order.shipping_service_name || derivedService,
+          service_code: order.shipping_service_code || derivedServiceCode,
+          tracking_code: cleanTrackingCode,
+          delivery_status: 'label_created',
+          source: 'manual',
+          manually_adjusted: true,
+          last_status_at: now,
+          next_poll_at: now,
+          updated_at: now,
+        })
+        .eq('id', existingShipment.id)
+        .select('id')
+        .single();
+      shipment = updated ?? null;
+      shipmentError = updErr;
+      console.log(`[shipping-register-manual] Adopted draft ${existingShipment.id} (PV=${resolvedPvId})`);
+    } else {
+      const { data: inserted, error: insErr } = await supabase
+        .from('shipments')
+        .insert({
+          tenant_id: tenantId,
+          order_id: order_id,
+          source_pedido_venda_id: resolvedPvId,
+          carrier: cleanCarrier,
+          service_name: order.shipping_service_name || derivedService,
+          service_code: order.shipping_service_code || derivedServiceCode,
+          tracking_code: cleanTrackingCode,
+          delivery_status: 'label_created',
+          source: 'manual',
+          metadata: { registered_by: user.id, registered_at: now },
+          last_status_at: now,
+          next_poll_at: now,
+        })
+        .select('id')
+        .single();
+      shipment = inserted ?? null;
+      shipmentError = insErr;
+    }
 
     if (shipmentError) {
       console.error('[shipping-register-manual] Error creating shipment:', shipmentError);
