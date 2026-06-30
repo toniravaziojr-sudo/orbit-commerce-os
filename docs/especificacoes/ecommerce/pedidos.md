@@ -427,9 +427,11 @@ A automação **sinaliza**; a ação destrutiva fica com o operador. A bandeira 
 - `shipments.requires_action`, `action_reason`
 - `fiscal_draft_queue` / `shipping_draft_queue` / `gateway_sync_queue`: `cancelled_at`, `cancel_reason`
 
-**Detalhe técnico crítico (lições do teste E2E 2026-05-01):**
+**Detalhe técnico crítico (lições do teste E2E 2026-05-01 + incidente 2026-06-30):**
 - As 4 funções de trigger comparam `orders.status` (enum `order_status`) contra `TEXT[]` de estados regressivos. **Postgres não casta enum→text implicitamente em `ANY()`** — sem `NEW.status::text` e `OLD.status::text` toda `UPDATE orders` falha com erro `42883` e bloqueia pagamento, cancelamento, webhooks e cron de expiração em produção. Validação obrigatória ao alterar essas funções: rodar um `UPDATE orders SET status='awaiting_confirmation' WHERE id=...` real antes de fechar a entrega.
+- **Regra universal para qualquer trigger novo em `public.orders`:** comparar `OLD.status`/`NEW.status` (enum) com literal de texto exige **um dos dois padrões oficiais**: (a) `OLD.status::text <> 'valor'`, ou (b) `OLD.status IS DISTINCT FROM 'valor'`. **Proibido** usar `COALESCE(OLD.status, '') <> 'valor'` — o literal `''` não pertence ao enum e Postgres devolve `22P02 invalid input value for enum order_status: ""`, bloqueando **toda** atualização da tabela. Incidente 2026-06-30: gatilho `cancel_meli_invoice_queue_on_order_cancel` usava esse padrão e bloqueou pagamentos Pagar.me (#668) e expirações de PIX (#667/#669) por horas. Corrigido para `IS DISTINCT FROM`.
 - Quando `resolve_order_shipping_provider` retorna `unresolved` (pedido sem CEP/transportadora resolvida), o pipeline atual ainda enfileira em `shipping_draft_queue` com `provider='manual'` como fallback. Comportamento intencional para que o operador receba a remessa na tela manual.
+
 
 **Teste E2E executado em 2026-05-01:**
 - 1 pedido fluxo feliz: `pending → awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice_authorized → invoice_issued → dispatched → completed` ✅

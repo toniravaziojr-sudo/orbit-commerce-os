@@ -1,68 +1,66 @@
-## Revisão contra docs e memórias
+## Causa raiz (confirmada no banco agora)
 
-Encontrei 3 fatos que enxugam o plano:
+A função do gatilho `cancel_meli_invoice_queue_on_order_cancel` (cancela a fila de envio de NF do Mercado Livre quando o pedido vira "cancelled") compara o status antigo assim:
 
-1. **A distinção comprador × lojista já existe no próprio status do pedido.**
-   - `cancelled` → cancelamento externo (comprador no ML, expiração, chargeback). `cancellation_reason` traz o detalhe.
-   - `cancelled_by_user` → cancelamento manual do lojista (cascata oficial documentada em `mem://constraints/payment-cancel-cascades-to-cancelled-by-user`).
-   - Não preciso criar coluna nova nem fazer backfill — basta o componente de tarja ler o status.
-2. **`cancelled_at + cancellation_reason` já são obrigatórios** em toda transição (trigger `trg_guard_order_cancellation_metadata`). Garantido em loja e marketplace.
-3. **PV já é espelho vivo do pedido** (`trg_orders_sync_pv_status` + `trg_guard_pv_cancellation`). `pedido_status='cancelled'` no PV é fonte de verdade — é só o que falta o componente da tarja olhar.
-
-## O problema (confirmado)
-
-- Na aba **Pedidos de Venda** do Fiscal, a tarja não aparece porque a condição atual exige `invoice.status === 'cancelled'`, mas o PV mantém `status='draft'` mesmo cancelado (quem reflete o cancelamento é `pedido_status`).
-- O texto da tarja hoje só fala em "comprador". Para pedidos da loja cancelados pelo lojista, fica enganoso.
-- O rastreio externo do #665 (`AD624331900BR`) **não tem bug**: `tracking_url` está preenchido (`mercadolibre.com.br/envios/47404539295`) e o botão aparece (tooltip "Rastreio externo" visível no print). O que falta é a primeira leitura física dos Correios para começar a aparecer movimentação.
-
-## O que eu faria
-
-### 1. Tarja em Pedidos de Venda (Fiscal → modo `orders`)
-`src/components/fiscal/FiscalInvoiceList.tsx`, linha 2055: trocar a condição da tarja para:
-```ts
-(mode === 'orders' && pedidoStatusOf(invoice) === 'cancelled')
-|| (mode === 'notas' && invoice.status === 'cancelled')
 ```
-Componente `BuyerCancellationNotice` continua igual; o batch loader `cancellationReasonByOrder` que já existe alimenta o motivo. Nenhuma mudança em fluxo fiscal.
+COALESCE(OLD.status, '') <> 'cancelled'
+```
 
-### 2. Tarja universal (loja + marketplace) com origem correta
-Apenas em `src/components/orders/BuyerCancellationNotice.tsx`:
-- Passar a aceitar `status` com os dois valores reais (`cancelled`, `cancelled_by_user`).
-- `humanize()` ganha um galho:
-  - `cancelled_by_user` → **"Cancelado pelo lojista"** (mostra `cancellation_reason` em parênteses se houver).
-  - `cancelled` + razão batendo em regex de comprador/mediação/expirou → mantém os textos atuais ("Cancelado pelo comprador", "Cancelado em mediação", etc.).
-  - `cancelled` sem razão reconhecível → **"Pedido cancelado"** genérico.
-- Lista de status considerados "cancelado-like" já inclui `cancelled_by_user` no `OrderList` (linha 97). Componente só precisa renderizar quando o status casar.
+`OLD.status` é do enum `order_status`. O literal `''` não é valor válido desse enum e o Postgres não consegue resolver o tipo da comparação. Resultado: `ERROR 22P02 invalid input value for enum order_status: ""`. Como o gatilho dispara em **toda** UPDATE em `public.orders`, qualquer mudança no pedido falha — webhook de pagamento, cron de expiração, ações manuais. Por isso:
 
-Resultado: tarja aparece automaticamente em **qualquer pedido cancelado** (loja ou marketplace), em Pedidos, Pedidos de Venda e Notas Fiscais, com texto que reflete quem cancelou.
+- #668 (Fabricio): o webhook Pagar.me recebeu o pagamento (entrada existe em `payment_transactions`), mas o UPDATE em `orders` foi revertido. Continua "Aguardando pagamento".
+- #667 e #669: cron de expiração também não consegue marcar como expirado pelo mesmo motivo.
 
-### 3. Rastreio externo do #665
-Sem código nesta entrega — resposta clara na conversa: o botão está disponível, o link aponta para o painel de envios do ML e o objeto ainda não foi lido pelos Correios. Não há bug a corrigir.
+As outras duas funções da mesma família (`guard_order_cancellation_requires_metadata`, `enqueue_fiscal_draft`) já usam `OLD.status::text` corretamente — só esta ficou com o padrão antigo. É um único ponto de falha.
 
-> **Ponto que peço sua decisão:** posso (opcional, pequeno) adicionar um tooltip "Sem movimentações ainda" no chip de status do objeto quando `last_tracking_event_at` for nulo? Ajuda a deixar explícito que não é bug. Se preferir não tocar agora, sigo só com 1 e 2.
+## Análise de regressão
 
-## Resultado final
+Trocar `COALESCE(OLD.status, '') <> 'cancelled'` por `OLD.status IS DISTINCT FROM 'cancelled'`:
 
-- PV cancelado mostra a mesma linha discreta abaixo do status.
-- Em qualquer canal, a tarja diz quem cancelou — comprador, lojista ou genérico — sem inventar coluna nem migração.
-- Rastreio externo permanece como está; ambiguidade fica resolvida na conversa (e, se você autorizar, com o tooltip do item 3).
+- `OLD.status = 'cancelled'` → não dispara (idempotente, igual antes).
+- `OLD.status` = qualquer outro valor → dispara (igual antes).
+- `OLD.status` NULL (não acontece — coluna é NOT NULL) → dispara.
+
+Comportamento semântico **idêntico**. Não toca enums, RLS, permissões, gatilhos vizinhos, fila ML, cascata de cancelamento do comprador, fluxo Pratika, NF marketplace nem UI. Conforme a memória `order-cross-module-sync-on-regression`, é o padrão técnico oficial pra comparar enum com literal sem cast implícito.
+
+## Execução (3 passos)
+
+### 1. Migração — corrigir o gatilho
+Recriar apenas `cancel_meli_invoice_queue_on_order_cancel` trocando a condição do IF para:
+```
+IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
+```
+Resto da função inalterado. Sem `DROP TRIGGER`/`CREATE TRIGGER` — `CREATE OR REPLACE FUNCTION` basta.
+
+### 2. Destravar o #668 (já está pago na Pagar.me)
+Após o gatilho corrigido, ler `payment_transactions` do #668 e aplicar no pedido, em UPDATE único:
+- `payment_status = 'paid'` (vocabulário canônico — memória `order-status-vocabulary-canonical`)
+- `status = 'ready_to_invoice'`
+- `paid_at` = `paid_at` da transação aprovada
+- `payment_gateway = 'pagarme'`, `payment_gateway_id` = id da transação
+Registrar linha em `order_history` com nota `backfill_pagarme_webhook_stuck_22P02`. Isso aciona naturalmente `enqueue_fiscal_draft` → fila fiscal → NF → etiqueta ML.
+
+#667 e #669 não precisam de intervenção manual: ficaram em `awaiting_payment` porque o cron não conseguiu rodar — na próxima execução do `expire-stale-orders` eles vão para `payment_expired` corretamente.
+
+### 3. Validação técnica
+- `UPDATE orders SET updated_at = now() WHERE id = '<um pedido recente>'` → deve passar sem `22P02`.
+- Conferir #668: `status='ready_to_invoice'`, `payment_status='paid'`, `paid_at` preenchido, e que existe linha em `fiscal_draft_queue` para o pedido.
+- Acompanhar próximo tick do cron de expiração e confirmar #667/#669 em `payment_expired`.
+- Rodar log de `edge_logs` do Postgres por 5 min para confirmar que `22P02` sumiu globalmente.
+
+## O que pode dar conflito (peço sua decisão se aparecer)
+
+- Se o #668 já tiver gerado **outra** transação aprovada além da que o webhook tentou registrar (cliente pagou duas vezes), eu paro o backfill e te aviso antes de mexer — não vou consolidar pagamento duplicado por conta própria.
+- Não vou tocar em UI/UX nem mudar contratos. Mudança é só na função do banco e no dado do #668.
+
+## Documentação
+
+- Atualizar `docs/especificacoes/ecommerce/pedidos.md` §4.6 com o padrão obrigatório `OLD.status IS DISTINCT FROM ...` ou `OLD.status::text` para qualquer trigger novo em `public.orders`.
+- Adicionar entrada em `docs/tecnico/base-de-conhecimento-tecnico.md`: "Enum vs literal vazio em trigger de orders → 22P02; padrão oficial."
+- Sem nova memória — já coberto pelas memórias `order-cross-module-sync-on-regression` e `order-status-vocabulary-canonical`. Vou só reforçar a existente `order-cross-module-sync-on-regression` se for necessário (sem duplicar).
 
 ## Detalhes técnicos
 
-- Arquivos tocados: `src/components/orders/BuyerCancellationNotice.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`.
-- Zero migrações, zero backfill, zero edge function.
-- Sem mudança em triggers, fila de NF marketplace, Pratika ou logística externa.
-- Sem alteração em fluxo de cancelamento — só leitura do estado já existente.
-
-## Validação técnica pós-entrega
-
-- SQL: confirmar que os PVs 1-450/1-451 do tenant Respeite o Homem têm `pedido_status='cancelled'` e que o pedido linkado tem `cancellation_reason` populado.
-- Visual: abrir `/fiscal` (Pedidos de Venda), `/fiscal?tab=notas`, `/orders` — verificar a linha vermelha discreta em pedidos cancelados, com o texto correto para comprador (ML) e para "lojista" caso exista pedido cancelado por essa via.
-
-## Documentação a atualizar
-
-- `docs/especificacoes/ecommerce/pedidos.md` — registrar que a tarja é universal e reflete `cancelled` × `cancelled_by_user`.
-- `docs/especificacoes/transversais/mapa-ui.md` — tarja agora também na aba Pedidos de Venda.
-- Sem memória nova: as regras de origem já estão cobertas por `payment-cancel-cascades-to-cancelled-by-user` e `pv-cancellation-must-mirror-order`.
-
-Confirma que sigo nessa direção? E me diz se quer ou não o tooltip opcional do item 3.
+- Arquivos: 1 migração SQL (recriação da função) + 1 INSERT/UPDATE pontual para o #668.
+- Zero mudança em edge functions, hooks, componentes, RLS, enums ou tipos do front.
+- Sem rebuild/restart necessários no front.
