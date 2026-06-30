@@ -1,73 +1,68 @@
-## Diagnóstico (confirmado contra banco e docs)
+## Revisão contra docs e memórias
 
-### 1. Tarja "Cancelado pelo comprador" não aparece nas listas
-Foi colocada só em **detalhe** do pedido e do editor de NF. Nas listas (`/orders` e `/fiscal?tab=notas`) não existe. Dados já estão no banco:
-- Pedidos #662 e #663 → `status=cancelled`, `cancellation_reason="There is a mediation with status cancel_purchase"`.
-- NFs #446 e #447 → `status=cancelled`, vinculadas aos pedidos cancelados.
+Encontrei 3 fatos que enxugam o plano:
 
-### 2. Pedido pago #665 — ciclo quase fechado, falta Pratika
-- NF #448 autorizada ✅
-- Envio da chave ao ML: `done` (XML aceito) ✅
-- ML devolveu shipment: rastreio `AD624331900BR`, PDF salvo no bucket ✅
-- **Pratika NÃO enviou** (`pratika_sent_at` vazio) — não há gatilho para esse caminho (ML→shipment).
-- Status do shipment ainda `ready_to_ship` (precisa o cron de tracking evoluir).
+1. **A distinção comprador × lojista já existe no próprio status do pedido.**
+   - `cancelled` → cancelamento externo (comprador no ML, expiração, chargeback). `cancellation_reason` traz o detalhe.
+   - `cancelled_by_user` → cancelamento manual do lojista (cascata oficial documentada em `mem://constraints/payment-cancel-cascades-to-cancelled-by-user`).
+   - Não preciso criar coluna nova nem fazer backfill — basta o componente de tarja ler o status.
+2. **`cancelled_at + cancellation_reason` já são obrigatórios** em toda transição (trigger `trg_guard_order_cancellation_metadata`). Garantido em loja e marketplace.
+3. **PV já é espelho vivo do pedido** (`trg_orders_sync_pv_status` + `trg_guard_pv_cancellation`). `pedido_status='cancelled'` no PV é fonte de verdade — é só o que falta o componente da tarja olhar.
 
-### 3. Fila de envio entupida com cancelados
-`meli_invoice_send_queue` hoje: `0 pending / 2 failed / 1 done`. Os 2 `failed` são #662/#663 (28 e 6 tentativas, erro "NF autorizada não encontrada") — NF foi cancelada junto com o pedido, mas ninguém cancela o item na fila. É isso que infla o banner "Aguardando envio da NF ao marketplace (2)" da Logística Externa.
+## O problema (confirmado)
 
-### 4. Logística Externa — UI/UX confusa
-- KPI "Aguardando NF" usa `marketplace_shipments`, banner usa `meli_invoice_send_queue` → números nunca batem.
-- 3 abas renderizando a mesma tabela; sem aba de "Problemas" (existe na Interna).
-- Sem deep-link da coluna Pedido para `/orders/{id}`.
-- Coluna Pratika sem ação de reenvio nem motivo da falha.
+- Na aba **Pedidos de Venda** do Fiscal, a tarja não aparece porque a condição atual exige `invoice.status === 'cancelled'`, mas o PV mantém `status='draft'` mesmo cancelado (quem reflete o cancelamento é `pedido_status`).
+- O texto da tarja hoje só fala em "comprador". Para pedidos da loja cancelados pelo lojista, fica enganoso.
+- O rastreio externo do #665 (`AD624331900BR`) **não tem bug**: `tracking_url` está preenchido (`mercadolibre.com.br/envios/47404539295`) e o botão aparece (tooltip "Rastreio externo" visível no print). O que falta é a primeira leitura física dos Correios para começar a aparecer movimentação.
 
----
+## O que eu faria
 
-## Plano (4 ondas, sem gambiarra)
+### 1. Tarja em Pedidos de Venda (Fiscal → modo `orders`)
+`src/components/fiscal/FiscalInvoiceList.tsx`, linha 2055: trocar a condição da tarja para:
+```ts
+(mode === 'orders' && pedidoStatusOf(invoice) === 'cancelled')
+|| (mode === 'notas' && invoice.status === 'cancelled')
+```
+Componente `BuyerCancellationNotice` continua igual; o batch loader `cancellationReasonByOrder` que já existe alimenta o motivo. Nenhuma mudança em fluxo fiscal.
 
-### Onda 1 — Tarja de cancelamento nas LISTAS
-Reuso do componente `BuyerCancellationNotice` (já implementado).
-- **`src/components/orders/OrderList.tsx`**: na coluna Status, abaixo do badge "Cancelado", linha vermelha discreta quando `order.cancellation_reason` existir.
-- **`src/components/fiscal/FiscalInvoiceList.tsx`**: na coluna Status, abaixo do badge "Cancelada", mesma linha. Resolução do motivo via `fiscal_invoices.order_id → orders.cancellation_reason` em **uma query lote** (sem N+1).
-- Sem mexer em detalhe nem editor (já têm).
+### 2. Tarja universal (loja + marketplace) com origem correta
+Apenas em `src/components/orders/BuyerCancellationNotice.tsx`:
+- Passar a aceitar `status` com os dois valores reais (`cancelled`, `cancelled_by_user`).
+- `humanize()` ganha um galho:
+  - `cancelled_by_user` → **"Cancelado pelo lojista"** (mostra `cancellation_reason` em parênteses se houver).
+  - `cancelled` + razão batendo em regex de comprador/mediação/expirou → mantém os textos atuais ("Cancelado pelo comprador", "Cancelado em mediação", etc.).
+  - `cancelled` sem razão reconhecível → **"Pedido cancelado"** genérico.
+- Lista de status considerados "cancelado-like" já inclui `cancelled_by_user` no `OrderList` (linha 97). Componente só precisa renderizar quando o status casar.
 
-### Onda 2 — Fila de envio NF saneada (anti-regressão)
-- Migration: estender o CHECK de `meli_invoice_send_queue.status` para incluir `cancelled` (estados reais hoje: `pending | processing | done | failed`).
-- Trigger PG: quando `fiscal_invoices.status` vira `cancelled` **ou** `orders.status` vira `cancelled`, marcar itens correspondentes da fila como `cancelled` com `last_error="Pedido/NF cancelado"`.
-- Backfill controlado: rodar uma vez para sair com os 2 itens (#662/#663) em `cancelled`.
-- Banner da UI passa a contar somente `status='pending'` (não `failed`, não `cancelled`).
+Resultado: tarja aparece automaticamente em **qualquer pedido cancelado** (loja ou marketplace), em Pedidos, Pedidos de Venda e Notas Fiscais, com texto que reflete quem cancelou.
 
-### Onda 3 — Fechar o #665 (Pratika + tracking)
-- Centralizar disparo no `external-shipping-sync-cron` (que já roda 30 min e já é o orquestrador):
-  - Para cada `marketplace_shipments` com `tracking_number IS NOT NULL` + NF autorizada do mesmo pedido + `pratika_sent_at IS NULL` → chamar `wms-pratika-send` ação `send_combined`. Idempotente (memória `wms-pratika-integration` já garante).
-- Backfill manual: disparar `send_combined` para o pedido #665 uma vez (limpa pendência atual).
-- Status do shipment evolui via `marketplace-shipments-tracking-cron` já existente (`ready_to_ship → in_transit → delivered`). Confirmar que está rodando; se estiver dormente, religar.
+### 3. Rastreio externo do #665
+Sem código nesta entrega — resposta clara na conversa: o botão está disponível, o link aponta para o painel de envios do ML e o objeto ainda não foi lido pelos Correios. Não há bug a corrigir.
 
-### Onda 4 — UI/UX da Logística Externa
-Reorganização interna (mesmo módulo, mesma rota, sem mudar nome nem URL):
-- **KPIs unificados**: 5 cards lêem `marketplace_shipments` (consistente entre si). Banner laranja passa a contar apenas `meli_invoice_send_queue.status='pending'`.
-- **Abas claras**, espelhando a Logística Interna:
-  1. *Dashboard* — KPIs + banners de pendência + últimos objetos.
-  2. *Objetos de postagem* — sub-abas internas: `Aguardando NF` / `Prontos p/ envio` / `Em trânsito` / `Entregues`.
-  3. *Rastreios* — só com tracking ativo, link para rastrear.
-  4. *Problemas de envio/entrega* — `status in ('problem','returned')` ou `requires_action=true`. Aceita deep-link `?tab=problemas&shipment={id}` (compatível com `resolveShippingDeepLink` que já existe).
-- **Coluna Pedido**: linka para `/orders/{id}`.
-- **Coluna Pratika**: chip `enviado / pendente / erro` + ação "Reenviar" (admin) chamando `wms-pratika-send` com `force=true`.
+> **Ponto que peço sua decisão:** posso (opcional, pequeno) adicionar um tooltip "Sem movimentações ainda" no chip de status do objeto quando `last_tracking_event_at` for nulo? Ajuda a deixar explícito que não é bug. Se preferir não tocar agora, sigo só com 1 e 2.
 
-> Nenhuma mudança de negócio ou troca de nome; apenas organização da própria página.
+## Resultado final
 
-### Validação técnica obrigatória após cada onda
-- **Onda 1**: consulta SQL pós-deploy + screenshot Playwright das listas com tarja visível nas linhas #662/#663 e NFs 446/447.
-- **Onda 2**: SQL confirma que os 2 itens travados ficaram `cancelled` e banner some.
-- **Onda 3**: `marketplace_shipments` do #665 com `pratika_sent_at` preenchido; log SOAP com `Sucesso=true` em `wms_pratika_logs`.
-- **Onda 4**: abrir `/external-shipping`, conferir cada aba e o deep-link de problemas.
+- PV cancelado mostra a mesma linha discreta abaixo do status.
+- Em qualquer canal, a tarja diz quem cancelou — comprador, lojista ou genérico — sem inventar coluna nem migração.
+- Rastreio externo permanece como está; ambiguidade fica resolvida na conversa (e, se você autorizar, com o tooltip do item 3).
 
-### Docs no fechamento
-- `docs/especificacoes/logistica/logistica-externa.md` — atualizar diagrama (gatilho Pratika no cron, estados reais da fila, nova organização de abas).
-- `docs/especificacoes/marketplaces/mercado-livre.md` — apontar para o cron como responsável pela Pratika.
-- `.lovable/memory/constraints/meli-invoice-queue-auto-cancel.md` — nova memória anti-regressão.
-- `docs/especificacoes/transversais/assuntos-em-andamento.md` — registrar fechamento desta entrega.
+## Detalhes técnicos
 
----
+- Arquivos tocados: `src/components/orders/BuyerCancellationNotice.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`.
+- Zero migrações, zero backfill, zero edge function.
+- Sem mudança em triggers, fila de NF marketplace, Pratika ou logística externa.
+- Sem alteração em fluxo de cancelamento — só leitura do estado já existente.
 
-**Confirma que sigo com as 4 ondas?**
+## Validação técnica pós-entrega
+
+- SQL: confirmar que os PVs 1-450/1-451 do tenant Respeite o Homem têm `pedido_status='cancelled'` e que o pedido linkado tem `cancellation_reason` populado.
+- Visual: abrir `/fiscal` (Pedidos de Venda), `/fiscal?tab=notas`, `/orders` — verificar a linha vermelha discreta em pedidos cancelados, com o texto correto para comprador (ML) e para "lojista" caso exista pedido cancelado por essa via.
+
+## Documentação a atualizar
+
+- `docs/especificacoes/ecommerce/pedidos.md` — registrar que a tarja é universal e reflete `cancelled` × `cancelled_by_user`.
+- `docs/especificacoes/transversais/mapa-ui.md` — tarja agora também na aba Pedidos de Venda.
+- Sem memória nova: as regras de origem já estão cobertas por `payment-cancel-cascades-to-cancelled-by-user` e `pv-cancellation-must-mirror-order`.
+
+Confirma que sigo nessa direção? E me diz se quer ou não o tooltip opcional do item 3.
