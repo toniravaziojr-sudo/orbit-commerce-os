@@ -1,6 +1,10 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
+ * v2.2.1 (2026-07-01) — Fix: força Content-Type correto por rota SEO
+ *   (sitemap.xml → application/xml; robots.txt → text/plain). Supabase
+ *   Gateway reescrevia XML para text/plain, quebrando validadores estritos.
+ *
  * v2.2.0 (2026-07-01) — Onda 1 SEO. Adiciona interceptação de /robots.txt e
  *   /sitemap.xml em hosts de tenant, reescrevendo para as edge functions
  *   `storefront-robots` e `storefront-sitemap`. Cache de borda (1h robots,
@@ -271,8 +275,8 @@ const PLATFORM_HOSTS_NO_SEO_INTERCEPT = new Set([
 ]);
 
 const SEO_ROUTES = {
-  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600  }, // 1h
-  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900   }, // 15min
+  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600, contentType: 'text/plain; charset=utf-8'      }, // 1h
+  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900,  contentType: 'application/xml; charset=utf-8' }, // 15min
 };
 
 /**
@@ -321,6 +325,10 @@ async function handleSeoRoute(request, env, ctx) {
   }
 
   const headers = new Headers(upstream.headers);
+  // Supabase Gateway sobrescreve Content-Type (ex.: XML → text/plain).
+  // Forçamos o Content-Type correto por rota SEO.
+  if (route.contentType) headers.set('Content-Type', route.contentType);
+  headers.delete('x-content-type-options');
   headers.set('Cache-Control', `public, max-age=${route.ttl}, s-maxage=${route.ttl}`);
   headers.set('X-CC-Cache', 'MISS');
   headers.set('X-CC-Cache-Layer', 'seo');
