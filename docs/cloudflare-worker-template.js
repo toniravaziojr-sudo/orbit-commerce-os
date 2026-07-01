@@ -321,6 +321,10 @@ async function handleSeoRoute(request, env, ctx) {
   }
 
   const headers = new Headers(upstream.headers);
+  // Supabase Gateway sobrescreve Content-Type (ex.: XML → text/plain).
+  // Forçamos o Content-Type correto por rota SEO.
+  if (route.contentType) headers.set('Content-Type', route.contentType);
+  headers.delete('x-content-type-options');
   headers.set('Cache-Control', `public, max-age=${route.ttl}, s-maxage=${route.ttl}`);
   headers.set('X-CC-Cache', 'MISS');
   headers.set('X-CC-Cache-Layer', 'seo');
