@@ -127,9 +127,10 @@ Deno.serve(async (req) => {
           .eq("id", resolvedOrderId).maybeSingle();
 
         if (ord) {
-          // marketplace_shipments.status já é canônico (vocabulário do sistema).
-          // Usamos o mesmo valor em orders.shipping_status para manter paridade.
-          const newShippingStatus = status;
+          // marketplace_shipments.status já é canônico. Mesmo valor entra em
+          // orders.shipping_status (enum). 'cancelled' fica só em orders.status
+          // (não existe no enum shipping_status).
+          const newShippingStatus = status === "cancelled" ? null : status;
 
           const terminalOrderStatuses = new Set([
             "shipped","in_transit","delivered","completed",
