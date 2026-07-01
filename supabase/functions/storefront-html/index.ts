@@ -1039,15 +1039,18 @@ function buildFullPage(opts: {
   benefitRewardLabel?: string;
   benefitSuccessLabel?: string;
   benefitProgressColor?: string;
+  robots?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="${escapeHtml(opts.robots || 'index,follow')}">
   <title>${escapeHtml(opts.title)}</title>
   <meta name="description" content="${escapeHtml(opts.description)}">
   <link rel="canonical" href="${escapeHtml(opts.canonicalUrl)}">
+
   <!-- Favicon multi-size (served per-tenant by Worker -> storefront-favicon) -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
