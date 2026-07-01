@@ -1,6 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import {
+  classifyProviderError,
+  markSuccess,
+  markTransientFailure,
+  markFatal,
+  logSyncEvent,
+} from "../_shared/external-connection-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,12 +44,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar conexões para renovar
+    // Buscar conexões para renovar.
+    // Regra §8 padroes-operacionais: NUNCA filtrar por is_active isoladamente.
+    // Consideramos qualquer conexão que não esteja em needs_reauth (fatal reconhecido).
     let query = supabase
       .from("marketplace_connections")
       .select("*")
       .eq("marketplace", "mercadolivre")
-      .eq("is_active", true)
+      .neq("health_status", "needs_reauth")
       .not("refresh_token", "is", null);
 
     if (connectionId) {
@@ -97,27 +106,55 @@ Deno.serve(async (req) => {
         });
 
         if (!tokenResponse.ok) {
-          const errorData = await tokenResponse.text();
-          console.error(`[meli-token-refresh] Erro para ${connection.id}:`, errorData);
-          
-          // Marcar conexão como inativa se refresh falhou
-          await supabase
-            .from("marketplace_connections")
-            .update({ 
-              is_active: false,
-              last_error: `Refresh failed: ${errorData}`,
-            })
-            .eq("id", connection.id);
+          const errorBody = await tokenResponse.text();
+          const errClass = classifyProviderError(tokenResponse.status, errorBody);
+          console.error(
+            `[meli-token-refresh] ${connection.id} status=${tokenResponse.status} class=${errClass} body=${errorBody.slice(0, 300)}`,
+          );
+
+          if (errClass === "fatal") {
+            // Revogação real — desativa conexão, exige reconexão pelo lojista.
+            await markFatal(
+              supabase,
+              "marketplace_connections",
+              connection.id,
+              `HTTP ${tokenResponse.status}: ${errorBody.slice(0, 300)}`,
+            );
+          } else {
+            // Transitório (429, 5xx, timeout): mantém conexão ativa, agenda retry.
+            await markTransientFailure(
+              supabase,
+              "marketplace_connections",
+              connection.id,
+              `HTTP ${tokenResponse.status}: ${errorBody.slice(0, 300)}`,
+              connection.consecutive_failures ?? 0,
+            );
+          }
+
+          await logSyncEvent(supabase, {
+            tenant_id: connection.tenant_id,
+            connection_id: connection.id,
+            marketplace: "mercadolivre",
+            sync_type: "token_refresh",
+            status: "failed",
+            details: {
+              http_status: tokenResponse.status,
+              error_class: errClass,
+              body_excerpt: errorBody.slice(0, 500),
+            },
+          });
 
           results.failed++;
-          results.errors.push(`${connection.external_username || connection.id}: ${errorData}`);
+          results.errors.push(
+            `${connection.external_username || connection.id}: [${errClass}] HTTP ${tokenResponse.status}`,
+          );
           continue;
         }
 
         const tokenData = await tokenResponse.json();
         const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString();
 
-        // Atualizar tokens no banco
+        // Atualiza tokens + zera contadores de saúde
         const { error: updateError } = await supabase
           .from("marketplace_connections")
           .update({
@@ -125,6 +162,11 @@ Deno.serve(async (req) => {
             refresh_token: tokenData.refresh_token,
             expires_at: expiresAt,
             last_error: null,
+            consecutive_failures: 0,
+            next_retry_at: null,
+            last_success_at: new Date().toISOString(),
+            health_status: "healthy",
+            is_active: true,
           })
           .eq("id", connection.id);
 
@@ -132,10 +174,27 @@ Deno.serve(async (req) => {
           throw updateError;
         }
 
+        await logSyncEvent(supabase, {
+          tenant_id: connection.tenant_id,
+          connection_id: connection.id,
+          marketplace: "mercadolivre",
+          sync_type: "token_refresh",
+          status: "completed",
+          details: { expires_at: expiresAt },
+        });
+
         results.refreshed++;
         console.log(`[meli-token-refresh] Token renovado para ${connection.external_username || connection.id}`);
 
       } catch (err) {
+        // Falha de rede/timeout: transitório
+        await markTransientFailure(
+          supabase,
+          "marketplace_connections",
+          connection.id,
+          err instanceof Error ? err.message : String(err),
+          connection.consecutive_failures ?? 0,
+        );
         results.failed++;
         results.errors.push(`${connection.id}: ${err instanceof Error ? err.message : String(err)}`);
       }

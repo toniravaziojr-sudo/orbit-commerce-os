@@ -121,12 +121,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Regra §8 padroes-operacionais: usar health_status como filtro canônico.
     const { data: connection, error: connError } = await supabase
       .from("marketplace_connections").select("*")
-      .eq("tenant_id", tenantId).eq("marketplace", "mercadolivre").eq("is_active", true).single();
+      .eq("tenant_id", tenantId).eq("marketplace", "mercadolivre")
+      .neq("health_status", "needs_reauth").single();
 
     if (connError || !connection) {
-      return new Response(JSON.stringify({ success: false, error: "Conexão ML não encontrada ou inativa" }), {
+      return new Response(JSON.stringify({ success: false, error: "Conexão ML não encontrada ou precisa de reconexão" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
