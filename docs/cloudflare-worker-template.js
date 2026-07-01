@@ -271,8 +271,8 @@ const PLATFORM_HOSTS_NO_SEO_INTERCEPT = new Set([
 ]);
 
 const SEO_ROUTES = {
-  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600  }, // 1h
-  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900   }, // 15min
+  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600, contentType: 'text/plain; charset=utf-8'      }, // 1h
+  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900,  contentType: 'application/xml; charset=utf-8' }, // 15min
 };
 
 /**
