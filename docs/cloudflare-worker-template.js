@@ -1,6 +1,10 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
+ * v2.2.1 (2026-07-01) — Fix: força Content-Type correto por rota SEO
+ *   (sitemap.xml → application/xml; robots.txt → text/plain). Supabase
+ *   Gateway reescrevia XML para text/plain, quebrando validadores estritos.
+ *
  * v2.2.0 (2026-07-01) — Onda 1 SEO. Adiciona interceptação de /robots.txt e
  *   /sitemap.xml em hosts de tenant, reescrevendo para as edge functions
  *   `storefront-robots` e `storefront-sitemap`. Cache de borda (1h robots,
