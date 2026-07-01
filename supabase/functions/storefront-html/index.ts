@@ -3369,6 +3369,15 @@ Deno.serve(async (req) => {
     // === CONSENT BANNER (LGPD) ===
     const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
 
+    // === META ROBOTS (server-side) ===
+    // Regra: home/product/category/blog/blog_post → index,follow
+    // page (store_pages institucional ou landing_page) → respeita no_index
+    // unknown (SPA-only: cart/checkout/etc) → nem chega aqui (retorna 204)
+    let robotsMeta = 'index,follow';
+    if (route.type === 'page' && routeData && (routeData as any).no_index === true) {
+      robotsMeta = 'noindex,follow';
+    }
+
     const html = buildFullPage({
       title: pageTitle,
       description: pageDescription,
@@ -3403,6 +3412,7 @@ Deno.serve(async (req) => {
       benefitRewardLabel: benefitConfig?.rewardLabel || 'Frete Grátis',
       benefitSuccessLabel: benefitConfig?.successLabel || 'Você ganhou frete grátis!',
       benefitProgressColor: benefitConfig?.progressColor || '#22c55e',
+      robots: robotsMeta,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
