@@ -1,52 +1,68 @@
-## Objetivo
-Fechar o fluxo Mercado Livre → Pratika end-to-end e usar o pedido #677 como teste real do backfill. Confirmado: se não chegou na Pratika, ninguém separou — então o backfill é seguro e obrigatório.
+## 📋 Auditoria — Fluxo Mercado Livre end-to-end
 
-## Como funciona hoje
-- Pedido ML pago → NF-e emitida → NF enviada ao ML → etiqueta baixada e rastreio gravado.
-- Envio para a Pratika (`send_combined`) só é disparado pelo fluxo interno (Correios/Frenet). Pedidos de marketplace não têm caller → ficam invisíveis no WMS.
-- `shipping_status` de pedidos ML fica com valores crus do ML (`ready_to_ship`, `pending`), fora do vocabulário canônico.
+### Estado atual (evidência real no banco)
 
-## O problema
-1. Pratika nunca recebe NF + etiqueta de pedidos de marketplace → operação não consegue separar/despachar. Crítico: sem Pratika, o pedido simplesmente não sai.
-2. `shipping_status` divergente confunde UI, relatórios e automações futuras.
-3. Pedido #677 está exatamente nesse buraco.
+**Pedido #677 (2000017192996616) — teste vivo:**
+- Entrou via webhook, cliente/itens criados, propagou para fiscal.
+- NF autorizada, XML enviado ao ML às 18:50, etiqueta baixada (`AD633638976BR`).
+- Ponte marketplace_shipments → orders aplicou: `status=dispatched`, `shipping_status=label_generated`, `tracking_code`, `shipped_at`.
+- Pratika combined recebeu NF + rastreio às 19:00 com sucesso (3 logs: nfe ✅, tracking ✅, combined ✅).
 
-## O que eu faria
+**Últimos 3 pedidos ML (#665, #670, #677):** todos com `dispatched` + `pratika_sent_at` + `invoice_sent_at` preenchidos. Zero pedido travado.
 
-### 1. Acoplar Pratika ao fluxo de marketplace (correção estrutural)
-Em `meli-fetch-shipment`, após gravar tracking + salvar PDF da etiqueta no bucket:
-- Se o tenant tem `wms_pratika_configs` ativo E o pedido tem NF-e autorizada com XML disponível → disparar `send_combined` com XML da NF + PDF da etiqueta ML.
-- Idempotência: gravar `sent_to_wms_at` em `marketplace_shipments` para não reenviar em re-execuções do cron.
-- Se não tem Pratika configurada → segue igual, nada muda.
-- Se tem Pratika mas NF ainda não está autorizada → não dispara agora; o próximo ciclo do cron reavalia (a NF vai ficar pronta em minutos).
-- Ajustar `wms-pratika-reconcile` para reconhecer rastreios de marketplace (códigos AR/AD via ML) e não emitir alerta falso de "rastreio órfão".
+**Filas e crons ativos:**
+- `meli-token-refresh-30min` ✅
+- `meli-orders-reconcile-15m` ✅ (fallback de pedidos perdidos)
+- `external-shipping-sync-cron-30m` ✅ (drena `meli_invoice_send_queue` + re-sincroniza shipments não-terminais)
+- `wms-pratika-reconcile-every-30min` ✅ (agora enxerga `marketplace_shipments`)
+- `reconcile-orphan-pv-shipments-15m` ✅
 
-### 2. Padronizar `shipping_status` canônico
-Mapeamento aplicado em `meli-sync-orders` e `meli-fetch-shipment`:
-- ML `pending` / `handling` → `awaiting_shipment`
-- ML `ready_to_ship` sem tracking → `awaiting_label`
-- ML `ready_to_ship` com tracking → `label_generated`
-- ML `shipped` → `shipped`
-- ML `delivered` → `delivered`
-- ML `cancelled` / `not_delivered` → `cancelled`
-Backfill único do `shipping_status` do #677 durante o teste.
+### Pipeline confirmado
+```
+ML → webhook (orders_v2) → meli-sync-orders → orders + customer + itens
+                                              ↓ (trigger enqueue_fiscal_on_item_link)
+                                       fiscal_draft_queue
+                                              ↓ (ready_to_invoice + emissao_automatica)
+                                       fiscal-emit → NF autorizada
+                                              ↓ (trigger SQL)
+                                       meli_invoice_send_queue
+                                              ↓ (external-shipping-sync-cron 30m)
+                                       meli-send-invoice (XML autorizado ao ML)
+                                              ↓
+ML libera etiqueta → webhook (shipments) → meli-fetch-shipment
+                                              ↓
+                            marketplace_shipments + PDF no bucket
+                                              ↓ (ponte)
+                            orders.status=dispatched, tracking, shipped_at
+                                              ↓ (se Pratika ativa + tracking)
+                                       wms-pratika-send (send_combined)
+                                              ↓
+                            Pratika recebe NF + etiqueta juntas
+```
 
-### 3. Backfill controlado do #677 (teste real do fluxo novo)
-Sequência: deploy do novo `meli-fetch-shipment` → invocar manualmente para o #677 → validar que:
-- `shipping_status` normalizou para valor canônico.
-- `send_combined` foi chamada e `wms_pratika_logs` registrou sucesso.
-- `sent_to_wms_at` foi gravado.
-- Pedido aparece no painel Pratika (usuário confirma visualmente).
-Se a Pratika retornar erro, paro, reporto o erro real e não repito cegamente.
+### Análise de regressão em outros módulos
 
-### 4. Documentação
-- `docs/especificacoes/marketplaces/mercado-livre.md`: novo passo "Envio para WMS" no ciclo de vida.
-- `docs/especificacoes/logistica/logistica-externa.md`: Pratika passa a receber pedidos de marketplace via `meli-fetch-shipment`.
-- Memória `wms-pratika-anchored-on-fiscal-invoice`: adicionar marketplace como caller válido de `send_combined`.
-- Registrar tabela de mapeamento canônico de `shipping_status` ML → sistema.
+- **Fiscal:** trigger `enqueue_fiscal_on_item_link` inalterado; `fiscal-auto-create-drafts` continua com gatilho único `ready_to_invoice`. Sem regressão.
+- **Logística interna (Correios/Frenet):** `shipment-ingest` mantém vocabulário canônico próprio; `meli-fetch-shipment` espelha o mesmo mapa. Sem cruzamento.
+- **Clientes/Leads:** `meli-sync-orders` continua com identity resolution unificada (external_id → cpf → email real → phone). Sem regressão.
+- **Pedidos loja:** ponte só age quando `orders.status` está em `preDispatchOrderStatuses` — pedidos loja em `dispatched/delivered/cancelled` não são tocados.
+- **WMS Pratika para loja:** `wms-pratika-reconcile` agora consulta `marketplace_shipments` como fonte adicional de rastreio — não remove nem altera a checagem em `shipments` (loja). Sem regressão.
+- **Dashboards/relatórios:** consomem `orders` (não filtram por source) → pedidos ML já contam.
+- **Enum `shipping_status`:** adicionado `awaiting_label` (novo valor, não altera existentes). Constraint de `marketplace_shipments.status` ampliada, mantém retrocompat.
 
-## Resultado final
-- Pedido #677 entra na Pratika com NF + etiqueta prontas para separação.
-- Todo pedido ML futuro segue automaticamente: pago → NF → etiqueta → Pratika, sem toque humano.
-- `shipping_status` uniforme em todo o sistema.
-- Sem regressão no fluxo interno: o `send_combined` existente continua igual, só ganhou um novo caller.
+### Pontos de atenção (não bloqueadores)
+
+1. **#665 tem `orders.shipping_status='in_transit'` mas `ms.status='delivered'`** — próximo tick do cron 30m re-sincroniza e promove a `delivered`. Bridge está correta; foi só ordem de eventos. Não é bug estrutural.
+2. **`meli-fetch-shipment` não tem cron dedicado** — depende do webhook `shipments` do ML + do `external-shipping-sync-cron` que re-sincroniza shipments não-terminais. Cobertura já existe.
+
+### Conclusão
+
+**O próximo pedido pago no ML vai percorrer o fluxo completo automaticamente**, com 4 crons de reconciliação como rede de segurança. Nenhuma regressão introduzida em fluxos existentes (loja, fiscal interno, logística interna, Pratika para loja, PV, dashboards).
+
+### Ação recomendada
+
+Nenhuma alteração necessária. Fluxo sólido e validado com pedido real (#677). Sugiro apenas monitorar o próximo pedido novo para confirmação visual pelo usuário na Pratika.
+
+📌 **STATUS DA ENTREGA:** Corrigido e validado (por pedido #677 vivo).
+
+✅ Sem atualização documental necessária, porque a auditoria confirmou que o comportamento em produção já bate com `docs/especificacoes/marketplaces/mercado-livre.md` e `docs/especificacoes/logistica/logistica-externa.md` atualizados na entrega anterior.
