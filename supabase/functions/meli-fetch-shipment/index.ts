@@ -191,7 +191,52 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ success: true, shipment: row, has_label: !!labelUrl, order_bridge: orderBridge }, 200);
+    // 6. Envio para WMS Pratika (quando aplicável).
+    // Só dispara se: (a) tenant tem Pratika ativa, (b) já temos código de rastreio,
+    // (c) o pedido está vinculado. A NF autorizada é validada pelo wms-pratika-send.
+    // Idempotência: wms-pratika-send tem trava única por invoice; ainda assim
+    // marcamos pratika_sent_at para curto-circuito rápido.
+    // Ver: mem://features/external-apps/wms-pratika-integration
+    let pratika: { attempted: boolean; success?: boolean; skipped?: boolean; reason?: string } = { attempted: false };
+    if (resolvedOrderId && trackingNumber && !row?.pratika_sent_at) {
+      const { data: wmsCfg } = await supabase
+        .from("wms_pratika_configs")
+        .select("is_enabled").eq("tenant_id", tenantId).maybeSingle();
+      if (wmsCfg?.is_enabled) {
+        pratika.attempted = true;
+        try {
+          const sendRes = await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/wms-pratika-send`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                action: "send_combined",
+                order_id: resolvedOrderId,
+                tenant_id: tenantId,
+              }),
+            }
+          );
+          const sendJson = await sendRes.json().catch(() => ({}));
+          pratika.success = !!sendJson?.success;
+          pratika.skipped = !!sendJson?.skipped;
+          pratika.reason = sendJson?.reason || sendJson?.error || null;
+          if (pratika.success && !pratika.skipped) {
+            await supabase.from("marketplace_shipments")
+              .update({ pratika_sent_at: new Date().toISOString() })
+              .eq("id", row.id);
+          }
+        } catch (pratikaErr) {
+          console.error("[meli-fetch-shipment] pratika send error:", pratikaErr);
+          pratika.reason = String((pratikaErr as any)?.message || pratikaErr);
+        }
+      }
+    }
+
+    return json({ success: true, shipment: row, has_label: !!labelUrl, order_bridge: orderBridge, pratika }, 200);
   } catch (e) {
     console.error("[meli-fetch-shipment] erro:", e);
     return json({ success: false, error: String(e?.message || e) }, 200);
