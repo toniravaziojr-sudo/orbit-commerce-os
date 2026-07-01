@@ -847,6 +847,7 @@ As regras transversais que se aplicam a múltiplos módulos estão consolidadas 
 | 5 | Inventário operacional do Auxiliar de Comando | Toda nova ferramenta do agente |
 | 6 | Validação técnica obrigatória pós-entrega | Toda entrega que altere comportamento |
 | 7 | Cache edge no Cloudflare Worker exige `ctx.waitUntil` | Toda escrita na Cache API do Worker `shops-router` |
+| 8 | Resiliência de conexões externas (classificação fatal vs transitório + backoff) | Toda integração persistente com sistema externo (ML, Meta, Google, gateways, Correios) |
 
 ---
 
