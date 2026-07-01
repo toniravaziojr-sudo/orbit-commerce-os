@@ -20,11 +20,12 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Regra §8 padroes-operacionais: filtrar por health_status, nunca só por is_active.
     const { data: connections, error } = await supabase
       .from("marketplace_connections")
-      .select("tenant_id, expires_at")
+      .select("tenant_id, expires_at, health_status")
       .eq("marketplace", "mercadolivre")
-      .eq("is_active", true);
+      .neq("health_status", "needs_reauth");
 
     if (error) throw error;
 

@@ -32,19 +32,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Look up the active connection (real column names: external_user_id / is_active)
+    // Look up the connection.
+    // Regra §8 padroes-operacionais: NUNCA filtrar por is_active isoladamente.
+    // Se a conexão existir mas estiver em needs_reauth, enfileiramos o evento para
+    // reprocesso pós-reconexão em vez de descartar.
     const { data: connection, error: connError } = await supabase
       .from("marketplace_connections")
       .select("*")
       .eq("marketplace", "mercadolivre")
       .eq("external_user_id", String(user_id))
-      .eq("is_active", true)
       .maybeSingle();
 
     if (connError || !connection) {
       console.error("[meli-webhook] Connection not found for user_id:", user_id, connError);
       return new Response(
         JSON.stringify({ success: false, error: "Connection not found" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Se a conexão precisa de reautenticação, enfileira o evento e responde 200 pro ML.
+    // Assim que o lojista reconectar, o replay tira do inbox e processa.
+    if (connection.health_status === "needs_reauth") {
+      console.warn(`[meli-webhook] Connection ${connection.id} needs_reauth — enfileirando`);
+      try {
+        await supabase.from("events_inbox").insert({
+          tenant_id: connection.tenant_id,
+          source: "meli-webhook",
+          event_type: `meli_${topic}`,
+          external_id: `${topic}:${resource}`,
+          payload: notification,
+          status: "pending",
+        });
+      } catch (e) {
+        console.error("[meli-webhook] events_inbox enqueue failed:", e);
+      }
+      return new Response(
+        JSON.stringify({ success: true, message: "Enqueued (connection needs reauth)" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
