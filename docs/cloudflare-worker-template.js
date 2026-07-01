@@ -62,13 +62,13 @@ const BOOTSTRAP_CACHE_TTL = 60;
 // Paths que sempre vão para a raiz do origin (assets do Vite)
 // IMPORTANTE: /favicon e /manifest foram REMOVIDOS desta lista — agora são
 // interceptados por handleFaviconRequest() para servir o favicon do tenant.
+// /robots.txt e /sitemap.xml também foram REMOVIDOS — agora são interceptados
+// por handleSeoRoute() para servir robots/sitemap por tenant (Onda 1 SEO).
 const STATIC_PATHS = [
   '/assets/',
   '/@vite/',
   '/node_modules/',
   '/src/',
-  '/robots.txt',
-  '/sitemap',
 ];
 
 // ========== EDGE FUNCTION PROXY ROUTES ==========
