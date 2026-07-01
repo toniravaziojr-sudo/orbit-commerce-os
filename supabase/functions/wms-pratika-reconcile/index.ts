@@ -49,18 +49,37 @@ Deno.serve(async (req) => {
       const orderIds = [...new Set((invoices || []).map(i => i.order_id).filter(Boolean))];
 
       for (const orderId of orderIds) {
-        // Confirmar que existe rastreio
-        const { data: ship } = await supabase
+        // Confirmar que existe rastreio — pode vir da tabela interna
+        // (shipments, remessas Correios/Frenet) OU do marketplace
+        // (marketplace_shipments, etiqueta ML/Shopee). Sem essa segunda
+        // fonte, pedidos de marketplace ficam presos e nunca chegam ao WMS.
+        const { data: shipInternal } = await supabase
           .from('shipments')
           .select('id')
           .eq('tenant_id', cfg.tenant_id)
           .eq('order_id', orderId)
           .not('tracking_code', 'is', null)
+          .neq('tracking_code', '')
           .limit(1)
           .maybeSingle();
-        if (!ship) continue;
 
-        // Já enviado combinado com sucesso?
+        let hasTracking = !!shipInternal;
+        if (!hasTracking) {
+          const { data: shipMkt } = await supabase
+            .from('marketplace_shipments')
+            .select('id')
+            .eq('tenant_id', cfg.tenant_id)
+            .eq('order_id', orderId)
+            .not('tracking_number', 'is', null)
+            .neq('tracking_number', '')
+            .limit(1)
+            .maybeSingle();
+          hasTracking = !!shipMkt;
+        }
+        if (!hasTracking) continue;
+
+        // Já enviado combinado com sucesso? (chave é invoice_id no fluxo novo,
+        // mas mantemos compat com registros antigos por order_id).
         const { data: okCombined } = await supabase
           .from('wms_pratika_logs')
           .select('id')
