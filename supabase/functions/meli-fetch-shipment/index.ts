@@ -42,16 +42,20 @@ Deno.serve(async (req) => {
     const trackingMethod = shipment?.tracking_method || null;
     const carrier = shipment?.shipping_option?.shipping_method?.name || trackingMethod || null;
 
+    // Vocabulário canônico do sistema (shipping_status). Mesmo mapa usado na
+    // ponte para orders.shipping_status logo abaixo — garante paridade entre
+    // marketplace_shipments.status e orders.shipping_status.
+    // Ver: docs/especificacoes/marketplaces/mercado-livre.md
     const statusMap: Record<string, string> = {
-      pending: "awaiting_invoice",
-      ready_to_ship: "ready_to_ship",
-      handling: "ready_to_ship",
-      shipped: "in_transit",
+      pending: "awaiting_shipment",
+      handling: "awaiting_shipment",
+      ready_to_ship: trackingNumber ? "label_generated" : "awaiting_label",
+      shipped: "shipped",
       delivered: "delivered",
       not_delivered: "problem",
       cancelled: "cancelled",
     };
-    const status = statusMap[mlStatus] || "ready_to_ship";
+    const status = statusMap[mlStatus] || (trackingNumber ? "label_generated" : "awaiting_shipment");
 
     // 2. Resolver order_id se não veio
     let resolvedOrderId = orderId || null;
