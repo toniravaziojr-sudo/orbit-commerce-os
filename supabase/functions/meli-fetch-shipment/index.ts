@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
             "invoice_pending_sefaz","invoice_authorized","invoice_issued","fulfilled",
           ]);
           const dispatchTriggerStatuses = new Set([
-            "ready_to_ship","in_transit","shipped","delivered",
+            "label_generated","shipped","delivered",
           ]);
 
           const updates: Record<string, unknown> = {};
