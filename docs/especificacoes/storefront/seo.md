@@ -104,7 +104,7 @@ Landing pages (`/lp/:slug`) hoje caem no fluxo SPA e não são renderizadas por 
 
 ## 6. Worker Cloudflare — versão completa (substituir integralmente)
 
-O Worker `shops-router` já foi atualizado para **v2.2.0** com a interceptação de `/robots.txt` e `/sitemap.xml` embutida no fluxo padrão (antes de favicon e antes do roteamento SPA/HTML).
+O Worker `shops-router` já foi atualizado para **v2.2.1** com a interceptação de `/robots.txt` e `/sitemap.xml` embutida no fluxo padrão (antes de favicon e antes do roteamento SPA/HTML). A v2.2.1 força o `Content-Type` correto por rota (`application/xml` para sitemap, `text/plain` para robots), porque o Supabase Gateway reescreve o header original.
 
 **Como aplicar em produção:**
 
