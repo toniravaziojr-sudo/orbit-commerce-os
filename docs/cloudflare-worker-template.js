@@ -1,6 +1,12 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
+ * v2.2.0 (2026-07-01) — Onda 1 SEO. Adiciona interceptação de /robots.txt e
+ *   /sitemap.xml em hosts de tenant, reescrevendo para as edge functions
+ *   `storefront-robots` e `storefront-sitemap`. Cache de borda (1h robots,
+ *   15min sitemap). Hosts da plataforma NÃO são interceptados.
+ *   Doc oficial: docs/especificacoes/storefront/seo.md
+ *
  * v2.1.0 (2026-05-13) — Adiciona interceptação universal de favicon multi-tenant.
  *   /favicon.ico, /favicon-*x*.png, /apple-touch-icon*.png,
  *   /android-chrome-*x*.png, /site.webmanifest, /manifest.json,
@@ -56,13 +62,13 @@ const BOOTSTRAP_CACHE_TTL = 60;
 // Paths que sempre vão para a raiz do origin (assets do Vite)
 // IMPORTANTE: /favicon e /manifest foram REMOVIDOS desta lista — agora são
 // interceptados por handleFaviconRequest() para servir o favicon do tenant.
+// /robots.txt e /sitemap.xml também foram REMOVIDOS — agora são interceptados
+// por handleSeoRoute() para servir robots/sitemap por tenant (Onda 1 SEO).
 const STATIC_PATHS = [
   '/assets/',
   '/@vite/',
   '/node_modules/',
   '/src/',
-  '/robots.txt',
-  '/sitemap',
 ];
 
 // ========== EDGE FUNCTION PROXY ROUTES ==========
@@ -255,6 +261,92 @@ async function handleFaviconRequest(request, env, ctx) {
 
   return response;
 }
+
+// ========== SEO MULTI-TENANT (robots.txt + sitemap.xml) ==========
+// Hosts da PLATAFORMA — NÃO interceptar (usam robots/sitemap próprios se houver)
+const PLATFORM_HOSTS_NO_SEO_INTERCEPT = new Set([
+  'app.comandocentral.com.br',
+  'integrations.comandocentral.com.br',
+  'shops.comandocentral.com.br',
+]);
+
+const SEO_ROUTES = {
+  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600  }, // 1h
+  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900   }, // 15min
+};
+
+/**
+ * Intercepta /robots.txt e /sitemap.xml em hosts de tenant e devolve o
+ * conteúdo gerado pelas edge functions storefront-robots / storefront-sitemap.
+ * Hosts da plataforma NÃO são interceptados. Em falha → 502 texto simples.
+ *
+ * Retorna Response se interceptou; null se não se aplica.
+ */
+async function handleSeoRoute(request, env, ctx) {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+
+  if (PLATFORM_HOSTS_NO_SEO_INTERCEPT.has(host)) return null;
+  if (host.endsWith('.workers.dev')) return null;
+
+  const route = SEO_ROUTES[url.pathname];
+  if (!route) return null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (!env.SUPABASE_URL) return null;
+
+  const cacheKey = new Request(`https://seo.cache/${host}${url.pathname}`, { method: 'GET' });
+
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-CC-Cache', 'HIT');
+      headers.set('X-CC-Cache-Layer', 'seo');
+      return new Response(cached.body, { status: cached.status, headers });
+    }
+  } catch (_) {}
+
+  const target = new URL(`${env.SUPABASE_URL}/functions/v1/${route.fn}`);
+  target.searchParams.set('host', host);
+
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), {
+      method: 'GET',
+      headers: { 'x-forwarded-host': host },
+    });
+  } catch (e) {
+    console.error('[Worker] SEO upstream error:', e);
+    return new Response('SEO upstream error', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+
+  const headers = new Headers(upstream.headers);
+  headers.set('Cache-Control', `public, max-age=${route.ttl}, s-maxage=${route.ttl}`);
+  headers.set('X-CC-Cache', 'MISS');
+  headers.set('X-CC-Cache-Layer', 'seo');
+
+  const bodyBuf = upstream.body ? await upstream.arrayBuffer() : null;
+  const response = new Response(bodyBuf, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers,
+  });
+
+  if (upstream.status === 200 && ctx && typeof ctx.waitUntil === 'function') {
+    const cacheHeaders = new Headers(headers);
+    cacheHeaders.delete('set-cookie');
+    cacheHeaders.delete('vary');
+    cacheHeaders.delete('pragma');
+    const cacheResponse = new Response(bodyBuf, { status: 200, headers: cacheHeaders });
+    ctx.waitUntil(
+      caches.default.put(cacheKey, cacheResponse)
+        .catch(e => console.error('[Worker] SEO cache write error:', e))
+    );
+  }
+
+  return response;
+}
+
 
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
@@ -638,7 +730,13 @@ export default {
     const cfHost = request.headers.get('cf-connecting-host');
     const publicHost = (cfHost || edgeHost).toLowerCase();
 
-    // ========== FAVICON MULTI-TENANT (PRIMEIRA COISA) ==========
+    // ========== SEO MULTI-TENANT (robots.txt + sitemap.xml) ==========
+    // Intercepta /robots.txt e /sitemap.xml em hosts de tenant antes de
+    // qualquer outro roteamento. Doc: docs/especificacoes/storefront/seo.md
+    const seoResp = await handleSeoRoute(request, env, ctx);
+    if (seoResp) return seoResp;
+
+    // ========== FAVICON MULTI-TENANT ==========
     // Intercepta /favicon.ico, /apple-touch-icon.png, /site.webmanifest etc.
     // em hosts de tenant antes de qualquer outro roteamento. Hosts da
     // plataforma (app./integrations./shops.) NÃO são interceptados.
@@ -734,7 +832,8 @@ export default {
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
           faviconIntercepted: Array.from(FAVICON_PATHS),
-          strategy: 'edge_rendered_html_first_v2_favicon_v1',
+          seoIntercepted: Object.keys(SEO_ROUTES),
+          strategy: 'edge_rendered_html_first_v2_favicon_v1_seo_v1',
           cache: {
             htmlCacheTTL: HTML_CACHE_TTL,
             staleTTL: HTML_STALE_TTL,

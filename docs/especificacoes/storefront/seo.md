@@ -102,61 +102,43 @@ Landing pages (`/lp/:slug`) hoje caem no fluxo SPA e não são renderizadas por 
 
 ---
 
-## 6. Snippet Cloudflare Worker (aplicação manual)
+## 6. Worker Cloudflare — versão completa (substituir integralmente)
 
-O Worker `shops-router` deve interceptar `/robots.txt` e `/sitemap.xml` para qualquer host de tenant (não `app.comandocentral.com.br`) e reescrever para as edge functions com `?host=<host>`.
+O Worker `shops-router` já foi atualizado para **v2.2.0** com a interceptação de `/robots.txt` e `/sitemap.xml` embutida no fluxo padrão (antes de favicon e antes do roteamento SPA/HTML).
 
-```js
-// Adicione no fetch handler ANTES do roteamento normal
-const SEO_ROUTES = {
-  '/robots.txt': 'storefront-robots',
-  '/sitemap.xml': 'storefront-sitemap',
-};
+**Como aplicar em produção:**
 
-async function handleSeoRoute(request, env, ctx) {
-  const url = new URL(request.url);
-  const host = url.hostname.toLowerCase();
-  if (host === 'app.comandocentral.com.br') return null;
+1. Abra o arquivo **`docs/cloudflare-worker-template.js`** (raiz do repositório).
+2. Copie **todo o conteúdo** do arquivo.
+3. No Cloudflare Dashboard → Workers & Pages → `shops-router` → **Edit code**.
+4. Selecione tudo (Ctrl+A) e cole substituindo integralmente.
+5. **Save and Deploy**.
 
-  const fn = SEO_ROUTES[url.pathname];
-  if (!fn) return null;
+**Variáveis obrigatórias no Worker** (já existentes, apenas confira):
+- `ORIGIN_HOST` = `orbit-commerce-os.lovable.app`
+- `SUPABASE_URL` = URL do backend
+- `SUPABASE_ANON_KEY` = anon key do backend
 
-  const cacheKey = new Request(`https://seo.cache/${host}${url.pathname}`, { method: 'GET' });
-  const cache = caches.default;
-  const cached = await cache.match(cacheKey);
-  if (cached) return cached;
+**Rotas do Worker** (já configuradas, apenas confira):
+- `*.shops.comandocentral.com.br/*`
+- `shops.comandocentral.com.br/*`
+- `app.comandocentral.com.br/integrations/*`
+- Domínios customizados de tenants (via Custom Hostnames)
 
-  const target = new URL(`${env.SUPABASE_URL}/functions/v1/${fn}`);
-  target.searchParams.set('host', host);
+**O que muda para o usuário final:**
+- `https://<dominio-do-tenant>/robots.txt` → passa a devolver o robots do tenant (cache 1h).
+- `https://<dominio-do-tenant>/sitemap.xml` → passa a devolver o sitemap do tenant (cache 15min).
+- `https://app.comandocentral.com.br/robots.txt` e `/sitemap.xml` → **não são interceptados** (comportamento atual preservado).
 
-  const upstream = await fetch(target.toString(), {
-    method: 'GET',
-    headers: { 'x-forwarded-host': host },
-  });
-
-  const headers = new Headers(upstream.headers);
-  const response = new Response(upstream.body, { status: upstream.status, headers });
-  if (upstream.status === 200) {
-    ctx.waitUntil(cache.put(cacheKey, response.clone()));
-  }
-  return response;
-}
+**Validação pós-deploy:**
 ```
-
-Uso:
-```js
-export default {
-  async fetch(request, env, ctx) {
-    const seo = await handleSeoRoute(request, env, ctx);
-    if (seo) return seo;
-    const fav = await handleFaviconRequest(request, env);
-    if (fav) return fav;
-    // ... resto do roteamento ...
-  }
-}
+curl -sI https://<dominio-do-tenant>/robots.txt   | grep -Ei 'HTTP|content-type|x-cc-cache'
+curl -sI https://<dominio-do-tenant>/sitemap.xml  | grep -Ei 'HTTP|content-type|x-cc-cache'
+curl -s  https://<dominio-do-tenant>/_debug       | grep -E 'seoIntercepted|strategy'
 ```
+Esperado: `HTTP/2 200`, `content-type: text/plain` (robots) ou `application/xml` (sitemap), `x-cc-cache: MISS` na primeira chamada e `HIT` nas seguintes. O `/_debug` deve listar `seoIntercepted` com as duas rotas e `strategy` terminando em `_seo_v1`.
 
-Aplicação manual (fora do escopo desta onda).
+**Rollback:** basta redeployar a versão anterior do Worker (v2.1.0). As edge functions `storefront-robots` e `storefront-sitemap` continuam no ar; apenas deixam de ter rota pública.
 
 ---
 
