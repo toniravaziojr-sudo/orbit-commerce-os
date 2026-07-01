@@ -832,7 +832,8 @@ export default {
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
           faviconIntercepted: Array.from(FAVICON_PATHS),
-          strategy: 'edge_rendered_html_first_v2_favicon_v1',
+          seoIntercepted: Object.keys(SEO_ROUTES),
+          strategy: 'edge_rendered_html_first_v2_favicon_v1_seo_v1',
           cache: {
             htmlCacheTTL: HTML_CACHE_TTL,
             staleTTL: HTML_STALE_TTL,
