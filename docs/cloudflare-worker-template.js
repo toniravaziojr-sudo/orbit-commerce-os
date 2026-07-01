@@ -262,6 +262,92 @@ async function handleFaviconRequest(request, env, ctx) {
   return response;
 }
 
+// ========== SEO MULTI-TENANT (robots.txt + sitemap.xml) ==========
+// Hosts da PLATAFORMA — NÃO interceptar (usam robots/sitemap próprios se houver)
+const PLATFORM_HOSTS_NO_SEO_INTERCEPT = new Set([
+  'app.comandocentral.com.br',
+  'integrations.comandocentral.com.br',
+  'shops.comandocentral.com.br',
+]);
+
+const SEO_ROUTES = {
+  '/robots.txt':  { fn: 'storefront-robots',  ttl: 3600  }, // 1h
+  '/sitemap.xml': { fn: 'storefront-sitemap', ttl: 900   }, // 15min
+};
+
+/**
+ * Intercepta /robots.txt e /sitemap.xml em hosts de tenant e devolve o
+ * conteúdo gerado pelas edge functions storefront-robots / storefront-sitemap.
+ * Hosts da plataforma NÃO são interceptados. Em falha → 502 texto simples.
+ *
+ * Retorna Response se interceptou; null se não se aplica.
+ */
+async function handleSeoRoute(request, env, ctx) {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+
+  if (PLATFORM_HOSTS_NO_SEO_INTERCEPT.has(host)) return null;
+  if (host.endsWith('.workers.dev')) return null;
+
+  const route = SEO_ROUTES[url.pathname];
+  if (!route) return null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (!env.SUPABASE_URL) return null;
+
+  const cacheKey = new Request(`https://seo.cache/${host}${url.pathname}`, { method: 'GET' });
+
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-CC-Cache', 'HIT');
+      headers.set('X-CC-Cache-Layer', 'seo');
+      return new Response(cached.body, { status: cached.status, headers });
+    }
+  } catch (_) {}
+
+  const target = new URL(`${env.SUPABASE_URL}/functions/v1/${route.fn}`);
+  target.searchParams.set('host', host);
+
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), {
+      method: 'GET',
+      headers: { 'x-forwarded-host': host },
+    });
+  } catch (e) {
+    console.error('[Worker] SEO upstream error:', e);
+    return new Response('SEO upstream error', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+
+  const headers = new Headers(upstream.headers);
+  headers.set('Cache-Control', `public, max-age=${route.ttl}, s-maxage=${route.ttl}`);
+  headers.set('X-CC-Cache', 'MISS');
+  headers.set('X-CC-Cache-Layer', 'seo');
+
+  const bodyBuf = upstream.body ? await upstream.arrayBuffer() : null;
+  const response = new Response(bodyBuf, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers,
+  });
+
+  if (upstream.status === 200 && ctx && typeof ctx.waitUntil === 'function') {
+    const cacheHeaders = new Headers(headers);
+    cacheHeaders.delete('set-cookie');
+    cacheHeaders.delete('vary');
+    cacheHeaders.delete('pragma');
+    const cacheResponse = new Response(bodyBuf, { status: 200, headers: cacheHeaders });
+    ctx.waitUntil(
+      caches.default.put(cacheKey, cacheResponse)
+        .catch(e => console.error('[Worker] SEO cache write error:', e))
+    );
+  }
+
+  return response;
+}
+
+
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
   return STATIC_PATHS.some(prefix => p.startsWith(prefix) || p === prefix.replace(/\/$/, ''));
