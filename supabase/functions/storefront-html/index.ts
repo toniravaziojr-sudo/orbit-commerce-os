@@ -153,7 +153,7 @@ function applyMetaCookies(headers: Headers, decision: MetaCookieDecision): void 
 // ROUTE PARSER
 // ============================================
 interface ParsedRoute {
-  type: 'home' | 'product' | 'category' | 'page' | 'blog_index' | 'blog_post' | 'unknown';
+  type: 'home' | 'product' | 'category' | 'page' | 'landing_page' | 'blog_index' | 'blog_post' | 'unknown';
   slug?: string;
 }
 
