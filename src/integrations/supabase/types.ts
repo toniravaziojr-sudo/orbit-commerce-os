@@ -27369,6 +27369,7 @@ export type Database = {
         | "awaiting_pickup"
         | "problem"
         | "returning"
+        | "awaiting_label"
       social_connection_status:
         | "disconnected"
         | "connecting"
@@ -27779,6 +27780,7 @@ export const Constants = {
         "awaiting_pickup",
         "problem",
         "returning",
+        "awaiting_label",
       ],
       social_connection_status: [
         "disconnected",

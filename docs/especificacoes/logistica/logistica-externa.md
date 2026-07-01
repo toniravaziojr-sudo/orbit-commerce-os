@@ -125,26 +125,27 @@ Pontos-chave que afetam a Logística Externa:
 **Implementação:** a ponte vive na Edge Function `meli-fetch-shipment` (padrão de arquitetura: ação em edge, não em trigger SQL — ver `mem://architecture/automation-trigger-cron-standard`). Após o `upsert` em `marketplace_shipments`, a função:
 
 1. Lê `orders.status, shipping_status, tracking_code, shipping_carrier, shipped_at, delivered_at`.
-2. Traduz `marketplace_shipments.status` (vocabulário ML) para `orders.shipping_status` (vocabulário canônico):
+2. Traduz o status cru do ML para o **vocabulário canônico único** do sistema. Esse vocabulário vale tanto para `marketplace_shipments.status` quanto para `orders.shipping_status` — não há mais dois dialetos.
 
-| `marketplace_shipments.status` | `orders.shipping_status` |
+| ML raw (`shipment.status`) | Sistema canônico (`marketplace_shipments.status` + `orders.shipping_status`) |
 |---|---|
-| `awaiting_invoice`             | `awaiting_shipment` |
-| `ready_to_ship`                | `label_generated` |
-| `in_transit`                   | `in_transit` |
-| `shipped`                      | `shipped` |
-| `delivered`                    | `delivered` |
-| `problem`                      | `problem` |
-| `returned`                     | `returned` |
-| `cancelled`                    | `problem` *(orders.status não é tocado)* |
+| `pending` / `handling`                       | `awaiting_shipment` |
+| `ready_to_ship` **sem** tracking             | `awaiting_label` |
+| `ready_to_ship` **com** tracking             | `label_generated` |
+| `shipped`                                    | `shipped` |
+| `delivered`                                  | `delivered` |
+| `not_delivered`                              | `problem` |
+| `cancelled`                                  | `cancelled` *(só em `marketplace_shipments`; `orders.shipping_status` não é atualizado, `orders.status='cancelled'` é a fonte de verdade da cancelação)* |
 
 3. Atualiza `tracking_code` e `shipping_carrier` quando vazios ou divergentes.
-4. **Promove** `orders.status='dispatched'` (+ `shipped_at=now()` se nulo) quando o status novo está em `{ready_to_ship, in_transit, shipped, delivered}` **e** o status atual está em `preDispatchOrderStatuses` (`paid, processing, ready_to_invoice, pending, awaiting_shipment, invoice_pending_sefaz, invoice_authorized, invoice_issued, fulfilled`).
+4. **Promove** `orders.status='dispatched'` (+ `shipped_at=now()` se nulo) quando o status canônico está em `{label_generated, shipped, delivered}` **e** o status atual está em `preDispatchOrderStatuses` (`paid, processing, ready_to_invoice, pending, awaiting_shipment, invoice_pending_sefaz, invoice_authorized, invoice_issued, fulfilled`).
 5. Promove `orders.status='delivered'` (+ `delivered_at=now()`) quando o ML reporta `delivered`.
-6. **Nunca regride** pedidos em estados terminais (`shipped, in_transit, delivered, completed, cancelled, returning, returned`).
-7. Audita em `order_history` (`action='shipment_updated'`, `new_value.source='marketplace_shipment'`).
+6. **Nunca regride** pedidos em estados terminais.
+7. Audita em `order_history` (`action='shipment_updated'`).
+
+**Envio automático para o WMS Pratika (rev 2026-07-01):** logo depois de gravar o rastreio e baixar o PDF da etiqueta ML, `meli-fetch-shipment` chama `wms-pratika-send` com `action=send_combined` se o tenant tem `wms_pratika_configs.is_enabled=true`. O `wms-pratika-send` valida a NF autorizada (âncora oficial), monta o XML + rastreio e envia sob o mesmo CNPJ. Idempotência é dupla: índice único parcial em `wms_pratika_logs` impede corrida, e `marketplace_shipments.pratika_sent_at` corta chamadas repetidas em ciclos do cron. Se a NF ainda não estiver autorizada no momento da chamada, o próximo ciclo do `wms-pratika-reconcile` cobre — que também passa a considerar tracking em `marketplace_shipments` (não só `shipments`).
 
 **Guarda complementar no `meli-sync-orders`:** o sync de pedidos não pode rebaixar `orders.status` quando o pedido já está em estado avançado (`invoice_pending_sefaz, invoice_authorized, invoice_issued, dispatched, shipped, in_transit, delivered, completed, cancelled, returning, returned`). Apenas `payment_status` e demais campos continuam sendo espelhados. Cancelamentos do ML continuam tendo precedência (exceção controlada).
 
-**Referência cruzada:** o fluxo interno usa o mesmo padrão em `supabase/functions/shipment-ingest/index.ts` (linhas 360-419). Toda alteração nesta ponte deve manter paridade lógica com `shipment-ingest`.
+**Referência cruzada:** o fluxo interno usa o mesmo padrão em `supabase/functions/shipment-ingest/index.ts`. Toda alteração nesta ponte deve manter paridade lógica com `shipment-ingest`.
 

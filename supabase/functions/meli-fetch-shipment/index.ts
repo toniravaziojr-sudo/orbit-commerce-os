@@ -42,16 +42,20 @@ Deno.serve(async (req) => {
     const trackingMethod = shipment?.tracking_method || null;
     const carrier = shipment?.shipping_option?.shipping_method?.name || trackingMethod || null;
 
+    // Vocabulário canônico do sistema (shipping_status). Mesmo mapa usado na
+    // ponte para orders.shipping_status logo abaixo — garante paridade entre
+    // marketplace_shipments.status e orders.shipping_status.
+    // Ver: docs/especificacoes/marketplaces/mercado-livre.md
     const statusMap: Record<string, string> = {
-      pending: "awaiting_invoice",
-      ready_to_ship: "ready_to_ship",
-      handling: "ready_to_ship",
-      shipped: "in_transit",
+      pending: "awaiting_shipment",
+      handling: "awaiting_shipment",
+      ready_to_ship: trackingNumber ? "label_generated" : "awaiting_label",
+      shipped: "shipped",
       delivered: "delivered",
       not_delivered: "problem",
       cancelled: "cancelled",
     };
-    const status = statusMap[mlStatus] || "ready_to_ship";
+    const status = statusMap[mlStatus] || (trackingNumber ? "label_generated" : "awaiting_shipment");
 
     // 2. Resolver order_id se não veio
     let resolvedOrderId = orderId || null;
@@ -123,18 +127,10 @@ Deno.serve(async (req) => {
           .eq("id", resolvedOrderId).maybeSingle();
 
         if (ord) {
-          // ml ms_status → orders.shipping_status canônico
-          const shippingStatusMap: Record<string, string> = {
-            awaiting_invoice: "awaiting_shipment",
-            ready_to_ship: "label_generated",
-            in_transit: "in_transit",
-            shipped: "shipped",
-            delivered: "delivered",
-            problem: "problem",
-            returned: "returned",
-            cancelled: "problem",
-          };
-          const newShippingStatus = shippingStatusMap[status] || null;
+          // marketplace_shipments.status já é canônico. Mesmo valor entra em
+          // orders.shipping_status (enum). 'cancelled' fica só em orders.status
+          // (não existe no enum shipping_status).
+          const newShippingStatus = status === "cancelled" ? null : status;
 
           const terminalOrderStatuses = new Set([
             "shipped","in_transit","delivered","completed",
@@ -145,7 +141,7 @@ Deno.serve(async (req) => {
             "invoice_pending_sefaz","invoice_authorized","invoice_issued","fulfilled",
           ]);
           const dispatchTriggerStatuses = new Set([
-            "ready_to_ship","in_transit","shipped","delivered",
+            "label_generated","shipped","delivered",
           ]);
 
           const updates: Record<string, unknown> = {};
@@ -196,7 +192,52 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ success: true, shipment: row, has_label: !!labelUrl, order_bridge: orderBridge }, 200);
+    // 6. Envio para WMS Pratika (quando aplicável).
+    // Só dispara se: (a) tenant tem Pratika ativa, (b) já temos código de rastreio,
+    // (c) o pedido está vinculado. A NF autorizada é validada pelo wms-pratika-send.
+    // Idempotência: wms-pratika-send tem trava única por invoice; ainda assim
+    // marcamos pratika_sent_at para curto-circuito rápido.
+    // Ver: mem://features/external-apps/wms-pratika-integration
+    let pratika: { attempted: boolean; success?: boolean; skipped?: boolean; reason?: string } = { attempted: false };
+    if (resolvedOrderId && trackingNumber && !row?.pratika_sent_at) {
+      const { data: wmsCfg } = await supabase
+        .from("wms_pratika_configs")
+        .select("is_enabled").eq("tenant_id", tenantId).maybeSingle();
+      if (wmsCfg?.is_enabled) {
+        pratika.attempted = true;
+        try {
+          const sendRes = await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/wms-pratika-send`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                action: "send_combined",
+                order_id: resolvedOrderId,
+                tenant_id: tenantId,
+              }),
+            }
+          );
+          const sendJson = await sendRes.json().catch(() => ({}));
+          pratika.success = !!sendJson?.success;
+          pratika.skipped = !!sendJson?.skipped;
+          pratika.reason = sendJson?.reason || sendJson?.error || null;
+          if (pratika.success && !pratika.skipped) {
+            await supabase.from("marketplace_shipments")
+              .update({ pratika_sent_at: new Date().toISOString() })
+              .eq("id", row.id);
+          }
+        } catch (pratikaErr) {
+          console.error("[meli-fetch-shipment] pratika send error:", pratikaErr);
+          pratika.reason = String((pratikaErr as any)?.message || pratikaErr);
+        }
+      }
+    }
+
+    return json({ success: true, shipment: row, has_label: !!labelUrl, order_bridge: orderBridge, pratika }, 200);
   } catch (e) {
     console.error("[meli-fetch-shipment] erro:", e);
     return json({ success: false, error: String(e?.message || e) }, 200);
