@@ -1,6 +1,12 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
+ * v2.2.0 (2026-07-01) — Onda 1 SEO. Adiciona interceptação de /robots.txt e
+ *   /sitemap.xml em hosts de tenant, reescrevendo para as edge functions
+ *   `storefront-robots` e `storefront-sitemap`. Cache de borda (1h robots,
+ *   15min sitemap). Hosts da plataforma NÃO são interceptados.
+ *   Doc oficial: docs/especificacoes/storefront/seo.md
+ *
  * v2.1.0 (2026-05-13) — Adiciona interceptação universal de favicon multi-tenant.
  *   /favicon.ico, /favicon-*x*.png, /apple-touch-icon*.png,
  *   /android-chrome-*x*.png, /site.webmanifest, /manifest.json,
