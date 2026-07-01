@@ -153,7 +153,7 @@ function applyMetaCookies(headers: Headers, decision: MetaCookieDecision): void 
 // ROUTE PARSER
 // ============================================
 interface ParsedRoute {
-  type: 'home' | 'product' | 'category' | 'page' | 'blog_index' | 'blog_post' | 'unknown';
+  type: 'home' | 'product' | 'category' | 'page' | 'landing_page' | 'blog_index' | 'blog_post' | 'unknown';
   slug?: string;
 }
 
@@ -1039,15 +1039,18 @@ function buildFullPage(opts: {
   benefitRewardLabel?: string;
   benefitSuccessLabel?: string;
   benefitProgressColor?: string;
+  robots?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="${escapeHtml(opts.robots || 'index,follow')}">
   <title>${escapeHtml(opts.title)}</title>
   <meta name="description" content="${escapeHtml(opts.description)}">
   <link rel="canonical" href="${escapeHtml(opts.canonicalUrl)}">
+
   <!-- Favicon multi-size (served per-tenant by Worker -> storefront-favicon) -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -2593,11 +2596,11 @@ Deno.serve(async (req) => {
       // Public mode: read content, require is_published
       if (isPreviewMode) {
         routeQueryPromise = supabase.from('store_pages')
-          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published')
+          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published, no_index, type')
           .eq('tenant_id', tenantId).eq('slug', route.slug).maybeSingle();
       } else {
         routeQueryPromise = supabase.from('store_pages')
-          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
+          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published, no_index, type')
           .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
       }
     } else if (route.type === 'blog_post' && route.slug) {
@@ -3366,6 +3369,15 @@ Deno.serve(async (req) => {
     // === CONSENT BANNER (LGPD) ===
     const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
 
+    // === META ROBOTS (server-side) ===
+    // Regra: home/product/category/blog/blog_post → index,follow
+    // page (store_pages institucional ou landing_page) → respeita no_index
+    // unknown (SPA-only: cart/checkout/etc) → nem chega aqui (retorna 204)
+    let robotsMeta = 'index,follow';
+    if (route.type === 'page' && routeData && (routeData as any).no_index === true) {
+      robotsMeta = 'noindex,follow';
+    }
+
     const html = buildFullPage({
       title: pageTitle,
       description: pageDescription,
@@ -3400,6 +3412,7 @@ Deno.serve(async (req) => {
       benefitRewardLabel: benefitConfig?.rewardLabel || 'Frete Grátis',
       benefitSuccessLabel: benefitConfig?.successLabel || 'Você ganhou frete grátis!',
       benefitProgressColor: benefitConfig?.progressColor || '#22c55e',
+      robots: robotsMeta,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);

@@ -117,20 +117,29 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 
 ---
 
-### 3. Módulo "Saúde de SEO" por Tenant — Backlog
+### 3. Módulo "Saúde de SEO" por Tenant — Em ondas
 
-**Status:** Backlog declarado pelo operador. **Não iniciar implementação até pedido explícito.**
+**Doc oficial:** `docs/especificacoes/storefront/seo.md`
 
-**Contexto:** O verificador de SEO da Lovable cobre apenas o site da plataforma (`app.comandocentral.com.br`). Tenants já têm campos de SEO por entidade (produto, categoria, página, blog), geração com IA, sitemap/robots por loja, OG e favicon multi-tenant — mas **não têm um diagnóstico consolidado** com nota, lista de problemas e correção rápida.
+**Status:** Onda 1 (Fundação Técnica) entregue em 2026-07-01.
 
-**Escopo previsto:**
-- Nota geral da loja.
-- Lista de problemas agrupados por tipo (loja, páginas, produtos, categorias, blog).
-- Botão de correção rápida via IA reaproveitando a geração de SEO já existente.
-- Re-scan sob demanda.
-- Rollout em ondas: começar pelo essencial (título, descrição, OG, sitemap, robots, alt) e crescer para Schema.org de produto, breadcrumb, performance, links quebrados.
+**Onda 1 entregue:**
+- `robots.txt` por tenant (edge `storefront-robots`, cache 1h).
+- `sitemap.xml` por tenant (edge `storefront-sitemap`, cache 15 min, hard cap 45k URLs).
+- `<meta name="robots">` server-side no `storefront-html` respeitando `store_pages.no_index`.
+- `store_pages.no_index` estabelecido como campo canônico único de indexação.
+- Trigger `trg_store_pages_lp_default_noindex`: novas landing pages nascem com `no_index=true`.
+- Landing pages existentes **preservadas** (zero backfill; contagem oficial na entrada: 0).
+- Snippet do Worker documentado em `seo.md §6` — aplicação manual no Cloudflare.
 
-**Regra:** Não iniciar, não propor implementação, não sugerir prazo. Apenas lembrar deste backlog quando o assunto SEO de tenants voltar à mesa ou quando o operador pedir explicitamente.
+**Backlog (próximas ondas):**
+- Onda 2: Central de SEO na UI (nota geral, alertas, toggle "SEO orgânico" nas LPs, correção rápida via IA).
+- Onda 3: Google Search Console (submissão de sitemap, URL Inspection, cron de reindexação).
+- Onda 4: IA aplicada (sugestões e revisão em lote de meta title/description).
+
+**Regra:** Não iniciar Onda 2+ sem pedido explícito do operador.
+
+
 
 ---
 
