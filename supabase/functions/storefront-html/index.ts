@@ -2596,11 +2596,11 @@ Deno.serve(async (req) => {
       // Public mode: read content, require is_published
       if (isPreviewMode) {
         routeQueryPromise = supabase.from('store_pages')
-          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published')
+          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published, no_index, type')
           .eq('tenant_id', tenantId).eq('slug', route.slug).maybeSingle();
       } else {
         routeQueryPromise = supabase.from('store_pages')
-          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
+          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published, no_index, type')
           .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
       }
     } else if (route.type === 'blog_post' && route.slug) {
