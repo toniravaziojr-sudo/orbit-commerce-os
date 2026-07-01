@@ -12100,17 +12100,21 @@ export type Database = {
       marketplace_connections: {
         Row: {
           access_token: string
+          consecutive_failures: number
           created_at: string
           expires_at: string | null
           external_user_id: string
           external_username: string | null
+          health_status: string
           id: string
           is_active: boolean
           last_error: string | null
+          last_success_at: string | null
           last_sync_at: string | null
           last_webhook_at: string | null
           marketplace: string
           metadata: Json | null
+          next_retry_at: string | null
           refresh_token: string | null
           scopes: string[] | null
           tenant_id: string
@@ -12119,17 +12123,21 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          consecutive_failures?: number
           created_at?: string
           expires_at?: string | null
           external_user_id: string
           external_username?: string | null
+          health_status?: string
           id?: string
           is_active?: boolean
           last_error?: string | null
+          last_success_at?: string | null
           last_sync_at?: string | null
           last_webhook_at?: string | null
           marketplace?: string
           metadata?: Json | null
+          next_retry_at?: string | null
           refresh_token?: string | null
           scopes?: string[] | null
           tenant_id: string
@@ -12138,17 +12146,21 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          consecutive_failures?: number
           created_at?: string
           expires_at?: string | null
           external_user_id?: string
           external_username?: string | null
+          health_status?: string
           id?: string
           is_active?: boolean
           last_error?: string | null
+          last_success_at?: string | null
           last_sync_at?: string | null
           last_webhook_at?: string | null
           marketplace?: string
           metadata?: Json | null
+          next_retry_at?: string | null
           refresh_token?: string | null
           scopes?: string[] | null
           tenant_id?: string
