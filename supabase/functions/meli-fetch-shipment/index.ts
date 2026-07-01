@@ -127,18 +127,9 @@ Deno.serve(async (req) => {
           .eq("id", resolvedOrderId).maybeSingle();
 
         if (ord) {
-          // ml ms_status → orders.shipping_status canônico
-          const shippingStatusMap: Record<string, string> = {
-            awaiting_invoice: "awaiting_shipment",
-            ready_to_ship: "label_generated",
-            in_transit: "in_transit",
-            shipped: "shipped",
-            delivered: "delivered",
-            problem: "problem",
-            returned: "returned",
-            cancelled: "problem",
-          };
-          const newShippingStatus = shippingStatusMap[status] || null;
+          // marketplace_shipments.status já é canônico (vocabulário do sistema).
+          // Usamos o mesmo valor em orders.shipping_status para manter paridade.
+          const newShippingStatus = status;
 
           const terminalOrderStatuses = new Set([
             "shipped","in_transit","delivered","completed",
