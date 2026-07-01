@@ -261,3 +261,33 @@ Quando um item é recriado por reconciliação (ex.: PV/objeto recriado após ca
 ### Anti-padrão
 - `.order('created_at', desc)` como ordenação primária em qualquer lista que tenha número.
 - Ordenar por número apenas no front quando há paginação no servidor (a página vem com itens errados).
+
+---
+
+## 8. Resiliência de Conexões Externas
+
+> **Status:** 🟢 Ativo desde 2026-07-01
+> **Aplicação:** todo módulo que mantenha vínculo persistente com sistema externo (Mercado Livre, Meta/WhatsApp, Google, gateways de pagamento, Correios, WMS Pratika).
+
+### Regra
+Uma conexão externa **só pode ser marcada como inativa (`is_active=false`, `health_status='needs_reauth'`) em dois casos**:
+
+1. O provedor respondeu explicitamente que o vínculo foi revogado / o refresh token é inválido. Termos reconhecidos: `invalid_grant`, `invalid_token`, `invalid_refresh_token`, `revoked_token`, `token_revoked`, `unauthorized_client`, `access_denied`.
+2. O lojista pediu para desconectar no painel.
+
+**Qualquer outro erro** — HTTP 429 (rate-limit), 5xx (provedor com problema), timeout, falha de rede, `internal_error`, 4xx sem termo de revogação — é **transitório**. Nesses casos o sistema deve: manter `is_active=true`, incrementar `consecutive_failures`, agendar `next_retry_at` com backoff exponencial (1m → 5m → 15m → 1h → 6h → 24h) e registrar em `marketplace_sync_logs`. **Nunca desativar.**
+
+### Motivo (anti-regressão)
+Em 2026-07-01 uma conexão do Mercado Livre foi marcada como inativa porque o refresh recebeu HTTP 429 do endpoint `/oauth/token` da API oficial. Segundo a documentação do próprio provedor, 429 é rate-limit e deve ser tratado com backoff — o vínculo continua válido. Como consequência da desativação errada, o webhook `orders_v2` seguinte foi descartado e um pedido real ficou fora do sistema até a intervenção manual. A regra existe para impedir a repetição desse cenário em qualquer integração.
+
+### Implementação canônica
+- Helper compartilhado: `supabase/functions/_shared/external-connection-health.ts` (`classifyProviderError`, `computeNextRetry`, `markSuccess`, `markTransientFailure`, `markFatal`, `logSyncEvent`).
+- Colunas obrigatórias na tabela de conexão: `consecutive_failures int`, `next_retry_at timestamptz`, `last_success_at timestamptz`, `health_status text CHECK IN ('healthy','degraded','needs_reauth')`.
+- Todo webhook/cron que consome conexão deve filtrar por `health_status != 'needs_reauth'` (nunca por `is_active` isoladamente) e enfileirar em `events_inbox` quando a conexão estiver `needs_reauth`, para reprocesso após reconexão.
+- Alerta ao lojista via `ai_critical_alerts` quando `consecutive_failures >= 5` OU `health_status='needs_reauth'`.
+
+### Anti-padrão
+- Marcar `is_active=false` no primeiro erro sem classificar a causa.
+- Cron/webhook filtrar somente por `is_active=true` (perde eventos após qualquer desativação, mesmo temporária).
+- Descartar webhook silenciosamente por conexão "não encontrada" quando a causa é status de saúde.
+- Retry em loop sem backoff — sobrecarrega o provedor e piora o rate-limit.
