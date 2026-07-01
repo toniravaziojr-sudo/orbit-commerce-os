@@ -730,7 +730,13 @@ export default {
     const cfHost = request.headers.get('cf-connecting-host');
     const publicHost = (cfHost || edgeHost).toLowerCase();
 
-    // ========== FAVICON MULTI-TENANT (PRIMEIRA COISA) ==========
+    // ========== SEO MULTI-TENANT (robots.txt + sitemap.xml) ==========
+    // Intercepta /robots.txt e /sitemap.xml em hosts de tenant antes de
+    // qualquer outro roteamento. Doc: docs/especificacoes/storefront/seo.md
+    const seoResp = await handleSeoRoute(request, env, ctx);
+    if (seoResp) return seoResp;
+
+    // ========== FAVICON MULTI-TENANT ==========
     // Intercepta /favicon.ico, /apple-touch-icon.png, /site.webmanifest etc.
     // em hosts de tenant antes de qualquer outro roteamento. Hosts da
     // plataforma (app./integrations./shops.) NÃO são interceptados.
