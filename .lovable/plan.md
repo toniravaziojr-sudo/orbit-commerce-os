@@ -1,58 +1,118 @@
-## Diagnóstico
+## Objetivo
 
-#665 (AD624331900BR) e #670 (AD625921695BR) já estão **A caminho** no ML e em `in_transit` em `marketplace_shipments`. Mesmo assim:
-- `orders.#665`: `invoice_authorized`, `shipping_status=pending`, `tracking_code=null`, `shipped_at=null`.
-- `orders.#670`: `processing`, `shipping_status=pending`, `tracking_code=null`, `shipped_at=null`.
+Nenhuma integração externa (Mercado Livre, Meta, Google, Correios, gateways…) pode ser desativada pelo nosso sistema por erro **temporário** do provedor. Hoje o ML foi desativado internamente porque o nosso código interpretou "espera um pouco" (HTTP 429) como "acabou". Isso é bug estrutural, não regra do ML.
 
-**Causa raiz:** falta a ponte `marketplace_shipments → orders` que o fluxo interno já tem em `shipment-ingest`. `meli-fetch-shipment` escreve só em `marketplace_shipments`; e `meli-sync-orders` mapeia apenas `meliOrder.status` (que para o vendedor fica em `paid`, nunca vira `shipped`).
+O plano tem duas partes: **(A) padrão transversal** com regra oficial + helper compartilhado, e **(B) aplicação imediata no Mercado Livre**, incluindo reativar o tenant afetado e reingerir o pedido perdido.
 
-**Lição reaproveitada do fluxo interno (não reinventar):**
-- Vocabulário canônico de `orders.shipping_status`: `awaiting_shipment | label_generated | shipped | in_transit | arriving | delivered | problem | returned`. Nunca usar `pending` (o ML usa, mas a UI da loja não).
-- `orders.status='dispatched'` só é setado se o status atual está em `preDispatchOrderStatuses` (`paid, processing, ready_to_invoice, pending, awaiting_shipment, invoice_pending_sefaz, invoice_authorized, invoice_issued, fulfilled`). Nunca regredir.
-- Sempre gravar `shipped_at` / `delivered_at` na transição.
-- Auditar em `order_history` (`action='shipment_updated'`).
-- Padrão arquitetural: ação fica em Edge Function (não em trigger SQL).
-- `payment_status` canônico = `approved`.
+Aproveitamento importante da revisão: `meli-sync-orders`, `meli-orders-reconcile` e os crons já existem — o problema real é que **todos filtram `is_active=true`**, então quando o refresh derrubou a conexão às 11h, o fallback também ficou cego. Não vou criar cron novo nem função nova; vou corrigir os filtros e o classificador de erro.
 
-## Plano (escopo backend; UI fora)
+---
 
-### 1. `meli-fetch-shipment` ganha o mesmo bloco do `shipment-ingest`
-Depois do upsert em `marketplace_shipments`, e somente quando há `resolvedOrderId`:
-- Ler `orders.status, shipping_status, tracking_code` atuais.
-- Mapear `marketplace_shipments.status` (vocab ML: `awaiting_invoice | ready_to_ship | label_issued | in_transit | shipped | delivered | problem | returned | cancelled`) → `orders.shipping_status` canônico (mesmo dicionário do `shipment-ingest`).
-- Atualizar `tracking_code`, `shipping_carrier` se vazios ou diferentes.
-- Se status novo ∈ `{ready_to_ship, label_issued, in_transit, shipped, delivered}` **e** `orders.status` ∈ `preDispatchOrderStatuses`: setar `status='dispatched'` + `shipped_at=now()` (se nulo).
-- Se status novo = `delivered`: setar `delivered_at=now()` e, se ainda pré-entrega, `status='delivered'`.
-- Se status novo = `problem`: só ajusta `shipping_status='problem'`, não toca em `orders.status`.
-- Nunca regredir pedidos em `shipped/in_transit/delivered/completed/cancelled/returning/returned`.
-- Registrar `order_history` com `action='shipment_updated'` e contexto (`source='marketplace_shipment'`).
+## Parte A — Padrão "Conexão Externa Sólida"
 
-### 2. `meli-sync-orders` deixa de rebaixar pedidos avançados
-Antes do `UPDATE`/`UPSERT`:
-- Se já existe `orders` com `status` ∈ `{invoice_authorized, invoice_issued, dispatched, shipped, in_transit, delivered, completed, cancelled, returning, returned}` → **não** sobrescrever `status` (preservar). `payment_status` e demais campos seguem normalmente.
-- Quando o ML reportar `cancelled`, mantém a regra atual de promover para `cancelled` com metadados (já existe).
-- `payment_status` segue sendo espelhado, mas com canônico `approved` (já está correto).
+### A1. Regra oficial nova (transversal)
 
-### 3. Backfill cirúrgico (alinhar #665 e #670 + qualquer outro órfão)
-Single shot via Edge `meli-fetch-shipment` reexecutado para cada `marketplace_shipments` ML com `status` ∈ `{ready_to_ship,label_issued,in_transit,shipped,delivered}` cujo `orders.status` esteja em pré-despacho. Como o próprio bloco da Onda 1 cuida da promoção, basta reprocessar — sem `UPDATE` solto no banco. Lista esperada hoje: 2 pedidos (#665, #670).
+Adicionar como **seção 8** de `docs/especificacoes/transversais/padroes-operacionais.md`: **"Resiliência de Conexões Externas"**. Referência cruzada em `docs/REGRAS-DO-SISTEMA.md`. Espelhar como Core memory `mem://constraints/external-connection-resilience` no `mem://index.md`.
 
-### 4. Documentação + memória anti-regressão
-- `docs/especificacoes/logistica/logistica-externa.md` ganha seção "Promoção de status do pedido a partir do shipment marketplace", citando o paralelo com `shipment-ingest` e o dicionário de mapeamento.
-- `docs/especificacoes/marketplaces/mercado-livre.md` §"Sync de Pedidos v3.12" — registrar a guarda contra rebaixamento.
-- Nova memória `mem://constraints/marketplace-shipment-promotes-order-mirrors-shipment-ingest` referenciando `mem://constraints/shipment-ingest-adopt-draft-and-auto-dispatch` como modelo.
-- Atualizar `mem://index.md`.
+Texto da regra:
 
-### 5. Validação técnica obrigatória
-1. SQL: pedidos ML com `marketplace_shipments.status='in_transit'` e `orders.shipping_status='pending'` → **0**.
-2. `orders.#665` em `dispatched`, `shipping_status='in_transit'`, `tracking_code='AD624331900BR'`, `shipped_at` preenchido.
-3. `orders.#670` idem com `AD625921695BR`.
-4. Re-sync simulado de pedido em `invoice_authorized` → permanece `invoice_authorized` (não rebaixa).
-5. Logs `meli-fetch-shipment` sem erro nos 5 min pós-deploy.
+> Uma conexão com sistema externo (Mercado Livre, Meta, Google, Correios, gateways) **só pode ser marcada como inativa em dois casos**:
+> 1. O provedor respondeu explicitamente que o vínculo foi revogado / o refresh token é inválido (`invalid_grant`, `invalid_token`, `revoked_token`, `unauthorized_client`).
+> 2. O lojista pediu para desconectar no painel.
+>
+> Qualquer outro erro — HTTP 429, 5xx, timeout, falha de rede, `internal_error` do provedor — é **transitório**. Neste caso o sistema deve: manter a conexão ativa, incrementar contador de falhas, agendar retry com backoff e registrar o incidente. Nunca desativar.
 
-## Fora do escopo (passa por você se for necessário)
-- Mexer na UI de `/orders` ou `/external-shipping`.
-- Criar trigger SQL nova em `marketplace_shipments` (padrão do projeto manda ação em edge).
-- Tocar no fluxo local (`shipment-ingest`, `shipping-create-shipment`, gatilho de PV) — já consolidados.
-- Mudar vocabulário de `marketplace_shipments.status` (mantemos o do ML; tradução acontece só no momento de escrever em `orders`).
+### A2. Helper compartilhado único
 
-Confirma que sigo?
+Criar `supabase/functions/_shared/external-connection-health.ts` com:
+
+- `classifyProviderError(status, body) → 'fatal' | 'transient'` — dicionário centralizado das mensagens fatais conhecidas por provedor.
+- `computeNextRetry(consecutiveFailures) → Date` — backoff exponencial 1m→5m→15m→1h→6h→24h (teto).
+- `markSuccess(supabase, table, id)` — zera contador, atualiza `last_success_at`, marca `health_status='healthy'`.
+- `markTransientFailure(supabase, table, id, reason)` — incrementa contador, agenda `next_retry_at`, marca `health_status='degraded'` (mantém `is_active=true`).
+- `markFatal(supabase, table, id, reason)` — marca `is_active=false`, `health_status='needs_reauth'`, grava causa.
+
+Provider-agnostic — mesmo helper serve Meta, Google, gateways etc. nas próximas ondas (aplicação neles fica **fora** deste plano).
+
+### A3. Migration mínima em `marketplace_connections`
+
+Adicionar (todas idempotentes, defaults seguros para não regredir):
+- `consecutive_failures int not null default 0`
+- `next_retry_at timestamptz`
+- `last_success_at timestamptz`
+- `health_status text not null default 'healthy'` (CHECK `in ('healthy','degraded','needs_reauth')`)
+- índice em `(marketplace, health_status, next_retry_at)`
+
+Sem GRANT novo (tabela já tem policies). Sem impacto em quem lê hoje — colunas novas ignoráveis.
+
+### A4. Observabilidade
+
+- Toda transição de estado escreve em `marketplace_sync_logs` (hoje vazio — bug). Tipos: `token_refresh`, `webhook_receive`, `orders_sync`.
+- Ao atingir `consecutive_failures >= 5` **ou** entrar em `needs_reauth`: registrar em `ai_critical_alerts` (sistema já existe) para o painel mostrar o aviso ao lojista. **Sem criar UI nova** — usa o pipeline de alertas atual.
+
+---
+
+## Parte B — Aplicação imediata no Mercado Livre
+
+### B1. Refactor `meli-token-refresh`
+- Usar `classifyProviderError` na resposta do ML.
+- Fatal (`invalid_grant` etc.) → `markFatal`.
+- Transiente (429, 5xx, timeout) → `markTransientFailure`, **mantém `is_active=true`**.
+- Sucesso → `markSuccess`.
+
+### B2. Refactor `meli-webhook`
+- Remover filtro `is_active=true` da busca da conexão.
+- Se conexão em `needs_reauth`: enfileirar em `events_inbox` (tabela existente) para reprocesso pós-reconexão. Responder 200 pro ML normalmente.
+- Se token expirado mas conexão saudável: chamar refresh sob demanda antes de processar. Registrar em `marketplace_sync_logs`.
+
+### B3. Refactor `meli-orders-reconcile` + `meli-sync-orders`
+- Remover filtro `is_active=true` nos dois; considerar `health_status != 'needs_reauth'`.
+- Registrar cada execução em `marketplace_sync_logs`.
+- Auditar chamada do cron `meli-token-refresh-30min` (nos logs só rodou 1x em 24h — provavelmente falta `refreshAll: true` no body). Corrigir SQL do cron via `insert tool`.
+- Redeploy `meli-orders-reconcile` (chamada de hoje retornou 404).
+
+### B4. Reativar Respeite o Homem + reingerir pedido perdido
+- `UPDATE marketplace_connections SET is_active=true, health_status='healthy', consecutive_failures=0, last_error=null WHERE id='91cb152c-...'` (refresh token ainda vale — a rejeição era rate-limit).
+- Invocar `meli-token-refresh` manualmente para gerar access token novo.
+- Invocar `meli-sync-orders` no range das últimas 24h. O pedido `2000017192996616` entra pelo fluxo normal (order → fiscal → logística → etiqueta). Sem SQL manual em `orders`.
+
+### B5. Fechar tema no doc do ML
+Atualizar `docs/especificacoes/marketplaces/mercado-livre.md` seção de conexão: registrar o novo comportamento (classificação de erro, backoff, `health_status`) e referenciar a seção 8 dos padrões operacionais.
+
+---
+
+## Escopo — o que fica DE FORA
+
+- Refatorar Meta, Google, gateways, Correios, Pratika para usar o helper novo → onda seguinte. O helper nasce provider-agnostic, mas hoje só o ML consome.
+- Central de "Conexões Externas" no painel → não pedido. Vamos reusar o `ai_critical_alerts` já existente para avisar o lojista quando `needs_reauth`. Se você quiser uma tela dedicada depois, abrimos plano separado.
+- Reprocessar retroativamente webhooks descartados antes desta correção (só o pedido de hoje é conhecido — os outros já teriam sido pegos pelo reconcile após B4).
+
+---
+
+## Riscos e mitigação
+
+- **Regressão do fluxo consolidado de webhook**: mitigada porque a única mudança semântica é "não descartar quando `is_active=false`". Sucesso 200 continua sendo devolvido ao ML como hoje.
+- **Retry cauda-longa sobrecarregar o ML**: mitigado pelo backoff exponencial e teto de 24h.
+- **Migration em tabela viva**: colunas novas com default seguro e nullable — nenhum código atual quebra.
+- **Doc + memória de governança**: seção 8 do padrão + Core memory → futuros agentes obrigados a seguir.
+
+---
+
+## Detalhes técnicos (apêndice)
+
+- **Migration**: 1 arquivo, altera `marketplace_connections`. Sem GRANT novo.
+- **Novo shared**: `supabase/functions/_shared/external-connection-health.ts`.
+- **Edge functions refatoradas**: `meli-token-refresh`, `meli-webhook`, `meli-orders-reconcile`, `meli-sync-orders`.
+- **Crons**: nenhum novo. Correção do body do `meli-token-refresh-30min` via `insert tool`.
+- **Docs**: `padroes-operacionais.md` (seção 8), `REGRAS-DO-SISTEMA.md` (referência), `mercado-livre.md` (aplicação), `assuntos-em-andamento.md` (fechar tema).
+- **Memória**: criar `mem://constraints/external-connection-resilience` + linha Core no `mem://index.md`.
+- **Validação técnica pós-execução (obrigatória)**: (a) rodar refresh manual e confirmar `expires_at` novo; (b) simular resposta 429 com fixture e confirmar que `is_active` permanece `true`; (c) confirmar pedido `2000017192996616` presente em `orders`; (d) checar linha nova em `marketplace_sync_logs`.
+
+---
+
+Duas dúvidas antes de eu executar:
+
+1. **Alerta ao lojista quando `needs_reauth`**: OK reusar `ai_critical_alerts` (canal já existente) ou você quer um banner novo dedicado no módulo do ML? A opção "reusar" é mais leve e evita mudança de UI.
+2. **Reingestão do pedido perdido**: OK deixar o próprio `meli-sync-orders` trazer via fluxo natural (recomendado — nada de SQL manual em `orders`)?
+
+Se as duas forem "sim", executo tudo em uma passada.
