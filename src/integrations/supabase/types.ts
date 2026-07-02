@@ -26279,7 +26279,6 @@ export type Database = {
           description_len: number | null
           effective_description: string | null
           effective_title: string | null
-          has_canonical: boolean | null
           has_description: boolean | null
           has_title: boolean | null
           id: string | null
@@ -26292,7 +26291,6 @@ export type Database = {
           description_len?: never
           effective_description?: never
           effective_title?: never
-          has_canonical?: never
           has_description?: never
           has_title?: never
           id?: string | null
@@ -26305,7 +26303,6 @@ export type Database = {
           description_len?: never
           effective_description?: never
           effective_title?: never
-          has_canonical?: never
           has_description?: never
           has_title?: never
           id?: string | null
@@ -26331,8 +26328,7 @@ export type Database = {
           has_default_seo_title: boolean | null
           has_favicon: boolean | null
           has_logo: boolean | null
-          has_primary_verified_domain: boolean | null
-          store_published: boolean | null
+          has_verified_primary_domain: boolean | null
           tenant_id: string | null
         }
         Insert: {
@@ -26341,8 +26337,7 @@ export type Database = {
           has_default_seo_title?: never
           has_favicon?: never
           has_logo?: never
-          has_primary_verified_domain?: never
-          store_published?: boolean | null
+          has_verified_primary_domain?: never
           tenant_id?: string | null
         }
         Update: {
@@ -26351,8 +26346,7 @@ export type Database = {
           has_default_seo_title?: never
           has_favicon?: never
           has_logo?: never
-          has_primary_verified_domain?: never
-          store_published?: boolean | null
+          has_verified_primary_domain?: never
           tenant_id?: string | null
         }
         Relationships: [
