@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/integracoes.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-07-02
 
 
 ## Visão Geral
@@ -12,6 +12,22 @@
 Hub central de integrações com serviços externos: pagamentos, redes sociais, marketplaces, WhatsApp, email, domínios, ERP.
 
 ---
+
+## ⚙️ Contrato de Runtime das Credenciais da Plataforma (2026-07-02)
+
+Credenciais gerenciadas pelo painel de **Integrações da Plataforma** (`/platform-integrations`) vivem na tabela `platform_credentials` e são carregadas em **cache em memória do processo** da Edge Function pelo helper `_shared/load-platform-credentials.ts`.
+
+**Como funciona:**
+- `loadPlatformCredentials()` lê a tabela, popula um `Map<string,string>` e instala um interceptador em `Deno.env.get`. A partir daí, qualquer caller que faça `Deno.env.get(KEY)` recebe automaticamente o valor mais recente do banco para as chaves cadastradas, ou o valor real da env como fallback.
+- **TTL do cache:** 60 segundos por processo. Trocas feitas no painel propagam em até 60s em cada instância de Edge Function.
+- Invalidação sob demanda: `invalidatePlatformCredentialsCache()` zera o TTL local.
+
+**Regra crítica:** `Deno.env.set(...)` **NÃO** é suportado pelo runtime da Supabase. Nunca usar. Todo secret gerenciado pelo painel deve ser lido via `Deno.env.get` (após `loadPlatformCredentials`) ou via `getPlatformCredential(key)`. Ver `mem://constraints/edge-runtime-no-env-set`.
+
+**Escopo:** chaves gerenciadas pelo painel (Pagar.me, Focus NFe, SendGrid, OpenAI, Frenet, Loggi, Cloudflare, Google/Meta/TikTok app secrets, Fal.AI, Gemini, Mercado Pago integrador). **Fora do escopo:** SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LOVABLE_API_KEY managed, e tokens OAuth de tenant (que vivem em tabelas próprias como `payment_providers`, `google_connections`, `meta_auth_profiles`, `whatsapp_configs`, etc.).
+
+---
+
 
 ## ⚠️ REGRA CRÍTICA: Separação de Módulos de Integração
 
