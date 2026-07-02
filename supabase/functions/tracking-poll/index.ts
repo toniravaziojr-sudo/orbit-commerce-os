@@ -388,9 +388,17 @@ function mapCorreiosStatus(codigo: string, tipo: string, descricao?: string): De
       return 'failed';
     }
     
-    // CANCELED
+    // CANCELED (inclui cancelamento da etiqueta antes da postagem física —
+    // "Etiqueta cancelada pelo sistema de captação" é o evento mais comum
+    // quando os Correios recusam ou expiram uma pré-postagem CWS.)
     if (desc.includes('postagem cancelada') ||
-        desc.includes('objeto cancelado')) {
+        desc.includes('objeto cancelado') ||
+        desc.includes('etiqueta cancelada') ||
+        desc.includes('prepostagem cancelada') ||
+        desc.includes('pre-postagem cancelada') ||
+        desc.includes('pre postagem cancelada') ||
+        desc.includes('cancelada pelo sistema de captacao') ||
+        desc.includes('cancelamento efetuado')) {
       return 'canceled';
     }
     
