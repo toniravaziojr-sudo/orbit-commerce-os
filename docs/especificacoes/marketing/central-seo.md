@@ -61,6 +61,24 @@ Executada via `SELECT` direto nas views:
 - 0 landing pages, 0 blog posts.
 - Fundação: favicon ✅ · logo ✅ · SEO padrão da loja ❌ · domínio primário verificado ✅ · SSL ativo ✅.
 
+### Modelo de segurança (hardening 2026-07-02)
+As 6 views `v_seo_*` são **superfície administrativa tenant-scoped**, não API pública. Modelo aplicado (Opção 1 do plano de hardening):
+
+- **`security_invoker=true`** em todas as views (RLS herdada roda no papel do caller).
+- **Guarda explícita no WHERE:** cada view aplica `AND public.user_has_tenant_access(tenant_id)` (helper SECURITY DEFINER, STABLE, que confere `auth.uid()` em `user_roles`). Zero linha cross-tenant, mesmo que a RLS da tabela base seja pública para o storefront.
+- **Grants:** `anon` e `PUBLIC` **revogados** em todas as views. Apenas `authenticated` (SELECT) e `service_role` (ALL) têm acesso.
+- **`calc_seo_health(p_tenant_id)`** permanece `SECURITY INVOKER`, com o mesmo guard `user_has_tenant_access` no topo. EXECUTE só para `authenticated` e `service_role`.
+- **Não usa SECURITY DEFINER em nenhuma view.**
+
+**Efeitos colaterais assumidos:**
+- Chamadas via PostgREST com o papel `service_role` retornam 0 linhas nas views (não há `auth.uid()`). Edge functions que precisarem desses dados devem chamar `calc_seo_health` no contexto do usuário autenticado, ou ler as tabelas base diretamente com service_role. Hoje **não existe consumidor** dessas views.
+- A 2.B poderá consultar as views diretamente do client autenticado — o filtro por tenant é aplicado no banco, não depende da UI.
+
+**Validação executada (2026-07-02):**
+- `anon` via PostgREST em `v_seo_coverage_products`, `v_seo_store_foundation` e RPC `calc_seo_health` → HTTP 401 / código `42501` "permission denied for view/function". ✅
+- ACLs pós-hardening: `authenticated=r/postgres`, `service_role=arwdDxtm/postgres`, sem entrada para `anon` nem `PUBLIC`. ✅
+- Guarda por linha (`user_has_tenant_access`) provada logicamente: mesmo com SELECT concedido, o WHERE só retorna linhas dos tenants presentes em `user_roles` do caller. Zero risco cross-tenant.
+
 ### O que a 2.A **não faz** (por decisão de escopo)
 - Não cria UI nem aba em Marketing.
 - Não chama Google Search Console.
