@@ -253,7 +253,8 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            tenantId,
+            tenant_id: tenantId, // wms-pratika-send lê snake_case
+            tenantId,            // compat: mantém camelCase por segurança
             action: 'update_tracking',
             invoice_id: oldShip.invoice_id,
             tracking_code: newTracking,
