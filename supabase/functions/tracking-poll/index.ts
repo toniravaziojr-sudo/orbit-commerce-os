@@ -1078,6 +1078,14 @@ async function processShipment(
     shipmentUpdate.delivered_at = lastEventAt;
   }
 
+  // Etiqueta cancelada pelos Correios (pré-postagem CWS recusada/expirada):
+  // sinaliza que o operador precisa reemitir. Regra:
+  // mem://constraints/shipment-reissue-after-correios-cancel.
+  if (lastEventStatus === 'canceled' && delivery_status !== 'canceled') {
+    shipmentUpdate.requires_action = true;
+    shipmentUpdate.action_reason = 'correios_prepost_canceled';
+  }
+
   await supabase
     .from('shipments')
     .update(shipmentUpdate)
