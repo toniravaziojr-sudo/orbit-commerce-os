@@ -155,6 +155,27 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 
 **Regra:** Não iniciar 2.B nem sub-ondas seguintes sem GO explícito do operador.
 
+---
+
+### 4. Incidente Mercado Livre — pedidos não entrando (Respeite o Homem) — 2026-07-02 — RESOLVIDO
+
+**Sintoma:** 2 pedidos ML (`2000017212698066` e `2000017208910676`) não entraram no sistema após o incidente #681 do dia anterior.
+
+**Causa raiz confirmada (dupla):**
+1. **Chave de módulo errada nos 3 crons ML.** `meli-token-refresh-30min`, `meli-orders-reconcile-15m` e `meli-sync-listings-auto` usavam `ARRAY['mercadolivre']` no gate `cron_call_edge_if_active`, mas a chave canônica em `system_resource_usage` é `mercado_livre` (com underscore). Gate sempre retornava dormant → nenhum dos 3 rodou. Token expirou às 02:34 UTC → webhooks descartados por 401 → reconcile também não rodou → pedidos perdidos.
+2. **Mapeamento payment_type ML → enum payment_method ausente.** `meli-sync-orders` jogava o valor cru (`bank_transfer`, `ticket`, `account_money`) direto no INSERT. Enum `payment_method` aceita apenas `pix, credit_card, debit_card, boleto, mercado_pago, pagarme`. Pedido Pix quebrava com `22P02 invalid input value for enum payment_method: "bank_transfer"`.
+
+**Correções aplicadas:**
+- Migration `20260702181933_fix_meli_cron_module_key`: reagenda os 3 crons com `ARRAY['mercado_livre']` (sem alterar frequência nem função-alvo).
+- `supabase/functions/meli-sync-orders/index.ts`: função `mapMeliPaymentType` centraliza tradução (bank_transfer→pix, ticket→boleto, account_money/atm/default→mercado_pago). Deploy feito.
+- Refresh manual de token executado com sucesso (Respeite o Homem, expira 2026-07-03 00:20 UTC).
+- Reconcile + sync manual dos 2 pedidos: ambos no sistema (`2000017212698066` já em `invoice_authorized`; `2000017208910676` Pix aprovado em `processing`).
+
+**Anti-regressão:** memória `mem://constraints/meli-module-key-and-payment-type-mapping` cria as duas regras (chave `mercado_livre` obrigatória; mapa de payment_type obrigatório em `meli-sync-orders`).
+
+**Observação lateral:** conexão do tenant Amazgan (`ARLONMACEDOFERNANDESSANTOS`) devolve `invalid_grant` no refresh (`client_id does not match the original`). É problema pré-existente, sem relação com este incidente — tenant precisa reconectar via UI quando for usar ML. Não bloqueia o fluxo do Respeite o Homem.
+
+
 
 
 ---

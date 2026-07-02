@@ -40,6 +40,27 @@ function onlyDigits(s: unknown): string | null {
 }
 
 /**
+ * Mapeia payment_type do Mercado Livre para o enum payment_method do sistema.
+ * Enum atual: pix, credit_card, debit_card, boleto, mercado_pago, pagarme.
+ * Sem esse mapeamento, valores como "bank_transfer" (Pix ML) e "ticket" (boleto)
+ * quebram o INSERT com 22P02 e o pedido não entra no sistema.
+ */
+function mapMeliPaymentType(pt: unknown): string | null {
+  if (!pt || typeof pt !== "string") return "mercado_pago";
+  switch (pt) {
+    case "credit_card": return "credit_card";
+    case "debit_card": return "debit_card";
+    case "ticket": return "boleto";
+    case "bank_transfer": return "pix";
+    case "account_money":
+    case "atm":
+    case "digital_currency":
+    default:
+      return "mercado_pago";
+  }
+}
+
+/**
  * billing_info do ML vem como:
  *   { billing_info: { doc_number, doc_type, additional_info: [{type,value}, ...] } }
  * Achata o additional_info em um map por TYPE para facilitar o consumo.
@@ -357,7 +378,7 @@ Deno.serve(async (req) => {
           payment_status: paymentStatus,
           payment_gateway: "mercadolivre",
           payment_gateway_id: paymentGatewayId,
-          payment_method: meliOrder?.payments?.[0]?.payment_type || null,
+          payment_method: mapMeliPaymentType(meliOrder?.payments?.[0]?.payment_type),
           subtotal,
           shipping_total: shippingCost,
           total: subtotal + shippingCost,
