@@ -244,32 +244,17 @@ Deno.serve(async (req) => {
       console.warn('[shipping-reissue-label] audit log warn:', e?.message);
     }
 
-    // ===== Ressync Pratika (se NF vinculada) =====
-    let pratikaResult: any = { skipped: true };
-    if (oldShip.invoice_id) {
-      try {
-        const pratikaResp = await fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            tenant_id: tenantId, // wms-pratika-send lê snake_case
-            tenantId,            // compat: mantém camelCase por segurança
-            action: 'update_tracking',
-            invoice_id: oldShip.invoice_id,
-            tracking_code: newTracking,
-            force: true,
-          }),
-        });
-        pratikaResult = await pratikaResp.json().catch(() => ({}));
-        console.log('[shipping-reissue-label] Pratika ressync:', JSON.stringify(pratikaResult).substring(0, 200));
-      } catch (e: any) {
-        console.error('[shipping-reissue-label] Pratika ressync failed:', e?.message);
-        pratikaResult = { success: false, error: e?.message };
-      }
-    }
+    // ===== Pratika: NÃO reenviar =====
+    // A Pratika bloqueia troca de rastreio quando a NF já teve "saída real"
+    // registrada ("Nota com saida real gerada, e não pode ser alterada").
+    // Fluxo definido com o usuário: ele imprime a nova etiqueta e envia
+    // manualmente para a logística/Pratika. Retornamos marcador informativo.
+    const pratikaResult = {
+      skipped: true,
+      reason: 'manual_handoff',
+      message: 'Nova etiqueta deve ser impressa e enviada manualmente para a logística (Pratika não aceita troca de rastreio após saída real da NF).',
+    };
+
 
     // ===== Reenvio marketplace (ML) — defensivo =====
     let marketplaceResult: any = { skipped: true };
