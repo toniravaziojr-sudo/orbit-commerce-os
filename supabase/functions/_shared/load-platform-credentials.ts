@@ -169,11 +169,9 @@ export async function loadPlatformCredentials(): Promise<void> {
       }
 
       lastLoadAt = Date.now();
-      if (count > 0) {
-        console.log(
-          `[load-platform-credentials] Loaded ${count} credential(s) from DB into in-memory cache`,
-        );
-      }
+      console.log(
+        `[load-platform-credentials] v2 cache ready — ${count} credential(s) from DB (patched=${envGetPatched && originalEnvGet ? "yes" : "no"})`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[load-platform-credentials] Unexpected error:", msg);
