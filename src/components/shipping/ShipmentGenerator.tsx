@@ -120,6 +120,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
   const queryClient = useQueryClient();
   const createShipment = useCreateShipment();
   const dispatchShipment = useDispatchShipment();
+  const reissueShipment = useReissueShipment();
   
   const [activeTab, setActiveTab] = useState(initialSubTab || 'prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
