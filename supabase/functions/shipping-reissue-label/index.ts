@@ -13,8 +13,10 @@
  * - Gate por estado: só reemite se `delivery_status='canceled'` e não houver
  *   evento pós-despacho legítimo (posted/in_transit/out_for_delivery/delivered/
  *   returned).
- * - Após emitir com sucesso, ressincroniza Pratika via `update_tracking`
- *   (force=true) e enfileira reenvio ao marketplace quando aplicável.
+ * - Após emitir com sucesso, NÃO reenvia para o WMS Pratika: a Pratika bloqueia
+ *   troca de rastreio quando a NF já teve "saída real" registrada. O usuário
+ *   imprime a nova etiqueta e envia manualmente para a logística.
+ * - Enfileira reenvio ao marketplace quando aplicável (ML).
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
