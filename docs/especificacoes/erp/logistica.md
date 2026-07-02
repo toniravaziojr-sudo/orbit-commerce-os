@@ -720,8 +720,13 @@ O botão chama a edge `shipping-reissue-label`, que:
   novo, `metadata.reissued_to_shipment_id` no antigo (idempotência).
 - Invoca `shipping-create-shipment` internamente para efetivar a
   pré-postagem CWS e obter novo AP.
-- Ressincroniza WMS Pratika via `wms-pratika-send` (`update_tracking`,
-  `force=true`) com o novo `tracking_code`.
+- **NÃO reenvia para o WMS Pratika.** A Pratika rejeita troca de
+  rastreio quando a NF já teve "saída real" registrada (mensagem
+  "Nota com saida real gerada, e não pode ser alterada"). Fluxo
+  oficial: o usuário imprime a nova etiqueta pelo módulo de Logística
+  e envia manualmente para a operação logística/Pratika. A edge
+  devolve `pratika: { skipped: true, reason: 'manual_handoff' }` e o
+  toast do frontend orienta o usuário a imprimir e enviar manualmente.
 - Se o pedido é marketplace (`marketplace_source ∈ {mercado_livre}`),
   enfileira novo envio em `meli_invoice_send_queue`.
 - Registra `core_audit_log` com `action='shipment.reissue_label'`.
@@ -736,9 +741,9 @@ auditoria — nunca é excluído. A UI mostra "Reemitida no objeto #N ·
   a numeração monotônica (`mem://constraints/shipment-own-numero-and-no-manual-create`).
 - Reemitir objetos gateway (Frenet, ML full/flex) por esta edge — só
   transportadora Correios (`carrier='correios'`).
-- Deixar Pratika desatualizada após reemissão bem-sucedida — falha na
-  ressincronização deve ficar logada em `wms_pratika_logs` para
-  reconciliação manual.
+- Chamar `wms-pratika-send` (`update_tracking`) a partir desta edge:
+  a Pratika rejeita e polui os logs. O handoff é sempre manual.
+
 
 Memória anti-regressão: `mem://constraints/shipment-reissue-after-correios-cancel`.
 
