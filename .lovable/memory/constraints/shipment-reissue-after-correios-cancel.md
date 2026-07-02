@@ -1,6 +1,6 @@
 ---
 name: Reemissão de etiqueta após cancelamento pelos Correios
-description: Fluxo obrigatório quando os Correios cancelam a pré-postagem (evento "Etiqueta cancelada pelo sistema de captação" ou similares). Cria novo Objeto de Postagem com numero próprio, marca o antigo como canceled com referência cruzada, e ressincroniza Pratika + marketplace com o novo rastreio.
+description: Fluxo obrigatório quando os Correios cancelam a pré-postagem. Cria novo Objeto de Postagem com numero próprio, marca o antigo como canceled com referência cruzada. NÃO reenvia para o WMS Pratika (bloqueio "saída real") — usuário imprime e envia manualmente. Enfileira reenvio ao marketplace quando aplicável.
 type: constraint
 ---
 
@@ -70,17 +70,20 @@ Idempotência: se `metadata.reissued_to_shipment_id` já aponta para um
 novo objeto com `tracking_code` preenchido, a edge devolve o novo objeto
 com `already_reissued=true` (evita duplicidade em duplo clique).
 
-## Ressync obrigatório após emissão
+## Pós-emissão
 
-1. **Pratika**: `wms-pratika-send` com `action='update_tracking'`,
-   `force=true`, `invoice_id` e o novo `tracking_code`. Log gravado em
-   `wms_pratika_logs` com `operation='tracking'`.
+1. **Pratika — NÃO reenviar automaticamente.** A Pratika bloqueia troca
+   de rastreio quando a NF já teve "saída real" registrada (mensagem
+   "Nota com saida real gerada, e não pode ser alterada"). Fluxo oficial:
+   o usuário imprime a nova etiqueta pelo módulo de Logística e envia
+   manualmente para a operação logística/Pratika. A edge devolve
+   `pratika: { skipped: true, reason: 'manual_handoff' }` e o toast do
+   frontend instrui o usuário a imprimir e enviar manualmente.
 2. **Marketplace**: quando `orders.marketplace_source ∈ {mercado_livre,
    meli}`, enfileira novo envio em `meli_invoice_send_queue` com
-   `status='pending'` e `attempts=0`. Outros marketplaces (TikTok Shop)
-   serão adicionados quando houver fluxo espelhado.
-3. **Auditoria**: registra em `core_audit_log` (`action='shipment.reissue_label'`)
-   com IDs e códigos antigos e novos.
+   `status='pending'` e `attempts=0`.
+3. **Auditoria**: registra em `core_audit_log`
+   (`action='shipment.reissue_label'`) com IDs e códigos antigos e novos.
 
 ## O que NUNCA pode acontecer
 
@@ -92,11 +95,12 @@ com `already_reissued=true` (evita duplicidade em duplo clique).
 - Reemitir objetos gateway (Frenet, ML full/flex) por esta edge —
   ver constraint `gateway-vs-local-shipping-routing`. Objetos gateway
   seguem regra da transportadora dona.
-- Deixar o WMS Pratika desatualizado após reemissão — se a
-  ressincronização Pratika falhar, o `wms_pratika_logs` deve conter o
-  erro para reconciliação manual.
+- Chamar `wms-pratika-send` com `action='update_tracking'` a partir
+  desta edge. A tentativa é rejeitada pela Pratika e polui os logs;
+  o handoff é sempre manual.
 - Exibir mensagens técnicas ao usuário. Toda mensagem no botão/diálogo
   é em PT-BR de negócio.
+
 
 ## Arquivos
 
