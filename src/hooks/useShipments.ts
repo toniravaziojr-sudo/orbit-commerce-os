@@ -343,8 +343,11 @@ export function useDispatchShipment() {
 
 // Hook para reemitir etiqueta cancelada pelos Correios.
 // Cria novo Objeto de Postagem (novo numero) a partir do mesmo PV, marca o
-// antigo como cancelado com referência cruzada, e ressincroniza Pratika +
-// marketplace. Ver mem://constraints/shipment-reissue-after-correios-cancel.
+// antigo como cancelado com referência cruzada e enfileira reenvio ao
+// marketplace quando aplicável. A nova etiqueta NÃO é reenviada ao WMS
+// Pratika automaticamente — o usuário imprime e envia manualmente para a
+// logística (Pratika bloqueia troca de rastreio após saída real da NF).
+// Ver mem://constraints/shipment-reissue-after-correios-cancel.
 export function useReissueShipment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -372,10 +375,16 @@ export function useReissueShipment() {
       queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
       queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
-      toast.success(result.already_reissued
-        ? `Já reemitido no #${result.new_numero} (${result.new_tracking})`
-        : `Etiqueta reemitida: #${result.new_numero} · ${result.new_tracking}`);
+      if (result.already_reissued) {
+        toast.success(`Já reemitido no #${result.new_numero} (${result.new_tracking})`);
+      } else {
+        toast.success(
+          `Etiqueta reemitida: #${result.new_numero} · ${result.new_tracking}. Imprima a nova etiqueta e envie manualmente para a logística.`,
+          { duration: 8000 }
+        );
+      }
     },
+
     onError: (err) => showErrorToast(err, { module: 'logística', action: 'reemitir etiqueta' }),
   });
 }
