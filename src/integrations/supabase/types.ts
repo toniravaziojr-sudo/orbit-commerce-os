@@ -1380,6 +1380,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ads_creative_assets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ads_creative_assets_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -3227,6 +3234,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_product_commercial_payload_base_product_id_fkey"
+            columns: ["base_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ai_product_commercial_payload_main_pain_id_fkey"
             columns: ["main_pain_id"]
             isOneToOne: false
@@ -3238,6 +3252,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_commercial_payload_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -3317,6 +3338,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_product_pain_map_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ai_product_pain_map_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -3374,10 +3402,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_product_relations_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ai_product_relations_target_product_id_fkey"
             columns: ["target_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_relations_target_product_id_fkey"
+            columns: ["target_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -3677,6 +3719,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_snapshot_regen_queue_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -4689,6 +4738,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "buy_together_rules_suggested_product_id_fkey"
+            columns: ["suggested_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "buy_together_rules_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -4700,6 +4756,13 @@ export type Database = {
             columns: ["trigger_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_together_rules_trigger_product_id_fkey"
+            columns: ["trigger_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -4748,6 +4811,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -4865,6 +4935,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_categories"
             referencedColumns: ["id"]
           },
           {
@@ -5124,6 +5201,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "checkout_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "checkout_links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -5287,6 +5371,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_testimonial_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -6215,6 +6306,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "creative_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "creative_jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -6459,6 +6557,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -9323,6 +9428,13 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fiscal_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       fiscal_invoices: {
@@ -9793,6 +9905,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: true
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -11015,6 +11134,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_merchant_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -12658,6 +12784,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "media_calendar_items_blog_post_id_fkey"
+            columns: ["blog_post_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_blog_posts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "media_calendar_items_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
@@ -13131,6 +13264,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "media_video_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "media_video_jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -13408,6 +13548,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "meli_listings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "meli_listings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -13465,6 +13612,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meli_pam_product_fk"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -14320,6 +14474,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "meta_catalog_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "meta_catalog_items_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -14474,6 +14635,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_retired_ids_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -15536,6 +15704,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -17162,6 +17337,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "product_badge_assignments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_badge_assignments_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -17251,10 +17433,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "product_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_categories_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -17356,10 +17552,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "product_components_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_components_parent_product_id_fkey"
             columns: ["parent_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_components_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -17464,6 +17674,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_images_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -17516,6 +17733,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_pain_points_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -17590,6 +17814,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reference_assets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -17669,6 +17900,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -17857,6 +18095,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -18197,6 +18442,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
           {
@@ -18719,10 +18971,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "related_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "related_products_related_product_id_fkey"
             columns: ["related_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "related_products_related_product_id_fkey"
+            columns: ["related_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
             referencedColumns: ["id"]
           },
         ]
@@ -19915,6 +20181,20 @@ export type Database = {
             columns: ["page_id"]
             isOneToOne: false
             referencedRelation: "store_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_page_versions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_landing_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_page_versions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_storefront_pages"
             referencedColumns: ["id"]
           },
           {
@@ -24297,6 +24577,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tiktok_shop_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_seo_coverage_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tiktok_shop_products_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -25808,6 +26095,276 @@ export type Database = {
           },
         ]
       }
+      v_seo_coverage_blog_posts: {
+        Row: {
+          description_len: number | null
+          has_description: boolean | null
+          has_title: boolean | null
+          id: string | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string | null
+          tenant_id: string | null
+          title_len: number | null
+        }
+        Insert: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Update: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_seo_coverage_categories: {
+        Row: {
+          description_len: number | null
+          has_description: boolean | null
+          has_title: boolean | null
+          id: string | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string | null
+          tenant_id: string | null
+          title_len: number | null
+        }
+        Insert: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Update: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_seo_coverage_landing_pages: {
+        Row: {
+          description_len: number | null
+          effective_description: string | null
+          effective_title: string | null
+          has_description: boolean | null
+          has_title: boolean | null
+          id: string | null
+          no_index: boolean | null
+          slug: string | null
+          tenant_id: string | null
+          title_len: number | null
+        }
+        Insert: {
+          description_len?: never
+          effective_description?: never
+          effective_title?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          no_index?: never
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Update: {
+          description_len?: never
+          effective_description?: never
+          effective_title?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          no_index?: never
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_seo_coverage_products: {
+        Row: {
+          description_len: number | null
+          has_description: boolean | null
+          has_title: boolean | null
+          id: string | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string | null
+          tenant_id: string | null
+          title_len: number | null
+        }
+        Insert: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Update: {
+          description_len?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_seo_coverage_storefront_pages: {
+        Row: {
+          description_len: number | null
+          effective_description: string | null
+          effective_title: string | null
+          has_canonical: boolean | null
+          has_description: boolean | null
+          has_title: boolean | null
+          id: string | null
+          slug: string | null
+          tenant_id: string | null
+          title_len: number | null
+          type: string | null
+        }
+        Insert: {
+          description_len?: never
+          effective_description?: never
+          effective_title?: never
+          has_canonical?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+          type?: string | null
+        }
+        Update: {
+          description_len?: never
+          effective_description?: never
+          effective_title?: never
+          has_canonical?: never
+          has_description?: never
+          has_title?: never
+          id?: string | null
+          slug?: string | null
+          tenant_id?: string | null
+          title_len?: never
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_seo_store_foundation: {
+        Row: {
+          has_active_ssl: boolean | null
+          has_default_seo_description: boolean | null
+          has_default_seo_title: boolean | null
+          has_favicon: boolean | null
+          has_logo: boolean | null
+          has_primary_verified_domain: boolean | null
+          store_published: boolean | null
+          tenant_id: string | null
+        }
+        Insert: {
+          has_active_ssl?: never
+          has_default_seo_description?: never
+          has_default_seo_title?: never
+          has_favicon?: never
+          has_logo?: never
+          has_primary_verified_domain?: never
+          store_published?: boolean | null
+          tenant_id?: string | null
+        }
+        Update: {
+          has_active_ssl?: never
+          has_default_seo_description?: never
+          has_default_seo_title?: never
+          has_favicon?: never
+          has_logo?: never
+          has_primary_verified_domain?: never
+          store_published?: boolean | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_inbound_orphans_v: {
         Row: {
           age_seconds: number | null
@@ -26022,6 +26579,7 @@ export type Database = {
         Returns: Json
       }
       belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
+      calc_seo_health: { Args: { p_tenant_id: string }; Returns: Json }
       calculate_youtube_upload_credits: {
         Args: {
           p_file_size_bytes: number
