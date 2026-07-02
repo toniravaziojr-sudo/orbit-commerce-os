@@ -169,9 +169,13 @@ export async function loadPlatformCredentials(): Promise<void> {
       }
 
       lastLoadAt = Date.now();
-      console.log(
-        `[load-platform-credentials] v2 cache ready — ${count} credential(s) from DB (patched=${envGetPatched && originalEnvGet ? "yes" : "no"})`,
-      );
+      // Log silencioso — só emite quando houver mudança relevante.
+      if (count > 0 && !(globalThis as { __plat_cred_logged__?: boolean }).__plat_cred_logged__) {
+        console.log(
+          `[load-platform-credentials] v2 cache ready — ${count} credential(s) (patched=${envGetPatched && originalEnvGet ? "yes" : "no"})`,
+        );
+        (globalThis as { __plat_cred_logged__?: boolean }).__plat_cred_logged__ = true;
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[load-platform-credentials] Unexpected error:", msg);
