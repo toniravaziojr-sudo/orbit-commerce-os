@@ -132,12 +132,28 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 - Landing pages existentes **preservadas** (zero backfill; contagem oficial na entrada: 0).
 - Snippet do Worker documentado em `seo.md §6` — aplicação manual no Cloudflare.
 
-**Backlog (próximas ondas):**
-- Onda 2: Central de SEO na UI (nota geral, alertas, toggle "SEO orgânico" nas LPs, correção rápida via IA).
-- Onda 3: Google Search Console (submissão de sitemap, URL Inspection, cron de reindexação).
-- Onda 4: IA aplicada (sugestões e revisão em lote de meta title/description).
+**Onda 2.A (Fundação de dados) — entregue em 2026-07-02 com hardening:**
+- 6 views `v_seo_*` (produtos, categorias, páginas, blog, foundation, duplicatas) com `security_invoker = true` e cláusula `WHERE public.user_has_tenant_access(tenant_id)` embutida.
+- Função `public.calc_seo_health(p_tenant_id)` — SECURITY INVOKER, com guarda de acesso ao tenant; `EXECUTE` revogado de `anon`.
+- Privilégios das views: `SELECT` apenas para `authenticated` e `service_role`; `anon` e `PUBLIC` revogados. Validação negativa via PostgREST confirmou 401/42501 para `anon`.
+- Corrigido `v_seo_store_foundation` para usar `verified_at IS NOT NULL`.
+- Doc oficial: `docs/especificacoes/marketing/central-seo.md` §"Modelo de segurança hardening 2026-07-02".
 
-**Regra:** Não iniciar Onda 2+ sem pedido explícito do operador.
+**Onda 2.B (UI read-only) — plano fechado, execução PAUSADA aguardando decisão do operador:**
+- Plano define: aba "SEO" em Marketing consumindo somente `calc_seo_health` + as 6 views (sem IA, sem GSC, sem banco novo, sem cron, sem cache persistente, sem mudança no storefront). Drill-down limitado a 20 itens por entidade sob demanda.
+- **Impasse estrutural detectado:** `src/pages/Marketing.tsx` existe mas não está montado no router. Hoje `/marketing` redireciona para `/integrations?tab=social`. Três opções apresentadas ao operador:
+  - **A)** Passar `/marketing` a apontar para `Marketing.tsx` e adicionar aba SEO lá (mudança real de UX — precisa aprovação).
+  - **B)** Manter redirect e adicionar aba SEO em `/integrations` (mudança real de UX — precisa aprovação).
+  - **C)** Criar rota isolada `/marketing/seo` apontando direto para `MarketingSeoPanel` (funciona, mas foge da premissa "aba dentro de Marketing").
+- **Nada foi codificado.** Aguardando o operador escolher A, B ou C antes de retomar.
+
+**Backlog seguinte (após 2.B validada):**
+- Onda 2.C: sugestões IA via motor de créditos, aprovação manual (sem apply automático).
+- Onda 2.D: integração Google Search Console (sitemap submission, URL Inspection, cron de reindexação).
+- Onda 2.E: aplicar sugestões IA em lote (com preview e rollback).
+- Onda 2.F: ajustes server-side no Edge/Worker (meta robots, sitemap dinâmico refinado).
+
+**Regra:** Não iniciar 2.B nem sub-ondas seguintes sem GO explícito do operador.
 
 
 
