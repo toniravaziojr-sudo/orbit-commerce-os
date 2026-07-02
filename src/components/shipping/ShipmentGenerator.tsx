@@ -335,7 +335,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
       const { data, error } = await supabase
         .from('shipments')
         .select<string, any>(`
-          id, numero, order_id, source_pedido_venda_id, tracking_code, carrier, service_name, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          id, numero, order_id, source_pedido_venda_id, tracking_code, carrier, service_name, delivery_status, action_reason, requires_action, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
