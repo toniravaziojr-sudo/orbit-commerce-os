@@ -341,6 +341,45 @@ export function useDispatchShipment() {
   });
 }
 
+// Hook para reemitir etiqueta cancelada pelos Correios.
+// Cria novo Objeto de Postagem (novo numero) a partir do mesmo PV, marca o
+// antigo como cancelado com referência cruzada, e ressincroniza Pratika +
+// marketplace. Ver mem://constraints/shipment-reissue-after-correios-cancel.
+export function useReissueShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { shipment_id: string; reason?: string }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipping-reissue-label', {
+        body: data,
+      });
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Falha ao reemitir etiqueta');
+      return result as {
+        success: true;
+        old_shipment_id: string;
+        old_numero: number;
+        old_tracking: string;
+        new_shipment_id: string;
+        new_numero: number;
+        new_tracking: string;
+        label_url: string | null;
+        already_reissued?: boolean;
+      };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
+      toast.success(result.already_reissued
+        ? `Já reemitido no #${result.new_numero} (${result.new_tracking})`
+        : `Etiqueta reemitida: #${result.new_numero} · ${result.new_tracking}`);
+    },
+    onError: (err) => showErrorToast(err, { module: 'logística', action: 'reemitir etiqueta' }),
+  });
+}
+
 // Hook para obter etiqueta
 export function usePrintLabel() {
   return useMutation({
