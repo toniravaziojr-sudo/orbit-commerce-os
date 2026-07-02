@@ -1,6 +1,6 @@
 ---
 name: Reemissão de etiqueta após cancelamento pelos Correios
-description: Fluxo obrigatório quando os Correios cancelam a pré-postagem (evento "Etiqueta cancelada pelo sistema de captação" ou similares). Cria novo Objeto de Postagem com numero próprio, marca o antigo como canceled com referência cruzada, e ressincroniza Pratika + marketplace com o novo rastreio.
+description: Fluxo obrigatório quando os Correios cancelam a pré-postagem. Cria novo Objeto de Postagem com numero próprio, marca o antigo como canceled com referência cruzada. NÃO reenvia para o WMS Pratika (bloqueio "saída real") — usuário imprime e envia manualmente. Enfileira reenvio ao marketplace quando aplicável.
 type: constraint
 ---
 
