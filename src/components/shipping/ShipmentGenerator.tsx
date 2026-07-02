@@ -787,11 +787,21 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
   const readyCount = readyOrders?.length || 0;
   const issuedCount = issuedShipments?.length || 0;
   // Split: sem tracking_code = pendência de emissão; com tracking = problema pós-despacho.
+  // Regra de higiene: objetos com delivery_status='canceled' só entram como problema
+  // quando o motivo é cancelamento real dos Correios (correios_prepost_canceled) —
+  // que exige reemissão. Cancelamentos derivados de NF cancelada / PV excluído /
+  // regressão de pedido (invoice_cancelled, pv_deleted, cancelled, expired, etc.)
+  // NÃO são pendência logística: o fluxo fiscal/pedido já se resolveu e o objeto
+  // permanece apenas para auditoria.
   const { pendingIssuance, deliveryProblems } = useMemo(() => {
     const list = failedAndProblemShipments || [];
     const pending: typeof list = [];
     const problems: typeof list = [];
     for (const s of list) {
+      if (s.delivery_status === 'canceled') {
+        const reason = (s as any).action_reason as string | null | undefined;
+        if (reason !== 'correios_prepost_canceled') continue; // resíduo, esconde
+      }
       if (s.tracking_code && String(s.tracking_code).trim().length > 0) problems.push(s);
       else pending.push(s);
     }
