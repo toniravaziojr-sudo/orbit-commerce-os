@@ -338,7 +338,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
-        .in('delivery_status', ['failed', 'returned', 'unknown'] as any)
+        .in('delivery_status', ['failed', 'returned', 'unknown', 'canceled'] as any)
         .order('created_at', { ascending: false })
         .limit(150);
 
