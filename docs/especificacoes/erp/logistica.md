@@ -690,6 +690,62 @@ Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
 
 ---
 
+## Reemissão após cancelamento pelos Correios (2026-07-02)
+
+Quando o rastreio dos Correios registra que a pré-postagem foi cancelada
+("Etiqueta cancelada pelo sistema de captação", "objeto cancelado",
+"postagem cancelada" ou variantes), o sistema:
+
+1. **Detecta automaticamente** no `tracking-poll` — atualiza
+   `shipments.delivery_status='canceled'`, `requires_action=true` e
+   `action_reason='correios_prepost_canceled'`.
+2. **Move o objeto** para a aba **"Problemas de envio/entrega"** com
+   mensagem PT-BR: "Etiqueta cancelada pelos Correios. Reemita para
+   gerar um novo código de rastreio."
+3. **Oferece o botão "Reemitir etiqueta"** na linha do objeto —
+   habilitado apenas quando `delivery_status='canceled'`, transportadora
+   é Correios e ainda não há reemissão registrada em
+   `metadata.reissued_to_shipment_id`.
+
+O botão chama a edge `shipping-reissue-label`, que:
+
+- Bloqueia se o objeto tem evento pós-despacho real
+  (`posted/in_transit/out_for_delivery/delivered/returned`) — nesse caso
+  a única saída é abrir chamado nos Correios.
+- Cria **novo Objeto de Postagem** com numero próprio alocado pelo
+  trigger `trg_shipments_set_numero`, herdando `source_pedido_venda_id`,
+  `order_id`, `invoice_id`, `remessa_id`, `carrier`, `service_code/name`,
+  `nfe_key` e dimensões/peso do objeto antigo. `source='reissue'`.
+- Grava referência cruzada: `metadata.reissued_from_shipment_id` no
+  novo, `metadata.reissued_to_shipment_id` no antigo (idempotência).
+- Invoca `shipping-create-shipment` internamente para efetivar a
+  pré-postagem CWS e obter novo AP.
+- Ressincroniza WMS Pratika via `wms-pratika-send` (`update_tracking`,
+  `force=true`) com o novo `tracking_code`.
+- Se o pedido é marketplace (`marketplace_source ∈ {mercado_livre}`),
+  enfileira novo envio em `meli_invoice_send_queue`.
+- Registra `core_audit_log` com `action='shipment.reissue_label'`.
+
+O objeto antigo **permanece** com `delivery_status='canceled'` para
+auditoria — nunca é excluído. A UI mostra "Reemitida no objeto #N ·
+{novo_rastreio}" no card do antigo.
+
+**O que NUNCA pode acontecer:**
+
+- Atualizar o `tracking_code` do objeto antigo com o novo código — quebra
+  a numeração monotônica (`mem://constraints/shipment-own-numero-and-no-manual-create`).
+- Reemitir objetos gateway (Frenet, ML full/flex) por esta edge — só
+  transportadora Correios (`carrier='correios'`).
+- Deixar Pratika desatualizada após reemissão bem-sucedida — falha na
+  ressincronização deve ficar logada em `wms_pratika_logs` para
+  reconciliação manual.
+
+Memória anti-regressão: `mem://constraints/shipment-reissue-after-correios-cancel`.
+
+---
+
+
+
 ## Pendências
 
 - [ ] Integração Melhor Envio

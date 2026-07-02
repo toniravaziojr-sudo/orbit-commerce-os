@@ -177,6 +177,27 @@ Enquanto essa lista não zerar, o cutover live universal não acontece.
 
 
 
+### 5. Etiqueta Correios cancelada — Reemissão automatizada — 2026-07-02 — ENTREGUE
+
+**Sintoma (pedido #668, Fabricio Pires, tenant Respeite o Homem):** etiqueta `AP151002065BR` aparecia como "Despachado" na aba **Objetos emitidos**, mas o rastreio dos Correios registrou "Etiqueta cancelada pelo sistema de captação" — objeto nunca teria como circular fisicamente. Nenhuma sinalização na UI; Pratika já havia recebido o rastreio antigo.
+
+**Causa raiz (dupla):**
+1. **Parser de rastreio incompleto** em `tracking-poll`: o bloco CANCELED só reconhecia "postagem cancelada" e "objeto cancelado". A descrição "etiqueta cancelada pelo sistema de captação" caía no bloco genérico LABEL_CREATED (porque contém "etiqueta") e o `delivery_status` permanecia `label_created`.
+2. **Ausência de fluxo de reemissão pós-despacho.** O `handleRetryShipment` só reabria rascunhos em `failed`. Objetos cancelados pelos Correios ficavam órfãos, sem UI para gerar nova pré-postagem.
+
+**Correções aplicadas:**
+- `tracking-poll/mapCorreiosStatus`: bloco CANCELED ampliado para reconhecer "etiqueta cancelada", "prepostagem cancelada", "cancelada pelo sistema de captacao" e variantes.
+- `tracking-poll/processShipment`: quando `delivery_status` transita para `canceled`, seta `requires_action=true` e `action_reason='correios_prepost_canceled'`.
+- Nova edge `shipping-reissue-label`: cria novo Objeto de Postagem (numero próprio via trigger, mesmo PV/NF/Remessa), marca o antigo com `metadata.reissued_to_shipment_id`, invoca `shipping-create-shipment` internamente, ressincroniza Pratika (`update_tracking` + `force=true`) e enfileira reenvio a marketplace quando aplicável.
+- `useReissueShipment` (`useShipments.ts`) + botão "Reemitir etiqueta" na aba **Problemas de envio/entrega** (`ShipmentGenerator.tsx`).
+- Query da aba passa a incluir `delivery_status='canceled'` (antes só failed/returned/unknown).
+- Reclassificação retroativa (via update pontual): objeto #333 (pedido #668) migrado para `canceled + requires_action=true`.
+
+**Anti-regressão:** memória `mem://constraints/shipment-reissue-after-correios-cancel` e seção nova em `docs/especificacoes/erp/logistica.md`.
+
+**Pendente de validação pelo usuário:** clicar "Reemitir etiqueta" no #333 (pedido #668) e confirmar novo AP + impressão + Pratika ressincronizada.
+
+
 
 ---
 

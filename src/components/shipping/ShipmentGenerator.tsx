@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreateShipment, useDispatchShipment } from '@/hooks/useShipments';
+import { useCreateShipment, useDispatchShipment, useReissueShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
 
 import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
@@ -120,6 +120,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
   const queryClient = useQueryClient();
   const createShipment = useCreateShipment();
   const dispatchShipment = useDispatchShipment();
+  const reissueShipment = useReissueShipment();
   
   const [activeTab, setActiveTab] = useState(initialSubTab || 'prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
@@ -338,7 +339,7 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
           order:orders(order_number, customer_name, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
-        .in('delivery_status', ['failed', 'returned', 'unknown'] as any)
+        .in('delivery_status', ['failed', 'returned', 'unknown', 'canceled'] as any)
         .order('created_at', { ascending: false })
         .limit(150);
 
@@ -1352,6 +1353,15 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
                           ? `PV ${shipment.pv.numero}`
                           : '—';
                       const headerLabel = `#${shipment.numero} · ${refLabel}`;
+                      const meta = (shipment.metadata as any) || {};
+                      const isCanceled = shipment.delivery_status === 'canceled';
+                      const carrierLower = (shipment.carrier || '').toLowerCase();
+                      const canReissue = isCanceled
+                        && !meta.reissued_to_shipment_id
+                        && (carrierLower === 'correios' || carrierLower === 'correios-cws');
+                      const alreadyReissued = !!meta.reissued_to_shipment_id;
+                      const isReissuing = reissueShipment.isPending
+                        && (reissueShipment.variables as any)?.shipment_id === shipment.id;
                       return (
                         <div
                           key={shipment.id}
@@ -1371,20 +1381,60 @@ export function ShipmentGenerator({ initialSubTab }: { initialSubTab?: string } 
                                   Rastreio: <span className="font-mono">{shipment.tracking_code}</span>
                                 </p>
                               )}
-                              {(shipment.metadata as any)?.error_message && (
+                              {isCanceled && !alreadyReissued && (
                                 <p className="text-xs text-destructive mt-1">
-                                  {(shipment.metadata as any).error_message}
+                                  Etiqueta cancelada pelos Correios. Reemita para gerar um novo código de rastreio.
+                                </p>
+                              )}
+                              {alreadyReissued && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Reemitida no objeto #{meta.reissued_to_numero} · <span className="font-mono">{meta.reissued_to_tracking}</span>
+                                </p>
+                              )}
+                              {meta.error_message && (
+                                <p className="text-xs text-destructive mt-1">
+                                  {meta.error_message}
                                 </p>
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
-                            <Badge variant="outline" className="text-xs">
-                              {shipment.carrier}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDateTimeBR(new Date(shipment.created_at))}
-                            </span>
+                          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {shipment.carrier}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateTimeBR(new Date(shipment.created_at))}
+                              </span>
+                            </div>
+                            {canReissue && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                disabled={isReissuing}
+                                onClick={async () => {
+                                  try {
+                                    const res = await reissueShipment.mutateAsync({ shipment_id: shipment.id });
+                                    invalidateAll();
+                                    if (res?.new_shipment_id) {
+                                      window.open(
+                                        `/imprimir?source=etiqueta&id=${encodeURIComponent(res.new_shipment_id)}`,
+                                        '_blank',
+                                        'noopener,noreferrer'
+                                      );
+                                    }
+                                  } catch {
+                                    // toast já emitido pelo hook
+                                  }
+                                }}
+                              >
+                                {isReissuing ? (
+                                  <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Reemitindo…</>
+                                ) : (
+                                  <><RefreshCw className="h-3.5 w-3.5 mr-1" /> Reemitir etiqueta</>
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       );

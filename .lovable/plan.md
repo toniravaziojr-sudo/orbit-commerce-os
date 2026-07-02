@@ -1,68 +1,80 @@
-## 📋 Auditoria — Fluxo Mercado Livre end-to-end
+## Contexto
 
-### Estado atual (evidência real no banco)
+Quando os Correios cancelam a pré-postagem (evento "Etiqueta cancelada pelo sistema de captação" ou similares vindos do rastreio), hoje o sistema:
 
-**Pedido #677 (2000017192996616) — teste vivo:**
-- Entrou via webhook, cliente/itens criados, propagou para fiscal.
-- NF autorizada, XML enviado ao ML às 18:50, etiqueta baixada (`AD633638976BR`).
-- Ponte marketplace_shipments → orders aplicou: `status=dispatched`, `shipping_status=label_generated`, `tracking_code`, `shipped_at`.
-- Pratika combined recebeu NF + rastreio às 19:00 com sucesso (3 logs: nfe ✅, tracking ✅, combined ✅).
+- **Não detecta** o cancelamento — `delivery_status` permanece `label_created`, então o objeto continua parecendo "Despachado" na aba **Objetos emitidos**.
+- **Não oferece** reemissão fora de rascunho — o `handleRetryShipment` atual só cobre objetos em `failed` (falha pré-despacho).
+- **Não reenvia** a nova etiqueta à Pratika: o WMS ficaria com o código antigo (`AP151002065BR`).
 
-**Últimos 3 pedidos ML (#665, #670, #677):** todos com `dispatched` + `pratika_sent_at` + `invoice_sent_at` preenchidos. Zero pedido travado.
+## Correção arquitetural (revisão pós-doc)
 
-**Filas e crons ativos:**
-- `meli-token-refresh-30min` ✅
-- `meli-orders-reconcile-15m` ✅ (fallback de pedidos perdidos)
-- `external-shipping-sync-cron-30m` ✅ (drena `meli_invoice_send_queue` + re-sincroniza shipments não-terminais)
-- `wms-pratika-reconcile-every-30min` ✅ (agora enxerga `marketplace_shipments`)
-- `reconcile-orphan-pv-shipments-15m` ✅
+Docs consultados: `docs/especificacoes/erp/logistica.md` §"Numeração própria" + memórias `shipment-own-numero-and-no-manual-create` e `shipping-canonical-link-is-pv-not-order`. Consequência:
 
-### Pipeline confirmado
-```
-ML → webhook (orders_v2) → meli-sync-orders → orders + customer + itens
-                                              ↓ (trigger enqueue_fiscal_on_item_link)
-                                       fiscal_draft_queue
-                                              ↓ (ready_to_invoice + emissao_automatica)
-                                       fiscal-emit → NF autorizada
-                                              ↓ (trigger SQL)
-                                       meli_invoice_send_queue
-                                              ↓ (external-shipping-sync-cron 30m)
-                                       meli-send-invoice (XML autorizado ao ML)
-                                              ↓
-ML libera etiqueta → webhook (shipments) → meli-fetch-shipment
-                                              ↓
-                            marketplace_shipments + PDF no bucket
-                                              ↓ (ponte)
-                            orders.status=dispatched, tracking, shipped_at
-                                              ↓ (se Pratika ativa + tracking)
-                                       wms-pratika-send (send_combined)
-                                              ↓
-                            Pratika recebe NF + etiqueta juntas
-```
+- Reemissão **não pode atualizar** a linha atual do `shipments` com novo `tracking_code` — é proibido reaproveitar `numero`.
+- Reemissão **cria um novo Objeto de Postagem** (novo `shipments.numero`, alocado pelo trigger `trg_shipments_set_numero`) a partir do **mesmo PV**, e marca o objeto antigo como `canceled` com referência cruzada em `metadata.reissued_to_shipment_id`. Vínculos de Pedido/NF/PV/Remessa/Cliente vêm naturalmente por serem derivados do PV.
 
-### Análise de regressão em outros módulos
+## Entregas
 
-- **Fiscal:** trigger `enqueue_fiscal_on_item_link` inalterado; `fiscal-auto-create-drafts` continua com gatilho único `ready_to_invoice`. Sem regressão.
-- **Logística interna (Correios/Frenet):** `shipment-ingest` mantém vocabulário canônico próprio; `meli-fetch-shipment` espelha o mesmo mapa. Sem cruzamento.
-- **Clientes/Leads:** `meli-sync-orders` continua com identity resolution unificada (external_id → cpf → email real → phone). Sem regressão.
-- **Pedidos loja:** ponte só age quando `orders.status` está em `preDispatchOrderStatuses` — pedidos loja em `dispatched/delivered/cancelled` não são tocados.
-- **WMS Pratika para loja:** `wms-pratika-reconcile` agora consulta `marketplace_shipments` como fonte adicional de rastreio — não remove nem altera a checagem em `shipments` (loja). Sem regressão.
-- **Dashboards/relatórios:** consomem `orders` (não filtram por source) → pedidos ML já contam.
-- **Enum `shipping_status`:** adicionado `awaiting_label` (novo valor, não altera existentes). Constraint de `marketplace_shipments.status` ampliada, mantém retrocompat.
+### 1. Detecção automática do cancelamento pelos Correios
 
-### Pontos de atenção (não bloqueadores)
+- Ampliar o parser de eventos do rastreio (função de ingestão Correios) para reconhecer descrições com "cancelada pelo sistema de captação", "objeto cancelado", "prepostagem cancelada" (case/acento-insensitive) e atualizar:
+  - `shipments.delivery_status = 'canceled'`
+  - `requires_action = true`, `action_reason = 'correios_prepost_canceled'`
+- **Migração one-shot** (via tool insert, não migration): rodar o mesmo reconhecedor sobre `shipment_events` existentes para reclassificar retroativamente casos como o #668. Sem tocar em objetos com evento pós-despacho legítimo (posted/in_transit/delivered).
+- Bucket UI já classifica `canceled + tracking` como `delivery_problem` (`shipmentBuckets.ts`) — o objeto migra sozinho para a aba **"Problemas de envio/entrega"**.
 
-1. **#665 tem `orders.shipping_status='in_transit'` mas `ms.status='delivered'`** — próximo tick do cron 30m re-sincroniza e promove a `delivered`. Bridge está correta; foi só ordem de eventos. Não é bug estrutural.
-2. **`meli-fetch-shipment` não tem cron dedicado** — depende do webhook `shipments` do ML + do `external-shipping-sync-cron` que re-sincroniza shipments não-terminais. Cobertura já existe.
+### 2. UI — botão "Reemitir etiqueta"
 
-### Conclusão
+- Local: aba **"Problemas de envio/entrega"** do `ShipmentGenerator.tsx` (linha) e no `ShipmentDetailsCard`.
+- Condição de exibição: `delivery_status ∈ {canceled}` **e** existe PV vinculado **e** NF autorizada (quando aplicável) **e** `kind='local'` (Correios direto — objetos gateway/Frenet ficam fora, conforme constraint `gateway-vs-local-shipping-routing`).
+- Fluxo: `ReissueLabelDialog` mostra motivo, tracking antigo, dados do PV → confirma → chama edge `shipping-reissue-label` → mostra novo `AP...BR` e novo `#numero` → oferece "Imprimir etiqueta" (visualizador `/imprimir`) direto no modal.
+- Badge no card do objeto antigo: "Etiqueta cancelada pelos Correios — reemitida no objeto #N".
 
-**O próximo pedido pago no ML vai percorrer o fluxo completo automaticamente**, com 4 crons de reconciliação como rede de segurança. Nenhuma regressão introduzida em fluxos existentes (loja, fiscal interno, logística interna, Pratika para loja, PV, dashboards).
+Nada mais muda na UI. Nenhuma nova aba, nenhum novo módulo — só o botão contextual + badge.
 
-### Ação recomendada
+### 3. Nova edge `shipping-reissue-label`
 
-Nenhuma alteração necessária. Fluxo sólido e validado com pedido real (#677). Sugiro apenas monitorar o próximo pedido novo para confirmação visual pelo usuário na Pratika.
+Fluxo transacional, com trava por estado e reuso máximo do que já existe:
 
-📌 **STATUS DA ENTREGA:** Corrigido e validado (por pedido #677 vivo).
+1. **Gate de estado**: só permite reemitir se o objeto atual tem `delivery_status='canceled'` **e** não houver evento pós-despacho real (posted/in_transit/out_for_delivery/delivered/returned) — reaproveita a lógica da constraint `nf-cancel-blocked-by-shipment-state`. Mensagem PT-BR se bloqueado.
+2. **Trava de concorrência**: advisory lock por `source_pedido_venda_id` para impedir dupla reemissão.
+3. **Cria novo shipments** (INSERT sem `numero` — trigger aloca) copiando do antigo: `tenant_id`, `order_id`, `invoice_id`, `source_pedido_venda_id`, `remessa_id`, `carrier`, `service_code`, `service_name`, `nfe_key`, `metadata` (peso/dimensões), `delivery_status='draft'`, `source='reissue'`, `metadata.reissued_from_shipment_id = <antigo>`.
+4. **Reaproveita `shipping-create-shipment`** (extraindo a função `emitPrepostagem` para módulo compartilhado se necessário, ou invocando por chamada interna) para efetivar a pré-postagem CWS e obter novo `AP...BR` + `provider_shipment_id`.
+5. **Atualiza objeto antigo**: garante `delivery_status='canceled'`, `metadata.reissued_to_shipment_id = <novo>`, `requires_action=false`.
+6. **Ressincroniza Pratika**: enfileira `wms-pratika-send` com `action='update_tracking'` + `force=true` (caminho administrativo já existente), passando `invoice_id` e o novo `tracking_code`. Registra em `wms_pratika_logs` como `operation='tracking_reissue'`.
+7. **Marketplace (genérico e defensivo)**: se `orders.channel` for marketplace (ML/TikTok), enfileira reenvio do rastreio na fila apropriada (`meli_invoice_send_queue` para ML). Pedido #668 é loja/WhatsApp, mas mantemos genérico para não gerar dívida.
+8. **Auditoria**: registra em `core_audit_log` (ator, motivo, tracking antigo/novo, shipment antigo/novo).
+9. Retorna `{ success, old_tracking, new_tracking, new_shipment_id, label_url }` para a UI abrir impressão direta.
 
-✅ Sem atualização documental necessária, porque a auditoria confirmou que o comportamento em produção já bate com `docs/especificacoes/marketplaces/mercado-livre.md` e `docs/especificacoes/logistica/logistica-externa.md` atualizados na entrega anterior.
+### 4. Documentação (obrigatória — bloqueia fechamento)
+
+- Nova memória `mem://constraints/shipment-reissue-after-correios-cancel` — regras: novo shipments (numero novo), gate por estado, ressync Pratika + marketplace, reconhecedor no parser.
+- Atualiza `mem://features/external-apps/wms-pratika-integration` incluindo a operação `tracking_reissue`.
+- Atualiza `docs/especificacoes/erp/logistica.md` com seção "Reemissão após cancelamento pelos Correios".
+- Atualiza `.lovable/memory/index.md`.
+- Atualiza `docs/especificacoes/transversais/assuntos-em-andamento.md` fechando este incidente.
+
+### 5. Validação técnica (executada antes de fechar)
+
+- Rodar reconhecedor sobre `shipment_events` e conferir que o pedido #668 sai para "Problemas de envio/entrega" com o rótulo correto.
+- Reemitir a etiqueta do #668 pela UI, confirmar:
+  - Novo `shipments.numero` alocado, PV/NF/remessa herdados.
+  - Objeto antigo com `delivery_status='canceled'` e `reissued_to_shipment_id` preenchido.
+  - Log `tracking_reissue` em `wms_pratika_logs` com `status='success'`.
+  - Impressão da nova etiqueta via `/imprimir?source=etiqueta&id=<novo>` funciona.
+  - NF #450 intacta, remessa agrupadora não duplicou.
+
+## O que NÃO vai mudar (anti-regressão)
+
+- Fluxo `handleRetryShipment` para rascunhos em `failed` (pré-despacho) permanece — reemissão é **específica para pós-despacho cancelado pelos Correios**.
+- NF, PV, cliente, itens, remessa: nenhum registro recriado; o novo `shipments` herda por referência.
+- Objetos gateway (Frenet, ML full/flex): fora de escopo — seguem regra própria da transportadora.
+- Numeração de `shipments` continua monotônica; nada é reaproveitado.
+- `shipping-create-shipment` não muda contrato público — só extraímos função interna se necessário.
+
+## Perguntas em aberto para você decidir
+
+1. **Motivo do cancelamento no diálogo de reemissão**: campo obrigatório (livre) ou opcional? Sugiro **opcional** com placeholder "Cancelado pelos Correios — reemitindo" para não travar o operador.
+2. **Custo da etiqueta**: cada pré-postagem CWS pode gerar cobrança nova dos Correios. Sigo com "reemite sem prompt de custo" (o operador já sabe que reemitir gera nova etiqueta), ou você quer aviso explícito no diálogo?
+
+Se preferir não decidir agora, sigo com opcional + sem aviso de custo (padrão mais fluido para operação).
