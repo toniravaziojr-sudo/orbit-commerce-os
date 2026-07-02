@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
           payment_status: paymentStatus,
           payment_gateway: "mercadolivre",
           payment_gateway_id: paymentGatewayId,
-          payment_method: meliOrder?.payments?.[0]?.payment_type || null,
+          payment_method: mapMeliPaymentType(meliOrder?.payments?.[0]?.payment_type),
           subtotal,
           shipping_total: shippingCost,
           total: subtotal + shippingCost,
