@@ -6,7 +6,22 @@ type: constraint
 
 # Reemissão de etiqueta após cancelamento pelos Correios
 
+## Filtro obrigatório da aba "Problemas de envio/entrega"
+
+A aba lista objetos com `delivery_status IN ('failed','returned','unknown')`
+sem restrição, MAS para `delivery_status='canceled'` só entram os que têm
+`action_reason='correios_prepost_canceled'`. Cancelamentos com motivos
+`invoice_cancelled`, `pv_deleted`, `cancelled`, `expired`, `refunded`,
+`chargeback_*` etc. **não são pendência logística** — o fluxo já foi
+resolvido no módulo Fiscal ou de Pedidos. Não exibir esses objetos na
+aba evita alarme falso e uso indevido do botão "Reemitir etiqueta".
+
+Implementação: split em `ShipmentGenerator.tsx` no `useMemo` de
+`pendingIssuance`/`deliveryProblems`.
+
 ## Regra inegociável (2026-07-02)
+
+
 
 Quando os Correios cancelam a pré-postagem CWS (evento de rastreio
 "Etiqueta cancelada pelo sistema de captação", "objeto cancelado",

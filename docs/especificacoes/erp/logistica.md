@@ -742,7 +742,53 @@ auditoria — nunca é excluído. A UI mostra "Reemitida no objeto #N ·
 
 Memória anti-regressão: `mem://constraints/shipment-reissue-after-correios-cancel`.
 
+### Critério de inclusão na aba "Problemas de envio/entrega"
+
+A aba lista apenas objetos com pendência logística real. O split é:
+
+- `delivery_status IN ('failed','returned','unknown')` — sempre entram.
+- `delivery_status = 'canceled'` — entra **somente** quando
+  `action_reason = 'correios_prepost_canceled'` (cancelamento real dos
+  Correios exigindo reemissão).
+
+Cancelamentos com outros motivos **não aparecem** aqui, pois o fluxo
+que os originou já se resolveu em outro módulo:
+
+| `action_reason`         | Origem                                     | Onde é tratado                    |
+| ----------------------- | ------------------------------------------ | --------------------------------- |
+| `invoice_cancelled`     | NF autorizada e depois cancelada           | Fiscal — PV volta a "pronto p/ NF"|
+| `pv_deleted`            | PV excluído (cascata no trigger)           | Fiscal — Pedido de Venda          |
+| `cancelled` / `expired` | Regressão do pedido (pagamento/estorno)    | Pedidos                           |
+
+Esses objetos permanecem no banco para auditoria; apenas não geram
+alarme na Logística Interna.
+
+### Cancelamento total de um envio já com etiqueta emitida
+
+Quando o operador decide não enviar mais um pedido cuja NF já foi
+emitida e o objeto logístico já existe:
+
+1. **Cancelar a NF** na aba "Notas Fiscais". Isso dispara os gatilhos
+   que devolvem o PV ao estado "pronto p/ NF" e marcam o objeto com
+   `action_reason='invoice_cancelled'`.
+2. **Excluir o PV** na aba "Pedidos de Venda". O gatilho
+   `cascade_delete_shipments_on_pv_delete`:
+   - **Exclui** o objeto se ele era o único da remessa;
+   - **Marca como `canceled` com `action_reason='pv_deleted'`** se
+     houver outros objetos na mesma remessa (para não corromper vizinhos).
+3. Guarda de segurança: o gatilho **bloqueia** exclusão do PV se algum
+   objeto vinculado estiver em
+   `posted/in_transit/out_for_delivery/delivered/returned/failed`
+   (já despachado de verdade). Nesse caso o operador deve tratar como
+   ocorrência real de logística (chamado Correios, devolução, etc.).
+
+Após esse fluxo, o objeto residual não aparece mais na aba "Problemas
+de envio/entrega" — o critério de inclusão acima filtra
+`invoice_cancelled` e `pv_deleted`.
+
 ---
+
+
 
 
 
