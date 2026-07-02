@@ -53,26 +53,47 @@ let envGetPatched = false;
  */
 function patchEnvGetOnce(): void {
   if (envGetPatched) return;
+  envGetPatched = true; // marca antes para nunca retentar
+
   try {
+    const desc = Object.getOwnPropertyDescriptor(Deno.env, "get");
+    if (desc && desc.writable === false && !desc.configurable) {
+      console.warn(
+        "[load-platform-credentials] Deno.env.get is non-writable/non-configurable — using explicit getPlatformCredential() only",
+      );
+      // Ainda captura a referência original para o getPlatformCredential
+      try {
+        originalEnvGet = Deno.env.get.bind(Deno.env);
+      } catch (_) { /* noop */ }
+      return;
+    }
+
     // Captura referência original ligada ao objeto Deno.env
     const original = Deno.env.get.bind(Deno.env);
     originalEnvGet = original;
 
-    // Substitui o método. Chaves gerenciadas pelo banco têm precedência.
-    (Deno.env as { get: (key: string) => string | undefined }).get = (key: string) => {
-      const cached = credentialsCache.get(key);
-      if (cached !== undefined) return cached;
-      return original(key);
-    };
-
-    envGetPatched = true;
+    // Substitui o método via defineProperty (mais robusto que atribuição)
+    Object.defineProperty(Deno.env, "get", {
+      value: (key: string) => {
+        const cached = credentialsCache.get(key);
+        if (cached !== undefined) return cached;
+        return original(key);
+      },
+      writable: true,
+      configurable: true,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(
       `[load-platform-credentials] Could not patch Deno.env.get (${msg}). ` +
         `Callers must use getPlatformCredential() explicitly for fresh values.`,
     );
-    envGetPatched = true; // não tentar de novo
+    // Garante que originalEnvGet exista para o fallback do getPlatformCredential
+    if (!originalEnvGet) {
+      try {
+        originalEnvGet = Deno.env.get.bind(Deno.env);
+      } catch (_) { /* noop */ }
+    }
   }
 }
 
