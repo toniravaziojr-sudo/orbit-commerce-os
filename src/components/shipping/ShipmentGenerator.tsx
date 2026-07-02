@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreateShipment, useDispatchShipment } from '@/hooks/useShipments';
+import { useCreateShipment, useDispatchShipment, useReissueShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
 
 import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
