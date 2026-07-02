@@ -117,16 +117,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ===== Advisory lock por PV (evita dupla reemissão concorrente) =====
-    const lockKey = oldShip.source_pedido_venda_id || oldShip.id;
-    // hashtext é built-in e retorna int4 estável — bom para advisory lock.
-    const { error: lockErr } = await supabase.rpc('shipping_reissue_lock', { p_key: lockKey });
-    // Se o RPC não existir, seguimos — o lock é defesa em profundidade, não crítico.
-    if (lockErr && !String(lockErr.message || '').includes('does not exist')) {
-      console.warn('[shipping-reissue-label] advisory lock warn:', lockErr.message);
-    }
-
-    // ===== Sanity: se já existe reemissão anterior com sucesso, retorna o novo =====
+    // ===== Idempotência: se já reemitido com sucesso, retorna o novo objeto =====
+    // (Não usamos advisory lock — a checagem de metadata.reissued_to_shipment_id
+    //  cobre o cenário de duplo clique quando o primeiro pedido já concluiu.)
     const existingReissue = (oldShip.metadata as any)?.reissued_to_shipment_id;
     if (existingReissue) {
       const { data: existing } = await supabase
