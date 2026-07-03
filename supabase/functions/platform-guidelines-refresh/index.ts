@@ -208,6 +208,7 @@ Responda APENAS em JSON com este formato:
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  await loadPlatformCredentials();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const body = await req.json().catch(() => ({}));
   const mode: "seed" | "refresh" | "auto" = body?.mode || "auto";
