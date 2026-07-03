@@ -23,6 +23,7 @@
 // =============================================================
 
 import { getMetaConnectionForTenant } from "./meta-connection.ts";
+import { loadPlatformCredentials } from "./load-platform-credentials.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseLike = any;
