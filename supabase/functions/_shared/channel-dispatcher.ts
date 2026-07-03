@@ -23,6 +23,7 @@
 // =============================================================
 
 import { getMetaConnectionForTenant } from "./meta-connection.ts";
+import { loadPlatformCredentials } from "./load-platform-credentials.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseLike = any;
@@ -308,6 +309,7 @@ async function sendShopeeChat(input: DispatchInput): Promise<DispatchResult> {
     return { success: false, error: "shopee_token_expired" };
   }
 
+  await loadPlatformCredentials();
   const partnerId = Deno.env.get("SHOPEE_PARTNER_ID");
   const partnerKey = Deno.env.get("SHOPEE_PARTNER_KEY");
   const apiBase = Deno.env.get("SHOPEE_API_BASE") || "https://partner.shopeemobile.com";
@@ -400,6 +402,7 @@ async function sendTikTokShopMessage(input: DispatchInput): Promise<DispatchResu
   // dispatcher self-contained we surface a clear "pending_provider"
   // failure when the env keys for signing are not present, instead of
   // silently dropping the reply.
+  await loadPlatformCredentials();
   const appKey = Deno.env.get("TIKTOK_SHOP_APP_KEY");
   const appSecret = Deno.env.get("TIKTOK_SHOP_APP_SECRET");
   if (!appKey || !appSecret) {

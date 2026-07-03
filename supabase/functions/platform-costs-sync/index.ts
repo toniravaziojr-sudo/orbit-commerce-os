@@ -7,9 +7,11 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/import-helpers.ts";
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
 
 interface SyncResult {
   service_key: string;
@@ -41,7 +43,9 @@ const ADAPTERS: Record<string, () => Promise<Partial<SyncResult>>> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  await loadPlatformCredentials();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
 
   try {
     const { data: services, error } = await supabase

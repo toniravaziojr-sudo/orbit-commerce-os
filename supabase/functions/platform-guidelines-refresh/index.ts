@@ -18,6 +18,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,8 +28,10 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+// FIRECRAWL_API_KEY e LOVABLE_API_KEY são lidos dentro do handler (após
+// loadPlatformCredentials) para refletir mudanças feitas pelo painel sem
+// depender de redeploy.
+
 
 interface GuidelineRow {
   id: string;
@@ -113,6 +116,7 @@ const SEED: Array<Partial<GuidelineRow>> = [
 ];
 
 async function firecrawlScrape(url: string): Promise<string | null> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
   if (!FIRECRAWL_API_KEY) return null;
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
@@ -140,6 +144,7 @@ async function diffWithAI(current: GuidelineRow, freshMarkdown: string): Promise
   summary: string;
   proposed: Partial<GuidelineRow>;
 } | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
   // Trunca para custo controlado
   const md = freshMarkdown.slice(0, 12000);
@@ -203,6 +208,7 @@ Responda APENAS em JSON com este formato:
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  await loadPlatformCredentials();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const body = await req.json().catch(() => ({}));
   const mode: "seed" | "refresh" | "auto" = body?.mode || "auto";
