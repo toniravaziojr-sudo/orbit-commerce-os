@@ -402,6 +402,7 @@ async function sendTikTokShopMessage(input: DispatchInput): Promise<DispatchResu
   // dispatcher self-contained we surface a clear "pending_provider"
   // failure when the env keys for signing are not present, instead of
   // silently dropping the reply.
+  await loadPlatformCredentials();
   const appKey = Deno.env.get("TIKTOK_SHOP_APP_KEY");
   const appSecret = Deno.env.get("TIKTOK_SHOP_APP_SECRET");
   if (!appKey || !appSecret) {
