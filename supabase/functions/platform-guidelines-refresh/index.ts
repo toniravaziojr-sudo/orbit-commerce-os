@@ -116,6 +116,7 @@ const SEED: Array<Partial<GuidelineRow>> = [
 ];
 
 async function firecrawlScrape(url: string): Promise<string | null> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
   if (!FIRECRAWL_API_KEY) return null;
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
