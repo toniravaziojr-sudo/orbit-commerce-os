@@ -221,6 +221,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 
 **Loja Online:**
 - `/storefront` — Configurações da loja virtual
+- `/storefront/seo` — Central de SEO da Loja (read-only; ver `storefront/central-seo.md`)
 - `/storefront/builder` — Builder visual (fora do AppShell)
 - `/categories` — Categorias
 - `/menus` — Menus de navegação
