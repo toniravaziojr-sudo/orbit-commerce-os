@@ -50,6 +50,7 @@ import {
   UserCheck,
   Cpu,
   Handshake,
+  Search,
   UsersRound,
   Lock,
    Wrench,
