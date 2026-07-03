@@ -36,6 +36,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 6 | E-commerce | Clientes | `/customers` | ecommerce | — | — | — |
 | 6.1 | E-commerce | Link Checkout | `/checkout-links` | ecommerce | — | — | — |
 | 7 | Loja Online | Loja Virtual | `/storefront` | loja_online | — | — | — |
+| 7.1 | Loja Online | SEO da Loja | `/storefront/seo` | loja_online | — | — | Central read-only. Consome `calc_seo_health`. Ver `storefront/central-seo.md`. |
 | 8 | Loja Online | Categorias | `/categories` | loja_online | — | — | — |
 | 9 | Loja Online | Menus | `/menus` | loja_online | — | — | — |
 | 10 | Loja Online | Páginas da Loja | `/pages` | loja_online | — | — | — |
