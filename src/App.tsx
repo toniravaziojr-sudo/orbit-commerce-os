@@ -93,6 +93,7 @@ const Suppliers = lazy(() => import("@/pages/Suppliers"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Domains = lazy(() => import("@/pages/Domains"));
 const StorefrontSettings = lazy(() => import("@/pages/StorefrontSettings"));
+const StorefrontSeoCenter = lazy(() => import("@/pages/StorefrontSeoCenter"));
 const StorefrontBuilder = lazy(() => import("@/pages/StorefrontBuilder"));
 const PageBuilder = lazy(() => import("@/pages/PageBuilder"));
 const PageTemplates = lazy(() => import("@/pages/PageTemplates"));
@@ -506,6 +507,7 @@ const App = () => {
                   <Route path="/account/data" element={<AccountData />} />
                   <Route path="/account/billing" element={<AccountBilling />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
+                  <Route path="/storefront/seo" element={<StorefrontSeoCenter />} />
                   <Route path="/storefront/conversao" element={<Navigate to="/abandoned-checkouts" replace />} />
                   <Route path="/cart-checkout" element={<Navigate to="/abandoned-checkouts" replace />} />
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
