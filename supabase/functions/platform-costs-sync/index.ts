@@ -43,7 +43,9 @@ const ADAPTERS: Record<string, () => Promise<Partial<SyncResult>>> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  await loadPlatformCredentials();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
 
   try {
     const { data: services, error } = await supabase
