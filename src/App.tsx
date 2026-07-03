@@ -93,6 +93,7 @@ const Suppliers = lazy(() => import("@/pages/Suppliers"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Domains = lazy(() => import("@/pages/Domains"));
 const StorefrontSettings = lazy(() => import("@/pages/StorefrontSettings"));
+const StorefrontSeoCenter = lazy(() => import("@/pages/StorefrontSeoCenter"));
 const StorefrontBuilder = lazy(() => import("@/pages/StorefrontBuilder"));
 const PageBuilder = lazy(() => import("@/pages/PageBuilder"));
 const PageTemplates = lazy(() => import("@/pages/PageTemplates"));
