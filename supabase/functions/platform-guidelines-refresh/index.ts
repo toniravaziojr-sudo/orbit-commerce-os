@@ -144,6 +144,7 @@ async function diffWithAI(current: GuidelineRow, freshMarkdown: string): Promise
   summary: string;
   proposed: Partial<GuidelineRow>;
 } | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
   // Trunca para custo controlado
   const md = freshMarkdown.slice(0, 12000);
