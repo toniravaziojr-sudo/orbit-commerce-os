@@ -309,6 +309,7 @@ async function sendShopeeChat(input: DispatchInput): Promise<DispatchResult> {
     return { success: false, error: "shopee_token_expired" };
   }
 
+  await loadPlatformCredentials();
   const partnerId = Deno.env.get("SHOPEE_PARTNER_ID");
   const partnerKey = Deno.env.get("SHOPEE_PARTNER_KEY");
   const apiBase = Deno.env.get("SHOPEE_API_BASE") || "https://partner.shopeemobile.com";
