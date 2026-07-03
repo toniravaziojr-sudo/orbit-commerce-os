@@ -18,6 +18,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,8 +28,10 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+// FIRECRAWL_API_KEY e LOVABLE_API_KEY são lidos dentro do handler (após
+// loadPlatformCredentials) para refletir mudanças feitas pelo painel sem
+// depender de redeploy.
+
 
 interface GuidelineRow {
   id: string;
